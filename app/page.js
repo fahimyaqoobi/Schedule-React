@@ -1059,7 +1059,7 @@ export default function Home() {
                                 <div className="panel-header">
                                     <div>
                                         <h4>Today's Operational Dispatches</h4>
-                                        <span className="subtext text-xs text-slate-400">TorontoReference Date: May 28, 2026</span>
+                                        <span className="subtext text-xs text-slate-400">Toronto Reference Date: May 28, 2026</span>
                                     </div>
                                     <span className="badge">{todayBookings.length} Job{todayBookings.length === 1 ? '' : 's'}</span>
                                 </div>
@@ -1227,23 +1227,23 @@ export default function Home() {
                                             return (
                                                 <tr key={b.id}>
                                                     <td data-label="Client Details">
-                                                        <span className="client-name-cell block">{b.clientName}</span>
-                                                        <span className="text-[10px] text-slate-400 block mt-0.5">{b.phone}</span>
-                                                        {hasPendingEdit && (
-                                                            <span className="inline-block text-[9px] bg-amber-50 border border-amber-200 text-amber-700 font-bold px-1.5 py-0.5 rounded-full mt-1">Pending Admin Review</span>
-                                                        )}
-                                                    </td>
-                                                    <td data-label="Street Address">
-                                                        <div className="address-cell text-xs" title={formatAddress(b)}>{formatAddress(b)}</div>
-                                                    </td>
-                                                    <td data-label="Service Details">
-                                                        <span className="block font-bold text-slate-700 text-xs">{b.service}</span>
-                                                        <span className="price-text block">${parseFloat(b.price || 0).toFixed(2)}</span>
-                                                    </td>
-                                                    <td data-label="Schedule Window">
-                                                        <span className="block font-bold text-xs">{b.date}</span>
-                                                        <span className="time-text block text-[11px]">{formatTimeWindow(b.time, b.duration)}</span>
-                                                    </td>
+                                                         <div className="client-name-cell">{b.clientName}</div>
+                                                         <div className="text-[10px] text-slate-400 mt-0.5">{b.phone}</div>
+                                                         {hasPendingEdit && (
+                                                             <div className="inline-block text-[9px] bg-amber-50 border border-amber-200 text-amber-700 font-bold px-1.5 py-0.5 rounded-full mt-1">Pending Admin Review</div>
+                                                         )}
+                                                     </td>
+                                                     <td data-label="Street Address">
+                                                         <div className="address-cell text-xs" title={formatAddress(b)}>{formatAddress(b)}</div>
+                                                     </td>
+                                                     <td data-label="Service Details" className="service-cell">
+                                                         <div className="font-bold text-slate-700 text-xs">{b.service}</div>
+                                                         <div className="price-text">${parseFloat(b.price || 0).toFixed(2)}</div>
+                                                     </td>
+                                                     <td data-label="Schedule Window" className="datetime-cell">
+                                                         <div className="font-bold text-xs">{b.date}</div>
+                                                         <div className="time-text text-[11px]">{formatTimeWindow(b.time, b.duration)}</div>
+                                                     </td>
                                                     <td data-label="Assigned Crew">
                                                         <div className="team-pill">
                                                             <span className={`dot dot-${teamColor}`}></span>
@@ -1285,75 +1285,83 @@ export default function Home() {
                                 </div>
                             </div>
                             <div className="panel-body">
-                                <div className="calendar-grid-header grid grid-cols-7 text-center text-xs font-bold text-slate-400 mb-2">
-                                    <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
-                                </div>
-                                <div className="calendar-grid grid grid-cols-7 gap-1 border-t border-slate-100 pt-2">
-                                    {calendarDays.map((cell, idx) => {
-                                        if (!cell.day) return <div key={`empty-${idx}`} className="cal-day empty bg-slate-50 opacity-40 h-[70px] rounded-lg"></div>;
-                                        
-                                        const dayBookings = bookings.filter(b => b.date === cell.dateStr && b.status !== "Cancelled");
-                                        const isSelected = cell.dateStr === selectedCalDate;
-                                        const isToday = cell.dateStr === "2026-05-28";
-                                        
-                                        return (
-                                            <div key={cell.dateStr} onClick={() => setSelectedCalDate(cell.dateStr)} className={`cal-day p-2 h-[75px] border border-slate-100 rounded-lg flex flex-col justify-between cursor-pointer transition ${isSelected ? 'bg-sky-50 border-[#0268b3]' : 'bg-white hover:bg-slate-50'} ${isToday ? 'border-emerald-500 border-2 font-black' : ''}`}>
-                                                <span className={`text-xs ${isToday ? 'text-emerald-700 font-extrabold' : 'text-slate-700 font-bold'}`}>{cell.day}</span>
-                                                <div className="cal-events-dots flex gap-1 overflow-x-hidden flex-wrap max-h-[30px]">
-                                                    {dayBookings.slice(0, 3).map(b => (
-                                                        <span key={b.id} className={`event-dot w-2 h-2 rounded-full dot-${teams.find(t => t.name === b.team)?.color || "sparkle"}`} title={`${b.clientName} - ${b.service}`}></span>
-                                                    ))}
-                                                    {dayBookings.length > 3 && <span className="text-[9px] text-slate-400 font-bold">+{dayBookings.length - 3}</span>}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
+                                 <div className="calendar-grid-header">
+                                     <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+                                 </div>
+                                 <div className="calendar-grid-days border-t border-slate-100 pt-2">
+                                     {calendarDays.map((cell, idx) => {
+                                         if (!cell.day) return <div key={`empty-${idx}`} className="cal-day empty"></div>;
+                                         
+                                         const dayBookings = bookings.filter(b => b.date === cell.dateStr && b.status !== "Cancelled");
+                                         const isSelected = cell.dateStr === selectedCalDate;
+                                         const isToday = cell.dateStr === "2026-05-28";
+                                         
+                                         return (
+                                             <div 
+                                                 key={cell.dateStr} 
+                                                 onClick={() => setSelectedCalDate(cell.dateStr)} 
+                                                 className={`cal-day ${isSelected ? 'selected' : ''} ${isToday ? 'today' : ''}`}
+                                             >
+                                                 <span className="cal-day-num">{cell.day}</span>
+                                                 <div className="cal-events-dots">
+                                                     {dayBookings.slice(0, 3).map(b => {
+                                                         const teamColor = teams.find(t => t.name === b.team)?.color || "sparkle";
+                                                         return (
+                                                             <span 
+                                                                 key={b.id} 
+                                                                 className={`event-dot ${teamColor}`} 
+                                                                 title={`${b.clientName} - ${b.service}`}
+                                                             ></span>
+                                                         );
+                                                     })}
+                                                     {dayBookings.length > 3 && <span className="text-[9px] text-slate-400 font-bold">+{dayBookings.length - 3}</span>}
+                                                 </div>
+                                             </div>
+                                         );
+                                     })}
+                                 </div>
+                             </div>
                         </div>
 
                         {/* Calendar Agenda Pane */}
-                        <div className="agenda-card panel-card">
-                            <div className="panel-header">
-                                <div>
-                                    <h4 className="text-xs text-slate-400 font-bold uppercase tracking-widest">Day agenda list</h4>
-                                    <h3 className="font-extrabold text-slate-800 text-sm mt-1">{selectedCalDate}</h3>
-                                </div>
-                                <span className="badge">{agendaBookings.length} Job{agendaBookings.length === 1 ? '' : 's'}</span>
-                            </div>
-                            <div className="panel-body flex flex-col gap-3">
-                                {agendaBookings.length === 0 ? (
-                                    <div className="text-center p-8 text-slate-400 text-xs">No dispatches scheduled on this date.</div>
-                                ) : (
-                                    agendaBookings.map(b => (
-                                        <div key={b.id} className="today-item flex flex-col items-start gap-2 bg-slate-50 border border-slate-200 rounded-xl p-4">
-                                            <div className="flex justify-between items-center w-full">
-                                                <span className="today-time-badge px-2 py-1 bg-white font-bold border border-slate-200 text-slate-700 rounded text-[10px]">{b.time}</span>
-                                                <div className="team-pill">
-                                                    <span className={`dot dot-${teams.find(t => t.name === b.team)?.color || "sparkle"}`}></span>
-                                                    <span>{b.team}</span>
-                                                </div>
-                                            </div>
-                                            <div className="w-full">
-                                                <h5 className="font-bold text-slate-800 text-sm">{b.clientName}</h5>
-                                                <p className="text-xs text-slate-500 mt-1">{b.service} ({b.duration} hrs)</p>
-                                                <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1">
-                                                    {Icons.MapPin()}
-                                                    <span>{b.address1}</span>
-                                                </p>
-                                            </div>
-                                            <div className="flex gap-2 mt-2 w-full justify-between items-center border-t border-slate-100 pt-2">
-                                                <span className={`status-badge text-[9px] status-${b.status.toLowerCase()}`}>{b.status}</span>
-                                                <div className="actions-cell flex gap-2">
-                                                    <button onClick={() => { setSelectedBooking(b); setDetailsModalOpen(true); }} className="action-btn btn-view">{Icons.Eye()}</button>
-                                                    <button onClick={() => openEditBookingModal(b)} className="action-btn btn-edit">{Icons.Edit()}</button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
-                        </div>
+                         <div className="agenda-card">
+                             <div className="panel-header" style={{ padding: "20px 24px" }}>
+                                 <div>
+                                     <h4 className="text-xs text-slate-400 font-bold uppercase tracking-widest" style={{ fontSize: "10px", letterSpacing: "1px" }}>Day agenda list</h4>
+                                     <h3 className="font-extrabold text-slate-800 text-sm mt-1">{selectedCalDate}</h3>
+                                 </div>
+                                 <span className="badge">{agendaBookings.length} Job{agendaBookings.length === 1 ? '' : 's'}</span>
+                             </div>
+                             <div className="agenda-list">
+                                 {agendaBookings.length === 0 ? (
+                                     <div className="text-center p-8 text-slate-400 text-xs">No dispatches scheduled on this date.</div>
+                                 ) : (
+                                     agendaBookings.map(b => {
+                                         const teamColor = (teams.find(t => t.name === b.team)?.color || "sparkle").toLowerCase();
+                                         return (
+                                             <div key={b.id} className={`agenda-item ${teamColor}`}>
+                                                 <div className="agenda-item-header">
+                                                     <span className="agenda-item-title">{b.clientName}</span>
+                                                     <span className="agenda-item-time">{b.time}</span>
+                                                 </div>
+                                                 <div className="agenda-item-desc">{b.service} ({b.duration} hrs)</div>
+                                                 <div className="agenda-item-addr">
+                                                     {Icons.MapPin()}
+                                                     <span style={{ marginLeft: "4px" }}>{b.address1}</span>
+                                                 </div>
+                                                 <div className="flex justify-between items-center mt-2 border-t border-slate-100 pt-2">
+                                                     <span className={`status-badge status-${b.status.toLowerCase()}`}>{b.status}</span>
+                                                     <div className="actions-cell">
+                                                         <button onClick={() => { setSelectedBooking(b); setDetailsModalOpen(true); }} className="action-btn btn-view">{Icons.Eye()}</button>
+                                                         <button onClick={() => openEditBookingModal(b)} className="action-btn btn-edit">{Icons.Edit()}</button>
+                                                     </div>
+                                                 </div>
+                                             </div>
+                                         );
+                                     })
+                                 )}
+                             </div>
+                         </div>
                     </div>
                 )}
 
@@ -1365,31 +1373,44 @@ export default function Home() {
                                 <button onClick={() => { setTeamForm({ id: `team-${Date.now()}`, name: "", color: "sparkle", lead: "", size: 2, members: "", description: "" }); setTeamModalOpen(true); }} className="btn btn-primary font-bold">Add New Crew</button>
                             </div>
                         )}
-                        <div className="teams-grid grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="teams-grid">
                             {teams.map(t => {
                                 const teamJobs = bookings.filter(b => b.team === t.name && b.status !== "Cancelled");
                                 const completedCount = teamJobs.filter(b => b.status === "Completed").length;
+                                const colorClass = ["sparkle", "deluxe", "ecoclean"].includes((t.color || "").toLowerCase()) ? (t.color || "").toLowerCase() : "sparkle";
+                                const bgClass = `team-${colorClass}-bg`;
+                                const initials = t.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2) || "TM";
                                 return (
-                                    <div key={t.id} className="team-card panel-card p-6 flex flex-col justify-between relative overflow-hidden border border-slate-200 shadow-md rounded-2xl bg-white transition hover:shadow-lg">
-                                        <div className={`absolute top-0 left-0 right-0 h-2 bg-${t.color || "sparkle"}-bg`}>
-                                            <div className={`h-full w-full opacity-60 bg-${t.color || "sparkle"}`} style={{ height: "4px" }}></div>
-                                        </div>
-                                        <div className="mt-2">
-                                            <div className="flex justify-between items-center">
-                                                <h4 className="font-extrabold text-slate-800 text-base">{t.name}</h4>
-                                                <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold bg-slate-100 text-slate-600 border border-slate-200 uppercase tracking-widest`}>{t.color}</span>
+                                    <div key={t.id} className="team-card">
+                                        <div className="team-card-header">
+                                            <div className="team-card-title-group">
+                                                <div className={`team-avatar-square ${bgClass}`}>
+                                                    {initials}
+                                                </div>
+                                                <div className="team-card-info">
+                                                    <h4>{t.name}</h4>
+                                                    <span>{t.color.toUpperCase()} Crew</span>
+                                                </div>
                                             </div>
-                                            <p className="text-xs text-slate-400 mt-2 italic">"{t.description || "Operational Cleaning Crew"}"</p>
+                                        </div>
+                                        <div className="team-card-body">
+                                            <p className="text-xs text-slate-400 mb-4 italic">"{t.description || "Operational Cleaning Crew"}"</p>
                                             
-                                            <div className="border-t border-slate-100 my-4 pt-3 flex flex-col gap-2 text-xs">
-                                                <div><strong>Crew Lead:</strong> <span className="text-slate-600">{t.lead}</span></div>
-                                                <div><strong>Crews Size:</strong> <span className="text-slate-600">{t.size || 2} cleaners</span></div>
-                                                <div><strong>Members:</strong> <span className="text-slate-600 text-[11px] block mt-0.5 italic">{t.members}</span></div>
+                                            <div className="team-members-container">
+                                                <h5>Crew Specifications</h5>
+                                                <div className="flex flex-col gap-2 text-xs text-slate-600">
+                                                    <div><strong>Crew Lead:</strong> {t.lead}</div>
+                                                    <div><strong>Crew Size:</strong> {t.size || 2} cleaners</div>
+                                                    <div><strong>Members:</strong> <span className="italic text-[11px] block mt-0.5 text-slate-500">{t.members}</span></div>
+                                                </div>
                                             </div>
-                                        </div>
-                                        <div className="border-t border-slate-100 pt-3 mt-2 flex justify-between items-center text-xs font-bold text-slate-500">
-                                            <span>Active dispatches: <strong>{teamJobs.length}</strong></span>
-                                            <span>Completed: <strong>{completedCount}</strong></span>
+                                            
+                                            <div className="team-jobs-today-container mt-4 pt-3 border-t border-slate-100">
+                                                <div className="flex justify-between items-center text-xs font-bold text-slate-500">
+                                                    <span>Active jobs: <strong>{teamJobs.length}</strong></span>
+                                                    <span>Completed: <strong>{completedCount}</strong></span>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 );
@@ -1397,8 +1418,6 @@ export default function Home() {
                         </div>
                     </div>
                 )}
-
-                {/* TAB 5: ADMIN REVIEW MERGES INBOX */}
                 {activeTab === "edit-requests" && currentUser.role === "admin" && (
                     <div className="animate-fade flex flex-col gap-6">
                         {editRequests.filter(r => r.status === "Pending").length === 0 ? (
