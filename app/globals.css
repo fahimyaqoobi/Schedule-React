@@ -1121,7 +1121,7 @@ body {
     height: 100vh;
     background-color: rgba(15, 23, 42, 0.45);
     backdrop-filter: blur(4px);
-    z-index: 1000;
+    z-index: 10000;
     display: none;
     align-items: center;
     justify-content: center;
@@ -1844,11 +1844,34 @@ select option:disabled {
         box-sizing: border-box !important;
     }
 
+    .modal-backdrop {
+        padding: 0 !important;
+        background-color: rgba(15, 23, 42, 0.6) !important;
+        backdrop-filter: blur(6px) !important;
+        overflow-y: auto !important;
+    }
+    
+    .modal-backdrop.show {
+        display: flex !important;
+    }
+
     .modal-content {
-        width: 95% !important;
-        max-width: 95% !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        height: 100% !important;
+        max-height: 100vh !important;
+        margin: 0 !important;
+        border-radius: 0 !important;
+        border: none !important;
         box-sizing: border-box !important;
-        margin: 0 auto !important;
+        display: flex !important;
+        flex-direction: column !important;
+    }
+
+    .modal-body {
+        padding: 20px 16px !important;
+        flex-grow: 1 !important;
+        overflow-y: auto !important;
     }
 
     .comparison-grid {

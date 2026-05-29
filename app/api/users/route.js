@@ -20,16 +20,26 @@ async function authenticateRequest(request) {
     return userData;
 }
 
-// 1. READ: Admin-only pending user approvals loader
+// 1. READ: Admin-only pending user approvals loader OR registered approved team leaders
 export async function GET(request) {
     try {
         const user = await authenticateRequest(request);
         
         if (user.role !== "admin") {
-            return NextResponse.json({ error: "Forbidden: Only Administrators can review pending users." }, { status: 403 });
+            return NextResponse.json({ error: "Forbidden: Only Administrators can review users." }, { status: 403 });
         }
         
-        const snapshot = await adminDb.collection("users").where("status", "==", "pending_approval").get();
+        const { searchParams } = new URL(request.url);
+        const type = searchParams.get("type");
+        
+        let query = adminDb.collection("users");
+        if (type === "leaders") {
+            query = query.where("role", "==", "team-leader").where("status", "==", "approved");
+        } else {
+            query = query.where("status", "==", "pending_approval");
+        }
+        
+        const snapshot = await query.get();
         const list = [];
         snapshot.forEach(doc => {
             list.push(doc.data());
@@ -37,7 +47,7 @@ export async function GET(request) {
         
         return NextResponse.json(list, { status: 200 });
     } catch (err) {
-        console.error("GET Pending Users Error:", err);
+        console.error("GET Users Error:", err);
         return NextResponse.json({ error: err.message || "Unauthorized" }, { status: 401 });
     }
 }

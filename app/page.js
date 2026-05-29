@@ -69,6 +69,7 @@ export default function Home() {
     const [teams, setTeams] = useState([]);
     const [editRequests, setEditRequests] = useState([]);
     const [pendingUsers, setPendingUsers] = useState([]);
+    const [teamLeaders, setTeamLeaders] = useState([]);
 
     // Auth Forms state
     const [authMode, setAuthMode] = useState("login"); // "login" | "signup"
@@ -255,12 +256,17 @@ export default function Home() {
                 setEditRequests(data);
             }
 
-            // 4. Fetch pending user accounts (Admin Only)
+            // 4. Fetch pending user accounts & registered approved team leaders (Admin Only)
             if (user.role === "admin") {
                 const pendingRes = await fetch("/api/users", { headers });
                 if (pendingRes.ok) {
                     const data = await pendingRes.json();
                     setPendingUsers(data);
+                }
+                const leadersRes = await fetch("/api/users?type=leaders", { headers });
+                if (leadersRes.ok) {
+                    const data = await leadersRes.json();
+                    setTeamLeaders(data);
                 }
             }
         } catch (e) {
@@ -1732,13 +1738,13 @@ export default function Home() {
 
             {/* MODAL 1: VIEW DETAILS MODAL */}
             {detailsModalOpen && selectedBooking && (
-                <div className="fixed inset-0 bg-slate-900 bg-opacity-50 flex items-center justify-center z-[10000] p-4">
-                    <div className="bg-white rounded-2xl w-full max-w-[500px] shadow-2xl overflow-hidden animate-pop">
-                        <div className="bg-gradient-to-r from-[#0268b3] to-[#39a93e] px-6 py-4 text-white flex justify-between items-center">
-                            <h3 className="font-extrabold text-sm uppercase tracking-wider">Scheduled dispatch Details</h3>
-                            <button onClick={() => setDetailsModalOpen(false)} className="text-white hover:text-slate-200 text-sm font-bold">✕</button>
+                <div className="modal-backdrop show">
+                    <div className="modal-content animate-pop detail-modal-content" style={{ maxWidth: "500px" }}>
+                        <div className="modal-header" style={{ background: "linear-gradient(135deg, var(--accent-blue), var(--accent-green))", borderBottom: "none" }}>
+                            <h3 className="font-extrabold text-sm uppercase tracking-wider text-white" style={{ margin: 0 }}>Scheduled dispatch Details</h3>
+                            <button onClick={() => setDetailsModalOpen(false)} className="text-white hover:text-slate-200 text-sm font-bold bg-none border-none cursor-pointer">✕</button>
                         </div>
-                        <div className="p-6 flex flex-col gap-3.5 text-xs text-slate-700">
+                        <div className="modal-body flex flex-col gap-3.5 text-xs text-slate-700" style={{ overflowY: "auto", padding: "24px" }}>
                             <div><strong>Client Name:</strong> <span className="text-slate-900 font-bold">{selectedBooking.clientName}</span></div>
                             <div><strong>Phone Number:</strong> {selectedBooking.phone || "Not provided"}</div>
                             <div><strong>Email Address:</strong> {selectedBooking.email || "Not provided"}</div>
@@ -1769,14 +1775,14 @@ export default function Home() {
 
             {/* MODAL 2: SCHEDULING FORM MODAL */}
             {bookingModalOpen && (
-                <div className="fixed inset-0 bg-slate-900 bg-opacity-50 flex items-center justify-center z-[10000] p-4 overflow-y-auto">
-                    <div className="bg-white rounded-2xl w-full max-w-[600px] shadow-2xl overflow-hidden my-8 animate-pop">
-                        <div className="bg-[#0268b3] px-6 py-4 text-white flex justify-between items-center">
-                            <h3 className="font-extrabold text-sm uppercase tracking-wider">{bookingModalMode === "create" ? "Schedule New dispatch" : "Request Modification review"}</h3>
-                            <button onClick={() => setBookingModalOpen(false)} className="text-white hover:text-slate-200 text-sm font-bold">✕</button>
+                <div className="modal-backdrop show">
+                    <div className="modal-content animate-pop" style={{ maxWidth: "650px" }}>
+                        <div className="modal-header" style={{ background: "linear-gradient(135deg, var(--accent-blue), var(--accent-green))", borderBottom: "none" }}>
+                            <h3 className="font-extrabold text-sm uppercase tracking-wider text-white" style={{ margin: 0 }}>{bookingModalMode === "create" ? "Schedule New dispatch" : "Request Modification review"}</h3>
+                            <button onClick={() => setBookingModalOpen(false)} className="text-white hover:text-slate-200 text-sm font-bold bg-none border-none cursor-pointer">✕</button>
                         </div>
-                        <form onSubmit={handleBookingSubmit}>
-                            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                        <form onSubmit={handleBookingSubmit} style={{ display: "flex", flexDirection: "column", flexGrow: 1, overflowY: "auto" }}>
+                            <div className="modal-body grid grid-cols-1 md:grid-cols-2 gap-4 text-xs" style={{ padding: "24px" }}>
                                 <div className="form-group flex flex-col gap-1">
                                     <label className="font-bold text-slate-700">Client Name *</label>
                                     <input type="text" required value={bookingForm.clientName} onChange={e => setBookingForm(prev => ({ ...prev, clientName: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5" placeholder="Jane Jenkins" />
@@ -1789,7 +1795,7 @@ export default function Home() {
                                     <label className="font-bold text-slate-700">Email Address *</label>
                                     <input type="email" required value={bookingForm.email} onChange={e => setBookingForm(prev => ({ ...prev, email: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5" placeholder="jane@jenkins.com" />
                                 </div>
-
+                                
                                 {/* Ontario Google/OSM autocomplete input */}
                                 <div ref={autocompleteRef} className="form-group flex flex-col gap-1 md:col-span-2 relative">
                                     <label className="font-bold text-slate-700">Client Street Address (Ontario, Canada restricted) *</label>
@@ -1882,14 +1888,14 @@ export default function Home() {
 
             {/* MODAL 3: DISPATCH CREW MODAL */}
             {teamModalOpen && currentUser.role === "admin" && (
-                <div className="fixed inset-0 bg-slate-900 bg-opacity-50 flex items-center justify-center z-[10000] p-4">
-                    <div className="bg-white rounded-2xl w-full max-w-[500px] shadow-2xl overflow-hidden animate-pop">
-                        <div className="bg-[#0268b3] px-6 py-4 text-white flex justify-between items-center">
-                            <h3 className="font-extrabold text-sm uppercase tracking-wider">Dispatch New Cleaning Crew</h3>
-                            <button onClick={() => setTeamModalOpen(false)} className="text-white hover:text-slate-200 text-sm font-bold">✕</button>
+                <div className="modal-backdrop show">
+                    <div className="modal-content animate-pop" style={{ maxWidth: "500px" }}>
+                        <div className="modal-header" style={{ background: "linear-gradient(135deg, var(--accent-blue), var(--accent-green))", borderBottom: "none" }}>
+                            <h3 className="font-extrabold text-sm uppercase tracking-wider text-white" style={{ margin: 0 }}>Dispatch New Cleaning Crew</h3>
+                            <button onClick={() => setTeamModalOpen(false)} className="text-white hover:text-slate-200 text-sm font-bold bg-none border-none cursor-pointer">✕</button>
                         </div>
-                        <form onSubmit={handleTeamSubmit}>
-                            <div className="p-6 flex flex-col gap-4 text-xs">
+                        <form onSubmit={handleTeamSubmit} style={{ display: "flex", flexDirection: "column", flexGrow: 1, overflowY: "auto" }}>
+                            <div className="modal-body flex flex-col gap-4 text-xs" style={{ padding: "24px" }}>
                                 <div className="form-group flex flex-col gap-1">
                                     <label className="font-bold text-slate-700">Crews Name *</label>
                                     <input type="text" required value={teamForm.name} onChange={e => setTeamForm(prev => ({ ...prev, name: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5" placeholder="Team Sparkle" />
@@ -1904,7 +1910,26 @@ export default function Home() {
                                 </div>
                                 <div className="form-group flex flex-col gap-1">
                                     <label className="font-bold text-slate-700">Crew Leader *</label>
-                                    <input type="text" required value={teamForm.lead} onChange={e => setTeamForm(prev => ({ ...prev, lead: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5" placeholder="Emma Vance" />
+                                    <select 
+                                        required 
+                                        value={teamForm.lead} 
+                                        onChange={e => setTeamForm(prev => ({ ...prev, lead: e.target.value }))} 
+                                        className="border border-slate-200 rounded-lg p-2.5"
+                                    >
+                                        <option value="">-- Select Registered Leader --</option>
+                                        {teamForm.lead && !teamLeaders.some(l => l.name === teamForm.lead) && (
+                                            <option value={teamForm.lead}>{teamForm.lead} (Assigned Leader)</option>
+                                        )}
+                                        {teamLeaders.length === 0 ? (
+                                            <option value="" disabled>No registered team leaders found. Please have leaders register first.</option>
+                                        ) : (
+                                            teamLeaders.map(leader => (
+                                                <option key={leader.uid || leader.email} value={leader.name}>
+                                                    {leader.name} ({leader.email})
+                                                </option>
+                                            ))
+                                        )}
+                                    </select>
                                 </div>
                                 <div className="form-group flex flex-col gap-1">
                                     <label className="font-bold text-slate-700">Staff Count (Size)</label>
