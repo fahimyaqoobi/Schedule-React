@@ -1850,7 +1850,20 @@ export default function Home() {
                                 <div className="form-group flex flex-col gap-1 border-t border-slate-100 pt-3">
                                     <label className="font-bold text-slate-700">Arrival Time Slot *</label>
                                     <select value={bookingForm.time} onChange={e => setBookingForm(prev => ({ ...prev, time: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5">
-                                        {timeSlots.map(t => <option key={t} value={t}>{t}</option>)}
+                                        {timeSlots.map(t => {
+                                            const isBooked = checkScheduleCollisions(
+                                                bookingForm.date,
+                                                t,
+                                                bookingForm.duration,
+                                                bookingForm.team,
+                                                bookingForm.id
+                                            );
+                                            return (
+                                                <option key={t} value={t} disabled={isBooked} style={isBooked ? { color: "#94a3b8", textDecoration: "line-through" } : {}}>
+                                                    {isBooked ? `${t} (Booked / Collision)` : t}
+                                                </option>
+                                            );
+                                        })}
                                     </select>
                                 </div>
 
