@@ -848,7 +848,7 @@ export default function Home() {
         let pending = 0;
 
         bookings.forEach(b => {
-            if (b.status !== "Cancelled") {
+            if (b.status === "Completed") {
                 revenue += parseFloat(b.price || 0);
             }
             if (b.status === "Completed") completed++;
@@ -1880,9 +1880,9 @@ export default function Home() {
                                     )}
                                 </div>
 
-                                {bookingModalMode === "edit" && currentUser.role === "admin" && (
+                                {bookingModalMode === "edit" && (currentUser.role === "admin" || currentUser.role === "team-leader") && (
                                     <div className="form-group flex flex-col gap-1 md:col-span-2">
-                                        <label className="font-bold text-slate-700">Status *</label>
+                                        <label className="font-bold text-slate-700">Job Status</label>
                                         <select value={bookingForm.status} onChange={e => setBookingForm(prev => ({ ...prev, status: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5">
                                             <option value="Pending">Pending</option>
                                             <option value="Confirmed">Confirmed</option>
