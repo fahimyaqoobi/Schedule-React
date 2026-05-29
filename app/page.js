@@ -66,7 +66,7 @@ export default function Home() {
 
     // Core Data collections loaded from Serverless APIs
     const [bookings, setBookings] = useState([]);
-    const [teams, setTeams] = useState(INITIAL_TEAMS);
+    const [teams, setTeams] = useState([]);
     const [editRequests, setEditRequests] = useState([]);
     const [pendingUsers, setPendingUsers] = useState([]);
 
@@ -75,7 +75,7 @@ export default function Home() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [name, setName] = useState("");
-    const [signupTeam, setSignupTeam] = useState("Team Sparkle");
+    const [signupTeam, setSignupTeam] = useState("");
 
     // Address Autocomplete (Restricted to Ontario, Canada)
     const [addressQuery, setAddressQuery] = useState("");
@@ -111,7 +111,7 @@ export default function Home() {
         duration: 2,
         date: "2026-05-28",
         time: "09:00 AM",
-        team: "Team Sparkle",
+        team: teams[0]?.name || "",
         status: "Pending"
     });
     
@@ -243,6 +243,9 @@ export default function Home() {
             if (teamsRes.ok) {
                 const data = await teamsRes.json();
                 setTeams(data);
+                if (data.length > 0 && !signupTeam) {
+                    setSignupTeam(data[0].name);
+                }
             }
 
             // 3. Fetch edit requests scoped by role
@@ -544,7 +547,7 @@ export default function Home() {
             duration: 2,
             date: selectedCalDate,
             time: "09:00 AM",
-            team: currentUser ? (currentUser.role === "team-leader" ? currentUser.teamId : "Team Sparkle") : "Team Sparkle",
+            team: currentUser ? (currentUser.role === "team-leader" ? currentUser.teamId : (teams[0]?.name || "")) : (teams[0]?.name || ""),
             status: "Pending"
         });
         setAddressQuery("");
@@ -993,7 +996,7 @@ export default function Home() {
                             <div className="form-group flex flex-col gap-1">
                                 <label className="text-xs font-bold text-slate-700">Assigned crew/team</label>
                                 <select value={signupTeam} onChange={e => setSignupTeam(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:outline-none focus:border-[#0268b3]">
-                                    {teams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                                    {teams.length === 0 ? <option value="">No Crews Dispatched Yet</option> : teams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
                                 </select>
                             </div>
                             <button type="submit" className="btn btn-primary w-full h-[46px] rounded-lg text-white font-bold transition mt-2">Register Account</button>
@@ -1471,55 +1474,63 @@ export default function Home() {
                                 <button onClick={() => { setTeamForm({ id: `team-${Date.now()}`, name: "", color: "sparkle", lead: "", size: 2, members: "", description: "" }); setTeamModalOpen(true); }} className="btn btn-primary font-bold">Add New Crew</button>
                             </div>
                         )}
-                        <div className="teams-grid">
-                            {teams.map(t => {
-                                const teamJobs = bookings.filter(b => b.team === t.name && b.status !== "Cancelled");
-                                const completedCount = teamJobs.filter(b => b.status === "Completed").length;
-                                const colorClass = ["sparkle", "deluxe", "ecoclean"].includes((t.color || "").toLowerCase()) ? (t.color || "").toLowerCase() : "sparkle";
-                                const bgClass = `team-${colorClass}-bg`;
-                                const initials = t.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2) || "TM";
-                                return (
-                                    <div key={t.id} className="team-card">
-                                        <div className="team-card-header">
-                                            <div className="team-card-title-group">
-                                                <div className={`team-avatar-square ${bgClass}`}>
-                                                    {initials}
+                        {teams.length === 0 ? (
+                            <div className="empty-state p-12 text-center text-slate-400 bg-white border border-slate-200 rounded-2xl shadow-md">
+                                <svg viewBox="0 0 24 24" width="48" height="48" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-4 text-slate-300"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                                <h4 className="font-extrabold text-slate-700 text-sm mb-1">No cleaning crews dispatched</h4>
+                                <p className="text-xs text-slate-400 max-w-[280px] mx-auto">Dispatch operations are clean. Click Add New Crew above to configure a cleaning squad.</p>
+                            </div>
+                        ) : (
+                            <div className="teams-grid">
+                                {teams.map(t => {
+                                    const teamJobs = bookings.filter(b => b.team === t.name && b.status !== "Cancelled");
+                                    const completedCount = teamJobs.filter(b => b.status === "Completed").length;
+                                    const colorClass = ["sparkle", "deluxe", "ecoclean"].includes((t.color || "").toLowerCase()) ? (t.color || "").toLowerCase() : "sparkle";
+                                    const bgClass = `team-${colorClass}-bg`;
+                                    const initials = t.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2) || "TM";
+                                    return (
+                                        <div key={t.id} className="team-card">
+                                            <div className="team-card-header">
+                                                <div className="team-card-title-group">
+                                                    <div className={`team-avatar-square ${bgClass}`}>
+                                                        {initials}
+                                                    </div>
+                                                    <div className="team-card-info">
+                                                        <h4>{t.name}</h4>
+                                                        <span>{t.color.toUpperCase()} Crew</span>
+                                                    </div>
                                                 </div>
-                                                <div className="team-card-info">
-                                                    <h4>{t.name}</h4>
-                                                    <span>{t.color.toUpperCase()} Crew</span>
+                                                {currentUser.role === "admin" && (
+                                                    <div className="team-card-actions">
+                                                        <button onClick={() => { setTeamForm(t); setTeamModalOpen(true); }} className="action-btn btn-edit" title="Edit Crew">{Icons.Edit()}</button>
+                                                        <button onClick={() => handleDeleteTeam(t.id)} className="action-btn btn-delete" title="Delete Crew">{Icons.Trash()}</button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="team-card-body">
+                                                <p className="text-xs text-slate-400 mb-4 italic">"{t.description || "Operational Cleaning Crew"}"</p>
+                                                
+                                                <div className="team-members-container">
+                                                    <h5 style={{ fontSize: "12px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "8px", color: "var(--text-primary)" }}>Crew Specifications</h5>
+                                                    <div className="flex flex-col gap-2 text-xs text-slate-600">
+                                                        <div><strong>Crew Lead:</strong> {t.lead}</div>
+                                                        <div><strong>Crew Size:</strong> {t.size || 2} cleaners</div>
+                                                        <div><strong>Members:</strong> <span className="italic text-[11px] block mt-0.5 text-slate-500">{t.members}</span></div>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="team-jobs-today-container mt-4 pt-3 border-t border-slate-100">
+                                                    <div className="flex justify-between items-center text-xs font-bold text-slate-500">
+                                                        <span>Active jobs: <strong>{teamJobs.length}</strong></span>
+                                                        <span>Completed: <strong>{completedCount}</strong></span>
+                                                    </div>
                                                 </div>
                                             </div>
-                                            {currentUser.role === "admin" && (
-                                                <div className="team-card-actions">
-                                                    <button onClick={() => { setTeamForm(t); setTeamModalOpen(true); }} className="action-btn btn-edit" title="Edit Crew">{Icons.Edit()}</button>
-                                                    <button onClick={() => handleDeleteTeam(t.id)} className="action-btn btn-delete" title="Delete Crew">{Icons.Trash()}</button>
-                                                </div>
-                                            )}
                                         </div>
-                                        <div className="team-card-body">
-                                            <p className="text-xs text-slate-400 mb-4 italic">"{t.description || "Operational Cleaning Crew"}"</p>
-                                            
-                                            <div className="team-members-container">
-                                                <h5>Crew Specifications</h5>
-                                                <div className="flex flex-col gap-2 text-xs text-slate-600">
-                                                    <div><strong>Crew Lead:</strong> {t.lead}</div>
-                                                    <div><strong>Crew Size:</strong> {t.size || 2} cleaners</div>
-                                                    <div><strong>Members:</strong> <span className="italic text-[11px] block mt-0.5 text-slate-500">{t.members}</span></div>
-                                                </div>
-                                            </div>
-                                            
-                                            <div className="team-jobs-today-container mt-4 pt-3 border-t border-slate-100">
-                                                <div className="flex justify-between items-center text-xs font-bold text-slate-500">
-                                                    <span>Active jobs: <strong>{teamJobs.length}</strong></span>
-                                                    <span>Completed: <strong>{completedCount}</strong></span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
                 )}
                 {activeTab === "edit-requests" && currentUser.role === "admin" && (
@@ -1587,49 +1598,48 @@ export default function Home() {
 
                 {activeTab === "settings" && (
                     <div className="animate-fade">
-                        <div className="settings-container grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="settings-container">
                             {/* Card 1: User Profile */}
-                            <div className="panel-card p-6 bg-white shadow rounded-2xl border border-slate-200">
-                                <div className="panel-header border-b border-slate-100 pb-3 mb-4">
+                            <div className="settings-card">
+                                <div className="panel-header border-b border-slate-100 pb-3">
                                     <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">User Profile Specifications</h4>
                                 </div>
-                                <form onSubmit={handleProfileUpdate} className="flex flex-col gap-4">
-                                    <div className="flex items-center gap-4 mb-2">
-                                        <div className="w-14 h-14 bg-gradient-to-r from-[#0268b3] to-[#39a93e] rounded-full flex items-center justify-center text-white font-extrabold text-lg shadow-md">
+                                <form onSubmit={handleProfileUpdate} className="settings-form">
+                                    <div className="settings-avatar-group">
+                                        <div className="settings-avatar">
                                             {currentUser.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)}
                                         </div>
                                         <div>
-                                            <h5 className="font-bold text-slate-800 text-base">{currentUser.name}</h5>
-                                            <span className="text-xs text-slate-400 font-bold uppercase tracking-widest">{currentUser.role === "admin" ? "System Administrator" : "Team Leader"}</span>
+                                            <h5 className="font-bold text-slate-800 text-base" style={{ fontSize: "16px", color: "var(--text-primary)" }}>{currentUser.name}</h5>
+                                            <span className="text-xs text-slate-400 font-bold uppercase tracking-widest" style={{ fontSize: "10px", color: "var(--text-secondary)", marginTop: "4px", display: "block" }}>{currentUser.role === "admin" ? "System Administrator" : "Team Leader"}</span>
                                         </div>
                                     </div>
-                                    <div className="form-group flex flex-col gap-1">
-                                        <label className="text-xs font-bold text-slate-700">Display Name</label>
+                                    <div className="form-group">
+                                        <label>Display Name</label>
                                         <input 
                                             type="text" 
                                             value={profileName} 
                                             onChange={e => setProfileName(e.target.value)} 
                                             required 
-                                            className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:outline-none focus:border-[#0268b3]" 
                                         />
                                     </div>
-                                    <div className="form-group flex flex-col gap-1">
-                                        <label className="text-xs font-bold text-slate-700">Email Address (Read-only)</label>
+                                    <div className="form-group">
+                                        <label>Email Address (Read-only)</label>
                                         <input 
                                             type="email" 
                                             value={currentUser.email} 
                                             disabled 
-                                            className="w-full border border-slate-200 rounded-lg p-3 text-sm bg-slate-50 text-slate-400 cursor-not-allowed focus:outline-none" 
+                                            style={{ backgroundColor: "#f8fafc", color: "var(--text-muted)", cursor: "not-allowed" }}
                                         />
                                     </div>
                                     {currentUser.role !== "admin" && (
-                                        <div className="form-group flex flex-col gap-1">
-                                            <label className="text-xs font-bold text-slate-700">Assigned Cleaning Crew</label>
+                                        <div className="form-group">
+                                            <label>Assigned Cleaning Crew</label>
                                             <input 
                                                 type="text" 
                                                 value={currentUser.teamId || "None"} 
                                                 disabled 
-                                                className="w-full border border-slate-200 rounded-lg p-3 text-sm bg-slate-50 text-slate-400 cursor-not-allowed focus:outline-none" 
+                                                style={{ backgroundColor: "#f8fafc", color: "var(--text-muted)", cursor: "not-allowed" }}
                                             />
                                         </div>
                                     )}
@@ -1640,42 +1650,39 @@ export default function Home() {
                             </div>
 
                             {/* Card 2: Security & Password Update */}
-                            <div className="panel-card p-6 bg-white shadow rounded-2xl border border-slate-200">
-                                <div className="panel-header border-b border-slate-100 pb-3 mb-4">
+                            <div className="settings-card">
+                                <div className="panel-header border-b border-slate-100 pb-3">
                                     <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">Security & Password Management</h4>
                                 </div>
-                                <form onSubmit={handlePasswordChange} className="flex flex-col gap-4">
-                                    <div className="form-group flex flex-col gap-1">
-                                        <label className="text-xs font-bold text-slate-700">Current Password</label>
+                                <form onSubmit={handlePasswordChange} className="settings-form">
+                                    <div className="form-group">
+                                        <label>Current Password</label>
                                         <input 
                                             type="password" 
                                             value={securityForm.currentPassword} 
                                             onChange={e => setSecurityForm(prev => ({ ...prev, currentPassword: e.target.value }))} 
                                             required 
                                             placeholder="••••••••" 
-                                            className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:outline-none focus:border-[#0268b3]" 
                                         />
                                     </div>
-                                    <div className="form-group flex flex-col gap-1">
-                                        <label className="text-xs font-bold text-slate-700">New Password</label>
+                                    <div className="form-group">
+                                        <label>New Password</label>
                                         <input 
                                             type="password" 
                                             value={securityForm.newPassword} 
                                             onChange={e => setSecurityForm(prev => ({ ...prev, newPassword: e.target.value }))} 
                                             required 
                                             placeholder="Min 6 characters" 
-                                            className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:outline-none focus:border-[#0268b3]" 
                                         />
                                     </div>
-                                    <div className="form-group flex flex-col gap-1">
-                                        <label className="text-xs font-bold text-slate-700">Confirm New Password</label>
+                                    <div className="form-group">
+                                        <label>Confirm New Password</label>
                                         <input 
                                             type="password" 
                                             value={securityForm.confirmPassword} 
                                             onChange={e => setSecurityForm(prev => ({ ...prev, confirmPassword: e.target.value }))} 
                                             required 
                                             placeholder="••••••••" 
-                                            className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:outline-none focus:border-[#0268b3]" 
                                         />
                                     </div>
                                     <button type="submit" disabled={securityLoading} className="btn btn-primary h-[44px] rounded-lg text-white font-bold transition mt-2" style={{ backgroundColor: "#dc2626", borderColor: "#dc2626" }}>
@@ -1847,7 +1854,7 @@ export default function Home() {
                                         <input type="text" disabled value={currentUser.teamId} className="border border-slate-200 rounded-lg p-2.5 bg-slate-50 text-slate-400" />
                                     ) : (
                                         <select value={bookingForm.team} onChange={e => setBookingForm(prev => ({ ...prev, team: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5">
-                                            {teams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                                            {teams.length === 0 ? <option value="">No crews available</option> : teams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
                                         </select>
                                     )}
                                 </div>
