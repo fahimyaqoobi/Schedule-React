@@ -78,3 +78,48 @@ export async function POST(request) {
         return NextResponse.json({ error: err.message || "Unauthorized" }, { status: 401 });
     }
 }
+
+// 3. UPDATE: Admin-only cleaning crew modification
+export async function PUT(request) {
+    try {
+        const user = await authenticateRequest(request);
+        
+        if (user.role !== "admin") {
+            return NextResponse.json({ error: "Forbidden: Only Administrators can modify cleaning crews." }, { status: 403 });
+        }
+        
+        const teamData = await request.json();
+        if (!teamData.id) {
+            return NextResponse.json({ error: "Missing crew ID." }, { status: 400 });
+        }
+        
+        await adminDb.collection("teams").doc(teamData.id).update(teamData);
+        return NextResponse.json({ message: "Crew updated successfully" }, { status: 200 });
+    } catch (err) {
+        console.error("PUT Team Error:", err);
+        return NextResponse.json({ error: err.message || "Unauthorized" }, { status: 401 });
+    }
+}
+
+// 4. DELETE: Admin-only cleaning crew removal
+export async function DELETE(request) {
+    try {
+        const user = await authenticateRequest(request);
+        
+        if (user.role !== "admin") {
+            return NextResponse.json({ error: "Forbidden: Only Administrators can delete cleaning crews." }, { status: 403 });
+        }
+        
+        const { searchParams } = new URL(request.url);
+        const teamId = searchParams.get("id");
+        if (!teamId) {
+            return NextResponse.json({ error: "Missing crew ID parameter." }, { status: 400 });
+        }
+        
+        await adminDb.collection("teams").doc(teamId).delete();
+        return NextResponse.json({ message: "Crew deleted successfully" }, { status: 200 });
+    } catch (err) {
+        console.error("DELETE Team Error:", err);
+        return NextResponse.json({ error: err.message || "Unauthorized" }, { status: 401 });
+    }
+}
