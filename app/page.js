@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { 
-    signInWithEmailAndPassword, 
-    signOut, 
+import {
+    signInWithEmailAndPassword,
+    signOut,
     onAuthStateChanged,
     updateProfile,
     updatePassword,
@@ -117,13 +117,13 @@ export default function Home() {
         serviceDescription: "",
         accessDescription: ""
     });
-    
+
     // Details and Editing modals
     const [detailsModalOpen, setDetailsModalOpen] = useState(false);
     const [selectedBooking, setSelectedBooking] = useState(null);
     const [bookingModalOpen, setBookingModalOpen] = useState(false);
     const [bookingModalMode, setBookingModalMode] = useState("create"); // "create" | "edit"
-    
+
     // Admin team crew creation modal
     const [teamModalOpen, setTeamModalOpen] = useState(false);
     const [teamForm, setTeamForm] = useState({ id: "", name: "", color: "sparkle", lead: "", size: 2, members: "", description: "" });
@@ -175,7 +175,7 @@ export default function Home() {
                     // Wait briefly in case it's a registration setting up in the background
                     let retries = 0;
                     let profile = null;
-                    
+
                     const fetchProfile = async () => {
                         const token = await firebaseUser.getIdToken();
                         const res = await fetch(`/api/bookings`, { headers: { "Authorization": `Bearer ${token}` } });
@@ -193,7 +193,7 @@ export default function Home() {
                     const token = await firebaseUser.getIdToken();
                     // Let's decode or read profile by hitting /api/bookings which verifies auth
                     const profileRes = await fetch("/api/bookings", { headers: { "Authorization": `Bearer ${token}` } });
-                    
+
                     if (profileRes.ok) {
                         // The user document should exist. Let's load user profile via API or fallback.
                         // We can load profile document details by querying Firestore users collection
@@ -233,14 +233,14 @@ export default function Home() {
     const syncDatabaseData = async (user) => {
         try {
             const headers = await getAuthHeaders();
-            
+
             // 1. Fetch scoped bookings
             const bookingsRes = await fetch("/api/bookings", { headers });
             if (bookingsRes.ok) {
                 const data = await bookingsRes.json();
                 setBookings(data);
             }
-            
+
             // 2. Fetch crews/teams
             const teamsRes = await fetch("/api/teams", { headers });
             if (teamsRes.ok) {
@@ -290,27 +290,27 @@ export default function Home() {
                 try {
                     // Let's read user document directly from serverless API /api/bookings?profile=true or standard fetches
                     const token = await firebaseUser.getIdToken();
-                    
+
                     // We will fetch users collection from API or read client side.
                     // Wait, let's write a small client side fetch using Modular SDK!
                     // In modular SDK:
                     const { doc, getDoc, getFirestore } = await import("firebase/firestore");
                     const clientDb = getFirestore();
-                    
+
                     let userDoc = await getDoc(doc(clientDb, "users", firebaseUser.uid));
                     let retries = 0;
-                    
+
                     // Polling in case of registrations
                     while (!userDoc.exists() && retries < 5) {
                         await new Promise(res => setTimeout(res, 500));
                         userDoc = await getDoc(doc(clientDb, "users", firebaseUser.uid));
                         retries++;
                     }
-                    
+
                     if (userDoc.exists()) {
                         const userData = userDoc.data();
                         setCurrentUser(userData);
-                        
+
                         if (userData.status === "approved") {
                             syncDatabaseData(userData);
                         }
@@ -382,7 +382,7 @@ export default function Home() {
             if (res.ok) {
                 const regData = await res.json();
                 alert(`Account Registered Successfully!\n\nYour operational cleaner profile is ${regData.user.status === "approved" ? "approved Admin" : "Pending Admin Approval"}.`);
-                
+
                 if (regData.user.status === "approved") {
                     setCurrentUser(regData.user);
                     syncDatabaseData(regData.user);
@@ -417,7 +417,7 @@ export default function Home() {
         const value = e.target.value;
         setAddressQuery(value);
         setBookingForm(prev => ({ ...prev, address1: value }));
-        
+
         if (value.trim().length < 4) {
             setAddressSuggestions([]);
             return;
@@ -444,10 +444,10 @@ export default function Home() {
         const houseNum = addr.house_number || "";
         const road = addr.road || addr.pedestrian || addr.suburb || "";
         const formattedStreet = `${houseNum} ${road}`.trim();
-        
+
         const postal = addr.postcode || "";
         const city = addr.city || addr.town || addr.village || addr.municipality || "";
-        
+
         setBookingForm(prev => ({
             ...prev,
             address1: formattedStreet || place.display_name.split(",")[0],
@@ -456,7 +456,7 @@ export default function Home() {
             postalCode: postal,
             country: "Canada"
         }));
-        
+
         setAddressQuery(formattedStreet || place.display_name.split(",")[0]);
         setAddressSuggestions([]);
         setShowSuggestions(false);
@@ -593,11 +593,11 @@ export default function Home() {
 
     const handleBookingSubmit = async (e) => {
         e.preventDefault();
-        
+
         // Ensure values are numbers
         const priceNum = parseFloat(bookingForm.price || 0);
         const durationNum = parseFloat(bookingForm.duration || 2);
-        
+
         // Validate collision
         const isOverlap = checkScheduleCollisions(
             bookingForm.date,
@@ -822,12 +822,12 @@ export default function Home() {
             const addr = `${b.address1 || ""} ${b.city || ""} ${b.postalCode || ""}`.toLowerCase();
             const phone = b.phone || "";
             const email = b.email || "";
-            
-            const matchSearch = client.includes(searchVal.toLowerCase()) || 
-                                addr.includes(searchVal.toLowerCase()) ||
-                                phone.includes(searchVal) ||
-                                email.toLowerCase().includes(searchVal.toLowerCase());
-            
+
+            const matchSearch = client.includes(searchVal.toLowerCase()) ||
+                addr.includes(searchVal.toLowerCase()) ||
+                phone.includes(searchVal) ||
+                email.toLowerCase().includes(searchVal.toLowerCase());
+
             const matchService = !filterService || (b.service || "").toLowerCase().includes(filterService.toLowerCase());
             const matchTeam = !filterTeam || b.team === filterTeam;
             const matchStatus = !filterStatus || b.status === filterStatus;
@@ -974,8 +974,8 @@ export default function Home() {
                     <div className="auth-hero-dot"></div>
                     <img src="/logo.png" alt="SmartTouch Clean" className="auth-hero-logo" />
                     <div className="auth-hero-badge">Operational Portal v1.0</div>
-                    <h1 className="auth-hero-title">Cleaner Operations,<br/>Smarter Results</h1>
-                    <p className="auth-hero-sub">The all-in-one scheduling and dispatch platform built for SmartTouch Clean crews across Ontario.</p>
+                    <h1 className="auth-hero-title">Cleaner Operations,<br />Smarter Results</h1>
+                    <p className="auth-hero-sub">The all-in-one scheduling and dispatch platform built for SmarTouch Clean crews across Ontario.</p>
                     <div className="auth-quotes">
                         <div className="auth-quote-card">
                             <p className="auth-quote-text">Excellence is not doing extraordinary things — it's doing ordinary things extraordinarily well.</p>
@@ -1144,9 +1144,9 @@ export default function Home() {
                     <div className="header-left">
                         <h2 className="view-title text-xl font-extrabold text-slate-800 uppercase tracking-tight">
                             {activeTab === "dashboard" ? "Dashboard Overview" :
-                             activeTab === "bookings" ? "Client Booking Manager" :
-                             activeTab === "calendar" ? "Scheduling Calendar" :
-                             activeTab === "teams" ? "Cleaning Crew Dispatch" : "Modification Requests Inbox"}
+                                activeTab === "bookings" ? "Client Booking Manager" :
+                                    activeTab === "calendar" ? "Scheduling Calendar" :
+                                        activeTab === "teams" ? "Cleaning Crew Dispatch" : "Modification Requests Inbox"}
                         </h2>
                     </div>
                     <div className="header-right">
@@ -1249,9 +1249,9 @@ export default function Home() {
                                             const count = serviceCounts.counts[serv] || 0;
                                             const percentage = serviceCounts.total > 0 ? Math.round((count / serviceCounts.total) * 100) : 0;
                                             const fillClass = serv === "Deep Clean" ? "fill-deep" :
-                                                              serv === "Move-in/Move-out" ? "fill-move" :
-                                                              serv === "Window Cleaning" ? "fill-window" :
-                                                              serv === "Commercial Clean" ? "fill-commercial" : "fill-standard";
+                                                serv === "Move-in/Move-out" ? "fill-move" :
+                                                    serv === "Window Cleaning" ? "fill-window" :
+                                                        serv === "Commercial Clean" ? "fill-commercial" : "fill-standard";
                                             return (
                                                 <div key={serv} className="bar-item">
                                                     <div className="bar-label-row text-xs">
@@ -1366,23 +1366,23 @@ export default function Home() {
                                             return (
                                                 <tr key={b.id}>
                                                     <td data-label="Client Details">
-                                                         <div className="client-name-cell">{b.clientName}</div>
-                                                         <div className="text-[10px] text-slate-400 mt-0.5">{b.phone}</div>
-                                                         {hasPendingEdit && (
-                                                             <div className="inline-block text-[9px] bg-amber-50 border border-amber-200 text-amber-700 font-bold px-1.5 py-0.5 rounded-full mt-1">Pending Admin Review</div>
-                                                         )}
-                                                     </td>
-                                                     <td data-label="Street Address">
-                                                         <div className="address-cell text-xs" title={formatAddress(b)}>{formatAddress(b)}</div>
-                                                     </td>
-                                                     <td data-label="Service Details" className="service-cell">
-                                                         <div className="font-bold text-slate-700 text-xs">{b.service}</div>
-                                                         <div className="price-text">${parseFloat(b.price || 0).toFixed(2)}</div>
-                                                     </td>
-                                                     <td data-label="Schedule Window" className="datetime-cell">
-                                                         <div className="font-bold text-xs">{b.date}</div>
-                                                         <div className="time-text text-[11px]">{formatTimeWindow(b.time, b.duration)}</div>
-                                                     </td>
+                                                        <div className="client-name-cell">{b.clientName}</div>
+                                                        <div className="text-[10px] text-slate-400 mt-0.5">{b.phone}</div>
+                                                        {hasPendingEdit && (
+                                                            <div className="inline-block text-[9px] bg-amber-50 border border-amber-200 text-amber-700 font-bold px-1.5 py-0.5 rounded-full mt-1">Pending Admin Review</div>
+                                                        )}
+                                                    </td>
+                                                    <td data-label="Street Address">
+                                                        <div className="address-cell text-xs" title={formatAddress(b)}>{formatAddress(b)}</div>
+                                                    </td>
+                                                    <td data-label="Service Details" className="service-cell">
+                                                        <div className="font-bold text-slate-700 text-xs">{b.service}</div>
+                                                        <div className="price-text">${parseFloat(b.price || 0).toFixed(2)}</div>
+                                                    </td>
+                                                    <td data-label="Schedule Window" className="datetime-cell">
+                                                        <div className="font-bold text-xs">{b.date}</div>
+                                                        <div className="time-text text-[11px]">{formatTimeWindow(b.time, b.duration)}</div>
+                                                    </td>
                                                     <td data-label="Assigned Crew">
                                                         <div className="team-pill">
                                                             <span className={`dot dot-${teamColor}`}></span>
@@ -1424,83 +1424,83 @@ export default function Home() {
                                 </div>
                             </div>
                             <div className="panel-body">
-                                 <div className="calendar-grid-header">
-                                     <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
-                                 </div>
-                                 <div className="calendar-grid-days border-t border-slate-100 pt-2">
-                                     {calendarDays.map((cell, idx) => {
-                                         if (!cell.day) return <div key={`empty-${idx}`} className="cal-day empty"></div>;
-                                         
-                                         const dayBookings = bookings.filter(b => b.date === cell.dateStr && b.status !== "Cancelled");
-                                         const isSelected = cell.dateStr === selectedCalDate;
-                                         const isToday = cell.dateStr === "2026-05-28";
-                                         
-                                         return (
-                                             <div 
-                                                 key={cell.dateStr} 
-                                                 onClick={() => setSelectedCalDate(cell.dateStr)} 
-                                                 className={`cal-day ${isSelected ? 'selected' : ''} ${isToday ? 'today' : ''}`}
-                                             >
-                                                 <span className="cal-day-num">{cell.day}</span>
-                                                 <div className="cal-events-dots">
-                                                     {dayBookings.slice(0, 3).map(b => {
-                                                         const teamColor = teams.find(t => t.name === b.team)?.color || "sparkle";
-                                                         return (
-                                                             <span 
-                                                                 key={b.id} 
-                                                                 className={`event-dot ${teamColor}`} 
-                                                                 title={`${b.clientName} - ${b.service}`}
-                                                             ></span>
-                                                         );
-                                                     })}
-                                                     {dayBookings.length > 3 && <span className="text-[9px] text-slate-400 font-bold">+{dayBookings.length - 3}</span>}
-                                                 </div>
-                                             </div>
-                                         );
-                                     })}
-                                 </div>
-                             </div>
+                                <div className="calendar-grid-header">
+                                    <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+                                </div>
+                                <div className="calendar-grid-days border-t border-slate-100 pt-2">
+                                    {calendarDays.map((cell, idx) => {
+                                        if (!cell.day) return <div key={`empty-${idx}`} className="cal-day empty"></div>;
+
+                                        const dayBookings = bookings.filter(b => b.date === cell.dateStr && b.status !== "Cancelled");
+                                        const isSelected = cell.dateStr === selectedCalDate;
+                                        const isToday = cell.dateStr === "2026-05-28";
+
+                                        return (
+                                            <div
+                                                key={cell.dateStr}
+                                                onClick={() => setSelectedCalDate(cell.dateStr)}
+                                                className={`cal-day ${isSelected ? 'selected' : ''} ${isToday ? 'today' : ''}`}
+                                            >
+                                                <span className="cal-day-num">{cell.day}</span>
+                                                <div className="cal-events-dots">
+                                                    {dayBookings.slice(0, 3).map(b => {
+                                                        const teamColor = teams.find(t => t.name === b.team)?.color || "sparkle";
+                                                        return (
+                                                            <span
+                                                                key={b.id}
+                                                                className={`event-dot ${teamColor}`}
+                                                                title={`${b.clientName} - ${b.service}`}
+                                                            ></span>
+                                                        );
+                                                    })}
+                                                    {dayBookings.length > 3 && <span className="text-[9px] text-slate-400 font-bold">+{dayBookings.length - 3}</span>}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
                         </div>
 
                         {/* Calendar Agenda Pane */}
-                         <div className="agenda-card">
-                             <div className="panel-header" style={{ padding: "20px 24px" }}>
-                                 <div>
-                                     <h4 className="text-xs text-slate-400 font-bold uppercase tracking-widest" style={{ fontSize: "10px", letterSpacing: "1px" }}>Day agenda list</h4>
-                                     <h3 className="font-extrabold text-slate-800 text-sm mt-1">{selectedCalDate}</h3>
-                                 </div>
-                                 <span className="badge">{agendaBookings.length} Job{agendaBookings.length === 1 ? '' : 's'}</span>
-                             </div>
-                             <div className="agenda-list">
-                                 {agendaBookings.length === 0 ? (
-                                     <div className="text-center p-8 text-slate-400 text-xs">No dispatches scheduled on this date.</div>
-                                 ) : (
-                                     agendaBookings.map(b => {
-                                         const teamColor = (teams.find(t => t.name === b.team)?.color || "sparkle").toLowerCase();
-                                         return (
-                                             <div key={b.id} className={`agenda-item ${teamColor}`}>
-                                                 <div className="agenda-item-header">
-                                                     <span className="agenda-item-title">{b.clientName}</span>
-                                                     <span className="agenda-item-time">{b.time}</span>
-                                                 </div>
-                                                 <div className="agenda-item-desc">{b.service} ({b.duration} hrs)</div>
-                                                 <div className="agenda-item-addr">
-                                                     {Icons.MapPin()}
-                                                     <span style={{ marginLeft: "4px" }}>{b.address1}</span>
-                                                 </div>
-                                                 <div className="flex justify-between items-center mt-2 border-t border-slate-100 pt-2">
-                                                     <span className={`status-badge status-${b.status.toLowerCase()}`}>{b.status}</span>
-                                                     <div className="actions-cell">
-                                                         <button onClick={() => { setSelectedBooking(b); setDetailsModalOpen(true); }} className="action-btn btn-view">{Icons.Eye()}</button>
-                                                         <button onClick={() => openEditBookingModal(b)} className="action-btn btn-edit">{Icons.Edit()}</button>
-                                                     </div>
-                                                 </div>
-                                             </div>
-                                         );
-                                     })
-                                 )}
-                             </div>
-                         </div>
+                        <div className="agenda-card">
+                            <div className="panel-header" style={{ padding: "20px 24px" }}>
+                                <div>
+                                    <h4 className="text-xs text-slate-400 font-bold uppercase tracking-widest" style={{ fontSize: "10px", letterSpacing: "1px" }}>Day agenda list</h4>
+                                    <h3 className="font-extrabold text-slate-800 text-sm mt-1">{selectedCalDate}</h3>
+                                </div>
+                                <span className="badge">{agendaBookings.length} Job{agendaBookings.length === 1 ? '' : 's'}</span>
+                            </div>
+                            <div className="agenda-list">
+                                {agendaBookings.length === 0 ? (
+                                    <div className="text-center p-8 text-slate-400 text-xs">No dispatches scheduled on this date.</div>
+                                ) : (
+                                    agendaBookings.map(b => {
+                                        const teamColor = (teams.find(t => t.name === b.team)?.color || "sparkle").toLowerCase();
+                                        return (
+                                            <div key={b.id} className={`agenda-item ${teamColor}`}>
+                                                <div className="agenda-item-header">
+                                                    <span className="agenda-item-title">{b.clientName}</span>
+                                                    <span className="agenda-item-time">{b.time}</span>
+                                                </div>
+                                                <div className="agenda-item-desc">{b.service} ({b.duration} hrs)</div>
+                                                <div className="agenda-item-addr">
+                                                    {Icons.MapPin()}
+                                                    <span style={{ marginLeft: "4px" }}>{b.address1}</span>
+                                                </div>
+                                                <div className="flex justify-between items-center mt-2 border-t border-slate-100 pt-2">
+                                                    <span className={`status-badge status-${b.status.toLowerCase()}`}>{b.status}</span>
+                                                    <div className="actions-cell">
+                                                        <button onClick={() => { setSelectedBooking(b); setDetailsModalOpen(true); }} className="action-btn btn-view">{Icons.Eye()}</button>
+                                                        <button onClick={() => openEditBookingModal(b)} className="action-btn btn-edit">{Icons.Edit()}</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        </div>
                     </div>
                 )}
 
@@ -1547,7 +1547,7 @@ export default function Home() {
                                             </div>
                                             <div className="team-card-body">
                                                 <p className="text-xs text-slate-400 mb-4 italic">"{t.description || "Operational Cleaning Crew"}"</p>
-                                                
+
                                                 <div className="team-members-container">
                                                     <h5 style={{ fontSize: "12px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "8px", color: "var(--text-primary)" }}>Crew Specifications</h5>
                                                     <div className="flex flex-col gap-2 text-xs text-slate-600">
@@ -1556,7 +1556,7 @@ export default function Home() {
                                                         <div><strong>Members:</strong> <span className="italic text-[11px] block mt-0.5 text-slate-500">{t.members}</span></div>
                                                     </div>
                                                 </div>
-                                                
+
                                                 <div className="team-jobs-today-container mt-4 pt-3 border-t border-slate-100">
                                                     <div className="flex justify-between items-center text-xs font-bold text-slate-500">
                                                         <span>Active jobs: <strong>{teamJobs.length}</strong></span>
@@ -1656,29 +1656,29 @@ export default function Home() {
                                     </div>
                                     <div className="form-group">
                                         <label>Display Name</label>
-                                        <input 
-                                            type="text" 
-                                            value={profileName} 
-                                            onChange={e => setProfileName(e.target.value)} 
-                                            required 
+                                        <input
+                                            type="text"
+                                            value={profileName}
+                                            onChange={e => setProfileName(e.target.value)}
+                                            required
                                         />
                                     </div>
                                     <div className="form-group">
                                         <label>Email Address (Read-only)</label>
-                                        <input 
-                                            type="email" 
-                                            value={currentUser.email} 
-                                            disabled 
+                                        <input
+                                            type="email"
+                                            value={currentUser.email}
+                                            disabled
                                             style={{ backgroundColor: "#f8fafc", color: "var(--text-muted)", cursor: "not-allowed" }}
                                         />
                                     </div>
                                     {currentUser.role !== "admin" && (
                                         <div className="form-group">
                                             <label>Assigned Cleaning Crew</label>
-                                            <input 
-                                                type="text" 
-                                                value={currentUser.teamId || "None"} 
-                                                disabled 
+                                            <input
+                                                type="text"
+                                                value={currentUser.teamId || "None"}
+                                                disabled
                                                 style={{ backgroundColor: "#f8fafc", color: "var(--text-muted)", cursor: "not-allowed" }}
                                             />
                                         </div>
@@ -1697,32 +1697,32 @@ export default function Home() {
                                 <form onSubmit={handlePasswordChange} className="settings-form">
                                     <div className="form-group">
                                         <label>Current Password</label>
-                                        <input 
-                                            type="password" 
-                                            value={securityForm.currentPassword} 
-                                            onChange={e => setSecurityForm(prev => ({ ...prev, currentPassword: e.target.value }))} 
-                                            required 
-                                            placeholder="••••••••" 
+                                        <input
+                                            type="password"
+                                            value={securityForm.currentPassword}
+                                            onChange={e => setSecurityForm(prev => ({ ...prev, currentPassword: e.target.value }))}
+                                            required
+                                            placeholder="••••••••"
                                         />
                                     </div>
                                     <div className="form-group">
                                         <label>New Password</label>
-                                        <input 
-                                            type="password" 
-                                            value={securityForm.newPassword} 
-                                            onChange={e => setSecurityForm(prev => ({ ...prev, newPassword: e.target.value }))} 
-                                            required 
-                                            placeholder="Min 6 characters" 
+                                        <input
+                                            type="password"
+                                            value={securityForm.newPassword}
+                                            onChange={e => setSecurityForm(prev => ({ ...prev, newPassword: e.target.value }))}
+                                            required
+                                            placeholder="Min 6 characters"
                                         />
                                     </div>
                                     <div className="form-group">
                                         <label>Confirm New Password</label>
-                                        <input 
-                                            type="password" 
-                                            value={securityForm.confirmPassword} 
-                                            onChange={e => setSecurityForm(prev => ({ ...prev, confirmPassword: e.target.value }))} 
-                                            required 
-                                            placeholder="••••••••" 
+                                        <input
+                                            type="password"
+                                            value={securityForm.confirmPassword}
+                                            onChange={e => setSecurityForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                                            required
+                                            placeholder="••••••••"
                                         />
                                     </div>
                                     <button type="submit" disabled={securityLoading} className="btn btn-primary h-[44px] rounded-lg text-white font-bold transition mt-2" style={{ backgroundColor: "#dc2626", borderColor: "#dc2626" }}>
@@ -1779,7 +1779,7 @@ export default function Home() {
                         <div className="modal-header" style={{ background: "linear-gradient(135deg, var(--accent-blue), var(--accent-green))", borderBottom: "none" }}>
                             <h3 className="font-extrabold text-sm uppercase tracking-wider text-white" style={{ margin: 0 }}>Scheduled dispatch Details</h3>
                             <button onClick={() => setDetailsModalOpen(false)} className="modal-close-btn" aria-label="Close">
-                                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="1" y1="1" x2="13" y2="13"/><line x1="13" y1="1" x2="1" y2="13"/></svg>
+                                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="1" y1="1" x2="13" y2="13" /><line x1="13" y1="1" x2="1" y2="13" /></svg>
                             </button>
                         </div>
                         <div className="modal-body flex flex-col gap-3.5 text-xs text-slate-700" style={{ overflowY: "auto", padding: "24px" }}>
@@ -1818,7 +1818,7 @@ export default function Home() {
                         <div className="modal-header" style={{ background: "linear-gradient(135deg, var(--accent-blue), var(--accent-green))", borderBottom: "none" }}>
                             <h3 className="font-extrabold text-sm uppercase tracking-wider text-white" style={{ margin: 0 }}>{bookingModalMode === "create" ? "Schedule New dispatch" : "Request Modification review"}</h3>
                             <button onClick={() => setBookingModalOpen(false)} className="modal-close-btn" aria-label="Close">
-                                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="1" y1="1" x2="13" y2="13"/><line x1="13" y1="1" x2="1" y2="13"/></svg>
+                                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="1" y1="1" x2="13" y2="13" /><line x1="13" y1="1" x2="1" y2="13" /></svg>
                             </button>
                         </div>
                         <form onSubmit={handleBookingSubmit} style={{ display: "flex", flexDirection: "column", flexGrow: 1, overflowY: "auto" }}>
@@ -1835,7 +1835,7 @@ export default function Home() {
                                     <label className="font-bold text-slate-700">Email Address *</label>
                                     <input type="email" required value={bookingForm.email} onChange={e => setBookingForm(prev => ({ ...prev, email: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5" placeholder="jane@jenkins.com" />
                                 </div>
-                                
+
                                 {/* Ontario Google/OSM autocomplete input */}
                                 <div ref={autocompleteRef} className="form-group flex flex-col gap-1 md:col-span-2 relative">
                                     <label className="font-bold text-slate-700">Client Street Address (Ontario, Canada restricted) *</label>
@@ -1970,7 +1970,7 @@ export default function Home() {
                         <div className="modal-header" style={{ background: "linear-gradient(135deg, var(--accent-blue), var(--accent-green))", borderBottom: "none" }}>
                             <h3 className="font-extrabold text-sm uppercase tracking-wider text-white" style={{ margin: 0 }}>Dispatch New Cleaning Crew</h3>
                             <button onClick={() => setTeamModalOpen(false)} className="modal-close-btn" aria-label="Close">
-                                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="1" y1="1" x2="13" y2="13"/><line x1="13" y1="1" x2="1" y2="13"/></svg>
+                                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="1" y1="1" x2="13" y2="13" /><line x1="13" y1="1" x2="1" y2="13" /></svg>
                             </button>
                         </div>
                         <form onSubmit={handleTeamSubmit} style={{ display: "flex", flexDirection: "column", flexGrow: 1, overflowY: "auto" }}>
@@ -1989,10 +1989,10 @@ export default function Home() {
                                 </div>
                                 <div className="form-group flex flex-col gap-1">
                                     <label className="font-bold text-slate-700">Crew Leader *</label>
-                                    <select 
-                                        required 
-                                        value={teamForm.lead} 
-                                        onChange={e => setTeamForm(prev => ({ ...prev, lead: e.target.value }))} 
+                                    <select
+                                        required
+                                        value={teamForm.lead}
+                                        onChange={e => setTeamForm(prev => ({ ...prev, lead: e.target.value }))}
                                         className="border border-slate-200 rounded-lg p-2.5"
                                     >
                                         <option value="">-- Select Registered Leader --</option>
