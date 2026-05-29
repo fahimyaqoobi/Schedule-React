@@ -1756,7 +1756,9 @@ export default function Home() {
                     <div className="modal-content animate-pop detail-modal-content" style={{ maxWidth: "500px" }}>
                         <div className="modal-header" style={{ background: "linear-gradient(135deg, var(--accent-blue), var(--accent-green))", borderBottom: "none" }}>
                             <h3 className="font-extrabold text-sm uppercase tracking-wider text-white" style={{ margin: 0 }}>Scheduled dispatch Details</h3>
-                            <button onClick={() => setDetailsModalOpen(false)} className="text-white hover:text-slate-200 text-sm font-bold bg-none border-none cursor-pointer">✕</button>
+                            <button onClick={() => setDetailsModalOpen(false)} className="modal-close-btn" aria-label="Close">
+                                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="1" y1="1" x2="13" y2="13"/><line x1="13" y1="1" x2="1" y2="13"/></svg>
+                            </button>
                         </div>
                         <div className="modal-body flex flex-col gap-3.5 text-xs text-slate-700" style={{ overflowY: "auto", padding: "24px" }}>
                             <div><strong>Client Name:</strong> <span className="text-slate-900 font-bold">{selectedBooking.clientName}</span></div>
@@ -1793,7 +1795,9 @@ export default function Home() {
                     <div className="modal-content animate-pop" style={{ maxWidth: "650px" }}>
                         <div className="modal-header" style={{ background: "linear-gradient(135deg, var(--accent-blue), var(--accent-green))", borderBottom: "none" }}>
                             <h3 className="font-extrabold text-sm uppercase tracking-wider text-white" style={{ margin: 0 }}>{bookingModalMode === "create" ? "Schedule New dispatch" : "Request Modification review"}</h3>
-                            <button onClick={() => setBookingModalOpen(false)} className="text-white hover:text-slate-200 text-sm font-bold bg-none border-none cursor-pointer">✕</button>
+                            <button onClick={() => setBookingModalOpen(false)} className="modal-close-btn" aria-label="Close">
+                                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="1" y1="1" x2="13" y2="13"/><line x1="13" y1="1" x2="1" y2="13"/></svg>
+                            </button>
                         </div>
                         <form onSubmit={handleBookingSubmit} style={{ display: "flex", flexDirection: "column", flexGrow: 1, overflowY: "auto" }}>
                             <div className="modal-body grid grid-cols-1 md:grid-cols-2 gap-4 text-xs" style={{ padding: "24px" }}>
@@ -1943,7 +1947,9 @@ export default function Home() {
                     <div className="modal-content animate-pop" style={{ maxWidth: "500px" }}>
                         <div className="modal-header" style={{ background: "linear-gradient(135deg, var(--accent-blue), var(--accent-green))", borderBottom: "none" }}>
                             <h3 className="font-extrabold text-sm uppercase tracking-wider text-white" style={{ margin: 0 }}>Dispatch New Cleaning Crew</h3>
-                            <button onClick={() => setTeamModalOpen(false)} className="text-white hover:text-slate-200 text-sm font-bold bg-none border-none cursor-pointer">✕</button>
+                            <button onClick={() => setTeamModalOpen(false)} className="modal-close-btn" aria-label="Close">
+                                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="1" y1="1" x2="13" y2="13"/><line x1="13" y1="1" x2="1" y2="13"/></svg>
+                            </button>
                         </div>
                         <form onSubmit={handleTeamSubmit} style={{ display: "flex", flexDirection: "column", flexGrow: 1, overflowY: "auto" }}>
                             <div className="modal-body flex flex-col gap-4 text-xs" style={{ padding: "24px" }}>
