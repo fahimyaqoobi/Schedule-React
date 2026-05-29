@@ -968,25 +968,6 @@ export default function Home() {
         return (
             <div className="auth-fullscreen">
                 {/* LEFT: Hero branding panel */}
-                <div className="auth-hero">
-                    <div className="auth-hero-dot"></div>
-                    <div className="auth-hero-dot"></div>
-                    <div className="auth-hero-dot"></div>
-                    <img src="/logo.png" alt="SmartTouch Clean" className="auth-hero-logo" />
-                    <div className="auth-hero-badge">Operational Portal v1.0</div>
-                    <h1 className="auth-hero-title">Cleaner Operations,<br />Smarter Results</h1>
-                    <p className="auth-hero-sub">The all-in-one scheduling and dispatch platform built for SmarTouch Clean crews across Ontario.</p>
-                    <div className="auth-quotes">
-                        <div className="auth-quote-card">
-                            <p className="auth-quote-text">Excellence is not doing extraordinary things — it's doing ordinary things extraordinarily well.</p>
-                            <p className="auth-quote-author">— SmartTouch Clean Standard</p>
-                        </div>
-                        <div className="auth-quote-card">
-                            <p className="auth-quote-text">A clean space is a clear mind. We don't just clean homes — we restore peace.</p>
-                            <p className="auth-quote-author">— SmartTouch Crew Motto</p>
-                        </div>
-                    </div>
-                </div>
 
                 {/* RIGHT: Form panel */}
                 <div className="auth-panel">
