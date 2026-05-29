@@ -113,7 +113,9 @@ export default function Home() {
         date: "2026-05-28",
         time: "09:00 AM",
         team: teams[0]?.name || "",
-        status: "Pending"
+        status: "Pending",
+        serviceDescription: "",
+        accessDescription: ""
     });
     
     // Details and Editing modals
@@ -554,7 +556,9 @@ export default function Home() {
             date: selectedCalDate,
             time: "09:00 AM",
             team: currentUser ? (currentUser.role === "team-leader" ? currentUser.teamId : (teams[0]?.name || "")) : (teams[0]?.name || ""),
-            status: "Pending"
+            status: "Pending",
+            serviceDescription: "",
+            accessDescription: ""
         });
         setAddressQuery("");
         setBookingModalOpen(true);
@@ -579,7 +583,9 @@ export default function Home() {
             date: b.date,
             time: b.time,
             team: b.team,
-            status: b.status
+            status: b.status,
+            serviceDescription: b.serviceDescription || "",
+            accessDescription: b.accessDescription || ""
         });
         setAddressQuery(b.address1 || "");
         setBookingModalOpen(true);
@@ -1897,6 +1903,30 @@ export default function Home() {
                                         </select>
                                     </div>
                                 )}
+
+                                {/* Service Description */}
+                                <div className="form-group flex flex-col gap-1 md:col-span-2">
+                                    <label className="font-bold text-slate-700">Service Description</label>
+                                    <textarea
+                                        rows={3}
+                                        value={bookingForm.serviceDescription}
+                                        onChange={e => setBookingForm(prev => ({ ...prev, serviceDescription: e.target.value }))}
+                                        className="border border-slate-200 rounded-lg p-2.5 resize-none text-sm"
+                                        placeholder="Describe the cleaning scope, special requests, areas to focus on, client preferences, etc."
+                                    />
+                                </div>
+
+                                {/* Access Description */}
+                                <div className="form-group flex flex-col gap-1 md:col-span-2">
+                                    <label className="font-bold text-slate-700">Access Description</label>
+                                    <textarea
+                                        rows={2}
+                                        value={bookingForm.accessDescription}
+                                        onChange={e => setBookingForm(prev => ({ ...prev, accessDescription: e.target.value }))}
+                                        className="border border-slate-200 rounded-lg p-2.5 resize-none text-sm"
+                                        placeholder="How does the crew access the property? e.g. lockbox code, concierge key, doorbell, gate code, etc."
+                                    />
+                                </div>
                             </div>
                             <div className="bg-slate-50 px-6 py-4 flex justify-end gap-2 border-t border-slate-100">
                                 <button type="button" onClick={() => setBookingModalOpen(false)} className="btn btn-secondary btn-sm">Cancel</button>
