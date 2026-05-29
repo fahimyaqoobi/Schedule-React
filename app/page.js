@@ -1464,27 +1464,27 @@ export default function Home() {
             </main>
 
             {/* High Fidelity iOS Fixed Bottom Navigation Bar on Mobile Viewports */}
-            <div className="fixed bottom-0 left-0 right-0 h-[65px] bg-white border-t border-slate-200 md:hidden flex justify-around items-center z-[9999] shadow-lg">
-                <button onClick={() => setActiveTab("dashboard")} className={`nav-item flex flex-col items-center justify-center text-slate-500 ${activeTab === "dashboard" ? "text-[#0268b3] font-bold" : ""}`}>
+            <div className="mobile-nav-bar">
+                <button onClick={() => setActiveTab("dashboard")} className={`mobile-nav-item ${activeTab === "dashboard" ? "active" : ""}`}>
                     {Icons.Dashboard()}
-                    <span className="text-[10px] mt-1">Dashboard</span>
+                    <span>Dashboard</span>
                 </button>
-                <button onClick={() => setActiveTab("bookings")} className={`nav-item flex flex-col items-center justify-center text-slate-500 ${activeTab === "bookings" ? "text-[#0268b3] font-bold" : ""}`}>
+                <button onClick={() => setActiveTab("bookings")} className={`mobile-nav-item ${activeTab === "bookings" ? "active" : ""}`}>
                     {Icons.Bookings()}
-                    <span className="text-[10px] mt-1">Bookings</span>
+                    <span>Bookings</span>
                 </button>
-                <button onClick={() => setActiveTab("calendar")} className={`nav-item flex flex-col items-center justify-center text-slate-500 ${activeTab === "calendar" ? "text-[#0268b3] font-bold" : ""}`}>
+                <button onClick={() => setActiveTab("calendar")} className={`mobile-nav-item ${activeTab === "calendar" ? "active" : ""}`}>
                     {Icons.Calendar()}
-                    <span className="text-[10px] mt-1">Calendar</span>
+                    <span>Calendar</span>
                 </button>
-                <button onClick={() => setActiveTab("teams")} className={`nav-item flex flex-col items-center justify-center text-slate-500 ${activeTab === "teams" ? "text-[#0268b3] font-bold" : ""}`}>
+                <button onClick={() => setActiveTab("teams")} className={`mobile-nav-item ${activeTab === "teams" ? "active" : ""}`}>
                     {Icons.Teams()}
-                    <span className="text-[10px] mt-1">Teams</span>
+                    <span>Teams</span>
                 </button>
                 {currentUser.role === "admin" && (
-                    <button onClick={() => setActiveTab("edit-requests")} className={`nav-item flex flex-col items-center justify-center text-slate-500 relative ${activeTab === "edit-requests" ? "text-[#0268b3] font-bold" : ""}`}>
+                    <button onClick={() => setActiveTab("edit-requests")} className={`mobile-nav-item relative ${activeTab === "edit-requests" ? "active" : ""}`}>
                         {Icons.EditReview()}
-                        <span className="text-[10px] mt-1">Review</span>
+                        <span>Review</span>
                         {editRequests.filter(r => r.status === "Pending").length > 0 && (
                             <span className="absolute -top-1 right-2 bg-amber-500 text-white rounded-full w-4 h-4 text-[9px] flex items-center justify-center font-black">
                                 {editRequests.filter(r => r.status === "Pending").length}
