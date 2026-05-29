@@ -20,7 +20,7 @@ async function authenticateRequest(request) {
     return userData;
 }
 
-// 1. READ: Load all cleaning crews (auto-populates defaults if Firestore is empty)
+// 1. READ: Load all cleaning crews
 export async function GET(request) {
     try {
         await authenticateRequest(request);
@@ -30,19 +30,6 @@ export async function GET(request) {
         snapshot.forEach(doc => {
             teamsList.push(doc.data());
         });
-        
-        // Auto-initialize standard default crews if database collection is empty
-        if (teamsList.length === 0) {
-            const defaults = [
-                { id: 'team-sparkle', name: 'Team Sparkle', color: 'sparkle', lead: 'Emma Vance', size: 3, members: 'Emma Vance, Alice Smith, John Doe', description: 'Deep Cleaning & Sanitization experts' },
-                { id: 'team-deluxe', name: 'Team Deluxe', color: 'deluxe', lead: 'Robert Miller', size: 3, members: 'Robert Miller, Clara Oswald, Arthur Dent', description: 'Standard Residential & Sparkle cleans' },
-                { id: 'team-ecoclean', name: 'Team EcoClean', color: 'ecoclean', lead: 'Sarah Green', size: 2, members: 'Sarah Green, Lily Evans', description: 'Green, pet-friendly biodegradable cleaning' }
-            ];
-            for (const t of defaults) {
-                await adminDb.collection("teams").doc(t.id).set(t);
-            }
-            return NextResponse.json(defaults, { status: 200 });
-        }
         
         return NextResponse.json(teamsList, { status: 200 });
     } catch (err) {

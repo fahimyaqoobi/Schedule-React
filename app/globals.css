@@ -1830,6 +1830,7 @@ select option:disabled {
     .calendar-card, .agenda-card {
         width: 100% !important;
         box-sizing: border-box !important;
+        padding: 12px !important;
     }
 
     .teams-grid {
@@ -1943,20 +1944,27 @@ select option:disabled {
 
     /* Mobile Calendar Fluidity Polish - prevent day card overflows */
     .calendar-grid-days {
-        gap: 4px !important;
+        gap: 2px !important;
+    }
+
+    .calendar-grid-header {
+        font-size: 9px !important;
+        margin-bottom: 8px !important;
     }
 
     .cal-day {
-        padding: 4px 2px !important;
-        min-height: 48px !important;
+        padding: 2px 1px !important;
+        min-height: 36px !important;
+        width: 100% !important;
         aspect-ratio: 1 !important;
-        justify-content: space-between !important;
+        justify-content: center !important;
         align-items: center !important;
         box-sizing: border-box !important;
+        gap: 2px !important;
     }
 
     .cal-day-num {
-        font-size: 10px !important;
+        font-size: 9px !important;
         font-weight: 800 !important;
         line-height: 1 !important;
         text-align: center !important;
@@ -1967,12 +1975,17 @@ select option:disabled {
         gap: 2px !important;
         justify-content: center !important;
         width: 100% !important;
-        max-height: 16px !important;
+        max-height: 8px !important;
+        margin-top: 1px !important;
     }
 
     .event-dot {
-        width: 4px !important;
-        height: 4px !important;
+        width: 3.5px !important;
+        height: 3.5px !important;
+    }
+
+    .calendar-month-header {
+        margin-bottom: 12px !important;
     }
 }
 
@@ -1988,10 +2001,87 @@ select option:disabled {
     gap: 24px;
 }
 
+.settings-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--box-shadow);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: all var(--transition-speed) ease;
+}
+
+.settings-card:hover {
+    border-color: var(--card-hover-border);
+    box-shadow: 0 12px 30px -5px rgba(15, 23, 42, 0.08);
+}
+
+.settings-card .panel-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--card-border);
+}
+
+.settings-form {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.settings-avatar-group {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--card-border);
+    margin-bottom: 8px;
+}
+
+.settings-avatar {
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-green));
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 800;
+    color: #ffffff;
+    box-shadow: 0 6px 16px rgba(2, 104, 179, 0.2);
+    border: 2px solid #ffffff;
+}
+
+.settings-form button[type="submit"] {
+    margin-top: 8px;
+    width: 100%;
+}
+
 @media (max-width: 768px) {
     .settings-container {
         grid-template-columns: 1fr !important;
         gap: 16px !important;
+    }
+    
+    .settings-card .panel-header {
+        padding: 16px 20px !important;
+    }
+    
+    .settings-form {
+        padding: 16px !important;
+        gap: 16px !important;
+    }
+    
+    .settings-avatar-group {
+        gap: 12px !important;
+        padding-bottom: 12px !important;
+    }
+    
+    .settings-avatar {
+        width: 52px !important;
+        height: 52px !important;
+        font-size: 16px !important;
     }
 }
 
