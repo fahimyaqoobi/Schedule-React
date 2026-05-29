@@ -966,60 +966,84 @@ export default function Home() {
     // ----------------------------------------------------
     if (!currentUser) {
         return (
-            <div className="auth-fullscreen flex items-center justify-center min-h-screen bg-[#f4f6fa] p-4">
-                {authMode === "login" ? (
-                    <div className="auth-card w-full max-w-[420px] bg-white border border-slate-200 rounded-2xl shadow-xl p-8 animate-pop">
-                        <div className="text-center mb-6">
-                            <h2 className="text-2xl font-extrabold text-[#0268b3]">SmarTouch Clean</h2>
-                            <p className="text-xs font-bold tracking-widest text-[#39a93e] uppercase mt-1">Operational Scheduler</p>
+            <div className="auth-fullscreen">
+                {/* LEFT: Hero branding panel */}
+                <div className="auth-hero">
+                    <div className="auth-hero-dot"></div>
+                    <div className="auth-hero-dot"></div>
+                    <div className="auth-hero-dot"></div>
+                    <img src="/logo.png" alt="SmartTouch Clean" className="auth-hero-logo" />
+                    <div className="auth-hero-badge">Operational Portal v1.0</div>
+                    <h1 className="auth-hero-title">Cleaner Operations,<br/>Smarter Results</h1>
+                    <p className="auth-hero-sub">The all-in-one scheduling and dispatch platform built for SmartTouch Clean crews across Ontario.</p>
+                    <div className="auth-quotes">
+                        <div className="auth-quote-card">
+                            <p className="auth-quote-text">Excellence is not doing extraordinary things — it's doing ordinary things extraordinarily well.</p>
+                            <p className="auth-quote-author">— SmartTouch Clean Standard</p>
                         </div>
-                        <form onSubmit={handleLogin} className="flex flex-col gap-4">
-                            <div className="form-group flex flex-col gap-1">
-                                <label className="text-xs font-bold text-slate-700">Email Address</label>
-                                <input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="cleaner@smartouch.com" className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:outline-none focus:border-[#0268b3]" />
-                            </div>
-                            <div className="form-group flex flex-col gap-1">
-                                <label className="text-xs font-bold text-slate-700">Password</label>
-                                <input type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="••••••••" className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:outline-none focus:border-[#0268b3]" />
-                            </div>
-                            <button type="submit" className="btn btn-primary w-full h-[46px] rounded-lg text-white font-bold transition mt-2">Sign In</button>
-                            <p className="text-xs text-center text-slate-500 mt-3">
-                                Need an operational account? <span onClick={() => setAuthMode("signup")} className="text-[#0268b3] font-bold cursor-pointer hover:underline">Register Here</span>
-                            </p>
-                        </form>
-                    </div>
-                ) : (
-                    <div className="auth-card w-full max-w-[440px] bg-white border border-slate-200 rounded-2xl shadow-xl p-8 animate-pop">
-                        <div className="text-center mb-6">
-                            <h2 className="text-2xl font-extrabold text-[#0268b3]">Register Account</h2>
-                            <p className="text-xs font-bold tracking-widest text-[#39a93e] uppercase mt-1">SmarTouch Crew Portal</p>
+                        <div className="auth-quote-card">
+                            <p className="auth-quote-text">A clean space is a clear mind. We don't just clean homes — we restore peace.</p>
+                            <p className="auth-quote-author">— SmartTouch Crew Motto</p>
                         </div>
-                        <form onSubmit={handleSignup} className="flex flex-col gap-4">
-                            <div className="form-group flex flex-col gap-1">
-                                <label className="text-xs font-bold text-slate-700">Full Name</label>
-                                <input type="text" value={name} onChange={e => setName(e.target.value)} required placeholder="Fahim Yaqoobi" className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:outline-none focus:border-[#0268b3]" />
-                            </div>
-                            <div className="form-group flex flex-col gap-1">
-                                <label className="text-xs font-bold text-slate-700">Email Address</label>
-                                <input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="cleaner@smartouchclean.com" className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:outline-none focus:border-[#0268b3]" />
-                            </div>
-                            <div className="form-group flex flex-col gap-1">
-                                <label className="text-xs font-bold text-slate-700">Password</label>
-                                <input type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="Min 6 characters" className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:outline-none focus:border-[#0268b3]" />
-                            </div>
-                            <div className="form-group flex flex-col gap-1">
-                                <label className="text-xs font-bold text-slate-700">Assigned crew/team</label>
-                                <select value={signupTeam} onChange={e => setSignupTeam(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:outline-none focus:border-[#0268b3]">
-                                    {teams.length === 0 ? <option value="">No Crews Dispatched Yet</option> : teams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
-                                </select>
-                            </div>
-                            <button type="submit" className="btn btn-primary w-full h-[46px] rounded-lg text-white font-bold transition mt-2">Register Account</button>
-                            <p className="text-xs text-center text-slate-500 mt-3">
-                                Already registered? <span onClick={() => setAuthMode("login")} className="text-[#0268b3] font-bold cursor-pointer hover:underline">Sign In</span>
-                            </p>
-                        </form>
                     </div>
-                )}
+                </div>
+
+                {/* RIGHT: Form panel */}
+                <div className="auth-panel">
+                    <div className="auth-card-inner">
+                        <img src="/logo.png" alt="SmartTouch Clean" className="auth-card-logo-mobile" />
+
+                        {authMode === "login" ? (
+                            <>
+                                <h2 className="auth-card-heading">Welcome back 👋</h2>
+                                <p className="auth-card-sub">Sign in to access the SmartTouch Clean scheduling portal.</p>
+                                <form onSubmit={handleLogin}>
+                                    <div className="auth-field">
+                                        <label>Email Address</label>
+                                        <input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="cleaner@smartouchclean.com" />
+                                    </div>
+                                    <div className="auth-field">
+                                        <label>Password</label>
+                                        <input type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="••••••••" />
+                                    </div>
+                                    <button type="submit" className="auth-submit-btn">Sign In to Dashboard</button>
+                                </form>
+                                <p className="auth-switch-text">
+                                    New crew member? <span onClick={() => setAuthMode("signup")} className="auth-switch-link">Create an account</span>
+                                </p>
+                            </>
+                        ) : (
+                            <>
+                                <h2 className="auth-card-heading">Join the crew ✦</h2>
+                                <p className="auth-card-sub">Register your account — an admin will activate it once reviewed.</p>
+                                <form onSubmit={handleSignup}>
+                                    <div className="auth-field">
+                                        <label>Full Name</label>
+                                        <input type="text" value={name} onChange={e => setName(e.target.value)} required placeholder="Jane Jenkins" />
+                                    </div>
+                                    <div className="auth-field">
+                                        <label>Email Address</label>
+                                        <input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="cleaner@smartouchclean.com" />
+                                    </div>
+                                    <div className="auth-field">
+                                        <label>Password</label>
+                                        <input type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="Min 6 characters" />
+                                    </div>
+                                    <div className="auth-field">
+                                        <label>Assigned Crew / Team</label>
+                                        <select value={signupTeam} onChange={e => setSignupTeam(e.target.value)}>
+                                            {teams.length === 0 ? <option value="">No Crews Available Yet</option> : teams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                                        </select>
+                                    </div>
+                                    <button type="submit" className="auth-submit-btn">Create Account</button>
+                                </form>
+                                <p className="auth-switch-text">
+                                    Already registered? <span onClick={() => setAuthMode("login")} className="auth-switch-link">Sign In</span>
+                                </p>
+                            </>
+                        )}
+                    </div>
+                </div>
             </div>
         );
     }
@@ -1029,22 +1053,23 @@ export default function Home() {
     // ----------------------------------------------------
     if (currentUser.status === "pending_approval") {
         return (
-            <div className="auth-fullscreen flex flex-col items-center justify-center min-h-screen bg-[#f4f6fa] p-4">
-                <div className="auth-card max-w-[450px] bg-white border border-slate-200 rounded-2xl shadow-xl p-8 text-center animate-pop">
-                    <div className="bg-[#fef3c7] text-[#b45309] w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 border border-[#fde68a]">
+            <div className="auth-fullscreen" style={{ alignItems: "center", justifyContent: "center", background: "linear-gradient(145deg, #0a3d7a 0%, #0268b3 50%, #1a8a40 100%)" }}>
+                <div className="auth-pending-card animate-pop">
+                    <img src="/logo.png" alt="SmartTouch Clean" style={{ width: "110px", margin: "0 auto 24px", display: "block" }} />
+                    <div style={{ background: "#fef3c7", color: "#b45309", width: "64px", height: "64px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", border: "1px solid #fde68a" }}>
                         {Icons.Alert()}
                     </div>
-                    <h2 className="text-xl font-extrabold text-slate-800">Awaiting Operational Activation</h2>
-                    <p className="text-sm text-slate-600 mt-3 leading-relaxed">
-                        Welcome to <strong>SmarTouch Clean</strong>! Your account has been registered successfully and is currently <strong>Pending Admin Approval</strong>.
+                    <h2 style={{ fontSize: "20px", fontWeight: 800, color: "#0f172a", marginBottom: "12px" }}>Awaiting Activation</h2>
+                    <p style={{ fontSize: "14px", color: "#475569", lineHeight: 1.7, marginBottom: "8px" }}>
+                        Welcome to <strong>SmartTouch Clean</strong>! Your account has been registered and is <strong>Pending Admin Approval</strong>.
                     </p>
-                    <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+                    <p style={{ fontSize: "12px", color: "#94a3b8", lineHeight: 1.6, marginBottom: "28px" }}>
                         Please contact management or wait for an administrator to review and activate your crew role.
                     </p>
-                    <div className="border-t border-slate-100 mt-6 pt-6">
-                        <button type="button" onClick={handleSignout} className="btn btn-secondary w-full h-[44px] flex items-center justify-center gap-2 rounded-lg font-bold">
+                    <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: "24px" }}>
+                        <button type="button" onClick={handleSignout} className="btn btn-secondary" style={{ width: "100%", justifyContent: "center", gap: "8px" }}>
                             {Icons.Logout()}
-                            <span>Sign Out / Return</span>
+                            <span>Sign Out</span>
                         </button>
                     </div>
                 </div>
@@ -1060,10 +1085,7 @@ export default function Home() {
             {/* Sidebar Navigation */}
             <aside className="sidebar">
                 <div className="brand-logo">
-                    <div className="brand-info">
-                        <h1 className="text-base font-extrabold text-[#0268b3] tracking-tight">SmarTouch</h1>
-                        <span className="text-[10px] font-bold tracking-widest text-[#39a93e] uppercase mt-0.5 block">CLEAN</span>
-                    </div>
+                    <img src="/logo.png" alt="SmartTouch Clean" style={{ height: "44px", width: "auto", objectFit: "contain" }} />
                 </div>
 
                 <nav className="nav-links">
