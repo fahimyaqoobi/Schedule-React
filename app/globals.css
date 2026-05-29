@@ -1915,10 +1915,83 @@ select option:disabled {
         height: 20px !important;
         stroke-width: 2.2 !important;
     }
+
+    /* Mobile Header Polish - "Top Up" stacking to prevent horizontal squeezing */
+    .top-header {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 12px !important;
+        text-align: center !important;
+        height: auto !important;
+    }
+
+    .header-left {
+        width: 100% !important;
+        text-align: center !important;
+    }
+
+    .header-right {
+        width: 100% !important;
+        justify-content: center !important;
+        gap: 8px !important;
+    }
+
+    .header-right .btn-primary {
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+
+    /* Mobile Calendar Fluidity Polish - prevent day card overflows */
+    .calendar-grid-days {
+        gap: 4px !important;
+    }
+
+    .cal-day {
+        padding: 4px 2px !important;
+        min-height: 48px !important;
+        aspect-ratio: 1 !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        box-sizing: border-box !important;
+    }
+
+    .cal-day-num {
+        font-size: 10px !important;
+        font-weight: 800 !important;
+        line-height: 1 !important;
+        text-align: center !important;
+        width: 100% !important;
+    }
+
+    .cal-events-dots {
+        gap: 2px !important;
+        justify-content: center !important;
+        width: 100% !important;
+        max-height: 16px !important;
+    }
+
+    .event-dot {
+        width: 4px !important;
+        height: 4px !important;
+    }
 }
 
 /* Hide mobile bottom navigation bar on desktop viewports */
 .mobile-nav-bar {
     display: none;
+}
+
+/* Profile & Security Settings Layout */
+.settings-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+}
+
+@media (max-width: 768px) {
+    .settings-container {
+        grid-template-columns: 1fr !important;
+        gap: 16px !important;
+    }
 }
 

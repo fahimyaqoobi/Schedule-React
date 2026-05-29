@@ -5,7 +5,10 @@ import {
     signInWithEmailAndPassword, 
     signOut, 
     onAuthStateChanged,
-    updateProfile
+    updateProfile,
+    updatePassword,
+    reauthenticateWithCredential,
+    EmailAuthProvider
 } from "firebase/auth";
 import { auth } from "../lib/firebase";
 
@@ -121,6 +124,18 @@ export default function Home() {
     // Admin team crew creation modal
     const [teamModalOpen, setTeamModalOpen] = useState(false);
     const [teamForm, setTeamForm] = useState({ id: "", name: "", color: "sparkle", lead: "", size: 2, members: "", description: "" });
+
+    // Profile and Security settings states
+    const [profileName, setProfileName] = useState("");
+    const [profileLoading, setProfileLoading] = useState(false);
+    const [securityForm, setSecurityForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
+    const [securityLoading, setSecurityLoading] = useState(false);
+
+    useEffect(() => {
+        if (currentUser) {
+            setProfileName(currentUser.name || "");
+        }
+    }, [currentUser]);
 
     // ----------------------------------------------------
     // Shared Secure JWT Authorization Request Fetcher
@@ -640,14 +655,15 @@ export default function Home() {
         if (!teamForm.id || !teamForm.name) return alert("Please fill required crew parameters.");
         try {
             const headers = await getAuthHeaders();
+            const isEdit = teams.some(t => t.id === teamForm.id);
             const res = await fetch("/api/teams", {
-                method: "POST",
+                method: isEdit ? "PUT" : "POST",
                 headers,
                 body: JSON.stringify(teamForm)
             });
 
             if (res.ok) {
-                alert("Cleaning crew dispatched successfully!");
+                alert(isEdit ? "Cleaning crew updated successfully!" : "Cleaning crew dispatched successfully!");
                 setTeamModalOpen(false);
                 syncDatabaseData(currentUser);
             } else {
@@ -656,6 +672,84 @@ export default function Home() {
             }
         } catch (err) {
             alert(`Error: ${err.message}`);
+        }
+    };
+
+    const handleDeleteTeam = async (teamId) => {
+        if (!window.confirm("Are you sure you want to delete this cleaning crew?")) return;
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch(`/api/teams?id=${teamId}`, {
+                method: "DELETE",
+                headers
+            });
+
+            if (res.ok) {
+                alert("Cleaning crew deleted successfully!");
+                syncDatabaseData(currentUser);
+            } else {
+                const err = await res.json();
+                alert(`Failed to delete crew: ${err.error}`);
+            }
+        } catch (err) {
+            alert(`Error: ${err.message}`);
+        }
+    };
+
+    // ----------------------------------------------------
+    // User Profile & Security Settings Handlers
+    // ----------------------------------------------------
+    const handleProfileUpdate = async (e) => {
+        e.preventDefault();
+        if (!profileName.trim()) return alert("Name cannot be empty.");
+        setProfileLoading(true);
+        try {
+            const user = auth.currentUser;
+            if (user) {
+                await updateProfile(user, { displayName: profileName });
+            }
+
+            const { doc, updateDoc, getFirestore } = await import("firebase/firestore");
+            const clientDb = getFirestore();
+            await updateDoc(doc(clientDb, "users", currentUser.uid), { name: profileName });
+
+            setCurrentUser(prev => ({ ...prev, name: profileName }));
+            alert("Profile name updated successfully!");
+        } catch (err) {
+            console.error("Profile update failed", err);
+            alert(`Error updating profile: ${err.message}`);
+        } finally {
+            setProfileLoading(false);
+        }
+    };
+
+    const handlePasswordChange = async (e) => {
+        e.preventDefault();
+        if (securityForm.newPassword !== securityForm.confirmPassword) {
+            return alert("New passwords do not match.");
+        }
+        if (securityForm.newPassword.length < 6) {
+            return alert("Password must be at least 6 characters long.");
+        }
+
+        setSecurityLoading(true);
+        try {
+            const user = auth.currentUser;
+            if (!user) throw new Error("No authenticated user found.");
+
+            // 1. Reauthenticate
+            const credential = EmailAuthProvider.credential(user.email, securityForm.currentPassword);
+            await reauthenticateWithCredential(user, credential);
+
+            // 2. Update password
+            await updatePassword(user, securityForm.newPassword);
+            alert("Password updated successfully!");
+            setSecurityForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+        } catch (err) {
+            console.error("Password change failed", err);
+            alert(`Error updating password: ${err.message}`);
+        } finally {
+            setSecurityLoading(false);
         }
     };
 
@@ -983,6 +1077,10 @@ export default function Home() {
                             )}
                         </button>
                     )}
+                    <button onClick={() => setActiveTab("settings")} className={`nav-item ${activeTab === "settings" ? "active" : ""}`}>
+                        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                        <span>Settings</span>
+                    </button>
                 </nav>
 
                 <div className="sidebar-footer">
@@ -1392,6 +1490,12 @@ export default function Home() {
                                                     <span>{t.color.toUpperCase()} Crew</span>
                                                 </div>
                                             </div>
+                                            {currentUser.role === "admin" && (
+                                                <div className="team-card-actions">
+                                                    <button onClick={() => { setTeamForm(t); setTeamModalOpen(true); }} className="action-btn btn-edit" title="Edit Crew">{Icons.Edit()}</button>
+                                                    <button onClick={() => handleDeleteTeam(t.id)} className="action-btn btn-delete" title="Delete Crew">{Icons.Trash()}</button>
+                                                </div>
+                                            )}
                                         </div>
                                         <div className="team-card-body">
                                             <p className="text-xs text-slate-400 mb-4 italic">"{t.description || "Operational Cleaning Crew"}"</p>
@@ -1480,6 +1584,108 @@ export default function Home() {
                         )}
                     </div>
                 )}
+
+                {activeTab === "settings" && (
+                    <div className="animate-fade">
+                        <div className="settings-container grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Card 1: User Profile */}
+                            <div className="panel-card p-6 bg-white shadow rounded-2xl border border-slate-200">
+                                <div className="panel-header border-b border-slate-100 pb-3 mb-4">
+                                    <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">User Profile Specifications</h4>
+                                </div>
+                                <form onSubmit={handleProfileUpdate} className="flex flex-col gap-4">
+                                    <div className="flex items-center gap-4 mb-2">
+                                        <div className="w-14 h-14 bg-gradient-to-r from-[#0268b3] to-[#39a93e] rounded-full flex items-center justify-center text-white font-extrabold text-lg shadow-md">
+                                            {currentUser.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)}
+                                        </div>
+                                        <div>
+                                            <h5 className="font-bold text-slate-800 text-base">{currentUser.name}</h5>
+                                            <span className="text-xs text-slate-400 font-bold uppercase tracking-widest">{currentUser.role === "admin" ? "System Administrator" : "Team Leader"}</span>
+                                        </div>
+                                    </div>
+                                    <div className="form-group flex flex-col gap-1">
+                                        <label className="text-xs font-bold text-slate-700">Display Name</label>
+                                        <input 
+                                            type="text" 
+                                            value={profileName} 
+                                            onChange={e => setProfileName(e.target.value)} 
+                                            required 
+                                            className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:outline-none focus:border-[#0268b3]" 
+                                        />
+                                    </div>
+                                    <div className="form-group flex flex-col gap-1">
+                                        <label className="text-xs font-bold text-slate-700">Email Address (Read-only)</label>
+                                        <input 
+                                            type="email" 
+                                            value={currentUser.email} 
+                                            disabled 
+                                            className="w-full border border-slate-200 rounded-lg p-3 text-sm bg-slate-50 text-slate-400 cursor-not-allowed focus:outline-none" 
+                                        />
+                                    </div>
+                                    {currentUser.role !== "admin" && (
+                                        <div className="form-group flex flex-col gap-1">
+                                            <label className="text-xs font-bold text-slate-700">Assigned Cleaning Crew</label>
+                                            <input 
+                                                type="text" 
+                                                value={currentUser.teamId || "None"} 
+                                                disabled 
+                                                className="w-full border border-slate-200 rounded-lg p-3 text-sm bg-slate-50 text-slate-400 cursor-not-allowed focus:outline-none" 
+                                            />
+                                        </div>
+                                    )}
+                                    <button type="submit" disabled={profileLoading} className="btn btn-primary h-[44px] rounded-lg text-white font-bold transition mt-2">
+                                        {profileLoading ? "Updating Profile..." : "Save Profile Details"}
+                                    </button>
+                                </form>
+                            </div>
+
+                            {/* Card 2: Security & Password Update */}
+                            <div className="panel-card p-6 bg-white shadow rounded-2xl border border-slate-200">
+                                <div className="panel-header border-b border-slate-100 pb-3 mb-4">
+                                    <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">Security & Password Management</h4>
+                                </div>
+                                <form onSubmit={handlePasswordChange} className="flex flex-col gap-4">
+                                    <div className="form-group flex flex-col gap-1">
+                                        <label className="text-xs font-bold text-slate-700">Current Password</label>
+                                        <input 
+                                            type="password" 
+                                            value={securityForm.currentPassword} 
+                                            onChange={e => setSecurityForm(prev => ({ ...prev, currentPassword: e.target.value }))} 
+                                            required 
+                                            placeholder="••••••••" 
+                                            className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:outline-none focus:border-[#0268b3]" 
+                                        />
+                                    </div>
+                                    <div className="form-group flex flex-col gap-1">
+                                        <label className="text-xs font-bold text-slate-700">New Password</label>
+                                        <input 
+                                            type="password" 
+                                            value={securityForm.newPassword} 
+                                            onChange={e => setSecurityForm(prev => ({ ...prev, newPassword: e.target.value }))} 
+                                            required 
+                                            placeholder="Min 6 characters" 
+                                            className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:outline-none focus:border-[#0268b3]" 
+                                        />
+                                    </div>
+                                    <div className="form-group flex flex-col gap-1">
+                                        <label className="text-xs font-bold text-slate-700">Confirm New Password</label>
+                                        <input 
+                                            type="password" 
+                                            value={securityForm.confirmPassword} 
+                                            onChange={e => setSecurityForm(prev => ({ ...prev, confirmPassword: e.target.value }))} 
+                                            required 
+                                            placeholder="••••••••" 
+                                            className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:outline-none focus:border-[#0268b3]" 
+                                        />
+                                    </div>
+                                    <button type="submit" disabled={securityLoading} className="btn btn-primary h-[44px] rounded-lg text-white font-bold transition mt-2" style={{ backgroundColor: "#dc2626", borderColor: "#dc2626" }}>
+                                        {securityLoading ? "Updating Password..." : "Change Security Password"}
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </main>
 
             {/* High Fidelity iOS Fixed Bottom Navigation Bar on Mobile Viewports */}
@@ -1511,6 +1717,10 @@ export default function Home() {
                         )}
                     </button>
                 )}
+                <button onClick={() => setActiveTab("settings")} className={`mobile-nav-item ${activeTab === "settings" ? "active" : ""}`}>
+                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                    <span>Settings</span>
+                </button>
             </div>
 
             {/* MODAL 1: VIEW DETAILS MODAL */}
