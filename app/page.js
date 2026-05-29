@@ -1803,7 +1803,7 @@ export default function Home() {
                                 <span className={`status-badge status-${selectedBooking.status.toLowerCase()}`}>{selectedBooking.status}</span>
                             </div>
                         </div>
-                        <div className="bg-slate-50 px-6 py-4 flex justify-end gap-2 border-t border-slate-100">
+                        <div className="modal-footer">
                             <button onClick={() => setDetailsModalOpen(false)} className="btn btn-secondary btn-sm">Close</button>
                             <button onClick={() => { setDetailsModalOpen(false); openEditBookingModal(selectedBooking); }} className="btn btn-primary btn-sm">Edit Dispatch</button>
                         </div>
@@ -1954,7 +1954,7 @@ export default function Home() {
                                     />
                                 </div>
                             </div>
-                            <div className="bg-slate-50 px-6 py-4 flex justify-end gap-2 border-t border-slate-100">
+                            <div className="modal-footer">
                                 <button type="button" onClick={() => setBookingModalOpen(false)} className="btn btn-secondary btn-sm">Cancel</button>
                                 <button type="submit" className="btn btn-primary btn-sm">{bookingModalMode === "create" ? "Create Dispatch" : "Request Changes"}</button>
                             </div>
@@ -2023,9 +2023,9 @@ export default function Home() {
                                     <textarea value={teamForm.description} onChange={e => setTeamForm(prev => ({ ...prev, description: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5" placeholder="Deep Cleaning & Sparkle residential cleans..." />
                                 </div>
                             </div>
-                            <div className="bg-slate-50 px-6 py-4 flex justify-end gap-2 border-t border-slate-100">
+                            <div className="modal-footer">
                                 <button type="button" onClick={() => setTeamModalOpen(false)} className="btn btn-secondary btn-sm">Cancel</button>
-                                <button type="submit" className="btn btn-primary btn-sm">Dispatch Crew</button>
+                                <button type="submit" className="btn btn-primary btn-sm">Create Crew</button>
                             </div>
                         </form>
                     </div>
