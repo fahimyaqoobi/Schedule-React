@@ -1166,7 +1166,7 @@ export default function Home() {
                                 <div className="panel-header">
                                     <div>
                                         <h4>Today's Operational Dispatches</h4>
-                                        <span className="subtext text-xs text-slate-400">Toronto Reference Date: May 28, 2026</span>
+                                        <span className="subtext text-xs text-slate-400">Toronto Reference Date: {new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto', year: 'numeric', month: 'long', day: 'numeric' })}</span>
                                     </div>
                                     <span className="badge">{todayBookings.length} Job{todayBookings.length === 1 ? '' : 's'}</span>
                                 </div>
