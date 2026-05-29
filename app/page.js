@@ -874,10 +874,12 @@ export default function Home() {
         return { counts, total: validJobs };
     }, [bookings]);
 
-    // Today's appointments (Toronto reference standard mock date: 2026-05-28)
+    // Today's appointments (Toronto timezone)
     const todayBookings = useMemo(() => {
-        return bookings.filter(b => b.date === "2026-05-28").sort((a, b) => a.time.localeCompare(b.time));
+        const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' }); // yields YYYY-MM-DD
+        return bookings.filter(b => b.date === todayStr).sort((a, b) => a.time.localeCompare(b.time));
     }, [bookings]);
+
 
     // ----------------------------------------------------
     // Calendar Navigation helpers
