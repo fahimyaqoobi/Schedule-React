@@ -1073,10 +1073,12 @@ export default function Home() {
                         {Icons.Calendar()}
                         <span>Calendar</span>
                     </button>
-                    <button onClick={() => setActiveTab("teams")} className={`nav-item ${activeTab === "teams" ? "active" : ""}`}>
-                        {Icons.Teams()}
-                        <span>Teams</span>
-                    </button>
+                    {currentUser.role === "admin" && (
+                        <button onClick={() => setActiveTab("teams")} className={`nav-item ${activeTab === "teams" ? "active" : ""}`}>
+                            {Icons.Teams()}
+                            <span>Teams</span>
+                        </button>
+                    )}
                     {currentUser.role === "admin" && (
                         <button onClick={() => setActiveTab("edit-requests")} className={`nav-item ${activeTab === "edit-requests" ? "active" : ""}`}>
                             <div className="flex items-center gap-3">
@@ -1719,10 +1721,12 @@ export default function Home() {
                     {Icons.Calendar()}
                     <span>Calendar</span>
                 </button>
-                <button onClick={() => setActiveTab("teams")} className={`mobile-nav-item ${activeTab === "teams" ? "active" : ""}`}>
-                    {Icons.Teams()}
-                    <span>Teams</span>
-                </button>
+                {currentUser.role === "admin" && (
+                    <button onClick={() => setActiveTab("teams")} className={`mobile-nav-item ${activeTab === "teams" ? "active" : ""}`}>
+                        {Icons.Teams()}
+                        <span>Teams</span>
+                    </button>
+                )}
                 {currentUser.role === "admin" && (
                     <button onClick={() => setActiveTab("edit-requests")} className={`mobile-nav-item relative ${activeTab === "edit-requests" ? "active" : ""}`}>
                         {Icons.EditReview()}
