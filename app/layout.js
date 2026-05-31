@@ -3,6 +3,7 @@ import "./globals.css";
 export const metadata = {
   title: "SmarTouch Clean - Admin Client Scheduling System",
   description: "Secure, real-time client booking and operational crew dispatch manager.",
+  manifest: "/manifest.json",
 };
 
 export const viewport = {
