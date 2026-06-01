@@ -1878,6 +1878,14 @@ select option:disabled {
         padding: 12px !important;
     }
 
+    .calendar-card .panel-header {
+        flex-direction: column !important;
+        align-items: center !important;
+        gap: 12px !important;
+        padding: 16px 8px !important;
+        text-align: center !important;
+    }
+
     .teams-grid {
         grid-template-columns: 1fr !important;
         width: 100% !important;
