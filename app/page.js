@@ -39,20 +39,66 @@ const INITIAL_TEAMS = [
     { id: 'team-ecoclean', name: 'Team EcoClean', color: 'ecoclean', lead: 'Sarah Green', size: 2, members: 'Sarah Green, Lily Evans', description: 'Green, pet-friendly biodegradable cleaning' }
 ];
 
-const SERVICE_PRICES = {
-    'Standard Clean': 120.00,
-    'Deep Clean': 250.00,
-    'Move-in/Move-out': 320.00,
-    'Window Cleaning': 90.00,
-    'Commercial Clean': 480.00
+const DEFAULT_PRICES = {
+    services: {
+        'Studio or 1 Bedroom': 87.50,
+        '2 bedroom apartment': 101.50,
+        '3 bedroom apartment or townhouse': 115.50,
+        '3 or 4 bedroom house (or between 1700 to 1999 sqft)': 143.50,
+        'between 2000 to 2499 sq ft': 150.50,
+        'between 2500 to 2999 sq ft': 175.00,
+        'between 3000 to 3499 sq ft': 208.60,
+        'between 3500 to 3999 sq ft': 243.60
+    },
+    bathrooms: {
+        '1 Bathroom': 14.00,
+        '2 Bathroom': 28.00,
+        '3 Bathroom': 42.00,
+        '4 Bathroom': 56.00,
+        '5 Bathroom': 70.00,
+        '6 Bathroom': 84.00,
+        '7 Bathroom': 98.00
+    },
+    extras: {
+        'downtownParking': { name: 'Downtown Street Parking Fee', price: 14.00, qtySelector: false },
+        'firstTimeClean': { name: 'First Time Clean Upgrade', price: 87.50, qtySelector: false },
+        'moveInOut': { name: 'Move In/Out Upgrade', price: 87.50, qtySelector: false },
+        'havePets': { name: 'I Have Pets Premium', price: 17.50, qtySelector: false },
+        'insideOven': { name: 'Inside the Oven', price: 31.50, qtySelector: true },
+        'insideEmptyFridge': { name: 'Inside an Empty Fridge', price: 17.50, qtySelector: true },
+        'insideFullFridge': { name: 'Inside a Full Fridge', price: 31.50, qtySelector: true },
+        'secondKitchen': { name: 'Second Kitchen', price: 35.00, qtySelector: false },
+        'walls': { name: 'Walls ($14 per room)', price: 14.00, qtySelector: true },
+        'shedPoolHouse': { name: 'Shed/Pool House', price: 52.50, qtySelector: false },
+        'insideCabinets': { name: 'Inside Cabinets (emptied)', price: 35.00, qtySelector: false },
+        'interiorWindows': { name: 'Interior Windows ($7 per window)', price: 7.00, qtySelector: true },
+        'slidingDoorWindow': { name: 'Sliding Door Interior Window', price: 14.00, qtySelector: true },
+        'garageSweep': { name: 'Garage Sweep', price: 21.00, qtySelector: false },
+        'balconySweep': { name: 'Balcony Sweep', price: 14.00, qtySelector: true },
+        'homeConcierge': { name: 'Home Concierge ($35/hr, min 2 hrs)', price: 35.00, qtySelector: true, minQty: 2 },
+        'organization': { name: 'Organization ($56/hr, min 3 hrs)', price: 56.00, qtySelector: true, minQty: 3 },
+        'laundryWashFold': { name: 'Laundry - Wash & Fold (per load)', price: 17.50, qtySelector: true },
+        'nextDayBooking': { name: 'Next Day Booking Fee', price: 52.50, qtySelector: false },
+        'sameDayCancellation': { name: 'Same Day Cancellation Fee', price: 55.30, qtySelector: false }
+    },
+    frequencies: {
+        'One-Time': { name: 'one time service', discount: 0 },
+        'Weekly': { name: 'Weekly 20% off', discount: 0.20 },
+        'Bi-Weekly': { name: 'Bi-Weekly 15% off', discount: 0.15 },
+        'Tri-Weekly': { name: 'Tri weekly 12% off', discount: 0.12 },
+        'Monthly': { name: 'Monthly 10% off', discount: 0.10 }
+    }
 };
 
-const SERVICE_DURATIONS = {
-    'Standard Clean': 2,
-    'Deep Clean': 3,
-    'Move-in/Move-out': 4,
-    'Window Cleaning': 1.5,
-    'Commercial Clean': 4
+const DEFAULT_SERVICE_DURATIONS = {
+    'Studio or 1 Bedroom': 2,
+    '2 bedroom apartment': 2.5,
+    '3 bedroom apartment or townhouse': 3,
+    '3 or 4 bedroom house (or between 1700 to 1999 sqft)': 3.5,
+    'between 2000 to 2499 sq ft': 4,
+    'between 2500 to 2999 sq ft': 4.5,
+    'between 3000 to 3499 sq ft': 5,
+    'between 3500 to 3999 sq ft': 5.5
 };
 
 export default function Home() {
@@ -100,24 +146,39 @@ export default function Home() {
         return new Date(today.getFullYear(), today.getMonth(), 1);
     });
 
+    // Pricing rates manager and wizard step counter states
+    const [pricingRates, setPricingRates] = useState(DEFAULT_PRICES);
+    const [formStep, setFormStep] = useState(1);
+
     // Form inputs for scheduling modal
     const [bookingForm, setBookingForm] = useState({
         id: "",
-        clientName: "",
+        firstName: "",
+        lastName: "",
         phone: "",
         email: "",
-        address1: "",
-        address2: "",
+        address1: "", // Street
+        address2: "", // Apt #
         city: "",
         state: "Ontario",
         postalCode: "",
         country: "Canada",
-        service: "Standard Clean",
-        price: 120.00,
+        service: "Studio or 1 Bedroom",
+        bathrooms: "1 Bathroom",
+        extras: {},
+        frequency: "One-Time",
+        hasPets: false,
+        accessMode: "Will be home",
+        freeParking: true,
+        firstClean30: false,
+        specialNotes: "",
+        accessDetails: "",
+        customDiscountPercent: 0,
+        price: 87.50,
         duration: 2,
         date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' }),
         time: "09:00 AM",
-        team: teams[0]?.name || "",
+        team: "",
         status: "Pending",
         serviceDescription: "",
         accessDescription: ""
@@ -144,6 +205,68 @@ export default function Home() {
             setProfileName(currentUser.name || "");
         }
     }, [currentUser]);
+
+    // Live pricing rates loader from Serverless API settings/pricing
+    useEffect(() => {
+        const loadPricingRates = async () => {
+            try {
+                const headers = await getAuthHeaders();
+                const res = await fetch("/api/settings", { headers });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && Object.keys(data).length > 0) {
+                        setPricingRates(data);
+                    }
+                }
+            } catch (err) {
+                console.warn("Failed to load custom pricing from API, using defaults.", err);
+            }
+        };
+        if (currentUser) {
+            loadPricingRates();
+        }
+    }, [currentUser]);
+
+
+    // Auto-select first available team when booking modal is open and no team is selected yet
+    useEffect(() => {
+        if (bookingModalOpen && !bookingForm.team && teams.length > 0) {
+            setBookingForm(prev => ({
+                ...prev,
+                team: currentUser && currentUser.role === "team-leader" ? currentUser.teamId : teams[0].name
+            }));
+        }
+    }, [bookingModalOpen, teams, currentUser, bookingForm.team]);
+
+    // Dynamic price calculator combining Base Service, Bathrooms, Extras, Frequencies, and Custom Discounts
+    const calculateBookingTotal = (formState) => {
+        const baseServicePrice = pricingRates.services[formState.service] || 0;
+        const bathroomsPrice = pricingRates.bathrooms[formState.bathrooms] || 0;
+        let extrasTotal = 0;
+        Object.entries(formState.extras || {}).forEach(([key, qty]) => {
+            const extraConfig = pricingRates.extras[key];
+            if (extraConfig && qty) {
+                const qtyVal = typeof qty === 'boolean' ? 1 : parseFloat(qty || 0);
+                extrasTotal += extraConfig.price * qtyVal;
+            }
+        });
+        const subtotal = baseServicePrice + bathroomsPrice + extrasTotal;
+        const freqConfig = pricingRates.frequencies[formState.frequency || 'One-Time'];
+        const freqDiscountPercent = freqConfig ? freqConfig.discount : 0;
+        const freqDiscountDeduction = subtotal * freqDiscountPercent;
+        const customDiscountPercent = parseFloat(formState.customDiscountPercent || 0) / 100;
+        const customDiscountDeduction = (subtotal - freqDiscountDeduction) * customDiscountPercent;
+        const total = subtotal - freqDiscountDeduction - customDiscountDeduction;
+        return {
+            baseServicePrice,
+            bathroomsPrice,
+            extrasTotal,
+            subtotal,
+            freqDiscountDeduction,
+            customDiscountDeduction,
+            total: Math.max(0, total)
+        };
+    };
 
     // ----------------------------------------------------
     // Shared Secure JWT Authorization Request Fetcher
@@ -288,39 +411,40 @@ export default function Home() {
         }
     }, [currentUser, activeTab]);
 
-    // Handle authentication state changes & read client-side user document
+    // Handle authentication state changes & read server-side user document securely
     useEffect(() => {
         const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
             if (firebaseUser) {
                 try {
-                    // Let's read user document directly from serverless API /api/bookings?profile=true or standard fetches
                     const token = await firebaseUser.getIdToken();
 
-                    // We will fetch users collection from API or read client side.
-                    // Wait, let's write a small client side fetch using Modular SDK!
-                    // In modular SDK:
-                    const { doc, getDoc, getFirestore } = await import("firebase/firestore");
-                    const clientDb = getFirestore();
-
-                    let userDoc = await getDoc(doc(clientDb, "users", firebaseUser.uid));
+                    // Fetch profile using secure API route
+                    let userData = null;
                     let retries = 0;
 
-                    // Polling in case of registrations
-                    while (!userDoc.exists() && retries < 5) {
-                        await new Promise(res => setTimeout(res, 500));
-                        userDoc = await getDoc(doc(clientDb, "users", firebaseUser.uid));
+                    while (!userData && retries < 5) {
+                        try {
+                            const res = await fetch("/api/users?type=me", {
+                                headers: { "Authorization": `Bearer ${token}` }
+                            });
+                            if (res.ok) {
+                                userData = await res.json();
+                                break;
+                            }
+                        } catch (e) {
+                            console.warn("Retrying profile fetch...", e);
+                        }
+                        await new Promise(r => setTimeout(r, 600));
                         retries++;
                     }
 
-                    if (userDoc.exists()) {
-                        const userData = userDoc.data();
+                    if (userData) {
                         setCurrentUser(userData);
-
                         if (userData.status === "approved") {
                             syncDatabaseData(userData);
                         }
                     } else {
-                        // Safe fallback for console-registered cleaners
+                        // Safe fallback for console-registered cleaners or admins
                         const fallbackAdmin = {
                             uid: firebaseUser.uid,
                             name: firebaseUser.displayName || firebaseUser.email.split("@")[0],
@@ -333,7 +457,7 @@ export default function Home() {
                         syncDatabaseData(fallbackAdmin);
                     }
                 } catch (err) {
-                    console.error("Failed to load user profile", err);
+                    console.error("Failed to load user profile securely", err);
                     alert("Authentication Error: Failed to fetch user role.\n\nDetails: " + (err.message || err));
                     signOut(auth);
                 }
@@ -344,6 +468,7 @@ export default function Home() {
         });
         return () => unsub();
     }, []);
+
 
     // ----------------------------------------------------
     // Client Side Authentication Actions
@@ -483,11 +608,12 @@ export default function Home() {
     // ----------------------------------------------------
     const handleServiceChange = (e) => {
         const serv = e.target.value;
+        const dur = DEFAULT_SERVICE_DURATIONS[serv] || 2;
         setBookingForm(prev => ({
             ...prev,
             service: serv,
-            price: SERVICE_PRICES[serv] || 120.00,
-            duration: SERVICE_DURATIONS[serv] || 2
+            price: pricingRates.services[serv] || 87.50,
+            duration: dur
         }));
     };
 
@@ -542,11 +668,48 @@ export default function Home() {
     // ----------------------------------------------------
     // Booking Form Submit Actions
     // ----------------------------------------------------
+    const validateFormStep = (step) => {
+        if (step === 1) {
+            if (!bookingForm.firstName.trim()) { alert("First Name is required."); return false; }
+            if (!bookingForm.lastName.trim()) { alert("Last Name is required."); return false; }
+            if (!bookingForm.email.trim()) { alert("Email Address is required."); return false; }
+            if (!bookingForm.email.includes("@")) { alert("Please enter a valid email address."); return false; }
+            if (!bookingForm.phone.trim()) { alert("Phone Number is required."); return false; }
+        }
+        if (step === 2) {
+            if (!bookingForm.address1.trim()) { alert("Street address is required."); return false; }
+            if (!bookingForm.city.trim()) { alert("City is required."); return false; }
+            if (!bookingForm.postalCode.trim()) { alert("Postal Code is required."); return false; }
+        }
+        if (step === 5) {
+            if (!bookingForm.date) { alert("Please select a schedule date."); return false; }
+            if (!bookingForm.time) { alert("Please select an arrival time slot."); return false; }
+            const finalTeam = currentUser?.role === "team-leader" ? currentUser.teamId : bookingForm.team;
+            if (!finalTeam) { alert("Please select a dispatch crew."); return false; }
+            if (bookingForm.team !== finalTeam) {
+                setBookingForm(prev => ({ ...prev, team: finalTeam }));
+            }
+        }
+        return true;
+    };
+
+    const handleNextStep = () => {
+        if (validateFormStep(formStep)) {
+            setFormStep(prev => prev + 1);
+        }
+    };
+
+    const handleBackStep = () => {
+        setFormStep(prev => prev - 1);
+    };
+
     const openCreateBookingModal = () => {
         setBookingModalMode("create");
+        setFormStep(1);
         setBookingForm({
             id: "",
-            clientName: "",
+            firstName: "",
+            lastName: "",
             phone: "",
             email: "",
             address1: "",
@@ -555,8 +718,18 @@ export default function Home() {
             state: "Ontario",
             postalCode: "",
             country: "Canada",
-            service: "Standard Clean",
-            price: 120.00,
+            service: "Studio or 1 Bedroom",
+            bathrooms: "1 Bathroom",
+            extras: {},
+            frequency: "One-Time",
+            hasPets: false,
+            accessMode: "Will be home",
+            freeParking: true,
+            firstClean30: false,
+            specialNotes: "",
+            accessDetails: "",
+            customDiscountPercent: 0,
+            price: 87.50,
             duration: 2,
             date: selectedCalDate,
             time: "09:00 AM",
@@ -571,9 +744,14 @@ export default function Home() {
 
     const openEditBookingModal = (b) => {
         setBookingModalMode("edit");
+        setFormStep(1);
+        const nameParts = (b.clientName || "").split(" ");
+        const fName = b.firstName || nameParts[0] || "";
+        const lName = b.lastName || nameParts.slice(1).join(" ") || "";
         setBookingForm({
             id: b.id,
-            clientName: b.clientName,
+            firstName: fName,
+            lastName: lName,
             phone: b.phone || "",
             email: b.email || "",
             address1: b.address1 || "",
@@ -582,8 +760,18 @@ export default function Home() {
             state: b.state || "Ontario",
             postalCode: b.postalCode || "",
             country: b.country || "Canada",
-            service: b.service || "Standard Clean",
-            price: b.price || 120.00,
+            service: b.service || "Studio or 1 Bedroom",
+            bathrooms: b.bathrooms || "1 Bathroom",
+            extras: b.extras || {},
+            frequency: b.frequency || "One-Time",
+            hasPets: b.hasPets !== undefined ? b.hasPets : false,
+            accessMode: b.accessMode || "Will be home",
+            freeParking: b.freeParking !== undefined ? b.freeParking : true,
+            firstClean30: b.firstClean30 !== undefined ? b.firstClean30 : false,
+            specialNotes: b.specialNotes || "",
+            accessDetails: b.accessDetails || "",
+            customDiscountPercent: b.customDiscountPercent || 0,
+            price: b.price || 87.50,
             duration: b.duration || 2,
             date: b.date,
             time: b.time,
@@ -599,11 +787,8 @@ export default function Home() {
     const handleBookingSubmit = async (e) => {
         e.preventDefault();
 
-        // Ensure values are numbers
-        const priceNum = parseFloat(bookingForm.price || 0);
-        const durationNum = parseFloat(bookingForm.duration || 2);
-
         // Validate collision
+        const durationNum = parseFloat(bookingForm.duration || 2);
         const isOverlap = checkScheduleCollisions(
             bookingForm.date,
             bookingForm.time,
@@ -618,9 +803,13 @@ export default function Home() {
         }
 
         try {
+            const calculated = calculateBookingTotal(bookingForm);
+            const priceNum = parseFloat(calculated.total || 0);
+
             const headers = await getAuthHeaders();
             const payload = {
                 ...bookingForm,
+                clientName: `${bookingForm.firstName} ${bookingForm.lastName}`.trim(),
                 price: priceNum,
                 duration: durationNum
             };
@@ -729,11 +918,20 @@ export default function Home() {
                 await updateProfile(user, { displayName: profileName });
             }
 
-            const { doc, updateDoc, getFirestore } = await import("firebase/firestore");
-            const clientDb = getFirestore();
-            await updateDoc(doc(clientDb, "users", currentUser.uid), { name: profileName });
+            const headers = await getAuthHeaders();
+            const res = await fetch("/api/users", {
+                method: "PUT",
+                headers,
+                body: JSON.stringify({ updateSelf: true, name: profileName })
+            });
 
-            setCurrentUser(prev => ({ ...prev, name: profileName }));
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.error || "Failed to update profile name.");
+            }
+
+            const data = await res.json();
+            setCurrentUser(data.user);
             alert("Profile name updated successfully!");
         } catch (err) {
             console.error("Profile update failed", err);
@@ -742,6 +940,7 @@ export default function Home() {
             setProfileLoading(false);
         }
     };
+
 
     const handlePasswordChange = async (e) => {
         e.preventDefault();
@@ -870,20 +1069,27 @@ export default function Home() {
     }, [bookings]);
 
     const serviceCounts = useMemo(() => {
-        const counts = { 'Standard Clean': 0, 'Deep Clean': 0, 'Move-in/Move-out': 0, 'Window Cleaning': 0, 'Commercial Clean': 0 };
+        const counts = {};
+        Object.keys(pricingRates.services).forEach(key => {
+            counts[key] = 0;
+        });
         let validJobs = 0;
 
         bookings.forEach(b => {
             if (b.status !== "Cancelled") {
                 const s = b.service;
-                if (counts[s] !== undefined) counts[s]++;
-                else counts['Standard Clean']++;
+                if (counts[s] !== undefined) {
+                    counts[s]++;
+                } else {
+                    const firstKey = Object.keys(pricingRates.services)[0];
+                    if (firstKey) counts[firstKey] = (counts[firstKey] || 0) + 1;
+                }
                 validJobs++;
             }
         });
 
         return { counts, total: validJobs };
-    }, [bookings]);
+    }, [bookings, pricingRates]);
 
     // Today's appointments (Toronto timezone)
     const todayBookings = useMemo(() => {
@@ -1231,13 +1437,16 @@ export default function Home() {
                                 </div>
                                 <div className="panel-body">
                                     <div className="analytics-bars">
-                                        {Object.keys(SERVICE_PRICES).map(serv => {
+                                        {Object.keys(pricingRates.services).map(serv => {
                                             const count = serviceCounts.counts[serv] || 0;
                                             const percentage = serviceCounts.total > 0 ? Math.round((count / serviceCounts.total) * 100) : 0;
-                                            const fillClass = serv === "Deep Clean" ? "fill-deep" :
-                                                serv === "Move-in/Move-out" ? "fill-move" :
-                                                    serv === "Window Cleaning" ? "fill-window" :
-                                                        serv === "Commercial Clean" ? "fill-commercial" : "fill-standard";
+                                            const fillClass = serv.toLowerCase().includes("studio") || serv.toLowerCase().includes("1 bedroom") ? "fill-standard" :
+                                                serv.toLowerCase().includes("2 bedroom") ? "fill-deep" :
+                                                serv.toLowerCase().includes("3 bedroom") || serv.toLowerCase().includes("townhouse") ? "fill-move" :
+                                                serv.toLowerCase().includes("4 bedroom") || serv.toLowerCase().includes("1700") ? "fill-window" :
+                                                serv.toLowerCase().includes("2000") || serv.toLowerCase().includes("2499") ? "fill-commercial" :
+                                                serv.toLowerCase().includes("2500") || serv.toLowerCase().includes("2999") ? "fill-deep" :
+                                                serv.toLowerCase().includes("3000") || serv.toLowerCase().includes("3499") ? "fill-move" : "fill-commercial";
                                             return (
                                                 <div key={serv} className="bar-item">
                                                     <div className="bar-label-row text-xs">
@@ -1307,7 +1516,7 @@ export default function Home() {
                             <div className="filters-actions">
                                 <select value={filterService} onChange={e => setFilterService(e.target.value)}>
                                     <option value="">All Services</option>
-                                    {Object.keys(SERVICE_PRICES).map(s => <option key={s} value={s}>{s}</option>)}
+                                    {Object.keys(pricingRates.services).map(s => <option key={s} value={s}>{s}</option>)}
                                 </select>
                                 <select value={filterTeam} onChange={e => setFilterTeam(e.target.value)}>
                                     <option value="">All Teams</option>
@@ -1716,6 +1925,160 @@ export default function Home() {
                                     </button>
                                 </form>
                             </div>
+
+                            {/* Card 3: Rates & Pricing Manager (Admin-Only) */}
+                            {currentUser.role === "admin" && (
+                                <div className="settings-card md:col-span-2" style={{ gridColumn: "span 2" }}>
+                                    <div className="panel-header border-b border-slate-100 pb-3 flex justify-between items-center">
+                                        <div>
+                                            <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">Pricing & Rates Manager Settings</h4>
+                                            <p className="text-slate-400 text-[10px] mt-0.5">Customize real-time booking rates, bathroom fees, extras, and discounts</p>
+                                        </div>
+                                        <button 
+                                            type="button"
+                                            onClick={async () => {
+                                                try {
+                                                    const headers = await getAuthHeaders();
+                                                    const res = await fetch("/api/settings", {
+                                                        method: "POST",
+                                                        headers,
+                                                        body: JSON.stringify(pricingRates)
+                                                    });
+                                                    if (!res.ok) {
+                                                        const errData = await res.json();
+                                                        throw new Error(errData.error || "Failed to update settings");
+                                                    }
+                                                    alert("Pricing and rates updated successfully in database!");
+                                                } catch (err) {
+                                                    alert("Failed to save rates: " + err.message);
+                                                }
+                                            }}
+                                            className="btn btn-primary btn-sm rounded-lg text-white font-bold"
+                                        >
+                                            Save System Rates
+                                        </button>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
+                                        {/* Column 1: Services & Bathrooms */}
+                                        <div className="flex flex-col gap-4">
+                                            <div>
+                                                <h5 className="font-bold text-xs uppercase tracking-wider text-slate-700 border-b border-slate-100 pb-1 mb-2">Base Home Size Rates ($)</h5>
+                                                <div className="max-h-[220px] overflow-y-auto pr-1 flex flex-col gap-2">
+                                                    {Object.keys(pricingRates.services).map(key => (
+                                                        <div key={key} className="flex items-center justify-between gap-4 p-2 bg-slate-50 hover:bg-slate-100/80 rounded-xl transition-all border border-slate-100/80">
+                                                            <label className="font-semibold text-slate-600 text-[11px] leading-snug">{key}</label>
+                                                            <div className="relative flex items-center">
+                                                                <span className="absolute left-2.5 text-slate-400 font-extrabold text-[11px]">$</span>
+                                                                <input 
+                                                                    type="number" 
+                                                                    value={pricingRates.services[key]} 
+                                                                    onChange={e => {
+                                                                        const val = parseFloat(e.target.value || 0);
+                                                                        setPricingRates(prev => ({
+                                                                            ...prev,
+                                                                            services: { ...prev.services, [key]: val }
+                                                                        }));
+                                                                    }}
+                                                                    className="border border-slate-200 rounded-lg pl-6 pr-2 py-1.5 font-bold text-slate-700 text-xs w-[85px] text-right focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none" 
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            <div className="mt-2">
+                                                <h5 className="font-bold text-xs uppercase tracking-wider text-slate-700 border-b border-slate-100 pb-1 mb-2">Bathroom Increments ($)</h5>
+                                                <div className="max-h-[160px] overflow-y-auto pr-1 flex flex-col gap-2">
+                                                    {Object.keys(pricingRates.bathrooms).map(key => (
+                                                        <div key={key} className="flex items-center justify-between gap-4 p-2 bg-slate-50 hover:bg-slate-100/80 rounded-xl transition-all border border-slate-100/80">
+                                                            <label className="font-semibold text-slate-600 text-[11px]">{key}</label>
+                                                            <div className="relative flex items-center">
+                                                                <span className="absolute left-2.5 text-slate-400 font-extrabold text-[11px]">$</span>
+                                                                <input 
+                                                                    type="number" 
+                                                                    value={pricingRates.bathrooms[key]} 
+                                                                    onChange={e => {
+                                                                        const val = parseFloat(e.target.value || 0);
+                                                                        setPricingRates(prev => ({
+                                                                            ...prev,
+                                                                            bathrooms: { ...prev.bathrooms, [key]: val }
+                                                                        }));
+                                                                    }}
+                                                                    className="border border-slate-200 rounded-lg pl-6 pr-2 py-1.5 font-bold text-slate-700 text-xs w-[85px] text-right focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none" 
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Column 2: Extras & Frequencies */}
+                                        <div className="flex flex-col gap-4">
+                                            <div>
+                                                <h5 className="font-bold text-xs uppercase tracking-wider text-slate-700 border-b border-slate-100 pb-1 mb-2">Select Extras Upgrade Rates ($)</h5>
+                                                <div className="max-h-[220px] overflow-y-auto pr-1 flex flex-col gap-2">
+                                                    {Object.entries(pricingRates.extras).map(([key, extra]) => (
+                                                        <div key={key} className="flex items-center justify-between gap-4 p-2 bg-slate-50 hover:bg-slate-100/80 rounded-xl transition-all border border-slate-100/80">
+                                                            <label className="font-semibold text-slate-600 text-[11px] leading-snug">{extra.name}</label>
+                                                            <div className="relative flex items-center">
+                                                                <span className="absolute left-2.5 text-slate-400 font-extrabold text-[11px]">$</span>
+                                                                <input 
+                                                                    type="number" 
+                                                                    value={extra.price} 
+                                                                    onChange={e => {
+                                                                        const val = parseFloat(e.target.value || 0);
+                                                                        setPricingRates(prev => ({
+                                                                            ...prev,
+                                                                            extras: {
+                                                                                ...prev.extras,
+                                                                                [key]: { ...prev.extras[key], price: val }
+                                                                            }
+                                                                        }));
+                                                                    }}
+                                                                    className="border border-slate-200 rounded-lg pl-6 pr-2 py-1.5 font-bold text-slate-700 text-xs w-[85px] text-right focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none" 
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            <div className="mt-2">
+                                                <h5 className="font-bold text-xs uppercase tracking-wider text-slate-700 border-b border-slate-100 pb-1 mb-2">Frequency Discounts (%)</h5>
+                                                <div className="flex flex-col gap-2">
+                                                    {Object.entries(pricingRates.frequencies).map(([key, freq]) => (
+                                                        <div key={key} className="flex items-center justify-between gap-4 p-2 bg-slate-50 hover:bg-slate-100/80 rounded-xl transition-all border border-slate-100/80">
+                                                            <label className="font-semibold text-slate-600 text-[11px] capitalize">{freq.name}</label>
+                                                            <div className="relative flex items-center">
+                                                                <input 
+                                                                    type="number" 
+                                                                    min="0"
+                                                                    max="100"
+                                                                    value={Math.round(freq.discount * 100)} 
+                                                                    onChange={e => {
+                                                                        const val = parseFloat(e.target.value || 0) / 100;
+                                                                        setPricingRates(prev => ({
+                                                                            ...prev,
+                                                                            frequencies: {
+                                                                                ...prev.frequencies,
+                                                                                [key]: { ...prev.frequencies[key], discount: val }
+                                                                            }
+                                                                        }));
+                                                                    }}
+                                                                    className="border border-slate-200 rounded-lg pl-2 pr-6 py-1.5 font-bold text-slate-700 text-xs w-[75px] text-right focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none" 
+                                                                />
+                                                                <span className="absolute right-2.5 text-slate-400 font-extrabold text-[11px]">%</span>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}
@@ -1800,149 +2163,586 @@ export default function Home() {
             {/* MODAL 2: SCHEDULING FORM MODAL */}
             {bookingModalOpen && (
                 <div className="modal-backdrop show">
-                    <div className="modal-content animate-pop" style={{ maxWidth: "650px" }}>
+                    <div className="modal-content animate-pop" style={{ maxWidth: "850px", width: "95%" }}>
                         <div className="modal-header" style={{ background: "linear-gradient(135deg, var(--accent-blue), var(--accent-green))", borderBottom: "none" }}>
-                            <h3 className="font-extrabold text-sm uppercase tracking-wider text-white" style={{ margin: 0 }}>{bookingModalMode === "create" ? "Schedule New dispatch" : "Request Modification review"}</h3>
+                            <h3 className="font-extrabold text-sm uppercase tracking-wider text-white" style={{ margin: 0 }}>
+                                {bookingModalMode === "create" ? "Schedule New Dispatch" : "Request Modification Review"}
+                            </h3>
                             <button onClick={() => setBookingModalOpen(false)} className="modal-close-btn" aria-label="Close">
                                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="1" y1="1" x2="13" y2="13" /><line x1="13" y1="1" x2="1" y2="13" /></svg>
                             </button>
                         </div>
                         <form onSubmit={handleBookingSubmit} style={{ display: "flex", flexDirection: "column", flexGrow: 1, overflowY: "auto" }}>
-                            <div className="modal-body grid grid-cols-1 md:grid-cols-2 gap-4 text-xs" style={{ padding: "24px" }}>
-                                <div className="form-group flex flex-col gap-1">
-                                    <label className="font-bold text-slate-700">Client Name *</label>
-                                    <input type="text" required value={bookingForm.clientName} onChange={e => setBookingForm(prev => ({ ...prev, clientName: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5" placeholder="Jane Jenkins" />
-                                </div>
-                                <div className="form-group flex flex-col gap-1">
-                                    <label className="font-bold text-slate-700">Phone Number *</label>
-                                    <input type="tel" required value={bookingForm.phone} onChange={e => setBookingForm(prev => ({ ...prev, phone: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5" placeholder="555-0199" />
-                                </div>
-                                <div className="form-group flex flex-col gap-1 md:col-span-2">
-                                    <label className="font-bold text-slate-700">Email Address *</label>
-                                    <input type="email" required value={bookingForm.email} onChange={e => setBookingForm(prev => ({ ...prev, email: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5" placeholder="jane@jenkins.com" />
+                            <div className="modal-body flex flex-col text-xs" style={{ padding: "20px 24px" }}>
+                                
+                                {/* Stepper Progress Header */}
+                                <div className="wizard-stepper flex items-center justify-between border-b border-slate-100 pb-4 mb-5 text-[9px] md:text-xs">
+                                    {[1, 2, 3, 4, 5, 6, 7, 8].map(stepNum => {
+                                        const stepLabels = ["Contact", "Address", "Services", "Extras", "Schedule", "Frequency", "Property Info", "Review"];
+                                        const isActive = formStep === stepNum;
+                                        const isCompleted = formStep > stepNum;
+                                        return (
+                                            <div key={stepNum} className={`flex flex-col items-center gap-1 flex-1 relative ${isActive ? 'text-blue-600 font-bold' : (isCompleted ? 'text-green-600' : 'text-slate-400')}`}>
+                                                <div className={`w-6 h-6 rounded-full flex items-center justify-center border-2 text-[9px] font-extrabold ${isActive ? 'border-blue-600 bg-blue-50 text-blue-600' : (isCompleted ? 'border-green-600 bg-green-50 text-green-600' : 'border-slate-200 text-slate-400 bg-slate-50')}`}>
+                                                    {isCompleted ? "✓" : stepNum}
+                                                </div>
+                                                <span className="hidden lg:inline text-[9px] uppercase tracking-wider mt-0.5">{stepLabels[stepNum - 1]}</span>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
 
-                                {/* Ontario Google/OSM autocomplete input */}
-                                <div ref={autocompleteRef} className="form-group flex flex-col gap-1 md:col-span-2 relative">
-                                    <label className="font-bold text-slate-700">Client Street Address (Ontario, Canada restricted) *</label>
-                                    <div className="search-input-wrapper">
-                                        <input type="text" required value={bookingForm.address1} onChange={handleAddressChange} onFocus={() => addressSuggestions.length > 0 && setShowSuggestions(true)} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="Type street address to search Ontario maps..." />
-                                    </div>
-                                    {showSuggestions && addressSuggestions.length > 0 && (
-                                        <div className="absolute top-[60px] left-0 right-0 bg-white border border-slate-200 rounded-lg shadow-xl max-h-[160px] overflow-y-auto z-[20000] flex flex-col">
-                                            {addressSuggestions.map((place, idx) => (
-                                                <div key={idx} onClick={() => selectSuggestion(place)} className="p-3 border-b border-slate-100 hover:bg-slate-50 cursor-pointer text-[11px] text-slate-600 truncate">{place.display_name}</div>
-                                            ))}
+                                {/* Step 1: Contact Information */}
+                                {formStep === 1 && (
+                                    <div className="flex flex-col gap-4 animate-fade">
+                                        <div>
+                                            <h4 className="font-extrabold text-slate-800 text-sm">Contact Information</h4>
+                                            <p className="text-slate-400 text-[11px]">The information will be used to contact you about your service</p>
                                         </div>
-                                    )}
-                                </div>
-
-                                <div className="form-group flex flex-col gap-1">
-                                    <label className="font-bold text-slate-700">Apartment / Unit / Suite</label>
-                                    <input type="text" value={bookingForm.address2} onChange={e => setBookingForm(prev => ({ ...prev, address2: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5" placeholder="Suite 404" />
-                                </div>
-                                <div className="form-group flex flex-col gap-1">
-                                    <label className="font-bold text-slate-700">City *</label>
-                                    <input type="text" required value={bookingForm.city} onChange={e => setBookingForm(prev => ({ ...prev, city: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5" placeholder="Toronto" />
-                                </div>
-                                <div className="form-group flex flex-col gap-1">
-                                    <label className="font-bold text-slate-700">State / Province</label>
-                                    <input type="text" disabled value={bookingForm.state} className="border border-slate-200 rounded-lg p-2.5 bg-slate-50 text-slate-400" />
-                                </div>
-                                <div className="form-group flex flex-col gap-1">
-                                    <label className="font-bold text-slate-700">Postal Code *</label>
-                                    <input type="text" required value={bookingForm.postalCode} onChange={e => setBookingForm(prev => ({ ...prev, postalCode: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5" placeholder="M5B 1S1" />
-                                </div>
-
-                                <div className="form-group flex flex-col gap-1 md:col-span-2 border-t border-slate-100 pt-3">
-                                    <label className="font-bold text-slate-700">Service Category *</label>
-                                    <select value={bookingForm.service} onChange={handleServiceChange} className="border border-slate-200 rounded-lg p-2.5">
-                                        {Object.keys(SERVICE_PRICES).map(s => <option key={s} value={s}>{s}</option>)}
-                                    </select>
-                                </div>
-                                <div className="form-group flex flex-col gap-1">
-                                    <label className="font-bold text-slate-700">Estimated Price ($) *</label>
-                                    <input type="number" required value={bookingForm.price} onChange={e => setBookingForm(prev => ({ ...prev, price: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 font-bold" />
-                                </div>
-                                <div className="form-group flex flex-col gap-1">
-                                    <label className="font-bold text-slate-700">Job Duration (Hours) *</label>
-                                    <input type="number" step="0.5" required value={bookingForm.duration} onChange={e => setBookingForm(prev => ({ ...prev, duration: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 font-bold" />
-                                </div>
-
-                                <div className="form-group flex flex-col gap-1 border-t border-slate-100 pt-3">
-                                    <label className="font-bold text-slate-700">Schedule Date *</label>
-                                    <input type="date" required value={bookingForm.date} onChange={e => setBookingForm(prev => ({ ...prev, date: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5" />
-                                </div>
-                                <div className="form-group flex flex-col gap-1 border-t border-slate-100 pt-3">
-                                    <label className="font-bold text-slate-700">Arrival Time Slot *</label>
-                                    <select value={bookingForm.time} onChange={e => setBookingForm(prev => ({ ...prev, time: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5">
-                                        {timeSlots.map(t => {
-                                            const isBooked = checkScheduleCollisions(
-                                                bookingForm.date,
-                                                t,
-                                                bookingForm.duration,
-                                                bookingForm.team,
-                                                bookingForm.id
-                                            );
-                                            return (
-                                                <option key={t} value={t} disabled={isBooked} style={isBooked ? { color: "#94a3b8", textDecoration: "line-through" } : {}}>
-                                                    {isBooked ? `${t} (Booked / Collision)` : t}
-                                                </option>
-                                            );
-                                        })}
-                                    </select>
-                                </div>
-
-                                <div className="form-group flex flex-col gap-1 md:col-span-2">
-                                    <label className="font-bold text-slate-700">Assigned crew / team *</label>
-                                    {currentUser.role === "team-leader" ? (
-                                        <input type="text" disabled value={currentUser.teamId} className="border border-slate-200 rounded-lg p-2.5 bg-slate-50 text-slate-400" />
-                                    ) : (
-                                        <select value={bookingForm.team} onChange={e => setBookingForm(prev => ({ ...prev, team: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5">
-                                            {teams.length === 0 ? <option value="">No crews available</option> : teams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
-                                        </select>
-                                    )}
-                                </div>
-
-                                {bookingModalMode === "edit" && (currentUser.role === "admin" || currentUser.role === "team-leader") && (
-                                    <div className="form-group flex flex-col gap-1 md:col-span-2">
-                                        <label className="font-bold text-slate-700">Job Status</label>
-                                        <select value={bookingForm.status} onChange={e => setBookingForm(prev => ({ ...prev, status: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5">
-                                            <option value="Pending">Pending</option>
-                                            <option value="Confirmed">Confirmed</option>
-                                            <option value="Completed">Completed</option>
-                                            <option value="Cancelled">Cancelled</option>
-                                        </select>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="form-group flex flex-col gap-1">
+                                                <label className="font-bold text-slate-700">First Name *</label>
+                                                <input type="text" required value={bookingForm.firstName} onChange={e => setBookingForm(prev => ({ ...prev, firstName: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="Jane" />
+                                            </div>
+                                            <div className="form-group flex flex-col gap-1">
+                                                <label className="font-bold text-slate-700">Last Name *</label>
+                                                <input type="text" required value={bookingForm.lastName} onChange={e => setBookingForm(prev => ({ ...prev, lastName: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="Jenkins" />
+                                            </div>
+                                            <div className="form-group flex flex-col gap-1 md:col-span-2">
+                                                <label className="font-bold text-slate-700">Email Address *</label>
+                                                <input type="email" required value={bookingForm.email} onChange={e => setBookingForm(prev => ({ ...prev, email: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="jane@jenkins.com" />
+                                            </div>
+                                            <div className="form-group flex flex-col gap-1 md:col-span-2">
+                                                <label className="font-bold text-slate-700">Phone Number *</label>
+                                                <input type="tel" required value={bookingForm.phone} onChange={e => setBookingForm(prev => ({ ...prev, phone: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="555-0199" />
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
 
-                                {/* Service Description */}
-                                <div className="form-group flex flex-col gap-1 md:col-span-2">
-                                    <label className="font-bold text-slate-700">Service Description</label>
-                                    <textarea
-                                        rows={3}
-                                        value={bookingForm.serviceDescription}
-                                        onChange={e => setBookingForm(prev => ({ ...prev, serviceDescription: e.target.value }))}
-                                        className="border border-slate-200 rounded-lg p-2.5 resize-none text-sm"
-                                        placeholder="Describe the cleaning scope, special requests, areas to focus on, client preferences, etc."
-                                    />
-                                </div>
+                                {/* Step 2: Service Address */}
+                                {formStep === 2 && (
+                                    <div className="flex flex-col gap-4 animate-fade">
+                                        <div>
+                                            <h4 className="font-extrabold text-slate-800 text-sm">Service Address</h4>
+                                            <p className="text-slate-400 text-[11px]">Where would you like us to clean?</p>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {/* Autocomplete restricted to Ontario, Canada maps */}
+                                            <div ref={autocompleteRef} className="form-group flex flex-col gap-1 md:col-span-2 relative">
+                                                <label className="font-bold text-slate-700">Street Address *</label>
+                                                <div className="search-input-wrapper w-full">
+                                                    <input type="text" required value={bookingForm.address1} onChange={handleAddressChange} onFocus={() => addressSuggestions.length > 0 && setShowSuggestions(true)} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="Type street address to search Ontario maps..." />
+                                                </div>
+                                                {showSuggestions && addressSuggestions.length > 0 && (
+                                                    <div className="absolute top-[60px] left-0 right-0 bg-white border border-slate-200 rounded-lg shadow-xl max-h-[160px] overflow-y-auto z-[20000] flex flex-col">
+                                                        {addressSuggestions.map((place, idx) => (
+                                                            <div key={idx} onClick={() => selectSuggestion(place)} className="p-3 border-b border-slate-100 hover:bg-slate-50 cursor-pointer text-[11px] text-slate-600 truncate">{place.display_name}</div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="form-group flex flex-col gap-1">
+                                                <label className="font-bold text-slate-700">Apt # / Suite / Unit</label>
+                                                <input type="text" value={bookingForm.address2} onChange={e => setBookingForm(prev => ({ ...prev, address2: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="Suite 404" />
+                                            </div>
+                                            <div className="form-group flex flex-col gap-1">
+                                                <label className="font-bold text-slate-700">City *</label>
+                                                <input type="text" required value={bookingForm.city} onChange={e => setBookingForm(prev => ({ ...prev, city: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="Toronto" />
+                                            </div>
+                                            <div className="form-group flex flex-col gap-1">
+                                                <label className="font-bold text-slate-700">Postal Code *</label>
+                                                <input type="text" required value={bookingForm.postalCode} onChange={e => setBookingForm(prev => ({ ...prev, postalCode: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="M5B 1S1" />
+                                            </div>
+                                            <div className="form-group flex flex-col gap-1">
+                                                <label className="font-bold text-slate-700">State / Province</label>
+                                                <input type="text" value={bookingForm.state} onChange={e => setBookingForm(prev => ({ ...prev, state: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="Ontario" />
+                                            </div>
+                                            <div className="form-group flex flex-col gap-1 md:col-span-2">
+                                                <label className="font-bold text-slate-700">Country</label>
+                                                <input type="text" value={bookingForm.country} onChange={e => setBookingForm(prev => ({ ...prev, country: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="Canada" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
 
-                                {/* Access Description */}
-                                <div className="form-group flex flex-col gap-1 md:col-span-2">
-                                    <label className="font-bold text-slate-700">Access Description</label>
-                                    <textarea
-                                        rows={2}
-                                        value={bookingForm.accessDescription}
-                                        onChange={e => setBookingForm(prev => ({ ...prev, accessDescription: e.target.value }))}
-                                        className="border border-slate-200 rounded-lg p-2.5 resize-none text-sm"
-                                        placeholder="How does the crew access the property? e.g. lockbox code, concierge key, doorbell, gate code, etc."
-                                    />
-                                </div>
+                                {/* Step 3: Choose Your Services */}
+                                {formStep === 3 && (
+                                    <div className="flex flex-col gap-4 animate-fade">
+                                        <div>
+                                            <h4 className="font-extrabold text-slate-800 text-sm">Choose Your Services</h4>
+                                            <p className="text-slate-400 text-[11px]">Tell us about your home</p>
+                                        </div>
+                                        <div className="flex flex-col gap-4">
+                                            <div className="form-group flex flex-col gap-1">
+                                                <label className="font-bold text-slate-700">Service Size / Type *</label>
+                                                <select value={bookingForm.service} onChange={handleServiceChange} className="border border-slate-200 rounded-lg p-2.5 w-full">
+                                                    {Object.keys(pricingRates.services).map(s => (
+                                                        <option key={s} value={s}>{s} (${pricingRates.services[s].toFixed(2)})</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div className="form-group flex flex-col gap-1">
+                                                <label className="font-bold text-slate-700">Bathrooms *</label>
+                                                <select value={bookingForm.bathrooms} onChange={e => setBookingForm(prev => ({ ...prev, bathrooms: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full">
+                                                    {Object.keys(pricingRates.bathrooms).map(b => (
+                                                        <option key={b} value={b}>{b} (+${pricingRates.bathrooms[b].toFixed(2)})</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div className="form-group flex flex-col gap-1 border-t border-slate-100 pt-3">
+                                                <label className="font-bold text-slate-700">Job Duration Estimate (Hours) *</label>
+                                                <input type="number" step="0.5" required value={bookingForm.duration} onChange={e => setBookingForm(prev => ({ ...prev, duration: parseFloat(e.target.value || 0) }))} className="border border-slate-200 rounded-lg p-2.5 font-bold w-full" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Step 4: Select Extras Grid */}
+                                {formStep === 4 && (
+                                    <div className="flex flex-col gap-4 animate-fade">
+                                        <div className="text-center">
+                                            <h4 className="font-extrabold text-slate-800 text-sm">Select Extras</h4>
+                                            <p className="text-slate-400 text-[11px]">Add upgrades to your service</p>
+                                        </div>
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3.5 max-h-[460px] md:max-h-[520px] lg:max-h-[580px] overflow-y-auto pr-1 p-1">
+                                            {Object.entries(pricingRates.extras).map(([key, extra]) => {
+                                                const qty = bookingForm.extras[key] || 0;
+                                                const isActive = qty > 0;
+                                                const extraIcons = {
+                                                    downtownParking: "🅿️",
+                                                    firstTimeClean: "🧹",
+                                                    moveInOut: "🚚",
+                                                    havePets: "🐶",
+                                                    insideOven: "🍳",
+                                                    insideEmptyFridge: "🧊",
+                                                    insideFullFridge: "🥦",
+                                                    secondKitchen: "🍳",
+                                                    walls: "🧽",
+                                                    shedPoolHouse: "🏡",
+                                                    insideCabinets: "🚪",
+                                                    interiorWindows: "🪟",
+                                                    slidingDoorWindow: "🚪",
+                                                    garageSweep: "🧹",
+                                                    balconySweep: "🌇",
+                                                    homeConcierge: "🛎️",
+                                                    organization: "📦",
+                                                    laundryWashFold: "🧺",
+                                                    nextDayBooking: "📅",
+                                                    sameDayCancellation: "⚠️"
+                                                };
+
+                                                const toggleExtra = () => {
+                                                    setBookingForm(prev => {
+                                                        const newExtras = { ...prev.extras };
+                                                        if (newExtras[key]) {
+                                                            delete newExtras[key];
+                                                        } else {
+                                                            newExtras[key] = extra.qtySelector ? (extra.minQty || 1) : 1;
+                                                        }
+                                                        return { ...prev, extras: newExtras };
+                                                    });
+                                                };
+
+                                                const adjustQty = (amount) => {
+                                                    setBookingForm(prev => {
+                                                        const newExtras = { ...prev.extras };
+                                                        const min = extra.minQty || 1;
+                                                        const current = newExtras[key] || 0;
+                                                        const updated = current + amount;
+                                                        if (updated < min) {
+                                                            delete newExtras[key];
+                                                        } else {
+                                                            newExtras[key] = updated;
+                                                        }
+                                                        return { ...prev, extras: newExtras };
+                                                    });
+                                                };
+
+                                                return (
+                                                    <div 
+                                                        key={key} 
+                                                        onClick={!extra.qtySelector ? toggleExtra : undefined}
+                                                        className={`border rounded-2xl p-3 flex flex-col items-center justify-between gap-2 text-center transition-all select-none transform hover:scale-[1.04] active:scale-[0.98] duration-200 ${isActive ? 'border-blue-600 bg-blue-50/50 ring-4 ring-blue-500/10 hover:shadow-blue-100/50' : 'border-slate-200 hover:border-slate-300 bg-white hover:shadow-md'}`}
+                                                        style={{ minHeight: "125px", cursor: "pointer" }}
+                                                    >
+                                                        <div className="text-2xl mt-1">{extraIcons[key] || "✨"}</div>
+                                                        <div className="flex flex-col gap-0.5">
+                                                            <span className="font-bold text-[9px] md:text-[10px] text-slate-700 leading-snug">{extra.name}</span>
+                                                            <span className="font-extrabold text-[11px] text-blue-600">${extra.price.toFixed(2)}</span>
+                                                        </div>
+                                                        {extra.qtySelector ? (
+                                                            <div className="flex items-center gap-1.5 mt-1" onClick={e => e.stopPropagation()}>
+                                                                {!isActive ? (
+                                                                    <button type="button" onClick={toggleExtra} className="text-[10px] font-bold text-slate-500 border border-slate-200 rounded px-2.5 py-0.5 bg-slate-50 hover:bg-slate-100 hover:text-slate-700 transition-all">Add</button>
+                                                                ) : (
+                                                                    <div className="flex items-center border border-blue-200 rounded bg-white overflow-hidden text-[9px] font-extrabold">
+                                                                        <button type="button" onClick={() => adjustQty(-1)} className="w-5 h-5 flex items-center justify-center hover:bg-slate-50 text-blue-600">-</button>
+                                                                        <span className="w-6 text-center text-slate-700">{qty}X</span>
+                                                                        <button type="button" onClick={() => adjustQty(1)} className="w-5 h-5 flex items-center justify-center hover:bg-slate-50 text-blue-600">+</button>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <div className="mt-1">
+                                                                {isActive ? (
+                                                                    <span className="text-[9px] font-bold text-blue-600 bg-blue-100 border border-blue-200 rounded px-2 py-0.5">Added</span>
+                                                                ) : (
+                                                                    <span className="text-[9px] font-bold text-slate-400 border border-slate-200 rounded px-2 py-0.5 hover:bg-slate-50">Select</span>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Step 5: Schedule Date & Time Availability */}
+                                {formStep === 5 && (
+                                    <div className="flex flex-col gap-4 animate-fade">
+                                        <div>
+                                            <h4 className="font-extrabold text-slate-800 text-sm">When would you like us to come?</h4>
+                                            <p className="text-slate-400 text-[11px]">The day and time that suits you best</p>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="form-group flex flex-col gap-1">
+                                                <label className="font-bold text-slate-700">Schedule Date *</label>
+                                                <input type="date" required value={bookingForm.date} onChange={e => setBookingForm(prev => ({ ...prev, date: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" />
+                                            </div>
+                                            
+                                            <div className="form-group flex flex-col gap-1">
+                                                <label className="font-bold text-slate-700">Assigned Crew / Team *</label>
+                                                {currentUser.role === "team-leader" ? (
+                                                    <input type="text" disabled value={currentUser.teamId} className="border border-slate-200 rounded-lg p-2.5 bg-slate-50 text-slate-400 w-full" />
+                                                ) : (
+                                                    <select value={bookingForm.team} onChange={e => setBookingForm(prev => ({ ...prev, team: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full">
+                                                        <option value="">-- Choose Crew --</option>
+                                                        {teams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                                                    </select>
+                                                )}
+                                            </div>
+
+                                            <div className="form-group flex flex-col gap-1.5 md:col-span-2 border-t border-slate-100 pt-3">
+                                                <label className="font-bold text-slate-700">Select Available Time Slot *</label>
+                                                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-[170px] overflow-y-auto p-1">
+                                                    {timeSlots.map(t => {
+                                                        const isBooked = checkScheduleCollisions(
+                                                            bookingForm.date,
+                                                            t,
+                                                            bookingForm.duration,
+                                                            bookingForm.team,
+                                                            bookingForm.id
+                                                        );
+                                                        const isSelected = bookingForm.time === t;
+
+                                                        return (
+                                                            <button
+                                                                key={t}
+                                                                type="button"
+                                                                disabled={isBooked}
+                                                                onClick={() => setBookingForm(prev => ({ ...prev, time: t }))}
+                                                                className={`text-[10px] font-extrabold py-2 px-1 rounded-lg border text-center transition-all ${isBooked ? 'bg-slate-50 border-slate-100 text-slate-300 line-through cursor-not-allowed' : (isSelected ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700')}`}
+                                                            >
+                                                                {t}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Step 6: How Often? (Frequency) */}
+                                {formStep === 6 && (
+                                    <div className="flex flex-col gap-4 animate-fade">
+                                        <div className="text-center">
+                                            <h4 className="font-extrabold text-slate-800 text-sm">How Often?</h4>
+                                            <p className="text-slate-400 text-[11px] max-w-sm mx-auto">It's all about matching you with the perfect cleaner for your home. Scheduling is flexible. Cancel or reschedule anytime.</p>
+                                        </div>
+                                        <div className="flex flex-col gap-3">
+                                            {Object.entries(pricingRates.frequencies).map(([key, freq]) => {
+                                                const isSelected = bookingForm.frequency === key;
+                                                const freqIcons = {
+                                                    'One-Time': "🗓️",
+                                                    'Weekly': "🌟",
+                                                    'Bi-Weekly': "📅",
+                                                    'Tri-Weekly': "📆",
+                                                    'Monthly': "🗓️"
+                                                };
+
+                                                return (
+                                                    <div
+                                                        key={key}
+                                                        onClick={() => setBookingForm(prev => ({ ...prev, frequency: key }))}
+                                                        className={`flex items-center justify-between border rounded-2xl p-4 cursor-pointer transition-all select-none ${isSelected ? 'border-blue-500 bg-blue-50/40 ring-2 ring-blue-500/20' : 'border-slate-200 hover:border-slate-300 bg-white'}`}
+                                                    >
+                                                        <div className="flex items-center gap-3">
+                                                            <span className="text-2xl">{freqIcons[key] || "📅"}</span>
+                                                            <div className="flex flex-col">
+                                                                <span className="font-bold text-xs uppercase tracking-wider text-slate-700">{freq.name}</span>
+                                                                <span className="text-[10px] text-slate-400">Cancel or reschedule anytime</span>
+                                                            </div>
+                                                        </div>
+                                                        {freq.discount > 0 ? (
+                                                            <span className="text-[10px] font-extrabold text-green-600 bg-green-100 border border-green-200 rounded-full px-3 py-1">Save {(freq.discount * 100).toFixed(0)}%</span>
+                                                        ) : (
+                                                            <span className="text-[10px] font-bold text-slate-400 border border-slate-200 rounded-full px-3 py-1">Standard</span>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Step 7: Additional Information */}
+                                {formStep === 7 && (
+                                    <div className="flex flex-col gap-4 animate-fade">
+                                        <div>
+                                            <h4 className="font-extrabold text-slate-800 text-sm">Additional Information</h4>
+                                            <p className="text-slate-400 text-[11px]">Share with us more details about your home</p>
+                                        </div>
+                                        <div className="grid grid-cols-1 gap-4 text-xs">
+                                            {/* Pets */}
+                                            <div className="form-group flex flex-col gap-1.5">
+                                                <label className="font-bold text-slate-700">Do you have any pets?</label>
+                                                <div className="flex gap-2">
+                                                    {[true, false].map(val => (
+                                                        <button
+                                                            key={String(val)}
+                                                            type="button"
+                                                            onClick={() => setBookingForm(prev => ({ ...prev, hasPets: val }))}
+                                                            className={`flex-1 py-2.5 px-4 rounded-xl border font-bold text-center transition-all ${bookingForm.hasPets === val ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-slate-200 hover:border-slate-300 text-slate-600'}`}
+                                                        >
+                                                            {val ? "Yes, I have pets 🐶" : "No pets 🚫"}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* Access Mode */}
+                                            <div className="form-group flex flex-col gap-1">
+                                                <label className="font-bold text-slate-700">Will you be home, or is there a code for access?</label>
+                                                <select value={bookingForm.accessMode} onChange={e => setBookingForm(prev => ({ ...prev, accessMode: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5">
+                                                    <option value="Will be home">I will be home to let the cleaners in</option>
+                                                    <option value="Access Code">Provide access / lockbox code</option>
+                                                    <option value="Concierge">Leave key with concierge / front desk</option>
+                                                    <option value="Other">Other access method</option>
+                                                </select>
+                                            </div>
+
+                                            {/* Access Details details */}
+                                            <div className="form-group flex flex-col gap-1">
+                                                <label className="font-bold text-slate-700">Property Access Information, your dog's name, etc</label>
+                                                <textarea
+                                                    rows={2}
+                                                    value={bookingForm.accessDetails}
+                                                    onChange={e => setBookingForm(prev => ({ ...prev, accessDetails: e.target.value }))}
+                                                    className="border border-slate-200 rounded-lg p-2.5 resize-none text-xs"
+                                                    placeholder="Enter gate code, alarm code, dog's name, alarm details, or specific entry instructions..."
+                                                />
+                                            </div>
+
+                                            {/* Parking */}
+                                            <div className="form-group flex flex-col gap-1.5">
+                                                <label className="font-bold text-slate-700">Is there free parking available for the cleaners?</label>
+                                                <div className="flex gap-2">
+                                                    {[true, false].map(val => (
+                                                        <button
+                                                            key={String(val)}
+                                                            type="button"
+                                                            onClick={() => setBookingForm(prev => ({ ...prev, freeParking: val }))}
+                                                            className={`flex-1 py-2.5 px-4 rounded-xl border font-bold text-center transition-all ${bookingForm.freeParking === val ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-slate-200 hover:border-slate-300 text-slate-600'}`}
+                                                        >
+                                                            {val ? "Yes, Free Parking 🚗" : "No, Street/Paid Parking ⚠️"}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* First Pro Clean 30 Days */}
+                                            <div className="form-group flex flex-col gap-1.5">
+                                                <label className="font-bold text-slate-700">Is this your first pro clean in 30+ days?</label>
+                                                <div className="flex gap-2">
+                                                    {[true, false].map(val => (
+                                                        <button
+                                                            key={String(val)}
+                                                            type="button"
+                                                            onClick={() => setBookingForm(prev => ({ ...prev, firstClean30: val }))}
+                                                            className={`flex-1 py-2.5 px-4 rounded-xl border font-bold text-center transition-all ${bookingForm.firstClean30 === val ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-slate-200 hover:border-slate-300 text-slate-600'}`}
+                                                        >
+                                                            {val ? "Yes, first time in 30+ days" : "No, cleaned recently"}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* Special Instructions */}
+                                            <div className="form-group flex flex-col gap-1">
+                                                <label className="font-bold text-slate-700">Anything else we should know?</label>
+                                                <textarea
+                                                    rows={2}
+                                                    value={bookingForm.specialNotes}
+                                                    onChange={e => setBookingForm(prev => ({ ...prev, specialNotes: e.target.value }))}
+                                                    className="border border-slate-200 rounded-lg p-2.5 resize-none text-xs"
+                                                    placeholder="Describe specific cleaning requests, sensitive surfaces, areas to skip, or focus preferences..."
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Step 8: Review & Dynamic Receipt summary */}
+                                {formStep === 8 && (() => {
+                                    const calc = calculateBookingTotal(bookingForm);
+                                    return (
+                                        <div className="flex flex-col gap-4 animate-fade text-xs">
+                                            <div>
+                                                <h4 className="font-extrabold text-slate-800 text-sm">Review & Confirm</h4>
+                                                <p className="text-slate-400 text-[11px]">Confirm all booking information and pricing details</p>
+                                            </div>
+                                            
+                                            <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
+                                                {/* Left Panel: Info Summary */}
+                                                <div className="md:col-span-7 flex flex-col gap-3 bg-slate-50 border border-slate-100 rounded-2xl p-4 max-h-[300px] overflow-y-auto">
+                                                    <div className="border-b border-slate-100 pb-2">
+                                                        <h5 className="font-bold text-slate-800 uppercase tracking-wide text-[9px] mb-1">1. Contact Information</h5>
+                                                        <p className="text-slate-600 font-semibold">{bookingForm.firstName} {bookingForm.lastName}</p>
+                                                        <p className="text-slate-500">{bookingForm.email} | {bookingForm.phone}</p>
+                                                    </div>
+
+                                                    <div className="border-b border-slate-100 pb-2">
+                                                        <h5 className="font-bold text-slate-800 uppercase tracking-wide text-[9px] mb-1">2. Service Address</h5>
+                                                        <p className="text-slate-600 font-semibold">{bookingForm.address1} {bookingForm.address2 ? `, ${bookingForm.address2}` : ''}</p>
+                                                        <p className="text-slate-500">{bookingForm.city}, {bookingForm.postalCode}, {bookingForm.state}, {bookingForm.country}</p>
+                                                    </div>
+
+                                                    <div className="border-b border-slate-100 pb-2">
+                                                        <h5 className="font-bold text-slate-800 uppercase tracking-wide text-[9px] mb-1">3. Services & Schedule</h5>
+                                                        <p className="text-slate-600 font-semibold">{bookingForm.service} ({bookingForm.duration} Hours)</p>
+                                                        <p className="text-slate-500">{bookingForm.bathrooms} | Assigned to: <span className="font-bold text-blue-600">{bookingForm.team || "Not Assigned"}</span></p>
+                                                        <p className="text-slate-500">Scheduled Date: <span className="font-bold text-slate-700">{bookingForm.date}</span> at <span className="font-bold text-slate-700">{bookingForm.time}</span></p>
+                                                    </div>
+
+                                                    <div className="border-b border-slate-100 pb-2">
+                                                        <h5 className="font-bold text-slate-800 uppercase tracking-wide text-[9px] mb-1">4. Frequency & Additional Details</h5>
+                                                        <p className="text-slate-600 font-semibold">Frequency: <span className="capitalize">{pricingRates.frequencies[bookingForm.frequency]?.name || bookingForm.frequency}</span></p>
+                                                        <p className="text-slate-500">Pets: {bookingForm.hasPets ? "Yes 🐶" : "No 🚫"} | Parking: {bookingForm.freeParking ? "Free 🚗" : "Street/Paid ⚠️"}</p>
+                                                        <p className="text-slate-500">First time clean in 30 days: {bookingForm.firstClean30 ? "Yes" : "No"}</p>
+                                                        <p className="text-slate-500">Access: {bookingForm.accessMode} {bookingForm.accessDetails ? `(${bookingForm.accessDetails})` : ''}</p>
+                                                    </div>
+
+                                                    {bookingForm.specialNotes && (
+                                                        <div>
+                                                            <h5 className="font-bold text-slate-800 uppercase tracking-wide text-[9px] mb-1">Special Notes</h5>
+                                                            <p className="text-slate-500 italic">"{bookingForm.specialNotes}"</p>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Right Panel: Calculator Receipt */}
+                                                <div className="md:col-span-5 flex flex-col bg-white border border-slate-200 rounded-2xl p-4 shadow-sm justify-between">
+                                                    <div>
+                                                        <h5 className="font-extrabold text-slate-800 uppercase tracking-wider text-[9px] border-b border-slate-100 pb-2 mb-3">Pricing Receipt</h5>
+                                                        
+                                                        <div className="flex flex-col gap-2 border-b border-slate-100 pb-3 mb-3 max-h-[120px] overflow-y-auto pr-1">
+                                                            <div className="flex justify-between text-slate-500">
+                                                                <span>Base Home Rate:</span>
+                                                                <span className="font-semibold text-slate-700">${calc.baseServicePrice.toFixed(2)}</span>
+                                                            </div>
+                                                            <div className="flex justify-between text-slate-500">
+                                                                <span>Bathrooms:</span>
+                                                                <span className="font-semibold text-slate-700">+${calc.bathroomsPrice.toFixed(2)}</span>
+                                                            </div>
+                                                            
+                                                            {/* Extras detailed listing */}
+                                                            {Object.entries(bookingForm.extras).map(([key, qty]) => {
+                                                                const extra = pricingRates.extras[key];
+                                                                if (!extra || !qty) return null;
+                                                                const qtyVal = typeof qty === 'boolean' ? 1 : qty;
+                                                                return (
+                                                                    <div key={key} className="flex justify-between text-slate-400 pl-2 text-[10px]">
+                                                                        <span>• {extra.name} {qtyVal > 1 ? `x${qtyVal}` : ''}:</span>
+                                                                        <span>+${(extra.price * qtyVal).toFixed(2)}</span>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+
+                                                        <div className="flex flex-col gap-2 border-b border-slate-100 pb-3 mb-3">
+                                                            <div className="flex justify-between text-slate-600 font-bold">
+                                                                <span>Subtotal:</span>
+                                                                <span>${calc.subtotal.toFixed(2)}</span>
+                                                            </div>
+                                                            
+                                                            {calc.freqDiscountDeduction > 0 && (
+                                                                <div className="flex justify-between text-green-600 font-semibold">
+                                                                    <span>Discount ({bookingForm.frequency}):</span>
+                                                                    <span>-${calc.freqDiscountDeduction.toFixed(2)}</span>
+                                                                </div>
+                                                            )}
+
+                                                            {/* Custom Discount input */}
+                                                            <div className="flex items-center justify-between text-slate-500 gap-2 mt-1">
+                                                                <span>Add Custom Discount:</span>
+                                                                <div className="flex items-center gap-0.5 border border-slate-200 rounded px-1 py-0.5 bg-slate-50 w-16">
+                                                                    <input 
+                                                                        type="number" 
+                                                                        min="0" 
+                                                                        max="100" 
+                                                                        value={bookingForm.customDiscountPercent} 
+                                                                        onChange={e => setBookingForm(prev => ({ ...prev, customDiscountPercent: Math.max(0, Math.min(100, parseFloat(e.target.value || 0))) }))}
+                                                                        className="w-full bg-transparent text-right font-extrabold text-slate-700 outline-none text-[11px]" 
+                                                                    />
+                                                                    <span className="font-bold text-slate-400 text-[10px]">%</span>
+                                                                </div>
+                                                            </div>
+
+                                                            {calc.customDiscountDeduction > 0 && (
+                                                                <div className="flex justify-between text-green-600 font-semibold">
+                                                                    <span>Custom Discount:</span>
+                                                                    <span>-${calc.customDiscountDeduction.toFixed(2)}</span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex justify-between items-end border-t border-slate-100 pt-3 mt-2">
+                                                        <span className="font-extrabold text-slate-800 text-[10px] uppercase">Final Estimate:</span>
+                                                        <span className="font-black text-blue-600 text-base">${calc.total.toFixed(2)}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+
                             </div>
-                            <div className="modal-footer">
-                                <button type="button" onClick={() => setBookingModalOpen(false)} className="btn btn-secondary btn-sm">Cancel</button>
-                                <button type="submit" className="btn btn-primary btn-sm">{bookingModalMode === "create" ? "Create Dispatch" : "Request Changes"}</button>
+                            
+                            {/* Wizard Footer Buttons Controls */}
+                            <div className="modal-footer flex justify-between items-center bg-slate-50 border-t border-slate-100 rounded-b-3xl" style={{ padding: "16px 24px" }}>
+                                {formStep > 1 ? (
+                                    <button type="button" onClick={handleBackStep} className="btn btn-secondary btn-sm rounded-lg font-bold">
+                                        Back
+                                    </button>
+                                ) : (
+                                    <button type="button" onClick={() => setBookingModalOpen(false)} className="btn btn-secondary btn-sm rounded-lg font-bold">
+                                        Cancel
+                                    </button>
+                                )}
+
+                                {formStep < 8 ? (
+                                    <button type="button" onClick={handleNextStep} className="btn btn-primary btn-sm rounded-lg text-white font-bold">
+                                        Next Step
+                                    </button>
+                                ) : (
+                                    <button type="submit" className="btn btn-primary btn-sm rounded-lg text-white font-bold">
+                                        {bookingModalMode === "create" ? "Create Dispatch" : "Request Changes"}
+                                    </button>
+                                )}
                             </div>
                         </form>
                     </div>
