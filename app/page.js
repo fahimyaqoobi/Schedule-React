@@ -92,8 +92,13 @@ export default function Home() {
     const [sortVal, setSortVal] = useState("date-asc");
 
     // Calendar state
-    const [selectedCalDate, setSelectedCalDate] = useState("2026-05-28");
-    const [currentCalMonth, setCurrentCalMonth] = useState(new Date(2026, 4, 1)); // May 2026
+    const [selectedCalDate, setSelectedCalDate] = useState(() => {
+        return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
+    });
+    const [currentCalMonth, setCurrentCalMonth] = useState(() => {
+        const today = new Date();
+        return new Date(today.getFullYear(), today.getMonth(), 1);
+    });
 
     // Form inputs for scheduling modal
     const [bookingForm, setBookingForm] = useState({
@@ -110,7 +115,7 @@ export default function Home() {
         service: "Standard Clean",
         price: 120.00,
         duration: 2,
-        date: "2026-05-28",
+        date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' }),
         time: "09:00 AM",
         team: teams[0]?.name || "",
         status: "Pending",
@@ -1414,7 +1419,7 @@ export default function Home() {
 
                                         const dayBookings = bookings.filter(b => b.date === cell.dateStr && b.status !== "Cancelled");
                                         const isSelected = cell.dateStr === selectedCalDate;
-                                        const isToday = cell.dateStr === "2026-05-28";
+                                        const isToday = cell.dateStr === new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
 
                                         return (
                                             <div
