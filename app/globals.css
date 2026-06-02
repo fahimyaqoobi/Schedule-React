@@ -2088,6 +2088,11 @@ select option:disabled {
     transition: all var(--transition-speed) ease;
 }
 
+.settings-card-full {
+    grid-column: span 2;
+}
+
+
 .settings-card:hover {
     border-color: var(--card-hover-border);
     box-shadow: 0 12px 30px -5px rgba(15, 23, 42, 0.08);
@@ -2138,6 +2143,10 @@ select option:disabled {
     .settings-container {
         grid-template-columns: 1fr !important;
         gap: 16px !important;
+    }
+    
+    .settings-card-full {
+        grid-column: span 1 !important;
     }
     
     .settings-card .panel-header {
