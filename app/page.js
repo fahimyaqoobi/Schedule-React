@@ -2009,6 +2009,17 @@ export default function Home() {
                                     <button type="submit" disabled={profileLoading} className="btn btn-primary h-[44px] rounded-lg text-white font-bold transition mt-2">
                                         {profileLoading ? "Updating Profile..." : "Save Profile Details"}
                                     </button>
+                                    
+                                    {/* Mobile Accessible Log Out Button */}
+                                    <div className="mt-4 pt-4 border-t border-slate-100/80 w-full">
+                                        <button 
+                                            type="button" 
+                                            onClick={handleSignout} 
+                                            className="btn btn-danger w-full h-[44px] flex items-center justify-center gap-2 font-bold transition-all mt-2"
+                                        >
+                                            {Icons.Logout()} Log Out of Account
+                                        </button>
+                                    </div>
                                 </form>
                             </div>
 
@@ -2056,9 +2067,9 @@ export default function Home() {
 
                             {/* Card 3: Rates & Pricing Manager (Admin-Only) */}
                             {currentUser.role === "admin" && (
-                                <div className="settings-card md:col-span-2" style={{ gridColumn: "span 2" }}>
-                                    <div className="panel-header border-b border-slate-100 pb-3 flex justify-between items-center">
-                                        <div>
+                                <div className="settings-card settings-card-full">
+                                    <div className="panel-header border-b border-slate-100 pb-3 flex justify-between items-center" style={{ flexWrap: 'wrap', gap: '12px' }}>
+                                        <div style={{ flex: '1 1 200px' }}>
                                             <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">Pricing & Rates Manager Settings</h4>
                                             <p className="text-slate-400 text-[10px] mt-0.5">Customize real-time booking rates, bathroom fees, extras, and discounts</p>
                                         </div>
