@@ -2455,7 +2455,7 @@ select option:disabled {
 
 /* Specific overrides for Rates & Pricing inputs to bypass global form-group !important widths */
 .rates-manager-input-price {
-    width: 85px !important;
+    width: 85px;
     padding-left: 20px !important;
     padding-right: 6px !important;
     padding-top: 6px !important;
@@ -2470,7 +2470,7 @@ select option:disabled {
 }
 
 .rates-manager-input-percent {
-    width: 85px !important;
+    width: 85px;
     padding-left: 6px !important;
     padding-right: 20px !important;
     padding-top: 6px !important;
@@ -3418,5 +3418,32 @@ select option:disabled {
     .detail-row.full-width {
         grid-column: span 1;
     }
+}
+
+
+.rates-row {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+    padding: 8px !important;
+    background-color: #f8fafc !important;
+    border-radius: 12px !important;
+    border: 1px solid #e2e8f0 !important;
+    transition: all 0.2s !important;
+    margin-bottom: 8px !important;
+}
+.rates-row:hover {
+    background-color: #f1f5f9 !important;
+}
+.rates-row-label {
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    color: #475569 !important;
+    flex: 1 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    display: block !important;
 }
 

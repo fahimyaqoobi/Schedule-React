@@ -41,6 +41,7 @@ const INITIAL_TEAMS = [
 
 const DEFAULT_PRICES = {
     services: {
+        // House Cleaning — size-based tiers
         'Studio or 1 Bedroom': 87.50,
         '2 bedroom apartment': 101.50,
         '3 bedroom apartment or townhouse': 115.50,
@@ -48,7 +49,24 @@ const DEFAULT_PRICES = {
         'between 2000 to 2499 sq ft': 150.50,
         'between 2500 to 2999 sq ft': 175.00,
         'between 3000 to 3499 sq ft': 208.60,
-        'between 3500 to 3999 sq ft': 243.60
+        'between 3500 to 3999 sq ft': 243.60,
+        // Standalone specialty services
+        'Window Cleaning': 150.00,
+        'Gutter Cleaning': 100.00,
+        'Power Washing': 200.00,
+    },
+    serviceDurations: {
+        'Studio or 1 Bedroom': 2,
+        '2 bedroom apartment': 2.5,
+        '3 bedroom apartment or townhouse': 3,
+        '3 or 4 bedroom house (or between 1700 to 1999 sqft)': 3.5,
+        'between 2000 to 2499 sq ft': 4,
+        'between 2500 to 2999 sq ft': 4.5,
+        'between 3000 to 3499 sq ft': 5,
+        'between 3500 to 3999 sq ft': 5.5,
+        'Window Cleaning': 2,
+        'Gutter Cleaning': 1.5,
+        'Power Washing': 2.5,
     },
     bathrooms: {
         '1 Bathroom': 14.00,
@@ -90,6 +108,19 @@ const DEFAULT_PRICES = {
     }
 };
 
+const HOUSE_CLEANING_SERVICES = [
+    'Studio or 1 Bedroom',
+    '2 bedroom apartment',
+    '3 bedroom apartment or townhouse',
+    '3 or 4 bedroom house (or between 1700 to 1999 sqft)',
+    'between 2000 to 2499 sq ft',
+    'between 2500 to 2999 sq ft',
+    'between 3000 to 3499 sq ft',
+    'between 3500 to 3999 sq ft',
+];
+
+const STANDALONE_SERVICES = ['Window Cleaning', 'Gutter Cleaning', 'Power Washing'];
+
 const DEFAULT_SERVICE_DURATIONS = {
     'Studio or 1 Bedroom': 2,
     '2 bedroom apartment': 2.5,
@@ -98,7 +129,10 @@ const DEFAULT_SERVICE_DURATIONS = {
     'between 2000 to 2499 sq ft': 4,
     'between 2500 to 2999 sq ft': 4.5,
     'between 3000 to 3499 sq ft': 5,
-    'between 3500 to 3999 sq ft': 5.5
+    'between 3500 to 3999 sq ft': 5.5,
+    'Window Cleaning': 2,
+    'Gutter Cleaning': 1.5,
+    'Power Washing': 2.5,
 };
 
 export default function Home() {
@@ -238,8 +272,11 @@ export default function Home() {
                                 });
                             }
                             
+                            const mergedServiceDurations = { ...DEFAULT_PRICES.serviceDurations, ...(data.serviceDurations || {}) };
+
                             return {
                                 services: mergedServices,
+                                serviceDurations: mergedServiceDurations,
                                 bathrooms: mergedBathrooms,
                                 extras: mergedExtras,
                                 frequencies: mergedFrequencies
@@ -2049,43 +2086,111 @@ export default function Home() {
                                             Save System Rates
                                         </button>
                                     </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
-                                        {/* Column 1: Services & Bathrooms */}
-                                        <div className="flex flex-col gap-4">
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 p-6">
+                                        {/* Column 1: Services (House Cleaning & Standalone) */}
+                                        <div className="flex flex-col gap-6">
+                                            {/* House Cleaning Services */}
                                             <div>
-                                                <h5 className="font-bold text-xs uppercase tracking-wider text-slate-700 border-b border-slate-100 pb-1 mb-2">Base Home Size Rates ($)</h5>
-                                                <div className="max-h-[220px] overflow-y-auto pr-1 flex flex-col gap-2">
-                                                    {Object.keys(pricingRates.services).map(key => (
-                                                        <div key={key} className="flex items-center justify-between gap-4 p-2 bg-slate-50 hover:bg-slate-100/80 rounded-xl transition-all border border-slate-100/80">
-                                                            <label className="font-semibold text-slate-600 text-[11px] leading-snug">{key}</label>
-                                                            <div className="relative flex items-center">
-                                                                <span className="absolute left-2.5 text-slate-400 font-extrabold text-[11px]">$</span>
-                                                                <input 
-                                                                    type="number" 
-                                                                    value={pricingRates.services[key]} 
-                                                                    onChange={e => {
-                                                                        const val = parseFloat(e.target.value || 0);
-                                                                        setPricingRates(prev => ({
-                                                                            ...prev,
-                                                                            services: { ...prev.services, [key]: val }
-                                                                        }));
-                                                                    }}
-                                                                    className="rates-manager-input-price focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 font-bold text-slate-700 transition-all outline-none" 
-                                                                />
+                                                <h5 className="font-bold text-xs uppercase tracking-wider text-slate-700 border-b border-slate-100 pb-1 mb-2">House Cleaning Services</h5>
+                                                <div className="max-h-[250px] overflow-y-auto pr-1 flex flex-col gap-1">
+                                                    {HOUSE_CLEANING_SERVICES.map(key => (
+                                                        <div key={key} className="rates-row">
+                                                            <span className="rates-row-label" title={key}>{key}</span>
+                                                            <div className="flex items-center gap-2 flex-shrink-0" style={{ display: 'flex' }}>
+                                                                <div className="relative flex items-center" style={{ display: 'flex', alignItems: 'center' }}>
+                                                                    <span className="absolute left-2 text-slate-400 font-extrabold text-[10px] z-10">$</span>
+                                                                    <input 
+                                                                        type="number" 
+                                                                        value={pricingRates.services?.[key] || 0} 
+                                                                        onChange={e => {
+                                                                            const val = parseFloat(e.target.value || 0);
+                                                                            setPricingRates(prev => ({
+                                                                                ...prev,
+                                                                                services: { ...prev.services, [key]: val }
+                                                                            }));
+                                                                        }}
+                                                                        className="rates-manager-input-price focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 font-bold text-slate-700 transition-all outline-none" 
+                                                                    />
+                                                                </div>
+                                                                <div className="relative flex items-center" style={{ display: 'flex', alignItems: 'center' }}>
+                                                                    <input 
+                                                                        type="number" 
+                                                                        step="0.5"
+                                                                        value={pricingRates.serviceDurations?.[key] || 2} 
+                                                                        onChange={e => {
+                                                                            const val = parseFloat(e.target.value || 0);
+                                                                            setPricingRates(prev => ({
+                                                                                ...prev,
+                                                                                serviceDurations: { ...(prev.serviceDurations || {}), [key]: val }
+                                                                            }));
+                                                                        }}
+                                                                        className="rates-manager-input-price focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 font-bold text-slate-700 transition-all outline-none" 
+                                                                    />
+                                                                    <span className="absolute right-2 text-slate-400 font-extrabold text-[10px] z-10">hrs</span>
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     ))}
                                                 </div>
                                             </div>
 
-                                            <div className="mt-2">
+                                            {/* Standalone Specialty Services */}
+                                            <div>
+                                                <h5 className="font-bold text-xs uppercase tracking-wider text-slate-700 border-b border-slate-100 pb-1 mb-2">Standalone Specialty Services</h5>
+                                                <div className="flex flex-col gap-1">
+                                                    {STANDALONE_SERVICES.map(key => (
+                                                        <div key={key} className="rates-row">
+                                                            <span className="rates-row-label" title={key}>{key}</span>
+                                                            <div className="flex items-center gap-2 flex-shrink-0" style={{ display: 'flex' }}>
+                                                                <div className="relative flex items-center" style={{ display: 'flex', alignItems: 'center' }}>
+                                                                    <span className="absolute left-2 text-slate-400 font-extrabold text-[10px] z-10">$</span>
+                                                                    <input 
+                                                                        type="number" 
+                                                                        value={pricingRates.services?.[key] || 0} 
+                                                                        onChange={e => {
+                                                                            const val = parseFloat(e.target.value || 0);
+                                                                            setPricingRates(prev => ({
+                                                                                ...prev,
+                                                                                services: { ...prev.services, [key]: val }
+                                                                            }));
+                                                                        }}
+                                                                        className="rates-manager-input-price focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 font-bold text-slate-700 transition-all outline-none" 
+                                                                    />
+                                                                </div>
+                                                                <div className="relative flex items-center" style={{ display: 'flex', alignItems: 'center' }}>
+                                                                    <input 
+                                                                        type="number" 
+                                                                        step="0.5"
+                                                                        value={pricingRates.serviceDurations?.[key] || 2} 
+                                                                        onChange={e => {
+                                                                            const val = parseFloat(e.target.value || 0);
+                                                                            setPricingRates(prev => ({
+                                                                                ...prev,
+                                                                                serviceDurations: { ...(prev.serviceDurations || {}), [key]: val }
+                                                                            }));
+                                                                        }}
+                                                                        className="rates-manager-input-price focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 font-bold text-slate-700 transition-all outline-none" 
+                                                                    />
+                                                                    <span className="absolute right-2 text-slate-400 font-extrabold text-[10px] z-10">hrs</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Column 2: Bathrooms, Extras & Frequencies */}
+                                        <div className="flex flex-col gap-6">
+                                            {/* Bathrooms */}
+                                            <div>
                                                 <h5 className="font-bold text-xs uppercase tracking-wider text-slate-700 border-b border-slate-100 pb-1 mb-2">Bathroom Increments ($)</h5>
-                                                <div className="max-h-[160px] overflow-y-auto pr-1 flex flex-col gap-2">
-                                                    {Object.keys(pricingRates.bathrooms).map(key => (
-                                                        <div key={key} className="flex items-center justify-between gap-4 p-2 bg-slate-50 hover:bg-slate-100/80 rounded-xl transition-all border border-slate-100/80">
-                                                            <label className="font-semibold text-slate-600 text-[11px]">{key}</label>
-                                                            <div className="relative flex items-center">
-                                                                <span className="absolute left-2.5 text-slate-400 font-extrabold text-[11px]">$</span>
+                                                <div className="max-h-[140px] overflow-y-auto pr-1 flex flex-col gap-1">
+                                                    {Object.keys(pricingRates.bathrooms || {}).map(key => (
+                                                        <div key={key} className="rates-row">
+                                                            <span className="rates-row-label">{key}</span>
+                                                            <div className="relative flex items-center" style={{ display: 'flex', alignItems: 'center' }}>
+                                                                <span className="absolute left-2.5 text-slate-400 font-extrabold text-[11px] z-10">$</span>
                                                                 <input 
                                                                     type="number" 
                                                                     value={pricingRates.bathrooms[key]} 
@@ -2103,18 +2208,16 @@ export default function Home() {
                                                     ))}
                                                 </div>
                                             </div>
-                                        </div>
 
-                                        {/* Column 2: Extras & Frequencies */}
-                                        <div className="flex flex-col gap-4">
+                                            {/* Extras */}
                                             <div>
                                                 <h5 className="font-bold text-xs uppercase tracking-wider text-slate-700 border-b border-slate-100 pb-1 mb-2">Select Extras Upgrade Rates ($)</h5>
-                                                <div className="max-h-[220px] overflow-y-auto pr-1 flex flex-col gap-2">
-                                                    {Object.entries(pricingRates.extras).map(([key, extra]) => (
-                                                        <div key={key} className="flex items-center justify-between gap-4 p-2 bg-slate-50 hover:bg-slate-100/80 rounded-xl transition-all border border-slate-100/80">
-                                                            <label className="font-semibold text-slate-600 text-[11px] leading-snug">{extra.name}</label>
-                                                            <div className="relative flex items-center">
-                                                                <span className="absolute left-2.5 text-slate-400 font-extrabold text-[11px]">$</span>
+                                                <div className="max-h-[160px] overflow-y-auto pr-1 flex flex-col gap-1">
+                                                    {Object.entries(pricingRates.extras || {}).map(([key, extra]) => (
+                                                        <div key={key} className="rates-row">
+                                                            <span className="rates-row-label">{extra.name}</span>
+                                                            <div className="relative flex items-center" style={{ display: 'flex', alignItems: 'center' }}>
+                                                                <span className="absolute left-2.5 text-slate-400 font-extrabold text-[11px] z-10">$</span>
                                                                 <input 
                                                                     type="number" 
                                                                     value={extra.price} 
@@ -2136,13 +2239,14 @@ export default function Home() {
                                                 </div>
                                             </div>
 
-                                            <div className="mt-2">
+                                            {/* Frequencies */}
+                                            <div>
                                                 <h5 className="font-bold text-xs uppercase tracking-wider text-slate-700 border-b border-slate-100 pb-1 mb-2">Frequency Discounts (%)</h5>
-                                                <div className="flex flex-col gap-2">
-                                                    {Object.entries(pricingRates.frequencies).map(([key, freq]) => (
-                                                        <div key={key} className="flex items-center justify-between gap-4 p-2 bg-slate-50 hover:bg-slate-100/80 rounded-xl transition-all border border-slate-100/80">
-                                                            <label className="font-semibold text-slate-600 text-[11px] capitalize">{freq.name}</label>
-                                                            <div className="relative flex items-center">
+                                                <div className="flex flex-col gap-1">
+                                                    {Object.entries(pricingRates.frequencies || {}).map(([key, freq]) => (
+                                                        <div key={key} className="rates-row">
+                                                            <span className="rates-row-label capitalize">{freq.name}</span>
+                                                            <div className="relative flex items-center" style={{ display: 'flex', alignItems: 'center' }}>
                                                                 <input 
                                                                     type="number" 
                                                                     min="0"
@@ -2160,7 +2264,7 @@ export default function Home() {
                                                                     }}
                                                                     className="rates-manager-input-percent focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 font-bold text-slate-700 transition-all outline-none" 
                                                                 />
-                                                                <span className="absolute right-2.5 text-slate-400 font-extrabold text-[11px]">%</span>
+                                                                <span className="absolute right-2.5 text-slate-400 font-extrabold text-[11px] z-10">%</span>
                                                             </div>
                                                         </div>
                                                     ))}
