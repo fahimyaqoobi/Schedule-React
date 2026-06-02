@@ -14,9 +14,25 @@ async function authenticateRequest(request) {
     const uid = decodedToken.uid;
     
     // 2. Fetch official role/status from users collection (server-authoritative check)
-    const userDoc = await adminDb.collection("users").doc(uid).get();
+    const userRef = adminDb.collection("users").doc(uid);
+    let userDoc = await userRef.get();
+    
     if (!userDoc.exists) {
-        throw new Error("User profile not found in database");
+        // Safe auto-creation in case the user exists in Firebase Auth but has no Firestore document profile yet
+        const usersSnap = await adminDb.collection("users").limit(1).get();
+        const isFirst = usersSnap.empty;
+        
+        const newUser = {
+            uid,
+            name: decodedToken.name || decodedToken.email.split("@")[0],
+            email: decodedToken.email,
+            role: isFirst ? "admin" : "team-leader",
+            teamId: "",
+            status: isFirst ? "approved" : "pending_approval",
+            createdAt: new Date().toISOString()
+        };
+        await userRef.set(newUser);
+        return newUser;
     }
     
     const userData = userDoc.data();
