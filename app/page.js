@@ -149,6 +149,7 @@ export default function Home() {
     // Pricing rates manager and wizard step counter states
     const [pricingRates, setPricingRates] = useState(DEFAULT_PRICES);
     const [formStep, setFormStep] = useState(1);
+    const [submitCooldown, setSubmitCooldown] = useState(false);
 
     // Form inputs for scheduling modal
     const [bookingForm, setBookingForm] = useState({
@@ -174,6 +175,7 @@ export default function Home() {
         specialNotes: "",
         accessDetails: "",
         customDiscountPercent: 0,
+        customDiscountAmount: 0,
         price: 87.50,
         duration: 2,
         date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' }),
@@ -215,7 +217,34 @@ export default function Home() {
                 if (res.ok) {
                     const data = await res.json();
                     if (data && Object.keys(data).length > 0) {
-                        setPricingRates(data);
+                        setPricingRates(prev => {
+                            const mergedServices = { ...DEFAULT_PRICES.services, ...data.services };
+                            const mergedBathrooms = { ...DEFAULT_PRICES.bathrooms, ...data.bathrooms };
+                            const mergedExtras = { ...DEFAULT_PRICES.extras, ...data.extras };
+                            
+                            // Merge and sanitize frequencies discount to decimal
+                            const mergedFrequencies = { ...DEFAULT_PRICES.frequencies };
+                            if (data.frequencies) {
+                                Object.entries(data.frequencies).forEach(([key, freq]) => {
+                                    if (freq) {
+                                        const rawDiscount = freq.discount !== undefined ? freq.discount : (DEFAULT_PRICES.frequencies[key]?.discount || 0);
+                                        const discountDecimal = rawDiscount > 1 ? rawDiscount / 100 : rawDiscount;
+                                        mergedFrequencies[key] = {
+                                            ...DEFAULT_PRICES.frequencies[key],
+                                            ...freq,
+                                            discount: discountDecimal
+                                        };
+                                    }
+                                });
+                            }
+                            
+                            return {
+                                services: mergedServices,
+                                bathrooms: mergedBathrooms,
+                                extras: mergedExtras,
+                                frequencies: mergedFrequencies
+                            };
+                        });
                     }
                 }
             } catch (err) {
@@ -238,6 +267,17 @@ export default function Home() {
         }
     }, [bookingModalOpen, teams, currentUser, bookingForm.team]);
 
+    // Cooldown timer to prevent premature dispatch submission due to ghost-clicks / double-taps on iPad/mobile
+    useEffect(() => {
+        if (formStep === 8) {
+            setSubmitCooldown(true);
+            const timer = setTimeout(() => {
+                setSubmitCooldown(false);
+            }, 800);
+            return () => clearTimeout(timer);
+        }
+    }, [formStep]);
+
     // Dynamic price calculator combining Base Service, Bathrooms, Extras, Frequencies, and Custom Discounts
     const calculateBookingTotal = (formState) => {
         const baseServicePrice = pricingRates.services[formState.service] || 0;
@@ -251,22 +291,35 @@ export default function Home() {
             }
         });
         const subtotal = baseServicePrice + bathroomsPrice + extrasTotal;
+
         const freqConfig = pricingRates.frequencies[formState.frequency || 'One-Time'];
-        const freqDiscountPercent = freqConfig ? freqConfig.discount : 0;
+        const rawDiscount = freqConfig ? (freqConfig.discount ?? 0) : 0;
+        // Sanitize: if stored as integer percent (e.g. 20) convert to decimal (0.20)
+        const freqDiscountPercent = rawDiscount > 1 ? rawDiscount / 100 : rawDiscount;
+        // Apply discount to full subtotal (base + bathrooms + extras)
         const freqDiscountDeduction = subtotal * freqDiscountPercent;
-        const customDiscountPercent = parseFloat(formState.customDiscountPercent || 0) / 100;
-        const customDiscountDeduction = (subtotal - freqDiscountDeduction) * customDiscountPercent;
-        const total = subtotal - freqDiscountDeduction - customDiscountDeduction;
+
+        // Flat dollar custom discount
+        const customDiscountAmount = parseFloat(formState.customDiscountAmount || 0);
+
+        const preTaxTotal = Math.max(0, subtotal - freqDiscountDeduction - customDiscountAmount);
+        const hst = preTaxTotal * 0.13;
+        const total = preTaxTotal + hst;
+
         return {
             baseServicePrice,
             bathroomsPrice,
             extrasTotal,
             subtotal,
+            freqDiscountPercent,
             freqDiscountDeduction,
-            customDiscountDeduction,
-            total: Math.max(0, total)
+            customDiscountDeduction: customDiscountAmount,
+            preTaxTotal,
+            hst,
+            total
         };
     };
+
 
     // ----------------------------------------------------
     // Shared Secure JWT Authorization Request Fetcher
@@ -665,6 +718,24 @@ export default function Home() {
         });
     };
 
+    // Checks if the team is actively busy AT a given start time (for slot display only)
+    // Uses a 30-min probe window so only slots during an existing booking's run are greyed out
+    const isSlotDuringExistingBooking = (bookingDate, slotTime, bookingTeam, excludeId = null) => {
+        const slotMin = timeStrToMinutes(slotTime);
+        return bookings.some(b => {
+            if (b.id === excludeId) return false;
+            if (b.status === "Cancelled") return false;
+            if (b.date !== bookingDate) return false;
+            if (b.team !== bookingTeam) return false;
+
+            const existingStart = timeStrToMinutes(b.time);
+            const existingEnd = existingStart + parseFloat(b.duration || 2) * 60;
+
+            // The slot is unavailable if it falls within an existing booking's window
+            return slotMin >= existingStart && slotMin < existingEnd;
+        });
+    };
+
     // ----------------------------------------------------
     // Booking Form Submit Actions
     // ----------------------------------------------------
@@ -729,6 +800,7 @@ export default function Home() {
             specialNotes: "",
             accessDetails: "",
             customDiscountPercent: 0,
+            customDiscountAmount: 0,
             price: 87.50,
             duration: 2,
             date: selectedCalDate,
@@ -771,6 +843,7 @@ export default function Home() {
             specialNotes: b.specialNotes || "",
             accessDetails: b.accessDetails || "",
             customDiscountPercent: b.customDiscountPercent || 0,
+            customDiscountAmount: b.customDiscountAmount || 0,
             price: b.price || 87.50,
             duration: b.duration || 2,
             date: b.date,
@@ -784,8 +857,20 @@ export default function Home() {
         setBookingModalOpen(true);
     };
 
+    const handleFormKeyDown = (e) => {
+        if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+            e.preventDefault();
+        }
+    };
+
     const handleBookingSubmit = async (e) => {
-        e.preventDefault();
+        if (e && e.preventDefault) e.preventDefault();
+
+        // Prevent premature submission prior to step 8
+        if (formStep < 8) {
+            handleNextStep();
+            return;
+        }
 
         // Validate collision
         const durationNum = parseFloat(bookingForm.duration || 2);
@@ -1801,6 +1886,9 @@ export default function Home() {
                                                     <div><strong>City:</strong> {orig.city} ({orig.postalCode})</div>
                                                     <div><strong>Service:</strong> {orig.service}</div>
                                                     <div><strong>Price / Duration:</strong> ${orig.price} / {orig.duration} hrs</div>
+                                                    {orig.customDiscountAmount > 0 && (
+                                                        <div className="text-green-600 font-semibold"><strong>Special Discount:</strong> -${parseFloat(orig.customDiscountAmount).toFixed(2)}</div>
+                                                    )}
                                                     <div><strong>Schedule Date:</strong> {orig.date} • {orig.time}</div>
                                                     <div><strong>Assigned Team:</strong> {orig.team}</div>
                                                     <div><strong>Status:</strong> <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${orig.status === 'Completed' ? 'bg-green-100 text-green-700' : orig.status === 'Cancelled' ? 'bg-red-100 text-red-700' : orig.status === 'Confirmed' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>{orig.status || 'Pending'}</span></div>
@@ -1818,6 +1906,9 @@ export default function Home() {
                                                     <div><strong>City:</strong> <span className={(orig.city !== reqd.city || orig.postalCode !== reqd.postalCode) ? "diff-highlight font-bold" : ""}>{reqd.city} ({reqd.postalCode})</span></div>
                                                     <div><strong>Service:</strong> <span className={orig.service !== reqd.service ? "diff-highlight font-bold" : ""}>{reqd.service}</span></div>
                                                     <div><strong>Price / Duration:</strong> <span className={(orig.price !== reqd.price || orig.duration !== reqd.duration) ? "diff-highlight font-bold" : ""}>${reqd.price} / {reqd.duration} hrs</span></div>
+                                                    {reqd.customDiscountAmount > 0 && (
+                                                        <div className="text-green-600 font-semibold"><strong>Special Discount:</strong> <span className={orig.customDiscountAmount !== reqd.customDiscountAmount ? "diff-highlight font-bold text-green-700" : ""}>-${parseFloat(reqd.customDiscountAmount).toFixed(2)}</span></div>
+                                                    )}
                                                     <div><strong>Schedule Date:</strong> <span className={(orig.date !== reqd.date || orig.time !== reqd.time) ? "diff-highlight font-bold" : ""}>{reqd.date} • {reqd.time}</span></div>
                                                     <div><strong>Assigned Team:</strong> <span className={orig.team !== reqd.team ? "diff-highlight font-bold" : ""}>{reqd.team}</span></div>
                                                     <div><strong>Status:</strong> <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${orig.status !== reqd.status ? 'diff-highlight' : ''} ${reqd.status === 'Completed' ? 'bg-green-100 text-green-700' : reqd.status === 'Cancelled' ? 'bg-red-100 text-red-700' : reqd.status === 'Confirmed' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>{reqd.status || 'Pending'}</span></div>
@@ -1979,7 +2070,7 @@ export default function Home() {
                                                                             services: { ...prev.services, [key]: val }
                                                                         }));
                                                                     }}
-                                                                    className="border border-slate-200 rounded-lg pl-6 pr-2 py-1.5 font-bold text-slate-700 text-xs w-[85px] text-right focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none" 
+                                                                    className="rates-manager-input-price focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 font-bold text-slate-700 transition-all outline-none" 
                                                                 />
                                                             </div>
                                                         </div>
@@ -2005,7 +2096,7 @@ export default function Home() {
                                                                             bathrooms: { ...prev.bathrooms, [key]: val }
                                                                         }));
                                                                     }}
-                                                                    className="border border-slate-200 rounded-lg pl-6 pr-2 py-1.5 font-bold text-slate-700 text-xs w-[85px] text-right focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none" 
+                                                                    className="rates-manager-input-price focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 font-bold text-slate-700 transition-all outline-none" 
                                                                 />
                                                             </div>
                                                         </div>
@@ -2037,7 +2128,7 @@ export default function Home() {
                                                                             }
                                                                         }));
                                                                     }}
-                                                                    className="border border-slate-200 rounded-lg pl-6 pr-2 py-1.5 font-bold text-slate-700 text-xs w-[85px] text-right focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none" 
+                                                                    className="rates-manager-input-price focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 font-bold text-slate-700 transition-all outline-none" 
                                                                 />
                                                             </div>
                                                         </div>
@@ -2067,7 +2158,7 @@ export default function Home() {
                                                                             }
                                                                         }));
                                                                     }}
-                                                                    className="border border-slate-200 rounded-lg pl-2 pr-6 py-1.5 font-bold text-slate-700 text-xs w-[75px] text-right focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none" 
+                                                                    className="rates-manager-input-percent focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 font-bold text-slate-700 transition-all outline-none" 
                                                                 />
                                                                 <span className="absolute right-2.5 text-slate-400 font-extrabold text-[11px]">%</span>
                                                             </div>
@@ -2122,43 +2213,227 @@ export default function Home() {
             </div>
 
             {/* MODAL 1: VIEW DETAILS MODAL */}
-            {detailsModalOpen && selectedBooking && (
-                <div className="modal-backdrop show">
-                    <div className="modal-content animate-pop detail-modal-content" style={{ maxWidth: "500px" }}>
-                        <div className="modal-header" style={{ background: "linear-gradient(135deg, var(--accent-blue), var(--accent-green))", borderBottom: "none" }}>
-                            <h3 className="font-extrabold text-sm uppercase tracking-wider text-white" style={{ margin: 0 }}>Scheduled dispatch Details</h3>
-                            <button onClick={() => setDetailsModalOpen(false)} className="modal-close-btn" aria-label="Close">
-                                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="1" y1="1" x2="13" y2="13" /><line x1="13" y1="1" x2="1" y2="13" /></svg>
-                            </button>
-                        </div>
-                        <div className="modal-body flex flex-col gap-3.5 text-xs text-slate-700" style={{ overflowY: "auto", padding: "24px" }}>
-                            <div><strong>Client Name:</strong> <span className="text-slate-900 font-bold">{selectedBooking.clientName}</span></div>
-                            <div><strong>Phone Number:</strong> {selectedBooking.phone || "Not provided"}</div>
-                            <div><strong>Email Address:</strong> {selectedBooking.email || "Not provided"}</div>
-                            <div className="border-t border-slate-100 pt-3"><strong>Street Address 1:</strong> {selectedBooking.address1}</div>
-                            <div><strong>Apartment / Unit 2:</strong> {selectedBooking.address2 || "None"}</div>
-                            <div><strong>City Location:</strong> {selectedBooking.city || "Not provided"} • {selectedBooking.postalCode || "N/A"}</div>
-                            <div><strong>State / Country:</strong> {selectedBooking.state} • {selectedBooking.country}</div>
-                            <div className="border-t border-slate-100 pt-3"><strong>Service Category:</strong> <span className="font-bold text-[#0268b3]">{selectedBooking.service}</span></div>
-                            <div><strong>Duration / Timeframe:</strong> {selectedBooking.duration} hours ({formatTimeWindow(selectedBooking.time, selectedBooking.duration)})</div>
-                            <div><strong>Total Price / Cost:</strong> <span className="font-extrabold text-slate-900">${parseFloat(selectedBooking.price || 0).toFixed(2)}</span></div>
-                            <div className="border-t border-slate-100 pt-3 flex justify-between items-center">
-                                <div><strong>Assigned Team:</strong>
-                                    <div className="team-pill mt-1">
-                                        <span className={`dot dot-${teams.find(t => t.name === selectedBooking.team)?.color || "sparkle"}`}></span>
-                                        <span>{selectedBooking.team}</span>
+            {detailsModalOpen && selectedBooking && (() => {
+                const b = selectedBooking;
+                const statusColors = {
+                    Pending:   { bg: '#fef3c7', color: '#b45309', border: '#fcd34d' },
+                    Confirmed: { bg: '#dbeafe', color: '#1d4ed8', border: '#93c5fd' },
+                    Completed: { bg: '#dcfce7', color: '#15803d', border: '#86efac' },
+                    Cancelled: { bg: '#fee2e2', color: '#b91c1c', border: '#fca5a5' },
+                };
+                const sc = statusColors[b.status] || statusColors.Pending;
+                const teamColor = teams.find(t => t.name === b.team)?.color || 'sparkle';
+                const extrasEntries = Object.entries(b.extras || {}).filter(([, qty]) => qty);
+                const hasExtras = extrasEntries.length > 0;
+                const price = parseFloat(b.price || 0);
+                const discount = parseFloat(b.customDiscountAmount || 0);
+                return (
+                    <div className="modal-backdrop show">
+                        <div className="modal-content animate-pop" style={{ maxWidth: '640px', width: '95%' }}>
+                            {/* Header */}
+                            <div className="modal-header" style={{ background: 'linear-gradient(135deg, #0268b3, #16a34a)', borderBottom: 'none', padding: '18px 24px' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                    <h3 style={{ margin: 0, fontSize: '13px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '1px', color: '#ffffff' }}>
+                                        Dispatch Details
+                                    </h3>
+                                    <p style={{ margin: 0, fontSize: '10px', color: 'rgba(255,255,255,0.75)', fontWeight: '500' }}>
+                                        {b.date} · {b.time} · {b.duration}h
+                                    </p>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px', background: sc.bg, color: sc.color, border: `1.5px solid ${sc.border}` }}>
+                                        {b.status || 'Pending'}
+                                    </span>
+                                    <button onClick={() => setDetailsModalOpen(false)} className="modal-close-btn" aria-label="Close">
+                                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="1" y1="1" x2="13" y2="13" /><line x1="13" y1="1" x2="1" y2="13" /></svg>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Body */}
+                            <div className="modal-body" style={{ overflowY: 'auto', maxHeight: '70vh', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+                                {/* Client Info */}
+                                <div className="detail-card">
+                                    <div className="detail-card-title">👤 Client Information</div>
+                                    <div className="detail-card-grid">
+                                        <div className="detail-row">
+                                            <span className="detail-label">Full Name</span>
+                                            <span className="detail-value bold">{b.clientName || `${b.firstName || ''} ${b.lastName || ''}`.trim()}</span>
+                                        </div>
+                                        <div className="detail-row">
+                                            <span className="detail-label">Phone</span>
+                                            <span className="detail-value">{b.phone || '—'}</span>
+                                        </div>
+                                        <div className="detail-row full-width">
+                                            <span className="detail-label">Email</span>
+                                            <span className="detail-value">{b.email || '—'}</span>
+                                        </div>
                                     </div>
                                 </div>
-                                <span className={`status-badge status-${selectedBooking.status.toLowerCase()}`}>{selectedBooking.status}</span>
+
+                                {/* Address */}
+                                <div className="detail-card">
+                                    <div className="detail-card-title">📍 Service Address</div>
+                                    <div className="detail-card-grid">
+                                        <div className="detail-row full-width">
+                                            <span className="detail-label">Street</span>
+                                            <span className="detail-value">{b.address1}{b.address2 ? `, ${b.address2}` : ''}</span>
+                                        </div>
+                                        <div className="detail-row">
+                                            <span className="detail-label">City</span>
+                                            <span className="detail-value">{b.city || '—'}</span>
+                                        </div>
+                                        <div className="detail-row">
+                                            <span className="detail-label">Postal Code</span>
+                                            <span className="detail-value">{b.postalCode || '—'}</span>
+                                        </div>
+                                        <div className="detail-row">
+                                            <span className="detail-label">Province</span>
+                                            <span className="detail-value">{b.state || '—'}</span>
+                                        </div>
+                                        <div className="detail-row">
+                                            <span className="detail-label">Country</span>
+                                            <span className="detail-value">{b.country || '—'}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Service & Schedule */}
+                                <div className="detail-card">
+                                    <div className="detail-card-title">🧹 Service & Schedule</div>
+                                    <div className="detail-card-grid">
+                                        <div className="detail-row full-width">
+                                            <span className="detail-label">Service</span>
+                                            <span className="detail-value bold" style={{ color: '#0268b3' }}>{b.service}</span>
+                                        </div>
+                                        <div className="detail-row">
+                                            <span className="detail-label">Bathrooms</span>
+                                            <span className="detail-value">{b.bathrooms || '—'}</span>
+                                        </div>
+                                        <div className="detail-row">
+                                            <span className="detail-label">Frequency</span>
+                                            <span className="detail-value">{b.frequency || 'One-Time'}</span>
+                                        </div>
+                                        <div className="detail-row">
+                                            <span className="detail-label">Date</span>
+                                            <span className="detail-value bold">{b.date}</span>
+                                        </div>
+                                        <div className="detail-row">
+                                            <span className="detail-label">Time Window</span>
+                                            <span className="detail-value">{formatTimeWindow(b.time, b.duration)}</span>
+                                        </div>
+                                        <div className="detail-row">
+                                            <span className="detail-label">Duration</span>
+                                            <span className="detail-value">{b.duration} hours</span>
+                                        </div>
+                                        <div className="detail-row">
+                                            <span className="detail-label">Assigned Crew</span>
+                                            <span className="detail-value">
+                                                <span className="team-pill" style={{ marginTop: 0 }}>
+                                                    <span className={`dot dot-${teamColor}`}></span>
+                                                    {b.team || '—'}
+                                                </span>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Extras */}
+                                {hasExtras && (
+                                    <div className="detail-card">
+                                        <div className="detail-card-title">✨ Selected Extras</div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '2px' }}>
+                                            {extrasEntries.map(([key, qty]) => {
+                                                const extra = pricingRates.extras[key];
+                                                if (!extra) return null;
+                                                const qtyVal = typeof qty === 'boolean' ? 1 : qty;
+                                                return (
+                                                    <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                                        <span style={{ fontSize: '10px', color: '#334155', fontWeight: '600' }}>• {extra.name}{qtyVal > 1 ? ` × ${qtyVal}` : ''}</span>
+                                                        <span style={{ fontSize: '10px', fontWeight: '800', color: '#0f172a' }}>${(extra.price * qtyVal).toFixed(2)}</span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Pricing */}
+                                <div className="detail-card">
+                                    <div className="detail-card-title">💰 Pricing</div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
+                                        <div className="detail-row">
+                                            <span className="detail-label">Total Price (incl. HST)</span>
+                                            <span className="detail-value bold" style={{ fontSize: '14px', color: '#0268b3' }}>${price.toFixed(2)}</span>
+                                        </div>
+                                        {discount > 0 && (
+                                            <div className="detail-row">
+                                                <span className="detail-label">Special Discount</span>
+                                                <span className="detail-value" style={{ color: '#15803d', fontWeight: '800' }}>-${discount.toFixed(2)}</span>
+                                            </div>
+                                        )}
+                                        {b.frequency && b.frequency !== 'One-Time' && (() => {
+                                            const freqConfig = pricingRates.frequencies[b.frequency];
+                                            const pct = freqConfig ? Math.round((freqConfig.discount > 1 ? freqConfig.discount / 100 : freqConfig.discount) * 100) : 0;
+                                            return pct > 0 ? (
+                                                <div className="detail-row">
+                                                    <span className="detail-label">Frequency Discount</span>
+                                                    <span style={{ fontSize: '10px', fontWeight: '800', padding: '2px 8px', borderRadius: '20px', background: '#dcfce7', color: '#15803d', border: '1px solid #86efac' }}>{b.frequency} — {pct}% off</span>
+                                                </div>
+                                            ) : null;
+                                        })()}
+                                    </div>
+                                </div>
+
+                                {/* Operations */}
+                                <div className="detail-card">
+                                    <div className="detail-card-title">🏠 Property & Operations</div>
+                                    <div className="detail-card-grid">
+                                        <div className="detail-row">
+                                            <span className="detail-label">Pets</span>
+                                            <span className="detail-value">{b.hasPets ? 'Yes 🐶' : 'No 🚫'}</span>
+                                        </div>
+                                        <div className="detail-row">
+                                            <span className="detail-label">Parking</span>
+                                            <span className="detail-value">{b.freeParking ? 'Free 🚗' : 'Street/Paid ⚠️'}</span>
+                                        </div>
+                                        <div className="detail-row">
+                                            <span className="detail-label">First Clean 30 days</span>
+                                            <span className="detail-value">{b.firstClean30 ? 'Yes' : 'No'}</span>
+                                        </div>
+                                        <div className="detail-row">
+                                            <span className="detail-label">Access Mode</span>
+                                            <span className="detail-value">{b.accessMode || '—'}</span>
+                                        </div>
+                                        {b.accessDetails && (
+                                            <div className="detail-row full-width">
+                                                <span className="detail-label">Access Instructions</span>
+                                                <span className="detail-value">{b.accessDetails}</span>
+                                            </div>
+                                        )}
+                                        {b.specialNotes && (
+                                            <div className="detail-row full-width">
+                                                <span className="detail-label">Special Notes</span>
+                                                <span className="detail-value" style={{ whiteSpace: 'pre-wrap' }}>{b.specialNotes}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                            </div>
+
+                            {/* Footer */}
+                            <div className="modal-footer">
+                                <button onClick={() => setDetailsModalOpen(false)} className="btn btn-secondary btn-sm">Close</button>
+                                <button onClick={() => { setDetailsModalOpen(false); openEditBookingModal(selectedBooking); }} className="btn btn-primary btn-sm">Edit Dispatch</button>
                             </div>
                         </div>
-                        <div className="modal-footer">
-                            <button onClick={() => setDetailsModalOpen(false)} className="btn btn-secondary btn-sm">Close</button>
-                            <button onClick={() => { setDetailsModalOpen(false); openEditBookingModal(selectedBooking); }} className="btn btn-primary btn-sm">Edit Dispatch</button>
-                        </div>
                     </div>
-                </div>
-            )}
+                );
+            })()}
+
+
 
             {/* MODAL 2: SCHEDULING FORM MODAL */}
             {bookingModalOpen && (
@@ -2172,25 +2447,48 @@ export default function Home() {
                                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="1" y1="1" x2="13" y2="13" /><line x1="13" y1="1" x2="1" y2="13" /></svg>
                             </button>
                         </div>
-                        <form onSubmit={handleBookingSubmit} style={{ display: "flex", flexDirection: "column", flexGrow: 1, overflowY: "auto" }}>
+                        <div style={{ display: "flex", flexDirection: "column", flexGrow: 1, overflowY: "auto" }}>
                             <div className="modal-body flex flex-col text-xs" style={{ padding: "20px 24px" }}>
                                 
                                 {/* Stepper Progress Header */}
-                                <div className="wizard-stepper flex items-center justify-between border-b border-slate-100 pb-4 mb-5 text-[9px] md:text-xs">
+                                <div className="wizard-stepper select-none">
+                                    {/* Connecting Background Progress Bar Track */}
+                                    <div className="wizard-progress-track">
+                                        {/* Filled progress bar portion */}
+                                        <div 
+                                            className="wizard-progress-bar" 
+                                            style={{ width: `${((formStep - 1) / 7) * 100}%` }}
+                                        ></div>
+                                    </div>
+                                    
                                     {[1, 2, 3, 4, 5, 6, 7, 8].map(stepNum => {
-                                        const stepLabels = ["Contact", "Address", "Services", "Extras", "Schedule", "Frequency", "Property Info", "Review"];
+                                        const stepLabels = ["Contact", "Address", "Services", "Extras", "Schedule", "Frequency", "Info", "Review"];
                                         const isActive = formStep === stepNum;
                                         const isCompleted = formStep > stepNum;
                                         return (
-                                            <div key={stepNum} className={`flex flex-col items-center gap-1 flex-1 relative ${isActive ? 'text-blue-600 font-bold' : (isCompleted ? 'text-green-600' : 'text-slate-400')}`}>
-                                                <div className={`w-6 h-6 rounded-full flex items-center justify-center border-2 text-[9px] font-extrabold ${isActive ? 'border-blue-600 bg-blue-50 text-blue-600' : (isCompleted ? 'border-green-600 bg-green-50 text-green-600' : 'border-slate-200 text-slate-400 bg-slate-50')}`}>
+                                            <div key={stepNum} className="wizard-step-node">
+                                                {/* Circle step badge */}
+                                                <div 
+                                                    className={`wizard-step-circle ${
+                                                        isActive ? 'active' : (isCompleted ? 'completed' : '')
+                                                    }`}
+                                                >
                                                     {isCompleted ? "✓" : stepNum}
                                                 </div>
-                                                <span className="hidden lg:inline text-[9px] uppercase tracking-wider mt-0.5">{stepLabels[stepNum - 1]}</span>
+                                                {/* Text Label - visible and responsive */}
+                                                <span 
+                                                    className={`wizard-step-label ${
+                                                        isActive ? 'active' : (isCompleted ? 'completed' : '')
+                                                    }`}
+                                                >
+                                                    {stepLabels[stepNum - 1]}
+                                                </span>
                                             </div>
                                         );
                                     })}
                                 </div>
+
+
 
                                 {/* Step 1: Contact Information */}
                                 {formStep === 1 && (
@@ -2305,7 +2603,7 @@ export default function Home() {
                                             <h4 className="font-extrabold text-slate-800 text-sm">Select Extras</h4>
                                             <p className="text-slate-400 text-[11px]">Add upgrades to your service</p>
                                         </div>
-                                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3.5 max-h-[460px] md:max-h-[520px] lg:max-h-[580px] overflow-y-auto pr-1 p-1">
+                                        <div className="extras-grid-container">
                                             {Object.entries(pricingRates.extras).map(([key, extra]) => {
                                                 const qty = bookingForm.extras[key] || 0;
                                                 const isActive = qty > 0;
@@ -2363,32 +2661,29 @@ export default function Home() {
                                                     <div 
                                                         key={key} 
                                                         onClick={!extra.qtySelector ? toggleExtra : undefined}
-                                                        className={`border rounded-2xl p-3 flex flex-col items-center justify-between gap-2 text-center transition-all select-none transform hover:scale-[1.04] active:scale-[0.98] duration-200 ${isActive ? 'border-blue-600 bg-blue-50/50 ring-4 ring-blue-500/10 hover:shadow-blue-100/50' : 'border-slate-200 hover:border-slate-300 bg-white hover:shadow-md'}`}
-                                                        style={{ minHeight: "125px", cursor: "pointer" }}
+                                                        className={`extra-card ${isActive ? 'active' : ''}`}
                                                     >
-                                                        <div className="text-2xl mt-1">{extraIcons[key] || "✨"}</div>
-                                                        <div className="flex flex-col gap-0.5">
-                                                            <span className="font-bold text-[9px] md:text-[10px] text-slate-700 leading-snug">{extra.name}</span>
-                                                            <span className="font-extrabold text-[11px] text-blue-600">${extra.price.toFixed(2)}</span>
-                                                        </div>
+                                                        <div className="extra-card-icon">{extraIcons[key] || "✨"}</div>
+                                                        <span className="extra-card-name">{extra.name}</span>
+                                                        <span className="extra-card-price">${extra.price.toFixed(2)}</span>
                                                         {extra.qtySelector ? (
-                                                            <div className="flex items-center gap-1.5 mt-1" onClick={e => e.stopPropagation()}>
+                                                            <div onClick={e => e.stopPropagation()}>
                                                                 {!isActive ? (
-                                                                    <button type="button" onClick={toggleExtra} className="text-[10px] font-bold text-slate-500 border border-slate-200 rounded px-2.5 py-0.5 bg-slate-50 hover:bg-slate-100 hover:text-slate-700 transition-all">Add</button>
+                                                                    <button type="button" onClick={toggleExtra} className="extra-card-badge unselected">Add</button>
                                                                 ) : (
-                                                                    <div className="flex items-center border border-blue-200 rounded bg-white overflow-hidden text-[9px] font-extrabold">
-                                                                        <button type="button" onClick={() => adjustQty(-1)} className="w-5 h-5 flex items-center justify-center hover:bg-slate-50 text-blue-600">-</button>
-                                                                        <span className="w-6 text-center text-slate-700">{qty}X</span>
-                                                                        <button type="button" onClick={() => adjustQty(1)} className="w-5 h-5 flex items-center justify-center hover:bg-slate-50 text-blue-600">+</button>
+                                                                    <div className="extra-card-qty-wrapper">
+                                                                        <button type="button" onClick={() => adjustQty(-1)} className="extra-card-qty-btn">-</button>
+                                                                        <span className="extra-card-qty-val">{qty}X</span>
+                                                                        <button type="button" onClick={() => adjustQty(1)} className="extra-card-qty-btn">+</button>
                                                                     </div>
                                                                 )}
                                                             </div>
                                                         ) : (
-                                                            <div className="mt-1">
+                                                            <div>
                                                                 {isActive ? (
-                                                                    <span className="text-[9px] font-bold text-blue-600 bg-blue-100 border border-blue-200 rounded px-2 py-0.5">Added</span>
+                                                                    <span className="extra-card-badge selected">Added</span>
                                                                 ) : (
-                                                                    <span className="text-[9px] font-bold text-slate-400 border border-slate-200 rounded px-2 py-0.5 hover:bg-slate-50">Select</span>
+                                                                    <span className="extra-card-badge unselected">Select</span>
                                                                 )}
                                                             </div>
                                                         )}
@@ -2401,12 +2696,12 @@ export default function Home() {
 
                                 {/* Step 5: Schedule Date & Time Availability */}
                                 {formStep === 5 && (
-                                    <div className="flex flex-col gap-4 animate-fade">
+                                    <div className="animate-fade" style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
                                         <div>
-                                            <h4 className="font-extrabold text-slate-800 text-sm">When would you like us to come?</h4>
-                                            <p className="text-slate-400 text-[11px]">The day and time that suits you best</p>
+                                            <h4 className="font-extrabold text-slate-800 text-sm" style={{ margin: 0 }}>When would you like us to come?</h4>
+                                            <p className="text-slate-400 text-[11px]" style={{ margin: '4px 0 0 0' }}>The day and time that suits you best</p>
                                         </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="step5-grid">
                                             <div className="form-group flex flex-col gap-1">
                                                 <label className="font-bold text-slate-700">Schedule Date *</label>
                                                 <input type="date" required value={bookingForm.date} onChange={e => setBookingForm(prev => ({ ...prev, date: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" />
@@ -2424,31 +2719,34 @@ export default function Home() {
                                                 )}
                                             </div>
 
-                                            <div className="form-group flex flex-col gap-1.5 md:col-span-2 border-t border-slate-100 pt-3">
+                                            <div className="time-slots-wrapper">
                                                 <label className="font-bold text-slate-700">Select Available Time Slot *</label>
-                                                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-[170px] overflow-y-auto p-1">
-                                                    {timeSlots.map(t => {
-                                                        const isBooked = checkScheduleCollisions(
-                                                            bookingForm.date,
-                                                            t,
-                                                            bookingForm.duration,
-                                                            bookingForm.team,
-                                                            bookingForm.id
-                                                        );
-                                                        const isSelected = bookingForm.time === t;
+                                                <div className="time-slots-scroll">
+                                                    <div className="time-slot-grid">
+                                                        {timeSlots.map(t => {
+                                                            // Display: grey out only slots that fall DURING an existing booking's window
+                                                            // This prevents early slots being blocked just because the new job is long
+                                                            const isBooked = isSlotDuringExistingBooking(
+                                                                bookingForm.date,
+                                                                t,
+                                                                bookingForm.team,
+                                                                bookingForm.id
+                                                            );
+                                                            const isSelected = bookingForm.time === t;
 
-                                                        return (
-                                                            <button
-                                                                key={t}
-                                                                type="button"
-                                                                disabled={isBooked}
-                                                                onClick={() => setBookingForm(prev => ({ ...prev, time: t }))}
-                                                                className={`text-[10px] font-extrabold py-2 px-1 rounded-lg border text-center transition-all ${isBooked ? 'bg-slate-50 border-slate-100 text-slate-300 line-through cursor-not-allowed' : (isSelected ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700')}`}
-                                                            >
-                                                                {t}
-                                                            </button>
-                                                        );
-                                                    })}
+                                                            return (
+                                                                <button
+                                                                    key={t}
+                                                                    type="button"
+                                                                    disabled={isBooked}
+                                                                    onClick={() => setBookingForm(prev => ({ ...prev, time: t }))}
+                                                                    className={`time-slot-btn ${isBooked ? 'booked' : ''} ${isSelected ? 'selected' : ''}`}
+                                                                >
+                                                                    {t}
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -2462,7 +2760,7 @@ export default function Home() {
                                             <h4 className="font-extrabold text-slate-800 text-sm">How Often?</h4>
                                             <p className="text-slate-400 text-[11px] max-w-sm mx-auto">It's all about matching you with the perfect cleaner for your home. Scheduling is flexible. Cancel or reschedule anytime.</p>
                                         </div>
-                                        <div className="flex flex-col gap-3">
+                                        <div className="frequency-list-container" style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
                                             {Object.entries(pricingRates.frequencies).map(([key, freq]) => {
                                                 const isSelected = bookingForm.frequency === key;
                                                 const freqIcons = {
@@ -2477,19 +2775,60 @@ export default function Home() {
                                                     <div
                                                         key={key}
                                                         onClick={() => setBookingForm(prev => ({ ...prev, frequency: key }))}
-                                                        className={`flex items-center justify-between border rounded-2xl p-4 cursor-pointer transition-all select-none ${isSelected ? 'border-blue-500 bg-blue-50/40 ring-2 ring-blue-500/20' : 'border-slate-200 hover:border-slate-300 bg-white'}`}
+                                                        className={`frequency-card ${isSelected ? 'active' : ''}`}
+                                                        style={{
+                                                            display: 'flex',
+                                                            flexDirection: 'row',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'space-between',
+                                                            border: isSelected ? '2.5px solid #0268b3' : '1.5px solid #cbd5e1',
+                                                            borderRadius: '16px',
+                                                            padding: '14px 20px',
+                                                            backgroundColor: isSelected ? '#f0f7ff' : '#ffffff',
+                                                            cursor: 'pointer',
+                                                            transition: 'all 0.2s ease',
+                                                            userSelect: 'none',
+                                                            boxSizing: 'border-box',
+                                                            boxShadow: isSelected ? '0 0 0 4px rgba(2, 104, 179, 0.1)' : 'none'
+                                                        }}
                                                     >
-                                                        <div className="flex items-center gap-3">
-                                                            <span className="text-2xl">{freqIcons[key] || "📅"}</span>
-                                                            <div className="flex flex-col">
-                                                                <span className="font-bold text-xs uppercase tracking-wider text-slate-700">{freq.name}</span>
-                                                                <span className="text-[10px] text-slate-400">Cancel or reschedule anytime</span>
+                                                        <div className="frequency-card-left" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '14px' }}>
+                                                            {/* Custom Radio Button Circle */}
+                                                            <div 
+                                                                style={{
+                                                                    width: '18px',
+                                                                    height: '18px',
+                                                                    borderRadius: '50%',
+                                                                    border: isSelected ? '2.5px solid #0268b3' : '2px solid #cbd5e1',
+                                                                    display: 'flex',
+                                                                    alignItems: 'center',
+                                                                    justifyContent: 'center',
+                                                                    backgroundColor: '#ffffff',
+                                                                    transition: 'all 0.2s ease',
+                                                                    flexShrink: 0
+                                                                }}
+                                                            >
+                                                                {isSelected && (
+                                                                    <div 
+                                                                        style={{
+                                                                            width: '9px',
+                                                                            height: '9px',
+                                                                            borderRadius: '50%',
+                                                                            backgroundColor: '#0268b3'
+                                                                        }}
+                                                                    />
+                                                                )}
+                                                            </div>
+                                                            <span className="frequency-card-icon" style={{ fontSize: '22px' }}>{freqIcons[key] || "📅"}</span>
+                                                            <div className="frequency-card-details" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', textAlign: 'left' }}>
+                                                                <span className="frequency-card-title" style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#334155', lineHeight: '1.2' }}>{freq.name}</span>
+                                                                <span className="frequency-card-sub" style={{ fontSize: '10px', color: '#94a3b8', marginTop: '1px' }}>Cancel or reschedule anytime</span>
                                                             </div>
                                                         </div>
                                                         {freq.discount > 0 ? (
-                                                            <span className="text-[10px] font-extrabold text-green-600 bg-green-100 border border-green-200 rounded-full px-3 py-1">Save {(freq.discount * 100).toFixed(0)}%</span>
+                                                            <span className="frequency-card-discount save" style={{ fontSize: '10px', fontWeight: '800', padding: '4px 12px', borderRadius: '20px', textTransform: 'uppercase', display: 'inline-block', color: '#166534', backgroundColor: '#dcfce7', border: '1px solid #bbf7d0' }}>Save {(freq.discount * 100).toFixed(0)}%</span>
                                                         ) : (
-                                                            <span className="text-[10px] font-bold text-slate-400 border border-slate-200 rounded-full px-3 py-1">Standard</span>
+                                                            <span className="frequency-card-discount standard" style={{ fontSize: '10px', fontWeight: '800', padding: '4px 12px', borderRadius: '20px', textTransform: 'uppercase', display: 'inline-block', color: '#64748b', backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0' }}>Standard</span>
                                                         )}
                                                     </div>
                                                 );
@@ -2500,22 +2839,22 @@ export default function Home() {
 
                                 {/* Step 7: Additional Information */}
                                 {formStep === 7 && (
-                                    <div className="flex flex-col gap-4 animate-fade">
+                                    <div className="animate-fade" style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
                                         <div>
-                                            <h4 className="font-extrabold text-slate-800 text-sm">Additional Information</h4>
-                                            <p className="text-slate-400 text-[11px]">Share with us more details about your home</p>
+                                            <h4 className="font-extrabold text-slate-800 text-sm" style={{ margin: 0 }}>Additional Information</h4>
+                                            <p className="text-slate-400 text-[11px]" style={{ margin: '4px 0 0 0' }}>Share with us more details about your home</p>
                                         </div>
-                                        <div className="grid grid-cols-1 gap-4 text-xs">
+                                        <div className="step7-container">
                                             {/* Pets */}
-                                            <div className="form-group flex flex-col gap-1.5">
+                                            <div className="form-group flex flex-col gap-1.5" style={{ textAlign: 'left' }}>
                                                 <label className="font-bold text-slate-700">Do you have any pets?</label>
-                                                <div className="flex gap-2">
+                                                <div className="step7-btn-row">
                                                     {[true, false].map(val => (
                                                         <button
                                                             key={String(val)}
                                                             type="button"
                                                             onClick={() => setBookingForm(prev => ({ ...prev, hasPets: val }))}
-                                                            className={`flex-1 py-2.5 px-4 rounded-xl border font-bold text-center transition-all ${bookingForm.hasPets === val ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-slate-200 hover:border-slate-300 text-slate-600'}`}
+                                                            className={`step7-btn ${bookingForm.hasPets === val ? 'selected' : ''}`}
                                                         >
                                                             {val ? "Yes, I have pets 🐶" : "No pets 🚫"}
                                                         </button>
@@ -2524,7 +2863,7 @@ export default function Home() {
                                             </div>
 
                                             {/* Access Mode */}
-                                            <div className="form-group flex flex-col gap-1">
+                                            <div className="form-group flex flex-col gap-1" style={{ textAlign: 'left' }}>
                                                 <label className="font-bold text-slate-700">Will you be home, or is there a code for access?</label>
                                                 <select value={bookingForm.accessMode} onChange={e => setBookingForm(prev => ({ ...prev, accessMode: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5">
                                                     <option value="Will be home">I will be home to let the cleaners in</option>
@@ -2535,7 +2874,7 @@ export default function Home() {
                                             </div>
 
                                             {/* Access Details details */}
-                                            <div className="form-group flex flex-col gap-1">
+                                            <div className="form-group flex flex-col gap-1" style={{ textAlign: 'left' }}>
                                                 <label className="font-bold text-slate-700">Property Access Information, your dog's name, etc</label>
                                                 <textarea
                                                     rows={2}
@@ -2547,15 +2886,15 @@ export default function Home() {
                                             </div>
 
                                             {/* Parking */}
-                                            <div className="form-group flex flex-col gap-1.5">
+                                            <div className="form-group flex flex-col gap-1.5" style={{ textAlign: 'left' }}>
                                                 <label className="font-bold text-slate-700">Is there free parking available for the cleaners?</label>
-                                                <div className="flex gap-2">
+                                                <div className="step7-btn-row">
                                                     {[true, false].map(val => (
                                                         <button
                                                             key={String(val)}
                                                             type="button"
                                                             onClick={() => setBookingForm(prev => ({ ...prev, freeParking: val }))}
-                                                            className={`flex-1 py-2.5 px-4 rounded-xl border font-bold text-center transition-all ${bookingForm.freeParking === val ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-slate-200 hover:border-slate-300 text-slate-600'}`}
+                                                            className={`step7-btn ${bookingForm.freeParking === val ? 'selected' : ''}`}
                                                         >
                                                             {val ? "Yes, Free Parking 🚗" : "No, Street/Paid Parking ⚠️"}
                                                         </button>
@@ -2564,15 +2903,15 @@ export default function Home() {
                                             </div>
 
                                             {/* First Pro Clean 30 Days */}
-                                            <div className="form-group flex flex-col gap-1.5">
+                                            <div className="form-group flex flex-col gap-1.5" style={{ textAlign: 'left' }}>
                                                 <label className="font-bold text-slate-700">Is this your first pro clean in 30+ days?</label>
-                                                <div className="flex gap-2">
+                                                <div className="step7-btn-row">
                                                     {[true, false].map(val => (
                                                         <button
                                                             key={String(val)}
                                                             type="button"
                                                             onClick={() => setBookingForm(prev => ({ ...prev, firstClean30: val }))}
-                                                            className={`flex-1 py-2.5 px-4 rounded-xl border font-bold text-center transition-all ${bookingForm.firstClean30 === val ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-slate-200 hover:border-slate-300 text-slate-600'}`}
+                                                            className={`step7-btn ${bookingForm.firstClean30 === val ? 'selected' : ''}`}
                                                         >
                                                             {val ? "Yes, first time in 30+ days" : "No, cleaned recently"}
                                                         </button>
@@ -2581,7 +2920,7 @@ export default function Home() {
                                             </div>
 
                                             {/* Special Instructions */}
-                                            <div className="form-group flex flex-col gap-1">
+                                            <div className="form-group flex flex-col gap-1" style={{ textAlign: 'left' }}>
                                                 <label className="font-bold text-slate-700">Anything else we should know?</label>
                                                 <textarea
                                                     rows={2}
@@ -2598,121 +2937,268 @@ export default function Home() {
                                 {/* Step 8: Review & Dynamic Receipt summary */}
                                 {formStep === 8 && (() => {
                                     const calc = calculateBookingTotal(bookingForm);
+                                    
+                                    // Generate dynamic Quote Number
+                                    const quoteNum = `STC-2026-${bookingForm.id ? bookingForm.id.replace('bk-', '').slice(-3) : Math.floor(Math.random() * 800) + 100}`;
+                                    
+                                    // Quote Validity Date (30 days from today)
+                                    const nextMonth = new Date();
+                                    nextMonth.setDate(nextMonth.getDate() + 30);
+                                    const validityDate = nextMonth.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
                                     return (
-                                        <div className="flex flex-col gap-4 animate-fade text-xs">
+                                        <div className="animate-fade" style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
                                             <div>
-                                                <h4 className="font-extrabold text-slate-800 text-sm">Review & Confirm</h4>
-                                                <p className="text-slate-400 text-[11px]">Confirm all booking information and pricing details</p>
+                                                <h4 className="font-extrabold text-slate-800 text-sm" style={{ margin: 0 }}>Review & Quote Preview</h4>
+                                                <p className="text-slate-400 text-[11px]" style={{ margin: '4px 0 0 0' }}>Verify dispatch information and inspect the customer-facing invoice quote</p>
                                             </div>
                                             
-                                            <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
-                                                {/* Left Panel: Info Summary */}
-                                                <div className="md:col-span-7 flex flex-col gap-3 bg-slate-50 border border-slate-100 rounded-2xl p-4 max-h-[300px] overflow-y-auto">
-                                                    <div className="border-b border-slate-100 pb-2">
-                                                        <h5 className="font-bold text-slate-800 uppercase tracking-wide text-[9px] mb-1">1. Contact Information</h5>
-                                                        <p className="text-slate-600 font-semibold">{bookingForm.firstName} {bookingForm.lastName}</p>
-                                                        <p className="text-slate-500">{bookingForm.email} | {bookingForm.phone}</p>
-                                                    </div>
-
-                                                    <div className="border-b border-slate-100 pb-2">
-                                                        <h5 className="font-bold text-slate-800 uppercase tracking-wide text-[9px] mb-1">2. Service Address</h5>
-                                                        <p className="text-slate-600 font-semibold">{bookingForm.address1} {bookingForm.address2 ? `, ${bookingForm.address2}` : ''}</p>
-                                                        <p className="text-slate-500">{bookingForm.city}, {bookingForm.postalCode}, {bookingForm.state}, {bookingForm.country}</p>
-                                                    </div>
-
-                                                    <div className="border-b border-slate-100 pb-2">
-                                                        <h5 className="font-bold text-slate-800 uppercase tracking-wide text-[9px] mb-1">3. Services & Schedule</h5>
-                                                        <p className="text-slate-600 font-semibold">{bookingForm.service} ({bookingForm.duration} Hours)</p>
-                                                        <p className="text-slate-500">{bookingForm.bathrooms} | Assigned to: <span className="font-bold text-blue-600">{bookingForm.team || "Not Assigned"}</span></p>
-                                                        <p className="text-slate-500">Scheduled Date: <span className="font-bold text-slate-700">{bookingForm.date}</span> at <span className="font-bold text-slate-700">{bookingForm.time}</span></p>
-                                                    </div>
-
-                                                    <div className="border-b border-slate-100 pb-2">
-                                                        <h5 className="font-bold text-slate-800 uppercase tracking-wide text-[9px] mb-1">4. Frequency & Additional Details</h5>
-                                                        <p className="text-slate-600 font-semibold">Frequency: <span className="capitalize">{pricingRates.frequencies[bookingForm.frequency]?.name || bookingForm.frequency}</span></p>
-                                                        <p className="text-slate-500">Pets: {bookingForm.hasPets ? "Yes 🐶" : "No 🚫"} | Parking: {bookingForm.freeParking ? "Free 🚗" : "Street/Paid ⚠️"}</p>
-                                                        <p className="text-slate-500">First time clean in 30 days: {bookingForm.firstClean30 ? "Yes" : "No"}</p>
-                                                        <p className="text-slate-500">Access: {bookingForm.accessMode} {bookingForm.accessDetails ? `(${bookingForm.accessDetails})` : ''}</p>
-                                                    </div>
-
-                                                    {bookingForm.specialNotes && (
+                                            <div className="quote-review-container">
+                                                {/* Left Panel: Invoice/Quote Sheet view (matching user design) */}
+                                                <div className="quote-sheet">
+                                                    {/* Company Header */}
+                                                    <div className="quote-header-block">
                                                         <div>
-                                                            <h5 className="font-bold text-slate-800 uppercase tracking-wide text-[9px] mb-1">Special Notes</h5>
-                                                            <p className="text-slate-500 italic">"{bookingForm.specialNotes}"</p>
+                                                            <div className="quote-brand-title">
+                                                                <span>SmarTouch</span>
+                                                                <span className="quote-brand-clean">CLEAN</span>
+                                                            </div>
+                                                            <p className="quote-brand-subtitle">Professional Residential & Commercial Cleaning</p>
+                                                            <div className="quote-company-details">
+                                                                <p>SmarTouch Clean Inc.</p>
+                                                                <p>Phone: (613) 416-5001</p>
+                                                                <p>Email: sale@smartouchclean.com</p>
+                                                                <p>Web: www.smartouchclean.com</p>
+                                                            </div>
                                                         </div>
-                                                    )}
-                                                </div>
+                                                        <div className="quote-meta-details">
+                                                            <h4 className="quote-meta-number">{quoteNum}</h4>
+                                                            <p style={{ margin: '2px 0 0 0' }}>Date: {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+                                                            <p style={{ margin: '2px 0 0 0', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                                Status:{' '}
+                                                                <span style={{
+                                                                    display: 'inline-block',
+                                                                    padding: '1px 8px',
+                                                                    borderRadius: '20px',
+                                                                    fontSize: '8px',
+                                                                    fontWeight: '800',
+                                                                    textTransform: 'uppercase',
+                                                                    letterSpacing: '0.4px',
+                                                                    background: bookingForm.status === 'Confirmed' ? '#dbeafe' : bookingForm.status === 'Completed' ? '#dcfce7' : bookingForm.status === 'Cancelled' ? '#fee2e2' : '#fef3c7',
+                                                                    color: bookingForm.status === 'Confirmed' ? '#1d4ed8' : bookingForm.status === 'Completed' ? '#15803d' : bookingForm.status === 'Cancelled' ? '#b91c1c' : '#b45309',
+                                                                }}>
+                                                                    {bookingForm.status || 'Pending'}
+                                                                </span>
+                                                            </p>
+                                                        </div>
+                                                    </div>
 
-                                                {/* Right Panel: Calculator Receipt */}
-                                                <div className="md:col-span-5 flex flex-col bg-white border border-slate-200 rounded-2xl p-4 shadow-sm justify-between">
+                                                    {/* Bill To */}
+                                                    <div className="quote-billto-block">
+                                                        <h4 className="quote-section-title">BILL TO</h4>
+                                                        <div className="quote-billto-details">
+                                                            <p className="quote-billto-name">{bookingForm.firstName} {bookingForm.lastName}</p>
+                                                            <p style={{ margin: 0 }}>{bookingForm.address1} {bookingForm.address2 ? `, ${bookingForm.address2}` : ''}</p>
+                                                            <p style={{ margin: 0 }}>{bookingForm.city}, {bookingForm.postalCode}</p>
+                                                            <p style={{ margin: 0 }}>{bookingForm.email}</p>
+                                                            <p style={{ margin: 0 }}>{bookingForm.phone}</p>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Services Table */}
                                                     <div>
-                                                        <h5 className="font-extrabold text-slate-800 uppercase tracking-wider text-[9px] border-b border-slate-100 pb-2 mb-3">Pricing Receipt</h5>
-                                                        
-                                                        <div className="flex flex-col gap-2 border-b border-slate-100 pb-3 mb-3 max-h-[120px] overflow-y-auto pr-1">
-                                                            <div className="flex justify-between text-slate-500">
-                                                                <span>Base Home Rate:</span>
-                                                                <span className="font-semibold text-slate-700">${calc.baseServicePrice.toFixed(2)}</span>
-                                                            </div>
-                                                            <div className="flex justify-between text-slate-500">
-                                                                <span>Bathrooms:</span>
-                                                                <span className="font-semibold text-slate-700">+${calc.bathroomsPrice.toFixed(2)}</span>
-                                                            </div>
-                                                            
-                                                            {/* Extras detailed listing */}
-                                                            {Object.entries(bookingForm.extras).map(([key, qty]) => {
-                                                                const extra = pricingRates.extras[key];
-                                                                if (!extra || !qty) return null;
-                                                                const qtyVal = typeof qty === 'boolean' ? 1 : qty;
-                                                                return (
-                                                                    <div key={key} className="flex justify-between text-slate-400 pl-2 text-[10px]">
-                                                                        <span>• {extra.name} {qtyVal > 1 ? `x${qtyVal}` : ''}:</span>
-                                                                        <span>+${(extra.price * qtyVal).toFixed(2)}</span>
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
+                                                        <h4 className="quote-section-title">SERVICES</h4>
+                                                        <div className="quote-table-wrapper">
+                                                            <table className="quote-table">
+                                                                <thead>
+                                                                    <tr>
+                                                                        <th style={{ width: '50%' }}>Service</th>
+                                                                        <th style={{ width: '10%', textAlign: 'center' }}>Qty</th>
+                                                                        <th style={{ width: '20%', textAlign: 'right' }}>Unit Price</th>
+                                                                        <th style={{ width: '20%', textAlign: 'right' }}>Total</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    <tr>
+                                                                        <td>
+                                                                            <div style={{ fontWeight: '800', color: '#0f172a' }}>{bookingForm.service}</div>
+                                                                            <div style={{ fontSize: '8px', color: '#94a3b8', marginTop: '2px' }}>{bookingForm.bathrooms}</div>
+                                                                            {bookingForm.frequency && bookingForm.frequency !== 'One-Time' && (
+                                                                                <div style={{ display: 'inline-block', marginTop: '4px', fontSize: '8px', fontWeight: '800', padding: '2px 8px', borderRadius: '20px', backgroundColor: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                                                                                    {bookingForm.frequency} · {Math.round(calc.freqDiscountPercent * 100)}% off recurring
+                                                                                </div>
+                                                                            )}
+                                                                        </td>
+                                                                        <td style={{ textAlign: 'center', fontWeight: '700' }}>1</td>
+                                                                        <td style={{ textAlign: 'right' }}>${(calc.baseServicePrice + calc.bathroomsPrice).toFixed(2)}</td>
+                                                                        <td style={{ textAlign: 'right', fontWeight: '800', color: '#0f172a' }}>${(calc.baseServicePrice + calc.bathroomsPrice).toFixed(2)}</td>
+                                                                    </tr>
+                                                                    {Object.entries(bookingForm.extras).map(([key, qty]) => {
+                                                                        const extra = pricingRates.extras[key];
+                                                                        if (!extra || !qty) return null;
+                                                                        const qtyVal = typeof qty === 'boolean' ? 1 : qty;
+                                                                        return (
+                                                                            <tr key={key}>
+                                                                                <td style={{ paddingLeft: '16px', color: '#64748b' }}>• {extra.name}</td>
+                                                                                <td style={{ textAlign: 'center' }}>{qtyVal}</td>
+                                                                                <td style={{ textAlign: 'right' }}>${extra.price.toFixed(2)}</td>
+                                                                                <td style={{ textAlign: 'right', fontWeight: '800', color: '#0f172a' }}>${(extra.price * qtyVal).toFixed(2)}</td>
+                                                                            </tr>
+                                                                        );
+                                                                    })}
+                                                                </tbody>
+                                                             </table>
+                                                         </div>
+                                                     </div>
 
-                                                        <div className="flex flex-col gap-2 border-b border-slate-100 pb-3 mb-3">
-                                                            <div className="flex justify-between text-slate-600 font-bold">
+                                                    {/* Totals Breakdown */}
+                                                    <div className="quote-totals-row">
+                                                        <div className="quote-totals-box">
+                                                            <div className="quote-total-line">
                                                                 <span>Subtotal:</span>
-                                                                <span>${calc.subtotal.toFixed(2)}</span>
+                                                                <span className="quote-total-value">${calc.subtotal.toFixed(2)}</span>
                                                             </div>
-                                                            
                                                             {calc.freqDiscountDeduction > 0 && (
-                                                                <div className="flex justify-between text-green-600 font-semibold">
-                                                                    <span>Discount ({bookingForm.frequency}):</span>
-                                                                    <span>-${calc.freqDiscountDeduction.toFixed(2)}</span>
+                                                                <div className="quote-total-discount">
+                                                                    <span>Discount ({bookingForm.frequency} — {Math.round(calc.freqDiscountPercent * 100)}% off):</span>
+                                                                    <span style={{ color: '#16a34a', fontWeight: '800' }}>-${calc.freqDiscountDeduction.toFixed(2)}</span>
                                                                 </div>
                                                             )}
-
-                                                            {/* Custom Discount input */}
-                                                            <div className="flex items-center justify-between text-slate-500 gap-2 mt-1">
-                                                                <span>Add Custom Discount:</span>
-                                                                <div className="flex items-center gap-0.5 border border-slate-200 rounded px-1 py-0.5 bg-slate-50 w-16">
+                                                            <div className="quote-total-discount">
+                                                                <span>Special Discount ($):</span>
+                                                                <div className="quote-discount-input-box">
+                                                                    <span>-$</span>
                                                                     <input 
                                                                         type="number" 
                                                                         min="0" 
-                                                                        max="100" 
-                                                                        value={bookingForm.customDiscountPercent} 
-                                                                        onChange={e => setBookingForm(prev => ({ ...prev, customDiscountPercent: Math.max(0, Math.min(100, parseFloat(e.target.value || 0))) }))}
-                                                                        className="w-full bg-transparent text-right font-extrabold text-slate-700 outline-none text-[11px]" 
+                                                                        value={bookingForm.customDiscountAmount || ""} 
+                                                                        placeholder="0.00"
+                                                                        onChange={e => setBookingForm(prev => ({ ...prev, customDiscountAmount: Math.max(0, parseFloat(e.target.value || 0)) }))}
+                                                                        className="quote-discount-field"
                                                                     />
-                                                                    <span className="font-bold text-slate-400 text-[10px]">%</span>
                                                                 </div>
                                                             </div>
-
-                                                            {calc.customDiscountDeduction > 0 && (
-                                                                <div className="flex justify-between text-green-600 font-semibold">
-                                                                    <span>Custom Discount:</span>
-                                                                    <span>-${calc.customDiscountDeduction.toFixed(2)}</span>
-                                                                </div>
-                                                            )}
+                                                            <div className="quote-total-line">
+                                                                <span>HST (13%):</span>
+                                                                <span className="quote-total-value">${calc.hst.toFixed(2)}</span>
+                                                            </div>
+                                                            <div className="quote-total-final">
+                                                                <span className="quote-total-final-label">TOTAL:</span>
+                                                                <span className="quote-total-final-val">${calc.total.toFixed(2)}</span>
+                                                            </div>
                                                         </div>
                                                     </div>
 
-                                                    <div className="flex justify-between items-end border-t border-slate-100 pt-3 mt-2">
-                                                        <span className="font-extrabold text-slate-800 text-[10px] uppercase">Final Estimate:</span>
-                                                        <span className="font-black text-blue-600 text-base">${calc.total.toFixed(2)}</span>
+                                                    {/* Quote Validity tag */}
+                                                    <div className="quote-validity-banner">
+                                                        Quote Valid Until: {validityDate}
+                                                    </div>
+
+                                                    {/* Quote Footer Slogan */}
+                                                    <div className="quote-footer-block">
+                                                        <p style={{ margin: 0 }}><span className="quote-footer-company">SmarTouch Clean Inc.</span> | Professional Cleaning Services</p>
+                                                        <p style={{ margin: '2px 0 0 0' }}>Thank you for choosing SmarTouch Clean!</p>
+                                                    </div>
+                                                </div>
+
+                                                {/* Right Panel: Operations Details & Controls */}
+                                                <div className="quote-sidebar">
+                                                    {/* Live Custom Discount Modifier */}
+                                                    <div className="quote-sidebar-card">
+                                                        <h5 className="quote-sidebar-title">Quote Adjustments</h5>
+                                                        <div className="quote-op-row">
+                                                            <span className="quote-op-label">Special Discount ($):</span>
+                                                            <div className="quote-discount-input-box" style={{ width: '100px' }}>
+                                                                <span>$</span>
+                                                                <input 
+                                                                    type="number" 
+                                                                    min="0" 
+                                                                    value={bookingForm.customDiscountAmount} 
+                                                                    onChange={e => setBookingForm(prev => ({ ...prev, customDiscountAmount: Math.max(0, parseFloat(e.target.value || 0)) }))}
+                                                                    className="quote-discount-field" 
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    {/* Booking Status Selector */}
+                                                    <div className="quote-sidebar-card">
+                                                        <h5 className="quote-sidebar-title">Booking Status</h5>
+                                                        <div className="status-selector-grid">
+                                                            {[
+                                                                { value: 'Pending',   label: 'Pending',   icon: '🕐', color: '#b45309', bg: '#fef3c7', border: '#fcd34d' },
+                                                                { value: 'Confirmed', label: 'Confirmed', icon: '✅', color: '#1d4ed8', bg: '#dbeafe', border: '#93c5fd' },
+                                                                { value: 'Completed', label: 'Completed', icon: '🏆', color: '#15803d', bg: '#dcfce7', border: '#86efac' },
+                                                                { value: 'Cancelled', label: 'Cancelled', icon: '🚫', color: '#b91c1c', bg: '#fee2e2', border: '#fca5a5' },
+                                                            ].map(s => {
+                                                                const isActive = (bookingForm.status || 'Pending') === s.value;
+                                                                return (
+                                                                    <button
+                                                                        key={s.value}
+                                                                        type="button"
+                                                                        onClick={() => setBookingForm(prev => ({ ...prev, status: s.value }))}
+                                                                        style={{
+                                                                            display: 'flex',
+                                                                            flexDirection: 'column',
+                                                                            alignItems: 'center',
+                                                                            justifyContent: 'center',
+                                                                            gap: '3px',
+                                                                            padding: '8px 4px',
+                                                                            borderRadius: '10px',
+                                                                            border: isActive ? `2px solid ${s.border}` : '1.5px solid #e2e8f0',
+                                                                            background: isActive ? s.bg : '#f8fafc',
+                                                                            cursor: 'pointer',
+                                                                            transition: 'all 0.15s ease',
+                                                                            fontSize: '9px',
+                                                                            fontWeight: '800',
+                                                                            color: isActive ? s.color : '#94a3b8',
+                                                                            textTransform: 'uppercase',
+                                                                            letterSpacing: '0.3px',
+                                                                            boxShadow: isActive ? `0 0 0 3px ${s.border}44` : 'none',
+                                                                        }}
+                                                                    >
+                                                                        <span style={{ fontSize: '16px', lineHeight: 1 }}>{s.icon}</span>
+                                                                        {s.label}
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+
+
+                                                    <div className="quote-sidebar-card">
+                                                        <h5 className="quote-sidebar-title">Operational Dispatch</h5>
+                                                        
+                                                        <div className="quote-op-row">
+                                                            <span className="quote-op-label">Assigned Team:</span>
+                                                            <span className="quote-op-team-badge">{bookingForm.team || "Not Assigned"}</span>
+                                                        </div>
+                                                        <div className="quote-op-row">
+                                                             <span className="quote-op-label">Schedule Date:</span>
+                                                             <span className="quote-op-val">{bookingForm.date}</span>
+                                                        </div>
+                                                        <div className="quote-op-row">
+                                                             <span className="quote-op-label">Arrival Time:</span>
+                                                             <span className="quote-op-val">{bookingForm.time}</span>
+                                                        </div>
+                                                        <div className="quote-op-row">
+                                                             <span className="quote-op-label">Estimated Work:</span>
+                                                             <span className="quote-op-val">{bookingForm.duration} Hours</span>
+                                                        </div>
+                                                        <div className="quote-op-row">
+                                                             <span className="quote-op-label">Pets in Home:</span>
+                                                             <span className="quote-op-val">{bookingForm.hasPets ? "Yes 🐶" : "No 🚫"}</span>
+                                                        </div>
+                                                        <div className="quote-op-row">
+                                                             <span className="quote-op-label">Cleaner Parking:</span>
+                                                             <span className="quote-op-val">{bookingForm.freeParking ? "Free 🚗" : "Street/Paid ⚠️"}</span>
+                                                        </div>
+
+                                                        {bookingForm.accessDetails && (
+                                                            <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '8px', marginTop: '4px', fontSize: '10px', color: '#64748b', textAlign: 'left' }}>
+                                                                <span style={{ fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '8px', display: 'block', marginBottom: '2px' }}>Access Instructions</span>
+                                                                {bookingForm.accessDetails}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </div>
@@ -2722,6 +3208,31 @@ export default function Home() {
 
                             </div>
                             
+                            {/* Live Price Preview Strip (Steps 3–7) */}
+                            {formStep >= 3 && formStep <= 7 && (() => {
+                                const liveCalc = calculateBookingTotal(bookingForm);
+                                const freqLabel = bookingForm.frequency && bookingForm.frequency !== 'One-Time' ? bookingForm.frequency : null;
+                                return (
+                                    <div className="wizard-price-preview">
+                                        <div className="wizard-price-preview-left">
+                                            <span className="wizard-price-preview-label">Est. Total</span>
+                                            <span className="wizard-price-preview-total">${liveCalc.total.toFixed(2)}</span>
+                                            <span className="wizard-price-preview-tax">incl. HST</span>
+                                        </div>
+                                        <div className="wizard-price-preview-right">
+                                            {freqLabel && liveCalc.freqDiscountDeduction > 0 && (
+                                                <span className="wizard-price-preview-discount">
+                                                    🏷️ {freqLabel} saves you ${liveCalc.freqDiscountDeduction.toFixed(2)} ({Math.round(liveCalc.freqDiscountPercent * 100)}% off)
+                                                </span>
+                                            )}
+                                            {!freqLabel && (
+                                                <span className="wizard-price-preview-hint">Choose a recurring frequency in Step 6 to unlock discounts</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
                             {/* Wizard Footer Buttons Controls */}
                             <div className="modal-footer flex justify-between items-center bg-slate-50 border-t border-slate-100 rounded-b-3xl" style={{ padding: "16px 24px" }}>
                                 {formStep > 1 ? (
@@ -2739,12 +3250,18 @@ export default function Home() {
                                         Next Step
                                     </button>
                                 ) : (
-                                    <button type="submit" className="btn btn-primary btn-sm rounded-lg text-white font-bold">
+                                    <button 
+                                        type="button" 
+                                        onClick={handleBookingSubmit} 
+                                        disabled={submitCooldown}
+                                        className={`btn btn-primary btn-sm rounded-lg text-white font-bold transition-all ${submitCooldown ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    >
+
                                         {bookingModalMode === "create" ? "Create Dispatch" : "Request Changes"}
                                     </button>
                                 )}
                             </div>
-                        </form>
+                        </div>
                     </div>
                 </div>
             )}

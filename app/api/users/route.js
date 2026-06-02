@@ -54,6 +54,32 @@ export async function GET(request) {
             return NextResponse.json({ error: "Forbidden: Only Administrators can review users." }, { status: 403 });
         }
         
+        // --- AUTO-SYNC FIREBASE AUTH USERS TO FIRESTORE PROFILES ---
+        try {
+            const listUsersResult = await adminAuth.listUsers(1000);
+            for (const authUser of listUsersResult.users) {
+                const userRef = adminDb.collection("users").doc(authUser.uid);
+                const userDoc = await userRef.get();
+                if (!userDoc.exists) {
+                    const usersSnap = await adminDb.collection("users").limit(1).get();
+                    const isFirst = usersSnap.empty;
+                    
+                    await userRef.set({
+                        uid: authUser.uid,
+                        name: authUser.displayName || authUser.email.split("@")[0],
+                        email: authUser.email,
+                        role: isFirst ? "admin" : "team-leader",
+                        teamId: "",
+                        status: isFirst ? "approved" : "pending_approval",
+                        createdAt: new Date().toISOString()
+                    });
+                }
+            }
+        } catch (syncErr) {
+            console.error("Auto-sync of Firebase Auth users failed:", syncErr);
+        }
+        // -----------------------------------------------------------
+        
         let query = adminDb.collection("users");
         if (type === "leaders") {
             query = query.where("role", "==", "team-leader").where("status", "==", "approved");
