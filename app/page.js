@@ -2073,7 +2073,7 @@ export default function Home() {
 
                             {/* Card 3: Rates & Pricing Manager (Admin-Only) */}
                             {currentUser.role === "admin" && (
-                                <div className="settings-card">
+                                <div className="settings-card settings-card-full">
                                     <div className="panel-header border-b border-slate-100 pb-4 flex justify-between items-start">
                                         <div>
                                             <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">Pricing & Rates Manager</h4>
@@ -2141,7 +2141,7 @@ export default function Home() {
                                                             placeholder="Service name"
                                                             style={{ flex: 1, border: 'none', backgroundColor: 'transparent', fontSize: '13px', fontWeight: '600', color: '#1e293b', outline: 'none', padding: '4px' }}
                                                         />
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                             <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
                                                                 <span style={{ fontSize: '11px', fontWeight: '600', color: '#94a3b8' }}>$</span>
                                                                 <input 
@@ -2154,7 +2154,7 @@ export default function Home() {
                                                                             services: { ...prev.services, [key]: val }
                                                                         }));
                                                                     }}
-                                                                    style={{ width: '45px', border: '1px solid #cbd5e1', backgroundColor: 'white', borderRadius: '4px', padding: '4px 6px', fontSize: '12px', fontWeight: '600', color: '#1e293b', outline: 'none' }}
+                                                                    style={{ width: '70px', border: '1px solid #cbd5e1', backgroundColor: 'white', borderRadius: '6px', padding: '6px 8px', fontSize: '12px', fontWeight: '600', color: '#1e293b', outline: 'none' }}
                                                                 />
                                                             </div>
                                                             <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
@@ -2169,7 +2169,7 @@ export default function Home() {
                                                                             serviceDurations: { ...(prev.serviceDurations || {}), [key]: val }
                                                                         }));
                                                                     }}
-                                                                    style={{ width: '40px', border: '1px solid #cbd5e1', backgroundColor: 'white', borderRadius: '4px', padding: '4px 6px', fontSize: '12px', fontWeight: '600', color: '#1e293b', outline: 'none' }}
+                                                                    style={{ width: '60px', border: '1px solid #cbd5e1', backgroundColor: 'white', borderRadius: '6px', padding: '6px 8px', fontSize: '12px', fontWeight: '600', color: '#1e293b', outline: 'none' }}
                                                                 />
                                                                 <span style={{ fontSize: '11px', fontWeight: '600', color: '#94a3b8' }}>h</span>
                                                             </div>
@@ -2195,20 +2195,20 @@ export default function Home() {
                                                     </div>
                                                 ))}
                                             </div>
-                                            <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                                            <div className="flex flex-wrap sm:flex-nowrap gap-2 mt-3">
                                                 <input 
                                                     type="text" 
                                                     placeholder="New service" 
                                                     value={newService.name} 
                                                     onChange={e => setNewService(prev => ({ ...prev, name: e.target.value }))}
-                                                    style={{ flex: 1, border: '1px solid #cbd5e1', borderRadius: '6px', padding: '8px 12px', fontSize: '12px', outline: 'none' }}
+                                                    style={{ flex: '1', minWidth: '120px', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '8px 12px', fontSize: '12px', outline: 'none' }}
                                                 />
                                                 <input 
                                                     type="number" 
-                                                    placeholder="$" 
+                                                    placeholder="Price" 
                                                     value={newService.price} 
                                                     onChange={e => setNewService(prev => ({ ...prev, price: e.target.value }))}
-                                                    style={{ width: '60px', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '8px 12px', fontSize: '12px', outline: 'none' }}
+                                                    style={{ width: '80px', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '8px 12px', fontSize: '12px', outline: 'none' }}
                                                 />
                                                 <input 
                                                     type="number" 
@@ -2216,7 +2216,7 @@ export default function Home() {
                                                     placeholder="hrs" 
                                                     value={newService.duration} 
                                                     onChange={e => setNewService(prev => ({ ...prev, duration: e.target.value }))}
-                                                    style={{ width: '50px', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '8px 12px', fontSize: '12px', outline: 'none' }}
+                                                    style={{ width: '80px', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '8px 12px', fontSize: '12px', outline: 'none' }}
                                                 />
                                                 <button
                                                     type="button"
@@ -2278,7 +2278,7 @@ export default function Home() {
                                                                         bathrooms: { ...prev.bathrooms, [key]: val }
                                                                     }));
                                                                 }}
-                                                                style={{ width: '50px', border: '1px solid #cbd5e1', backgroundColor: 'white', borderRadius: '4px', padding: '4px 6px', fontSize: '12px', fontWeight: '600', color: '#1e293b', outline: 'none' }}
+                                                                style={{ width: '70px', border: '1px solid #cbd5e1', backgroundColor: 'white', borderRadius: '6px', padding: '6px 8px', fontSize: '12px', fontWeight: '600', color: '#1e293b', outline: 'none' }}
                                                             />
                                                         </div>
                                                         <button
@@ -2299,20 +2299,20 @@ export default function Home() {
                                                     </div>
                                                 ))}
                                             </div>
-                                            <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                                            <div className="flex flex-wrap sm:flex-nowrap gap-2 mt-3">
                                                 <input 
                                                     type="text" 
                                                     placeholder="New bathroom" 
                                                     value={newBathroom.name} 
                                                     onChange={e => setNewBathroom(prev => ({ ...prev, name: e.target.value }))}
-                                                    style={{ flex: 1, border: '1px solid #cbd5e1', borderRadius: '6px', padding: '8px 12px', fontSize: '12px', outline: 'none' }}
+                                                    style={{ flex: '1', minWidth: '120px', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '8px 12px', fontSize: '12px', outline: 'none' }}
                                                 />
                                                 <input 
                                                     type="number" 
-                                                    placeholder="$" 
+                                                    placeholder="Price" 
                                                     value={newBathroom.price} 
                                                     onChange={e => setNewBathroom(prev => ({ ...prev, price: e.target.value }))}
-                                                    style={{ flex: 1, border: '1px solid #cbd5e1', borderRadius: '6px', padding: '8px 12px', fontSize: '12px', outline: 'none' }}
+                                                    style={{ width: '80px', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '8px 12px', fontSize: '12px', outline: 'none' }}
                                                 />
                                                 <button
                                                     type="button"
@@ -2369,7 +2369,7 @@ export default function Home() {
                                                                         extras: { ...prev.extras, [key]: { ...prev.extras[key], price: val } }
                                                                     }));
                                                                 }}
-                                                                style={{ width: '50px', border: '1px solid #cbd5e1', backgroundColor: 'white', borderRadius: '4px', padding: '4px 6px', fontSize: '12px', fontWeight: '600', color: '#1e293b', outline: 'none' }}
+                                                                style={{ width: '70px', border: '1px solid #cbd5e1', backgroundColor: 'white', borderRadius: '6px', padding: '6px 8px', fontSize: '12px', fontWeight: '600', color: '#1e293b', outline: 'none' }}
                                                             />
                                                         </div>
                                                         <button
@@ -2390,20 +2390,20 @@ export default function Home() {
                                                     </div>
                                                 ))}
                                             </div>
-                                            <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                                            <div className="flex flex-wrap sm:flex-nowrap gap-2 mt-3">
                                                 <input 
                                                     type="text" 
                                                     placeholder="New extra" 
                                                     value={newExtra.name} 
                                                     onChange={e => setNewExtra(prev => ({ ...prev, name: e.target.value }))}
-                                                    style={{ flex: 1, border: '1px solid #cbd5e1', borderRadius: '6px', padding: '8px 12px', fontSize: '12px', outline: 'none' }}
+                                                    style={{ flex: '1', minWidth: '120px', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '8px 12px', fontSize: '12px', outline: 'none' }}
                                                 />
                                                 <input 
                                                     type="number" 
-                                                    placeholder="$" 
+                                                    placeholder="Price" 
                                                     value={newExtra.price} 
                                                     onChange={e => setNewExtra(prev => ({ ...prev, price: e.target.value }))}
-                                                    style={{ flex: 1, border: '1px solid #cbd5e1', borderRadius: '6px', padding: '8px 12px', fontSize: '12px', outline: 'none' }}
+                                                    style={{ width: '80px', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '8px 12px', fontSize: '12px', outline: 'none' }}
                                                 />
                                                 <button
                                                     type="button"
@@ -2424,7 +2424,7 @@ export default function Home() {
                                                 </button>
                                             </div>
                                         </div>
-
+ 
                                         {/* Frequencies Section */}
                                         <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '24px', paddingLeft: '20px', paddingRight: '20px', paddingBottom: '20px' }}>
                                             <div style={{ marginBottom: '14px' }}>
@@ -2462,7 +2462,7 @@ export default function Home() {
                                                                         frequencies: { ...prev.frequencies, [key]: { ...prev.frequencies[key], discount: val } }
                                                                     }));
                                                                 }}
-                                                                style={{ width: '50px', border: '1px solid #cbd5e1', backgroundColor: 'white', borderRadius: '4px', padding: '4px 6px', fontSize: '12px', fontWeight: '600', color: '#1e293b', outline: 'none' }}
+                                                                style={{ width: '70px', border: '1px solid #cbd5e1', backgroundColor: 'white', borderRadius: '6px', padding: '6px 8px', fontSize: '12px', fontWeight: '600', color: '#1e293b', outline: 'none' }}
                                                             />
                                                             <span style={{ fontSize: '11px', fontWeight: '600', color: '#94a3b8' }}>%</span>
                                                         </div>
@@ -2484,13 +2484,13 @@ export default function Home() {
                                                     </div>
                                                 ))}
                                             </div>
-                                            <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                                            <div className="flex flex-wrap sm:flex-nowrap gap-2 mt-3">
                                                 <input 
                                                     type="text" 
                                                     placeholder="New frequency" 
                                                     value={newFrequency.name} 
                                                     onChange={e => setNewFrequency(prev => ({ ...prev, name: e.target.value }))}
-                                                    style={{ flex: 1, border: '1px solid #cbd5e1', borderRadius: '6px', padding: '8px 12px', fontSize: '12px', outline: 'none' }}
+                                                    style={{ flex: '1', minWidth: '120px', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '8px 12px', fontSize: '12px', outline: 'none' }}
                                                 />
                                                 <input 
                                                     type="number" 
@@ -2499,7 +2499,7 @@ export default function Home() {
                                                     placeholder="%" 
                                                     value={newFrequency.discount} 
                                                     onChange={e => setNewFrequency(prev => ({ ...prev, discount: e.target.value }))}
-                                                    style={{ width: '60px', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '8px 12px', fontSize: '12px', outline: 'none' }}
+                                                    style={{ width: '80px', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '8px 12px', fontSize: '12px', outline: 'none' }}
                                                 />
                                                 <button
                                                     type="button"
