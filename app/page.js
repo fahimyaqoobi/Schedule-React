@@ -783,19 +783,19 @@ export default function Home() {
     // Booking Form Submit Actions
     // ----------------------------------------------------
     const validateFormStep = (step) => {
-        if (step === 1) {
+        if (step === 6) {
             if (!bookingForm.firstName.trim()) { alert("First Name is required."); return false; }
             if (!bookingForm.lastName.trim()) { alert("Last Name is required."); return false; }
             if (!bookingForm.email.trim()) { alert("Email Address is required."); return false; }
             if (!bookingForm.email.includes("@")) { alert("Please enter a valid email address."); return false; }
             if (!bookingForm.phone.trim()) { alert("Phone Number is required."); return false; }
         }
-        if (step === 2) {
+        if (step === 7) {
             if (!bookingForm.address1.trim()) { alert("Street address is required."); return false; }
             if (!bookingForm.city.trim()) { alert("City is required."); return false; }
             if (!bookingForm.postalCode.trim()) { alert("Postal Code is required."); return false; }
         }
-        if (step === 5) {
+        if (step === 3) {
             if (!bookingForm.date) { alert("Please select a schedule date."); return false; }
             if (!bookingForm.time) { alert("Please select an arrival time slot."); return false; }
             const finalTeam = currentUser?.role === "team-leader" ? currentUser.teamId : bookingForm.team;
