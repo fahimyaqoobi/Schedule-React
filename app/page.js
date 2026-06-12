@@ -2073,11 +2073,11 @@ export default function Home() {
 
                             {/* Card 3: Rates & Pricing Manager (Admin-Only) */}
                             {currentUser.role === "admin" && (
-                                <div className="settings-card settings-card-full">
-                                    <div className="panel-header border-b border-slate-100 pb-3 flex justify-between items-center" style={{ flexWrap: 'wrap', gap: '12px' }}>
-                                        <div style={{ flex: '1 1 200px' }}>
-                                            <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">Pricing & Rates Manager Settings</h4>
-                                            <p className="text-slate-400 text-[10px] mt-0.5">Customize real-time booking rates, bathroom fees, extras, and discounts — add, edit & remove items</p>
+                                <div className="settings-card">
+                                    <div className="panel-header border-b border-slate-100 pb-4 flex justify-between items-start">
+                                        <div>
+                                            <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">Pricing & Rates Manager</h4>
+                                            <p className="text-slate-400 text-xs mt-1">Customize real-time booking rates, bathroom fees, extras, and discounts</p>
                                         </div>
                                         <button 
                                             type="button"
@@ -2093,17 +2093,435 @@ export default function Home() {
                                                         const errData = await res.json();
                                                         throw new Error(errData.error || "Failed to update settings");
                                                     }
-                                                    alert("✅ Pricing and rates updated successfully! All bookings will now use the new rates.");
+                                                    alert("✅ Pricing and rates updated successfully!");
                                                 } catch (err) {
                                                     alert("Failed to save rates: " + err.message);
                                                 }
                                             }}
-                                            className="btn btn-primary btn-sm rounded-lg text-white font-bold"
+                                            className="btn btn-primary h-[40px] rounded-lg text-white font-bold text-sm px-4 transition flex-shrink-0 ml-4"
                                         >
-                                            💾 Save System Rates
+                                            💾 Save
                                         </button>
                                     </div>
-                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 p-6">
+                                    <div className="settings-form p-0" style={{ display: 'flex', flexDirection: 'column', gap: '24px', padding: '20px 0' }}>
+                                        {/* Services Section */}
+                                        <div style={{ paddingLeft: '20px', paddingRight: '20px' }}>
+                                            <div style={{ marginBottom: '14px' }}>
+                                                <label style={{ fontSize: '12px', fontWeight: '700', color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <span>Services ({Object.keys(pricingRates.services || {}).length})</span>
+                                                    <span style={{ fontSize: '10px', fontWeight: '600', color: '#94a3b8' }}>Edit • Add • Remove</span>
+                                                </label>
+                                            </div>
+                                            <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '280px', overflowY: 'auto' }}>
+                                                {Object.keys(pricingRates.services || {}).sort().map(key => (
+                                                    <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px', backgroundColor: 'white', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                                                        <input 
+                                                            type="text"
+                                                            value={key}
+                                                            onChange={e => {
+                                                                const newName = e.target.value;
+                                                                if (newName !== key && newName.trim()) {
+                                                                    setPricingRates(prev => {
+                                                                        const newServices = { ...prev.services };
+                                                                        const newDurations = { ...(prev.serviceDurations || {}) };
+                                                                        newServices[newName] = newServices[key];
+                                                                        delete newServices[key];
+                                                                        if (newDurations[key]) {
+                                                                            newDurations[newName] = newDurations[key];
+                                                                            delete newDurations[key];
+                                                                        }
+                                                                        return {
+                                                                            ...prev,
+                                                                            services: newServices,
+                                                                            serviceDurations: newDurations
+                                                                        };
+                                                                    });
+                                                                }
+                                                            }}
+                                                            placeholder="Service name"
+                                                            style={{ flex: 1, border: 'none', backgroundColor: 'transparent', fontSize: '13px', fontWeight: '600', color: '#1e293b', outline: 'none', padding: '4px' }}
+                                                        />
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                                                                <span style={{ fontSize: '11px', fontWeight: '600', color: '#94a3b8' }}>$</span>
+                                                                <input 
+                                                                    type="number" 
+                                                                    value={pricingRates.services?.[key] || 0} 
+                                                                    onChange={e => {
+                                                                        const val = parseFloat(e.target.value || 0);
+                                                                        setPricingRates(prev => ({
+                                                                            ...prev,
+                                                                            services: { ...prev.services, [key]: val }
+                                                                        }));
+                                                                    }}
+                                                                    style={{ width: '45px', border: '1px solid #cbd5e1', backgroundColor: 'white', borderRadius: '4px', padding: '4px 6px', fontSize: '12px', fontWeight: '600', color: '#1e293b', outline: 'none' }}
+                                                                />
+                                                            </div>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                                                                <input 
+                                                                    type="number" 
+                                                                    step="0.5"
+                                                                    value={pricingRates.serviceDurations?.[key] || 2} 
+                                                                    onChange={e => {
+                                                                        const val = parseFloat(e.target.value || 0);
+                                                                        setPricingRates(prev => ({
+                                                                            ...prev,
+                                                                            serviceDurations: { ...(prev.serviceDurations || {}), [key]: val }
+                                                                        }));
+                                                                    }}
+                                                                    style={{ width: '40px', border: '1px solid #cbd5e1', backgroundColor: 'white', borderRadius: '4px', padding: '4px 6px', fontSize: '12px', fontWeight: '600', color: '#1e293b', outline: 'none' }}
+                                                                />
+                                                                <span style={{ fontSize: '11px', fontWeight: '600', color: '#94a3b8' }}>h</span>
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                if (confirm(`Remove "${key}"?`)) {
+                                                                    setPricingRates(prev => {
+                                                                        const newServices = { ...prev.services };
+                                                                        const newDurations = { ...prev.serviceDurations };
+                                                                        delete newServices[key];
+                                                                        delete newDurations[key];
+                                                                        return { ...prev, services: newServices, serviceDurations: newDurations };
+                                                                    });
+                                                                }
+                                                            }}
+                                                            style={{ padding: '4px 6px', cursor: 'pointer', color: '#ef4444', fontSize: '12px' }}
+                                                            title="Remove"
+                                                        >
+                                                            {Icons.Trash()}
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="New service" 
+                                                    value={newService.name} 
+                                                    onChange={e => setNewService(prev => ({ ...prev, name: e.target.value }))}
+                                                    style={{ flex: 1, border: '1px solid #cbd5e1', borderRadius: '6px', padding: '8px 12px', fontSize: '12px', outline: 'none' }}
+                                                />
+                                                <input 
+                                                    type="number" 
+                                                    placeholder="$" 
+                                                    value={newService.price} 
+                                                    onChange={e => setNewService(prev => ({ ...prev, price: e.target.value }))}
+                                                    style={{ width: '60px', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '8px 12px', fontSize: '12px', outline: 'none' }}
+                                                />
+                                                <input 
+                                                    type="number" 
+                                                    step="0.5"
+                                                    placeholder="hrs" 
+                                                    value={newService.duration} 
+                                                    onChange={e => setNewService(prev => ({ ...prev, duration: e.target.value }))}
+                                                    style={{ width: '50px', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '8px 12px', fontSize: '12px', outline: 'none' }}
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (newService.name && newService.price) {
+                                                            setPricingRates(prev => ({
+                                                                ...prev,
+                                                                services: { ...prev.services, [newService.name]: parseFloat(newService.price) },
+                                                                serviceDurations: { ...prev.serviceDurations, [newService.name]: parseFloat(newService.duration || 2) }
+                                                            }));
+                                                            setNewService({ name: '', price: '', duration: '' });
+                                                        }
+                                                    }}
+                                                    className="btn btn-primary"
+                                                    style={{ padding: '8px 12px', fontSize: '12px', fontWeight: '600' }}
+                                                >
+                                                    {Icons.Plus()}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Bathrooms Section */}
+                                        <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '24px', paddingLeft: '20px', paddingRight: '20px' }}>
+                                            <div style={{ marginBottom: '14px' }}>
+                                                <label style={{ fontSize: '12px', fontWeight: '700', color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <span>Bathroom Increments ({Object.keys(pricingRates.bathrooms || {}).length})</span>
+                                                    <span style={{ fontSize: '10px', fontWeight: '600', color: '#94a3b8' }}>Edit • Add • Remove</span>
+                                                </label>
+                                            </div>
+                                            <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '200px', overflowY: 'auto' }}>
+                                                {Object.keys(pricingRates.bathrooms || {}).sort().map(key => (
+                                                    <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px', backgroundColor: 'white', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                                                        <input 
+                                                            type="text"
+                                                            value={key}
+                                                            onChange={e => {
+                                                                const newName = e.target.value;
+                                                                if (newName !== key && newName.trim()) {
+                                                                    setPricingRates(prev => {
+                                                                        const newBathrooms = { ...prev.bathrooms };
+                                                                        newBathrooms[newName] = newBathrooms[key];
+                                                                        delete newBathrooms[key];
+                                                                        return { ...prev, bathrooms: newBathrooms };
+                                                                    });
+                                                                }
+                                                            }}
+                                                            placeholder="Bathroom option"
+                                                            style={{ flex: 1, border: 'none', backgroundColor: 'transparent', fontSize: '13px', fontWeight: '600', color: '#1e293b', outline: 'none', padding: '4px' }}
+                                                        />
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                                                            <span style={{ fontSize: '11px', fontWeight: '600', color: '#94a3b8' }}>$</span>
+                                                            <input 
+                                                                type="number" 
+                                                                value={pricingRates.bathrooms[key]} 
+                                                                onChange={e => {
+                                                                    const val = parseFloat(e.target.value || 0);
+                                                                    setPricingRates(prev => ({
+                                                                        ...prev,
+                                                                        bathrooms: { ...prev.bathrooms, [key]: val }
+                                                                    }));
+                                                                }}
+                                                                style={{ width: '50px', border: '1px solid #cbd5e1', backgroundColor: 'white', borderRadius: '4px', padding: '4px 6px', fontSize: '12px', fontWeight: '600', color: '#1e293b', outline: 'none' }}
+                                                            />
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                if (confirm(`Remove "${key}"?`)) {
+                                                                    setPricingRates(prev => {
+                                                                        const newBathrooms = { ...prev.bathrooms };
+                                                                        delete newBathrooms[key];
+                                                                        return { ...prev, bathrooms: newBathrooms };
+                                                                    });
+                                                                }
+                                                            }}
+                                                            style={{ padding: '4px 6px', cursor: 'pointer', color: '#ef4444', fontSize: '12px' }}
+                                                        >
+                                                            {Icons.Trash()}
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="New bathroom" 
+                                                    value={newBathroom.name} 
+                                                    onChange={e => setNewBathroom(prev => ({ ...prev, name: e.target.value }))}
+                                                    style={{ flex: 1, border: '1px solid #cbd5e1', borderRadius: '6px', padding: '8px 12px', fontSize: '12px', outline: 'none' }}
+                                                />
+                                                <input 
+                                                    type="number" 
+                                                    placeholder="$" 
+                                                    value={newBathroom.price} 
+                                                    onChange={e => setNewBathroom(prev => ({ ...prev, price: e.target.value }))}
+                                                    style={{ flex: 1, border: '1px solid #cbd5e1', borderRadius: '6px', padding: '8px 12px', fontSize: '12px', outline: 'none' }}
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (newBathroom.name && newBathroom.price) {
+                                                            setPricingRates(prev => ({
+                                                                ...prev,
+                                                                bathrooms: { ...prev.bathrooms, [newBathroom.name]: parseFloat(newBathroom.price) }
+                                                            }));
+                                                            setNewBathroom({ name: '', price: '' });
+                                                        }
+                                                    }}
+                                                    className="btn btn-primary"
+                                                    style={{ padding: '8px 12px', fontSize: '12px', fontWeight: '600' }}
+                                                >
+                                                    {Icons.Plus()}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Extras Section */}
+                                        <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '24px', paddingLeft: '20px', paddingRight: '20px' }}>
+                                            <div style={{ marginBottom: '14px' }}>
+                                                <label style={{ fontSize: '12px', fontWeight: '700', color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <span>Extras ({Object.keys(pricingRates.extras || {}).length})</span>
+                                                    <span style={{ fontSize: '10px', fontWeight: '600', color: '#94a3b8' }}>Edit • Add • Remove</span>
+                                                </label>
+                                            </div>
+                                            <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '200px', overflowY: 'auto' }}>
+                                                {Object.entries(pricingRates.extras || {}).map(([key, extra]) => (
+                                                    <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px', backgroundColor: 'white', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                                                        <input 
+                                                            type="text"
+                                                            value={extra.name}
+                                                            onChange={e => {
+                                                                const newName = e.target.value;
+                                                                setPricingRates(prev => ({
+                                                                    ...prev,
+                                                                    extras: { ...prev.extras, [key]: { ...prev.extras[key], name: newName } }
+                                                                }));
+                                                            }}
+                                                            placeholder="Extra name"
+                                                            style={{ flex: 1, border: 'none', backgroundColor: 'transparent', fontSize: '13px', fontWeight: '600', color: '#1e293b', outline: 'none', padding: '4px' }}
+                                                        />
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                                                            <span style={{ fontSize: '11px', fontWeight: '600', color: '#94a3b8' }}>$</span>
+                                                            <input 
+                                                                type="number" 
+                                                                value={extra.price} 
+                                                                onChange={e => {
+                                                                    const val = parseFloat(e.target.value || 0);
+                                                                    setPricingRates(prev => ({
+                                                                        ...prev,
+                                                                        extras: { ...prev.extras, [key]: { ...prev.extras[key], price: val } }
+                                                                    }));
+                                                                }}
+                                                                style={{ width: '50px', border: '1px solid #cbd5e1', backgroundColor: 'white', borderRadius: '4px', padding: '4px 6px', fontSize: '12px', fontWeight: '600', color: '#1e293b', outline: 'none' }}
+                                                            />
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                if (confirm(`Remove "${extra.name}"?`)) {
+                                                                    setPricingRates(prev => {
+                                                                        const newExtras = { ...prev.extras };
+                                                                        delete newExtras[key];
+                                                                        return { ...prev, extras: newExtras };
+                                                                    });
+                                                                }
+                                                            }}
+                                                            style={{ padding: '4px 6px', cursor: 'pointer', color: '#ef4444', fontSize: '12px' }}
+                                                        >
+                                                            {Icons.Trash()}
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="New extra" 
+                                                    value={newExtra.name} 
+                                                    onChange={e => setNewExtra(prev => ({ ...prev, name: e.target.value }))}
+                                                    style={{ flex: 1, border: '1px solid #cbd5e1', borderRadius: '6px', padding: '8px 12px', fontSize: '12px', outline: 'none' }}
+                                                />
+                                                <input 
+                                                    type="number" 
+                                                    placeholder="$" 
+                                                    value={newExtra.price} 
+                                                    onChange={e => setNewExtra(prev => ({ ...prev, price: e.target.value }))}
+                                                    style={{ flex: 1, border: '1px solid #cbd5e1', borderRadius: '6px', padding: '8px 12px', fontSize: '12px', outline: 'none' }}
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (newExtra.name && newExtra.price) {
+                                                            const extraKey = newExtra.name.toLowerCase().replace(/\s+/g, '_');
+                                                            setPricingRates(prev => ({
+                                                                ...prev,
+                                                                extras: { ...prev.extras, [extraKey]: { name: newExtra.name, price: parseFloat(newExtra.price), qtySelector: newExtra.qtySelector } }
+                                                            }));
+                                                            setNewExtra({ name: '', price: '', qtySelector: false });
+                                                        }
+                                                    }}
+                                                    className="btn btn-primary"
+                                                    style={{ padding: '8px 12px', fontSize: '12px', fontWeight: '600' }}
+                                                >
+                                                    {Icons.Plus()}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Frequencies Section */}
+                                        <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '24px', paddingLeft: '20px', paddingRight: '20px', paddingBottom: '20px' }}>
+                                            <div style={{ marginBottom: '14px' }}>
+                                                <label style={{ fontSize: '12px', fontWeight: '700', color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <span>Booking Frequency Discounts ({Object.keys(pricingRates.frequencies || {}).length})</span>
+                                                    <span style={{ fontSize: '10px', fontWeight: '600', color: '#94a3b8' }}>Edit • Add • Remove</span>
+                                                </label>
+                                            </div>
+                                            <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '200px', overflowY: 'auto' }}>
+                                                {Object.entries(pricingRates.frequencies || {}).map(([key, freq]) => (
+                                                    <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px', backgroundColor: 'white', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                                                        <input 
+                                                            type="text"
+                                                            value={freq.name}
+                                                            onChange={e => {
+                                                                const newName = e.target.value;
+                                                                setPricingRates(prev => ({
+                                                                    ...prev,
+                                                                    frequencies: { ...prev.frequencies, [key]: { ...prev.frequencies[key], name: newName } }
+                                                                }));
+                                                            }}
+                                                            placeholder="Frequency name"
+                                                            style={{ flex: 1, border: 'none', backgroundColor: 'transparent', fontSize: '13px', fontWeight: '600', color: '#1e293b', outline: 'none', padding: '4px' }}
+                                                        />
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                                                            <input 
+                                                                type="number" 
+                                                                min="0"
+                                                                max="100"
+                                                                value={Math.round(freq.discount * 100)} 
+                                                                onChange={e => {
+                                                                    const val = parseFloat(e.target.value || 0) / 100;
+                                                                    setPricingRates(prev => ({
+                                                                        ...prev,
+                                                                        frequencies: { ...prev.frequencies, [key]: { ...prev.frequencies[key], discount: val } }
+                                                                    }));
+                                                                }}
+                                                                style={{ width: '50px', border: '1px solid #cbd5e1', backgroundColor: 'white', borderRadius: '4px', padding: '4px 6px', fontSize: '12px', fontWeight: '600', color: '#1e293b', outline: 'none' }}
+                                                            />
+                                                            <span style={{ fontSize: '11px', fontWeight: '600', color: '#94a3b8' }}>%</span>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                if (confirm(`Remove "${freq.name}"?`)) {
+                                                                    setPricingRates(prev => {
+                                                                        const newFrequencies = { ...prev.frequencies };
+                                                                        delete newFrequencies[key];
+                                                                        return { ...prev, frequencies: newFrequencies };
+                                                                    });
+                                                                }
+                                                            }}
+                                                            style={{ padding: '4px 6px', cursor: 'pointer', color: '#ef4444', fontSize: '12px' }}
+                                                        >
+                                                            {Icons.Trash()}
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="New frequency" 
+                                                    value={newFrequency.name} 
+                                                    onChange={e => setNewFrequency(prev => ({ ...prev, name: e.target.value }))}
+                                                    style={{ flex: 1, border: '1px solid #cbd5e1', borderRadius: '6px', padding: '8px 12px', fontSize: '12px', outline: 'none' }}
+                                                />
+                                                <input 
+                                                    type="number" 
+                                                    min="0"
+                                                    max="100"
+                                                    placeholder="%" 
+                                                    value={newFrequency.discount} 
+                                                    onChange={e => setNewFrequency(prev => ({ ...prev, discount: e.target.value }))}
+                                                    style={{ width: '60px', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '8px 12px', fontSize: '12px', outline: 'none' }}
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (newFrequency.name && newFrequency.discount) {
+                                                            const freqKey = newFrequency.name.toLowerCase().replace(/\s+/g, '_');
+                                                            setPricingRates(prev => ({
+                                                                ...prev,
+                                                                frequencies: { ...prev.frequencies, [freqKey]: { name: newFrequency.name, discount: parseFloat(newFrequency.discount) / 100 } }
+                                                            }));
+                                                            setNewFrequency({ name: '', discount: '' });
+                                                        }
+                                                    }}
+                                                    className="btn btn-primary"
+                                                    style={{ padding: '8px 12px', fontSize: '12px', fontWeight: '600' }}
+                                                >
+                                                    {Icons.Plus()}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                                         {/* Column 1: Services (House Cleaning & Standalone) */}
                                         <div className="flex flex-col gap-6">
                                             {/* House Cleaning & All Services */}
@@ -2246,318 +2664,6 @@ export default function Home() {
                                             </div>
                                         </div>
 
-                                        {/* Column 2: Bathrooms, Extras & Frequencies */}
-                                        <div className="flex flex-col gap-6">
-                                            {/* Bathrooms */}
-                                            <div>
-                                                <div className="flex justify-between items-center border-b border-slate-100 pb-1 mb-2">
-                                                    <h5 className="font-bold text-xs uppercase tracking-wider text-slate-700">Bathroom Increments ($)</h5>
-                                                </div>
-                                                <div className="max-h-[140px] overflow-y-auto pr-1 flex flex-col gap-1 mb-3">
-                                                    {Object.keys(pricingRates.bathrooms || {}).map(key => (
-                                                        <div key={key} className="rates-row">
-                                                            <input 
-                                                                type="text"
-                                                                value={key}
-                                                                onChange={e => {
-                                                                    const newName = e.target.value;
-                                                                    if (newName !== key && newName.trim()) {
-                                                                        setPricingRates(prev => {
-                                                                            const newBathrooms = { ...prev.bathrooms };
-                                                                            newBathrooms[newName] = newBathrooms[key];
-                                                                            delete newBathrooms[key];
-                                                                            return { ...prev, bathrooms: newBathrooms };
-                                                                        });
-                                                                    }
-                                                                }}
-                                                                placeholder="Bathroom option"
-                                                                className="rates-row-label-edit px-2 py-1 border border-slate-200 rounded text-xs font-semibold text-slate-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none flex-1"
-                                                            />
-                                                            <div className="flex items-center gap-2 flex-shrink-0" style={{ display: 'flex' }}>
-                                                                <div className="relative flex items-center" style={{ display: 'flex', alignItems: 'center' }}>
-                                                                    <span className="absolute left-2.5 text-slate-400 font-extrabold text-[11px] z-10">$</span>
-                                                                    <input 
-                                                                        type="number" 
-                                                                        value={pricingRates.bathrooms[key]} 
-                                                                        onChange={e => {
-                                                                            const val = parseFloat(e.target.value || 0);
-                                                                            setPricingRates(prev => ({
-                                                                                ...prev,
-                                                                                bathrooms: { ...prev.bathrooms, [key]: val }
-                                                                            }));
-                                                                        }}
-                                                                        className="rates-manager-input-price focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 font-bold text-slate-700 transition-all outline-none" 
-                                                                    />
-                                                                </div>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        if (confirm(`Remove "${key}" bathroom option?`)) {
-                                                                            setPricingRates(prev => {
-                                                                                const newBathrooms = { ...prev.bathrooms };
-                                                                                delete newBathrooms[key];
-                                                                                return { ...prev, bathrooms: newBathrooms };
-                                                                            });
-                                                                        }
-                                                                    }}
-                                                                    className="btn btn-sm text-red-500 hover:text-red-700 hover:bg-red-50 rounded px-2 py-1 text-xs font-bold"
-                                                                    title="Remove bathroom"
-                                                                >
-                                                                    {Icons.Trash()}
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                                <div className="border-t border-slate-100 pt-2 flex flex-col gap-2">
-                                                    <input 
-                                                        type="text" 
-                                                        placeholder="e.g., 1 Bathroom" 
-                                                        value={newBathroom.name} 
-                                                        onChange={e => setNewBathroom(prev => ({ ...prev, name: e.target.value }))}
-                                                        className="px-2 py-1 border border-slate-200 rounded text-xs"
-                                                    />
-                                                    <div className="flex gap-2">
-                                                        <input 
-                                                            type="number" 
-                                                            placeholder="Price" 
-                                                            value={newBathroom.price} 
-                                                            onChange={e => setNewBathroom(prev => ({ ...prev, price: e.target.value }))}
-                                                            className="flex-1 px-2 py-1 border border-slate-200 rounded text-xs"
-                                                        />
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                if (newBathroom.name && newBathroom.price) {
-                                                                    setPricingRates(prev => ({
-                                                                        ...prev,
-                                                                        bathrooms: { ...prev.bathrooms, [newBathroom.name]: parseFloat(newBathroom.price) }
-                                                                    }));
-                                                                    setNewBathroom({ name: '', price: '' });
-                                                                }
-                                                            }}
-                                                            className="btn btn-primary btn-sm text-xs font-bold px-2 py-1 rounded"
-                                                        >
-                                                            {Icons.Plus()}
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* Extras */}
-                                            <div>
-                                                <div className="flex justify-between items-center border-b border-slate-100 pb-1 mb-2">
-                                                    <h5 className="font-bold text-xs uppercase tracking-wider text-slate-700">Extras Upgrade Rates ($)</h5>
-                                                </div>
-                                                <div className="max-h-[160px] overflow-y-auto pr-1 flex flex-col gap-1 mb-3">
-                                                    {Object.entries(pricingRates.extras || {}).map(([key, extra]) => (
-                                                        <div key={key} className="rates-row">
-                                                            <input 
-                                                                type="text"
-                                                                value={extra.name}
-                                                                onChange={e => {
-                                                                    const newName = e.target.value;
-                                                                    setPricingRates(prev => ({
-                                                                        ...prev,
-                                                                        extras: {
-                                                                            ...prev.extras,
-                                                                            [key]: { ...prev.extras[key], name: newName }
-                                                                        }
-                                                                    }));
-                                                                }}
-                                                                placeholder="Extra name"
-                                                                className="rates-row-label-edit px-2 py-1 border border-slate-200 rounded text-xs font-semibold text-slate-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none flex-1"
-                                                            />
-                                                            <div className="flex items-center gap-2 flex-shrink-0" style={{ display: 'flex' }}>
-                                                                <div className="relative flex items-center" style={{ display: 'flex', alignItems: 'center' }}>
-                                                                    <span className="absolute left-2.5 text-slate-400 font-extrabold text-[11px] z-10">$</span>
-                                                                    <input 
-                                                                        type="number" 
-                                                                        value={extra.price} 
-                                                                        onChange={e => {
-                                                                            const val = parseFloat(e.target.value || 0);
-                                                                            setPricingRates(prev => ({
-                                                                                ...prev,
-                                                                                extras: {
-                                                                                    ...prev.extras,
-                                                                                    [key]: { ...prev.extras[key], price: val }
-                                                                                }
-                                                                            }));
-                                                                        }}
-                                                                        className="rates-manager-input-price focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 font-bold text-slate-700 transition-all outline-none" 
-                                                                    />
-                                                                </div>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        if (confirm(`Remove "${extra.name}" extra option?`)) {
-                                                                            setPricingRates(prev => {
-                                                                                const newExtras = { ...prev.extras };
-                                                                                delete newExtras[key];
-                                                                                return { ...prev, extras: newExtras };
-                                                                            });
-                                                                        }
-                                                                    }}
-                                                                    className="btn btn-sm text-red-500 hover:text-red-700 hover:bg-red-50 rounded px-2 py-1 text-xs font-bold"
-                                                                    title="Remove extra"
-                                                                >
-                                                                    {Icons.Trash()}
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                                <div className="border-t border-slate-100 pt-2 flex flex-col gap-2">
-                                                    <input 
-                                                        type="text" 
-                                                        placeholder="Extra name" 
-                                                        value={newExtra.name} 
-                                                        onChange={e => setNewExtra(prev => ({ ...prev, name: e.target.value }))}
-                                                        className="px-2 py-1 border border-slate-200 rounded text-xs"
-                                                    />
-                                                    <div className="flex gap-2">
-                                                        <input 
-                                                            type="number" 
-                                                            placeholder="Price" 
-                                                            value={newExtra.price} 
-                                                            onChange={e => setNewExtra(prev => ({ ...prev, price: e.target.value }))}
-                                                            className="flex-1 px-2 py-1 border border-slate-200 rounded text-xs"
-                                                        />
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                if (newExtra.name && newExtra.price) {
-                                                                    const extraKey = newExtra.name.toLowerCase().replace(/\s+/g, '_');
-                                                                    setPricingRates(prev => ({
-                                                                        ...prev,
-                                                                        extras: { 
-                                                                            ...prev.extras, 
-                                                                            [extraKey]: { 
-                                                                                name: newExtra.name, 
-                                                                                price: parseFloat(newExtra.price),
-                                                                                qtySelector: newExtra.qtySelector
-                                                                            } 
-                                                                        }
-                                                                    }));
-                                                                    setNewExtra({ name: '', price: '', qtySelector: false });
-                                                                }
-                                                            }}
-                                                            className="btn btn-primary btn-sm text-xs font-bold px-2 py-1 rounded"
-                                                        >
-                                                            {Icons.Plus()}
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* Frequencies */}
-                                            <div>
-                                                <div className="flex justify-between items-center border-b border-slate-100 pb-1 mb-2">
-                                                    <h5 className="font-bold text-xs uppercase tracking-wider text-slate-700">Frequency Discounts (%)</h5>
-                                                </div>
-                                                <div className="max-h-[120px] overflow-y-auto pr-1 flex flex-col gap-1 mb-3">
-                                                    {Object.entries(pricingRates.frequencies || {}).map(([key, freq]) => (
-                                                        <div key={key} className="rates-row">
-                                                            <input 
-                                                                type="text"
-                                                                value={freq.name}
-                                                                onChange={e => {
-                                                                    const newName = e.target.value;
-                                                                    setPricingRates(prev => ({
-                                                                        ...prev,
-                                                                        frequencies: {
-                                                                            ...prev.frequencies,
-                                                                            [key]: { ...prev.frequencies[key], name: newName }
-                                                                        }
-                                                                    }));
-                                                                }}
-                                                                placeholder="Frequency name"
-                                                                className="rates-row-label-edit px-2 py-1 border border-slate-200 rounded text-xs font-semibold text-slate-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none flex-1"
-                                                            />
-                                                            <div className="flex items-center gap-2 flex-shrink-0" style={{ display: 'flex' }}>
-                                                                <div className="relative flex items-center" style={{ display: 'flex', alignItems: 'center' }}>
-                                                                    <input 
-                                                                        type="number" 
-                                                                        min="0"
-                                                                        max="100"
-                                                                        value={Math.round(freq.discount * 100)} 
-                                                                        onChange={e => {
-                                                                            const val = parseFloat(e.target.value || 0) / 100;
-                                                                            setPricingRates(prev => ({
-                                                                                ...prev,
-                                                                                frequencies: {
-                                                                                    ...prev.frequencies,
-                                                                                    [key]: { ...prev.frequencies[key], discount: val }
-                                                                                }
-                                                                            }));
-                                                                        }}
-                                                                        className="rates-manager-input-percent focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 font-bold text-slate-700 transition-all outline-none" 
-                                                                    />
-                                                                    <span className="absolute right-2.5 text-slate-400 font-extrabold text-[11px] z-10">%</span>
-                                                                </div>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        if (confirm(`Remove "${freq.name}" frequency discount?`)) {
-                                                                            setPricingRates(prev => {
-                                                                                const newFrequencies = { ...prev.frequencies };
-                                                                                delete newFrequencies[key];
-                                                                                return { ...prev, frequencies: newFrequencies };
-                                                                            });
-                                                                        }
-                                                                    }}
-                                                                    className="btn btn-sm text-red-500 hover:text-red-700 hover:bg-red-50 rounded px-2 py-1 text-xs font-bold"
-                                                                    title="Remove frequency"
-                                                                >
-                                                                    {Icons.Trash()}
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                                <div className="border-t border-slate-100 pt-2 flex flex-col gap-2">
-                                                    <input 
-                                                        type="text" 
-                                                        placeholder="e.g., 2x per week" 
-                                                        value={newFrequency.name} 
-                                                        onChange={e => setNewFrequency(prev => ({ ...prev, name: e.target.value }))}
-                                                        className="px-2 py-1 border border-slate-200 rounded text-xs"
-                                                    />
-                                                    <div className="flex gap-2">
-                                                        <input 
-                                                            type="number" 
-                                                            min="0"
-                                                            max="100"
-                                                            placeholder="Discount %" 
-                                                            value={newFrequency.discount} 
-                                                            onChange={e => setNewFrequency(prev => ({ ...prev, discount: e.target.value }))}
-                                                            className="flex-1 px-2 py-1 border border-slate-200 rounded text-xs"
-                                                        />
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                if (newFrequency.name && newFrequency.discount) {
-                                                                    const freqKey = newFrequency.name.toLowerCase().replace(/\s+/g, '_');
-                                                                    setPricingRates(prev => ({
-                                                                        ...prev,
-                                                                        frequencies: { 
-                                                                            ...prev.frequencies, 
-                                                                            [freqKey]: { 
-                                                                                name: newFrequency.name, 
-                                                                                discount: parseFloat(newFrequency.discount) / 100
-                                                                            } 
-                                                                        }
-                                                                    }));
-                                                                    setNewFrequency({ name: '', discount: '' });
-                                                                }
-                                                            }}
-                                                            className="btn btn-primary btn-sm text-xs font-bold px-2 py-1 rounded"
-                                                        >
-                                                            {Icons.Plus()}
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </div>
                                         </div>
                                     </div>
                                 </div>
