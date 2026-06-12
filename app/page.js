@@ -2106,14 +2106,15 @@ export default function Home() {
                                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 p-6">
                                         {/* Column 1: Services (House Cleaning & Standalone) */}
                                         <div className="flex flex-col gap-6">
-                                            {/* House Cleaning Services */}
+                                            {/* House Cleaning & All Services */}
                                             <div>
                                                 <div className="flex justify-between items-center border-b border-slate-100 pb-1 mb-2">
-                                                    <h5 className="font-bold text-xs uppercase tracking-wider text-slate-700">House Cleaning Services</h5>
+                                                    <h5 className="font-bold text-xs uppercase tracking-wider text-slate-700">All Services (Dynamic)</h5>
+                                                    <span className="text-[10px] text-slate-400">{Object.keys(pricingRates.services || {}).length} items</span>
                                                 </div>
                                                 <div className="max-h-[250px] overflow-y-auto pr-1 flex flex-col gap-1 mb-3">
                                                     {Object.keys(pricingRates.services || {})
-                                                        .filter(key => HOUSE_CLEANING_SERVICES.includes(key))
+                                                        .sort()
                                                         .map(key => (
                                                         <div key={key} className="rates-row">
                                                             <span className="rates-row-label" title={key}>{key}</span>
@@ -2216,77 +2217,6 @@ export default function Home() {
                                                             {Icons.Plus()}
                                                         </button>
                                                     </div>
-                                                </div>
-                                            </div>
-
-                                            {/* Standalone Specialty Services */}
-                                            <div>
-                                                <div className="flex justify-between items-center border-b border-slate-100 pb-1 mb-2">
-                                                    <h5 className="font-bold text-xs uppercase tracking-wider text-slate-700">Standalone Services</h5>
-                                                </div>
-                                                <div className="flex flex-col gap-1 mb-3">
-                                                    {Object.keys(pricingRates.services || {})
-                                                        .filter(key => STANDALONE_SERVICES.includes(key))
-                                                        .map(key => (
-                                                        <div key={key} className="rates-row">
-                                                            <span className="rates-row-label" title={key}>{key}</span>
-                                                            <div className="flex items-center gap-2 flex-shrink-0" style={{ display: 'flex' }}>
-                                                                <div className="relative flex items-center" style={{ display: 'flex', alignItems: 'center' }}>
-                                                                    <span className="absolute left-2 text-slate-400 font-extrabold text-[10px] z-10">$</span>
-                                                                    <input 
-                                                                        type="number" 
-                                                                        value={pricingRates.services?.[key] || 0} 
-                                                                        onChange={e => {
-                                                                            const val = parseFloat(e.target.value || 0);
-                                                                            setPricingRates(prev => ({
-                                                                                ...prev,
-                                                                                services: { ...prev.services, [key]: val }
-                                                                            }));
-                                                                        }}
-                                                                        className="rates-manager-input-price focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 font-bold text-slate-700 transition-all outline-none" 
-                                                                    />
-                                                                </div>
-                                                                <div className="relative flex items-center" style={{ display: 'flex', alignItems: 'center' }}>
-                                                                    <input 
-                                                                        type="number" 
-                                                                        step="0.5"
-                                                                        value={pricingRates.serviceDurations?.[key] || 2} 
-                                                                        onChange={e => {
-                                                                            const val = parseFloat(e.target.value || 0);
-                                                                            setPricingRates(prev => ({
-                                                                                ...prev,
-                                                                                serviceDurations: { ...(prev.serviceDurations || {}), [key]: val }
-                                                                            }));
-                                                                        }}
-                                                                        className="rates-manager-input-price focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 font-bold text-slate-700 transition-all outline-none" 
-                                                                    />
-                                                                    <span className="absolute right-2 text-slate-400 font-extrabold text-[10px] z-10">hrs</span>
-                                                                </div>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        if (confirm(`Remove "${key}" from services?`)) {
-                                                                            setPricingRates(prev => {
-                                                                                const newServices = { ...prev.services };
-                                                                                const newDurations = { ...prev.serviceDurations };
-                                                                                delete newServices[key];
-                                                                                delete newDurations[key];
-                                                                                return {
-                                                                                    ...prev,
-                                                                                    services: newServices,
-                                                                                    serviceDurations: newDurations
-                                                                                };
-                                                                            });
-                                                                        }
-                                                                    }}
-                                                                    className="btn btn-sm text-red-500 hover:text-red-700 hover:bg-red-50 rounded px-2 py-1 text-xs font-bold"
-                                                                    title="Remove service"
-                                                                >
-                                                                    {Icons.Trash()}
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    ))}
                                                 </div>
                                             </div>
                                         </div>
