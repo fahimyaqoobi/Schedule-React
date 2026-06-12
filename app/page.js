@@ -185,6 +185,12 @@ export default function Home() {
     const [formStep, setFormStep] = useState(1);
     const [submitCooldown, setSubmitCooldown] = useState(false);
 
+    // Pricing manager form inputs for adding new items
+    const [newService, setNewService] = useState({ name: '', price: '', duration: '' });
+    const [newBathroom, setNewBathroom] = useState({ name: '', price: '' });
+    const [newExtra, setNewExtra] = useState({ name: '', price: '', qtySelector: false });
+    const [newFrequency, setNewFrequency] = useState({ name: '', discount: '' });
+
     // Form inputs for scheduling modal
     const [bookingForm, setBookingForm] = useState({
         id: "",
@@ -2071,7 +2077,7 @@ export default function Home() {
                                     <div className="panel-header border-b border-slate-100 pb-3 flex justify-between items-center" style={{ flexWrap: 'wrap', gap: '12px' }}>
                                         <div style={{ flex: '1 1 200px' }}>
                                             <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">Pricing & Rates Manager Settings</h4>
-                                            <p className="text-slate-400 text-[10px] mt-0.5">Customize real-time booking rates, bathroom fees, extras, and discounts</p>
+                                            <p className="text-slate-400 text-[10px] mt-0.5">Customize real-time booking rates, bathroom fees, extras, and discounts — add, edit & remove items</p>
                                         </div>
                                         <button 
                                             type="button"
@@ -2087,14 +2093,14 @@ export default function Home() {
                                                         const errData = await res.json();
                                                         throw new Error(errData.error || "Failed to update settings");
                                                     }
-                                                    alert("Pricing and rates updated successfully in database!");
+                                                    alert("✅ Pricing and rates updated successfully! All bookings will now use the new rates.");
                                                 } catch (err) {
                                                     alert("Failed to save rates: " + err.message);
                                                 }
                                             }}
                                             className="btn btn-primary btn-sm rounded-lg text-white font-bold"
                                         >
-                                            Save System Rates
+                                            💾 Save System Rates
                                         </button>
                                     </div>
                                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 p-6">
@@ -2102,9 +2108,13 @@ export default function Home() {
                                         <div className="flex flex-col gap-6">
                                             {/* House Cleaning Services */}
                                             <div>
-                                                <h5 className="font-bold text-xs uppercase tracking-wider text-slate-700 border-b border-slate-100 pb-1 mb-2">House Cleaning Services</h5>
-                                                <div className="max-h-[250px] overflow-y-auto pr-1 flex flex-col gap-1">
-                                                    {HOUSE_CLEANING_SERVICES.map(key => (
+                                                <div className="flex justify-between items-center border-b border-slate-100 pb-1 mb-2">
+                                                    <h5 className="font-bold text-xs uppercase tracking-wider text-slate-700">House Cleaning Services</h5>
+                                                </div>
+                                                <div className="max-h-[250px] overflow-y-auto pr-1 flex flex-col gap-1 mb-3">
+                                                    {Object.keys(pricingRates.services || {})
+                                                        .filter(key => HOUSE_CLEANING_SERVICES.includes(key))
+                                                        .map(key => (
                                                         <div key={key} className="rates-row">
                                                             <span className="rates-row-label" title={key}>{key}</span>
                                                             <div className="flex items-center gap-2 flex-shrink-0" style={{ display: 'flex' }}>
@@ -2139,17 +2149,85 @@ export default function Home() {
                                                                     />
                                                                     <span className="absolute right-2 text-slate-400 font-extrabold text-[10px] z-10">hrs</span>
                                                                 </div>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        if (confirm(`Remove "${key}" from services?`)) {
+                                                                            setPricingRates(prev => {
+                                                                                const newServices = { ...prev.services };
+                                                                                const newDurations = { ...prev.serviceDurations };
+                                                                                delete newServices[key];
+                                                                                delete newDurations[key];
+                                                                                return {
+                                                                                    ...prev,
+                                                                                    services: newServices,
+                                                                                    serviceDurations: newDurations
+                                                                                };
+                                                                            });
+                                                                        }
+                                                                    }}
+                                                                    className="btn btn-sm text-red-500 hover:text-red-700 hover:bg-red-50 rounded px-2 py-1 text-xs font-bold"
+                                                                    title="Remove service"
+                                                                >
+                                                                    {Icons.Trash()}
+                                                                </button>
                                                             </div>
                                                         </div>
                                                     ))}
+                                                </div>
+                                                <div className="border-t border-slate-100 pt-2 flex flex-col gap-2">
+                                                    <input 
+                                                        type="text" 
+                                                        placeholder="Service name" 
+                                                        value={newService.name} 
+                                                        onChange={e => setNewService(prev => ({ ...prev, name: e.target.value }))}
+                                                        className="px-2 py-1 border border-slate-200 rounded text-xs"
+                                                    />
+                                                    <div className="flex gap-2">
+                                                        <input 
+                                                            type="number" 
+                                                            placeholder="Price" 
+                                                            value={newService.price} 
+                                                            onChange={e => setNewService(prev => ({ ...prev, price: e.target.value }))}
+                                                            className="flex-1 px-2 py-1 border border-slate-200 rounded text-xs"
+                                                        />
+                                                        <input 
+                                                            type="number" 
+                                                            step="0.5"
+                                                            placeholder="Duration (hrs)" 
+                                                            value={newService.duration} 
+                                                            onChange={e => setNewService(prev => ({ ...prev, duration: e.target.value }))}
+                                                            className="flex-1 px-2 py-1 border border-slate-200 rounded text-xs"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                if (newService.name && newService.price) {
+                                                                    setPricingRates(prev => ({
+                                                                        ...prev,
+                                                                        services: { ...prev.services, [newService.name]: parseFloat(newService.price) },
+                                                                        serviceDurations: { ...prev.serviceDurations, [newService.name]: parseFloat(newService.duration || 2) }
+                                                                    }));
+                                                                    setNewService({ name: '', price: '', duration: '' });
+                                                                }
+                                                            }}
+                                                            className="btn btn-primary btn-sm text-xs font-bold px-2 py-1 rounded"
+                                                        >
+                                                            {Icons.Plus()}
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </div>
 
                                             {/* Standalone Specialty Services */}
                                             <div>
-                                                <h5 className="font-bold text-xs uppercase tracking-wider text-slate-700 border-b border-slate-100 pb-1 mb-2">Standalone Specialty Services</h5>
-                                                <div className="flex flex-col gap-1">
-                                                    {STANDALONE_SERVICES.map(key => (
+                                                <div className="flex justify-between items-center border-b border-slate-100 pb-1 mb-2">
+                                                    <h5 className="font-bold text-xs uppercase tracking-wider text-slate-700">Standalone Services</h5>
+                                                </div>
+                                                <div className="flex flex-col gap-1 mb-3">
+                                                    {Object.keys(pricingRates.services || {})
+                                                        .filter(key => STANDALONE_SERVICES.includes(key))
+                                                        .map(key => (
                                                         <div key={key} className="rates-row">
                                                             <span className="rates-row-label" title={key}>{key}</span>
                                                             <div className="flex items-center gap-2 flex-shrink-0" style={{ display: 'flex' }}>
@@ -2184,6 +2262,28 @@ export default function Home() {
                                                                     />
                                                                     <span className="absolute right-2 text-slate-400 font-extrabold text-[10px] z-10">hrs</span>
                                                                 </div>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        if (confirm(`Remove "${key}" from services?`)) {
+                                                                            setPricingRates(prev => {
+                                                                                const newServices = { ...prev.services };
+                                                                                const newDurations = { ...prev.serviceDurations };
+                                                                                delete newServices[key];
+                                                                                delete newDurations[key];
+                                                                                return {
+                                                                                    ...prev,
+                                                                                    services: newServices,
+                                                                                    serviceDurations: newDurations
+                                                                                };
+                                                                            });
+                                                                        }
+                                                                    }}
+                                                                    className="btn btn-sm text-red-500 hover:text-red-700 hover:bg-red-50 rounded px-2 py-1 text-xs font-bold"
+                                                                    title="Remove service"
+                                                                >
+                                                                    {Icons.Trash()}
+                                                                </button>
                                                             </div>
                                                         </div>
                                                     ))}
@@ -2195,90 +2295,266 @@ export default function Home() {
                                         <div className="flex flex-col gap-6">
                                             {/* Bathrooms */}
                                             <div>
-                                                <h5 className="font-bold text-xs uppercase tracking-wider text-slate-700 border-b border-slate-100 pb-1 mb-2">Bathroom Increments ($)</h5>
-                                                <div className="max-h-[140px] overflow-y-auto pr-1 flex flex-col gap-1">
+                                                <div className="flex justify-between items-center border-b border-slate-100 pb-1 mb-2">
+                                                    <h5 className="font-bold text-xs uppercase tracking-wider text-slate-700">Bathroom Increments ($)</h5>
+                                                </div>
+                                                <div className="max-h-[140px] overflow-y-auto pr-1 flex flex-col gap-1 mb-3">
                                                     {Object.keys(pricingRates.bathrooms || {}).map(key => (
                                                         <div key={key} className="rates-row">
                                                             <span className="rates-row-label">{key}</span>
-                                                            <div className="relative flex items-center" style={{ display: 'flex', alignItems: 'center' }}>
-                                                                <span className="absolute left-2.5 text-slate-400 font-extrabold text-[11px] z-10">$</span>
-                                                                <input 
-                                                                    type="number" 
-                                                                    value={pricingRates.bathrooms[key]} 
-                                                                    onChange={e => {
-                                                                        const val = parseFloat(e.target.value || 0);
-                                                                        setPricingRates(prev => ({
-                                                                            ...prev,
-                                                                            bathrooms: { ...prev.bathrooms, [key]: val }
-                                                                        }));
+                                                            <div className="flex items-center gap-2 flex-shrink-0" style={{ display: 'flex' }}>
+                                                                <div className="relative flex items-center" style={{ display: 'flex', alignItems: 'center' }}>
+                                                                    <span className="absolute left-2.5 text-slate-400 font-extrabold text-[11px] z-10">$</span>
+                                                                    <input 
+                                                                        type="number" 
+                                                                        value={pricingRates.bathrooms[key]} 
+                                                                        onChange={e => {
+                                                                            const val = parseFloat(e.target.value || 0);
+                                                                            setPricingRates(prev => ({
+                                                                                ...prev,
+                                                                                bathrooms: { ...prev.bathrooms, [key]: val }
+                                                                            }));
+                                                                        }}
+                                                                        className="rates-manager-input-price focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 font-bold text-slate-700 transition-all outline-none" 
+                                                                    />
+                                                                </div>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        if (confirm(`Remove "${key}" bathroom option?`)) {
+                                                                            setPricingRates(prev => {
+                                                                                const newBathrooms = { ...prev.bathrooms };
+                                                                                delete newBathrooms[key];
+                                                                                return { ...prev, bathrooms: newBathrooms };
+                                                                            });
+                                                                        }
                                                                     }}
-                                                                    className="rates-manager-input-price focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 font-bold text-slate-700 transition-all outline-none" 
-                                                                />
+                                                                    className="btn btn-sm text-red-500 hover:text-red-700 hover:bg-red-50 rounded px-2 py-1 text-xs font-bold"
+                                                                    title="Remove bathroom"
+                                                                >
+                                                                    {Icons.Trash()}
+                                                                </button>
                                                             </div>
                                                         </div>
                                                     ))}
+                                                </div>
+                                                <div className="border-t border-slate-100 pt-2 flex flex-col gap-2">
+                                                    <input 
+                                                        type="text" 
+                                                        placeholder="e.g., 1 Bathroom" 
+                                                        value={newBathroom.name} 
+                                                        onChange={e => setNewBathroom(prev => ({ ...prev, name: e.target.value }))}
+                                                        className="px-2 py-1 border border-slate-200 rounded text-xs"
+                                                    />
+                                                    <div className="flex gap-2">
+                                                        <input 
+                                                            type="number" 
+                                                            placeholder="Price" 
+                                                            value={newBathroom.price} 
+                                                            onChange={e => setNewBathroom(prev => ({ ...prev, price: e.target.value }))}
+                                                            className="flex-1 px-2 py-1 border border-slate-200 rounded text-xs"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                if (newBathroom.name && newBathroom.price) {
+                                                                    setPricingRates(prev => ({
+                                                                        ...prev,
+                                                                        bathrooms: { ...prev.bathrooms, [newBathroom.name]: parseFloat(newBathroom.price) }
+                                                                    }));
+                                                                    setNewBathroom({ name: '', price: '' });
+                                                                }
+                                                            }}
+                                                            className="btn btn-primary btn-sm text-xs font-bold px-2 py-1 rounded"
+                                                        >
+                                                            {Icons.Plus()}
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </div>
 
                                             {/* Extras */}
                                             <div>
-                                                <h5 className="font-bold text-xs uppercase tracking-wider text-slate-700 border-b border-slate-100 pb-1 mb-2">Select Extras Upgrade Rates ($)</h5>
-                                                <div className="max-h-[160px] overflow-y-auto pr-1 flex flex-col gap-1">
+                                                <div className="flex justify-between items-center border-b border-slate-100 pb-1 mb-2">
+                                                    <h5 className="font-bold text-xs uppercase tracking-wider text-slate-700">Extras Upgrade Rates ($)</h5>
+                                                </div>
+                                                <div className="max-h-[160px] overflow-y-auto pr-1 flex flex-col gap-1 mb-3">
                                                     {Object.entries(pricingRates.extras || {}).map(([key, extra]) => (
                                                         <div key={key} className="rates-row">
                                                             <span className="rates-row-label">{extra.name}</span>
-                                                            <div className="relative flex items-center" style={{ display: 'flex', alignItems: 'center' }}>
-                                                                <span className="absolute left-2.5 text-slate-400 font-extrabold text-[11px] z-10">$</span>
-                                                                <input 
-                                                                    type="number" 
-                                                                    value={extra.price} 
-                                                                    onChange={e => {
-                                                                        const val = parseFloat(e.target.value || 0);
-                                                                        setPricingRates(prev => ({
-                                                                            ...prev,
-                                                                            extras: {
-                                                                                ...prev.extras,
-                                                                                [key]: { ...prev.extras[key], price: val }
-                                                                            }
-                                                                        }));
+                                                            <div className="flex items-center gap-2 flex-shrink-0" style={{ display: 'flex' }}>
+                                                                <div className="relative flex items-center" style={{ display: 'flex', alignItems: 'center' }}>
+                                                                    <span className="absolute left-2.5 text-slate-400 font-extrabold text-[11px] z-10">$</span>
+                                                                    <input 
+                                                                        type="number" 
+                                                                        value={extra.price} 
+                                                                        onChange={e => {
+                                                                            const val = parseFloat(e.target.value || 0);
+                                                                            setPricingRates(prev => ({
+                                                                                ...prev,
+                                                                                extras: {
+                                                                                    ...prev.extras,
+                                                                                    [key]: { ...prev.extras[key], price: val }
+                                                                                }
+                                                                            }));
+                                                                        }}
+                                                                        className="rates-manager-input-price focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 font-bold text-slate-700 transition-all outline-none" 
+                                                                    />
+                                                                </div>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        if (confirm(`Remove "${extra.name}" extra option?`)) {
+                                                                            setPricingRates(prev => {
+                                                                                const newExtras = { ...prev.extras };
+                                                                                delete newExtras[key];
+                                                                                return { ...prev, extras: newExtras };
+                                                                            });
+                                                                        }
                                                                     }}
-                                                                    className="rates-manager-input-price focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 font-bold text-slate-700 transition-all outline-none" 
-                                                                />
+                                                                    className="btn btn-sm text-red-500 hover:text-red-700 hover:bg-red-50 rounded px-2 py-1 text-xs font-bold"
+                                                                    title="Remove extra"
+                                                                >
+                                                                    {Icons.Trash()}
+                                                                </button>
                                                             </div>
                                                         </div>
                                                     ))}
+                                                </div>
+                                                <div className="border-t border-slate-100 pt-2 flex flex-col gap-2">
+                                                    <input 
+                                                        type="text" 
+                                                        placeholder="Extra name" 
+                                                        value={newExtra.name} 
+                                                        onChange={e => setNewExtra(prev => ({ ...prev, name: e.target.value }))}
+                                                        className="px-2 py-1 border border-slate-200 rounded text-xs"
+                                                    />
+                                                    <div className="flex gap-2">
+                                                        <input 
+                                                            type="number" 
+                                                            placeholder="Price" 
+                                                            value={newExtra.price} 
+                                                            onChange={e => setNewExtra(prev => ({ ...prev, price: e.target.value }))}
+                                                            className="flex-1 px-2 py-1 border border-slate-200 rounded text-xs"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                if (newExtra.name && newExtra.price) {
+                                                                    const extraKey = newExtra.name.toLowerCase().replace(/\s+/g, '_');
+                                                                    setPricingRates(prev => ({
+                                                                        ...prev,
+                                                                        extras: { 
+                                                                            ...prev.extras, 
+                                                                            [extraKey]: { 
+                                                                                name: newExtra.name, 
+                                                                                price: parseFloat(newExtra.price),
+                                                                                qtySelector: newExtra.qtySelector
+                                                                            } 
+                                                                        }
+                                                                    }));
+                                                                    setNewExtra({ name: '', price: '', qtySelector: false });
+                                                                }
+                                                            }}
+                                                            className="btn btn-primary btn-sm text-xs font-bold px-2 py-1 rounded"
+                                                        >
+                                                            {Icons.Plus()}
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </div>
 
                                             {/* Frequencies */}
                                             <div>
-                                                <h5 className="font-bold text-xs uppercase tracking-wider text-slate-700 border-b border-slate-100 pb-1 mb-2">Frequency Discounts (%)</h5>
-                                                <div className="flex flex-col gap-1">
+                                                <div className="flex justify-between items-center border-b border-slate-100 pb-1 mb-2">
+                                                    <h5 className="font-bold text-xs uppercase tracking-wider text-slate-700">Frequency Discounts (%)</h5>
+                                                </div>
+                                                <div className="max-h-[120px] overflow-y-auto pr-1 flex flex-col gap-1 mb-3">
                                                     {Object.entries(pricingRates.frequencies || {}).map(([key, freq]) => (
                                                         <div key={key} className="rates-row">
                                                             <span className="rates-row-label capitalize">{freq.name}</span>
-                                                            <div className="relative flex items-center" style={{ display: 'flex', alignItems: 'center' }}>
-                                                                <input 
-                                                                    type="number" 
-                                                                    min="0"
-                                                                    max="100"
-                                                                    value={Math.round(freq.discount * 100)} 
-                                                                    onChange={e => {
-                                                                        const val = parseFloat(e.target.value || 0) / 100;
-                                                                        setPricingRates(prev => ({
-                                                                            ...prev,
-                                                                            frequencies: {
-                                                                                ...prev.frequencies,
-                                                                                [key]: { ...prev.frequencies[key], discount: val }
-                                                                            }
-                                                                        }));
+                                                            <div className="flex items-center gap-2 flex-shrink-0" style={{ display: 'flex' }}>
+                                                                <div className="relative flex items-center" style={{ display: 'flex', alignItems: 'center' }}>
+                                                                    <input 
+                                                                        type="number" 
+                                                                        min="0"
+                                                                        max="100"
+                                                                        value={Math.round(freq.discount * 100)} 
+                                                                        onChange={e => {
+                                                                            const val = parseFloat(e.target.value || 0) / 100;
+                                                                            setPricingRates(prev => ({
+                                                                                ...prev,
+                                                                                frequencies: {
+                                                                                    ...prev.frequencies,
+                                                                                    [key]: { ...prev.frequencies[key], discount: val }
+                                                                                }
+                                                                            }));
+                                                                        }}
+                                                                        className="rates-manager-input-percent focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 font-bold text-slate-700 transition-all outline-none" 
+                                                                    />
+                                                                    <span className="absolute right-2.5 text-slate-400 font-extrabold text-[11px] z-10">%</span>
+                                                                </div>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        if (confirm(`Remove "${freq.name}" frequency discount?`)) {
+                                                                            setPricingRates(prev => {
+                                                                                const newFrequencies = { ...prev.frequencies };
+                                                                                delete newFrequencies[key];
+                                                                                return { ...prev, frequencies: newFrequencies };
+                                                                            });
+                                                                        }
                                                                     }}
-                                                                    className="rates-manager-input-percent focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 font-bold text-slate-700 transition-all outline-none" 
-                                                                />
-                                                                <span className="absolute right-2.5 text-slate-400 font-extrabold text-[11px] z-10">%</span>
+                                                                    className="btn btn-sm text-red-500 hover:text-red-700 hover:bg-red-50 rounded px-2 py-1 text-xs font-bold"
+                                                                    title="Remove frequency"
+                                                                >
+                                                                    {Icons.Trash()}
+                                                                </button>
                                                             </div>
                                                         </div>
                                                     ))}
+                                                </div>
+                                                <div className="border-t border-slate-100 pt-2 flex flex-col gap-2">
+                                                    <input 
+                                                        type="text" 
+                                                        placeholder="e.g., 2x per week" 
+                                                        value={newFrequency.name} 
+                                                        onChange={e => setNewFrequency(prev => ({ ...prev, name: e.target.value }))}
+                                                        className="px-2 py-1 border border-slate-200 rounded text-xs"
+                                                    />
+                                                    <div className="flex gap-2">
+                                                        <input 
+                                                            type="number" 
+                                                            min="0"
+                                                            max="100"
+                                                            placeholder="Discount %" 
+                                                            value={newFrequency.discount} 
+                                                            onChange={e => setNewFrequency(prev => ({ ...prev, discount: e.target.value }))}
+                                                            className="flex-1 px-2 py-1 border border-slate-200 rounded text-xs"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                if (newFrequency.name && newFrequency.discount) {
+                                                                    const freqKey = newFrequency.name.toLowerCase().replace(/\s+/g, '_');
+                                                                    setPricingRates(prev => ({
+                                                                        ...prev,
+                                                                        frequencies: { 
+                                                                            ...prev.frequencies, 
+                                                                            [freqKey]: { 
+                                                                                name: newFrequency.name, 
+                                                                                discount: parseFloat(newFrequency.discount) / 100
+                                                                            } 
+                                                                        }
+                                                                    }));
+                                                                    setNewFrequency({ name: '', discount: '' });
+                                                                }
+                                                            }}
+                                                            className="btn btn-primary btn-sm text-xs font-bold px-2 py-1 rounded"
+                                                        >
+                                                            {Icons.Plus()}
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
