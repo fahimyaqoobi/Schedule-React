@@ -2117,7 +2117,32 @@ export default function Home() {
                                                         .sort()
                                                         .map(key => (
                                                         <div key={key} className="rates-row">
-                                                            <span className="rates-row-label" title={key}>{key}</span>
+                                                            <input 
+                                                                type="text"
+                                                                value={key}
+                                                                onChange={e => {
+                                                                    const newName = e.target.value;
+                                                                    if (newName !== key && newName.trim()) {
+                                                                        setPricingRates(prev => {
+                                                                            const newServices = { ...prev.services };
+                                                                            const newDurations = { ...(prev.serviceDurations || {}) };
+                                                                            newServices[newName] = newServices[key];
+                                                                            delete newServices[key];
+                                                                            if (newDurations[key]) {
+                                                                                newDurations[newName] = newDurations[key];
+                                                                                delete newDurations[key];
+                                                                            }
+                                                                            return {
+                                                                                ...prev,
+                                                                                services: newServices,
+                                                                                serviceDurations: newDurations
+                                                                            };
+                                                                        });
+                                                                    }
+                                                                }}
+                                                                placeholder="Service name"
+                                                                className="rates-row-label-edit px-2 py-1 border border-slate-200 rounded text-xs font-semibold text-slate-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none flex-1"
+                                                            />
                                                             <div className="flex items-center gap-2 flex-shrink-0" style={{ display: 'flex' }}>
                                                                 <div className="relative flex items-center" style={{ display: 'flex', alignItems: 'center' }}>
                                                                     <span className="absolute left-2 text-slate-400 font-extrabold text-[10px] z-10">$</span>
@@ -2231,7 +2256,23 @@ export default function Home() {
                                                 <div className="max-h-[140px] overflow-y-auto pr-1 flex flex-col gap-1 mb-3">
                                                     {Object.keys(pricingRates.bathrooms || {}).map(key => (
                                                         <div key={key} className="rates-row">
-                                                            <span className="rates-row-label">{key}</span>
+                                                            <input 
+                                                                type="text"
+                                                                value={key}
+                                                                onChange={e => {
+                                                                    const newName = e.target.value;
+                                                                    if (newName !== key && newName.trim()) {
+                                                                        setPricingRates(prev => {
+                                                                            const newBathrooms = { ...prev.bathrooms };
+                                                                            newBathrooms[newName] = newBathrooms[key];
+                                                                            delete newBathrooms[key];
+                                                                            return { ...prev, bathrooms: newBathrooms };
+                                                                        });
+                                                                    }
+                                                                }}
+                                                                placeholder="Bathroom option"
+                                                                className="rates-row-label-edit px-2 py-1 border border-slate-200 rounded text-xs font-semibold text-slate-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none flex-1"
+                                                            />
                                                             <div className="flex items-center gap-2 flex-shrink-0" style={{ display: 'flex' }}>
                                                                 <div className="relative flex items-center" style={{ display: 'flex', alignItems: 'center' }}>
                                                                     <span className="absolute left-2.5 text-slate-400 font-extrabold text-[11px] z-10">$</span>
@@ -2311,7 +2352,22 @@ export default function Home() {
                                                 <div className="max-h-[160px] overflow-y-auto pr-1 flex flex-col gap-1 mb-3">
                                                     {Object.entries(pricingRates.extras || {}).map(([key, extra]) => (
                                                         <div key={key} className="rates-row">
-                                                            <span className="rates-row-label">{extra.name}</span>
+                                                            <input 
+                                                                type="text"
+                                                                value={extra.name}
+                                                                onChange={e => {
+                                                                    const newName = e.target.value;
+                                                                    setPricingRates(prev => ({
+                                                                        ...prev,
+                                                                        extras: {
+                                                                            ...prev.extras,
+                                                                            [key]: { ...prev.extras[key], name: newName }
+                                                                        }
+                                                                    }));
+                                                                }}
+                                                                placeholder="Extra name"
+                                                                className="rates-row-label-edit px-2 py-1 border border-slate-200 rounded text-xs font-semibold text-slate-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none flex-1"
+                                                            />
                                                             <div className="flex items-center gap-2 flex-shrink-0" style={{ display: 'flex' }}>
                                                                 <div className="relative flex items-center" style={{ display: 'flex', alignItems: 'center' }}>
                                                                     <span className="absolute left-2.5 text-slate-400 font-extrabold text-[11px] z-10">$</span>
@@ -2402,7 +2458,22 @@ export default function Home() {
                                                 <div className="max-h-[120px] overflow-y-auto pr-1 flex flex-col gap-1 mb-3">
                                                     {Object.entries(pricingRates.frequencies || {}).map(([key, freq]) => (
                                                         <div key={key} className="rates-row">
-                                                            <span className="rates-row-label capitalize">{freq.name}</span>
+                                                            <input 
+                                                                type="text"
+                                                                value={freq.name}
+                                                                onChange={e => {
+                                                                    const newName = e.target.value;
+                                                                    setPricingRates(prev => ({
+                                                                        ...prev,
+                                                                        frequencies: {
+                                                                            ...prev.frequencies,
+                                                                            [key]: { ...prev.frequencies[key], name: newName }
+                                                                        }
+                                                                    }));
+                                                                }}
+                                                                placeholder="Frequency name"
+                                                                className="rates-row-label-edit px-2 py-1 border border-slate-200 rounded text-xs font-semibold text-slate-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none flex-1"
+                                                            />
                                                             <div className="flex items-center gap-2 flex-shrink-0" style={{ display: 'flex' }}>
                                                                 <div className="relative flex items-center" style={{ display: 'flex', alignItems: 'center' }}>
                                                                     <input 
