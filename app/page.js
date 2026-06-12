@@ -2960,7 +2960,7 @@ export default function Home() {
                                     </div>
                                     
                                     {[1, 2, 3, 4, 5, 6, 7, 8].map(stepNum => {
-                                        const stepLabels = ["Contact", "Address", "Services", "Extras", "Schedule", "Frequency", "Info", "Review"];
+                                        const stepLabels = ["Services", "Extras", "Schedule", "Frequency", "Contact", "Address", "Info", "Review"];
                                         const isActive = formStep === stepNum;
                                         const isCompleted = formStep > stepNum;
                                         return (
@@ -2988,82 +2988,8 @@ export default function Home() {
 
 
 
-                                {/* Step 1: Contact Information */}
+                                {/* Step 1: Choose Your Services */}
                                 {formStep === 1 && (
-                                    <div className="flex flex-col gap-4 animate-fade">
-                                        <div>
-                                            <h4 className="font-extrabold text-slate-800 text-sm">Contact Information</h4>
-                                            <p className="text-slate-400 text-[11px]">The information will be used to contact you about your service</p>
-                                        </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div className="form-group flex flex-col gap-1">
-                                                <label className="font-bold text-slate-700">First Name *</label>
-                                                <input type="text" required value={bookingForm.firstName} onChange={e => setBookingForm(prev => ({ ...prev, firstName: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="Jane" />
-                                            </div>
-                                            <div className="form-group flex flex-col gap-1">
-                                                <label className="font-bold text-slate-700">Last Name *</label>
-                                                <input type="text" required value={bookingForm.lastName} onChange={e => setBookingForm(prev => ({ ...prev, lastName: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="Jenkins" />
-                                            </div>
-                                            <div className="form-group flex flex-col gap-1 md:col-span-2">
-                                                <label className="font-bold text-slate-700">Email Address *</label>
-                                                <input type="email" required value={bookingForm.email} onChange={e => setBookingForm(prev => ({ ...prev, email: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="jane@jenkins.com" />
-                                            </div>
-                                            <div className="form-group flex flex-col gap-1 md:col-span-2">
-                                                <label className="font-bold text-slate-700">Phone Number *</label>
-                                                <input type="tel" required value={bookingForm.phone} onChange={e => setBookingForm(prev => ({ ...prev, phone: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="555-0199" />
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Step 2: Service Address */}
-                                {formStep === 2 && (
-                                    <div className="flex flex-col gap-4 animate-fade">
-                                        <div>
-                                            <h4 className="font-extrabold text-slate-800 text-sm">Service Address</h4>
-                                            <p className="text-slate-400 text-[11px]">Where would you like us to clean?</p>
-                                        </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            {/* Autocomplete restricted to Ontario, Canada maps */}
-                                            <div ref={autocompleteRef} className="form-group flex flex-col gap-1 md:col-span-2 relative">
-                                                <label className="font-bold text-slate-700">Street Address *</label>
-                                                <div className="search-input-wrapper w-full">
-                                                    <input type="text" required value={bookingForm.address1} onChange={handleAddressChange} onFocus={() => addressSuggestions.length > 0 && setShowSuggestions(true)} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="Type street address to search Ontario maps..." />
-                                                </div>
-                                                {showSuggestions && addressSuggestions.length > 0 && (
-                                                    <div className="absolute top-[60px] left-0 right-0 bg-white border border-slate-200 rounded-lg shadow-xl max-h-[160px] overflow-y-auto z-[20000] flex flex-col">
-                                                        {addressSuggestions.map((place, idx) => (
-                                                            <div key={idx} onClick={() => selectSuggestion(place)} className="p-3 border-b border-slate-100 hover:bg-slate-50 cursor-pointer text-[11px] text-slate-600 truncate">{place.display_name}</div>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="form-group flex flex-col gap-1">
-                                                <label className="font-bold text-slate-700">Apt # / Suite / Unit</label>
-                                                <input type="text" value={bookingForm.address2} onChange={e => setBookingForm(prev => ({ ...prev, address2: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="Suite 404" />
-                                            </div>
-                                            <div className="form-group flex flex-col gap-1">
-                                                <label className="font-bold text-slate-700">City *</label>
-                                                <input type="text" required value={bookingForm.city} onChange={e => setBookingForm(prev => ({ ...prev, city: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="Toronto" />
-                                            </div>
-                                            <div className="form-group flex flex-col gap-1">
-                                                <label className="font-bold text-slate-700">Postal Code *</label>
-                                                <input type="text" required value={bookingForm.postalCode} onChange={e => setBookingForm(prev => ({ ...prev, postalCode: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="M5B 1S1" />
-                                            </div>
-                                            <div className="form-group flex flex-col gap-1">
-                                                <label className="font-bold text-slate-700">State / Province</label>
-                                                <input type="text" value={bookingForm.state} onChange={e => setBookingForm(prev => ({ ...prev, state: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="Ontario" />
-                                            </div>
-                                            <div className="form-group flex flex-col gap-1 md:col-span-2">
-                                                <label className="font-bold text-slate-700">Country</label>
-                                                <input type="text" value={bookingForm.country} onChange={e => setBookingForm(prev => ({ ...prev, country: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="Canada" />
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Step 3: Choose Your Services */}
-                                {formStep === 3 && (
                                     <div className="flex flex-col gap-4 animate-fade">
                                         <div>
                                             <h4 className="font-extrabold text-slate-800 text-sm">Choose Your Services</h4>
@@ -3094,8 +3020,8 @@ export default function Home() {
                                     </div>
                                 )}
 
-                                {/* Step 4: Select Extras Grid */}
-                                {formStep === 4 && (
+                                {/* Step 2: Select Extras Grid */}
+                                {formStep === 2 && (
                                     <div className="flex flex-col gap-4 animate-fade">
                                         <div className="text-center">
                                             <h4 className="font-extrabold text-slate-800 text-sm">Select Extras</h4>
@@ -3192,8 +3118,8 @@ export default function Home() {
                                     </div>
                                 )}
 
-                                {/* Step 5: Schedule Date & Time Availability */}
-                                {formStep === 5 && (
+                                {/* Step 3: Schedule Date & Time Availability */}
+                                {formStep === 3 && (
                                     <div className="animate-fade" style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
                                         <div>
                                             <h4 className="font-extrabold text-slate-800 text-sm" style={{ margin: 0 }}>When would you like us to come?</h4>
@@ -3251,8 +3177,8 @@ export default function Home() {
                                     </div>
                                 )}
 
-                                {/* Step 6: How Often? (Frequency) */}
-                                {formStep === 6 && (
+                                {/* Step 4: How Often? (Frequency) */}
+                                {formStep === 4 && (
                                     <div className="flex flex-col gap-4 animate-fade">
                                         <div className="text-center">
                                             <h4 className="font-extrabold text-slate-800 text-sm">How Often?</h4>
@@ -3335,8 +3261,90 @@ export default function Home() {
                                     </div>
                                 )}
 
-                                {/* Step 7: Additional Information */}
+                                {/* Step 5: Additional Information */}
+                                {formStep === 5 && (
+                                    <div className="animate-fade" style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
+                                        <div>
+                                            <h4 className="font-extrabold text-slate-800 text-sm" style={{ margin: 0 }}>Additional Information</h4>
+                                            <p className="text-slate-400 text-[11px]" style={{ margin: '4px 0 0 0' }}>Share with us more details about your home</p>
+                                        </div>
+
+                                {/* Step 6: Contact Information */}
+                                {formStep === 6 && (
+                                    <div className="flex flex-col gap-4 animate-fade">
+                                        <div>
+                                            <h4 className="font-extrabold text-slate-800 text-sm">Contact Information</h4>
+                                            <p className="text-slate-400 text-[11px]">The information will be used to contact you about your service</p>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="form-group flex flex-col gap-1">
+                                                <label className="font-bold text-slate-700">First Name *</label>
+                                                <input type="text" required value={bookingForm.firstName} onChange={e => setBookingForm(prev => ({ ...prev, firstName: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="Jane" />
+                                            </div>
+                                            <div className="form-group flex flex-col gap-1">
+                                                <label className="font-bold text-slate-700">Last Name *</label>
+                                                <input type="text" required value={bookingForm.lastName} onChange={e => setBookingForm(prev => ({ ...prev, lastName: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="Jenkins" />
+                                            </div>
+                                            <div className="form-group flex flex-col gap-1 md:col-span-2">
+                                                <label className="font-bold text-slate-700">Email Address *</label>
+                                                <input type="email" required value={bookingForm.email} onChange={e => setBookingForm(prev => ({ ...prev, email: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="jane@jenkins.com" />
+                                            </div>
+                                            <div className="form-group flex flex-col gap-1 md:col-span-2">
+                                                <label className="font-bold text-slate-700">Phone Number *</label>
+                                                <input type="tel" required value={bookingForm.phone} onChange={e => setBookingForm(prev => ({ ...prev, phone: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="555-0199" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Step 7: Service Address */}
                                 {formStep === 7 && (
+                                    <div className="flex flex-col gap-4 animate-fade">
+                                        <div>
+                                            <h4 className="font-extrabold text-slate-800 text-sm">Service Address</h4>
+                                            <p className="text-slate-400 text-[11px]">Where would you like us to clean?</p>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {/* Autocomplete restricted to Ontario, Canada maps */}
+                                            <div ref={autocompleteRef} className="form-group flex flex-col gap-1 md:col-span-2 relative">
+                                                <label className="font-bold text-slate-700">Street Address *</label>
+                                                <div className="search-input-wrapper w-full">
+                                                    <input type="text" required value={bookingForm.address1} onChange={handleAddressChange} onFocus={() => addressSuggestions.length > 0 && setShowSuggestions(true)} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="Type street address to search Ontario maps..." />
+                                                </div>
+                                                {showSuggestions && addressSuggestions.length > 0 && (
+                                                    <div className="absolute top-[60px] left-0 right-0 bg-white border border-slate-200 rounded-lg shadow-xl max-h-[160px] overflow-y-auto z-[20000] flex flex-col">
+                                                        {addressSuggestions.map((place, idx) => (
+                                                            <div key={idx} onClick={() => selectSuggestion(place)} className="p-3 border-b border-slate-100 hover:bg-slate-50 cursor-pointer text-[11px] text-slate-600 truncate">{place.display_name}</div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="form-group flex flex-col gap-1">
+                                                <label className="font-bold text-slate-700">Apt # / Suite / Unit</label>
+                                                <input type="text" value={bookingForm.address2} onChange={e => setBookingForm(prev => ({ ...prev, address2: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="Suite 404" />
+                                            </div>
+                                            <div className="form-group flex flex-col gap-1">
+                                                <label className="font-bold text-slate-700">City *</label>
+                                                <input type="text" required value={bookingForm.city} onChange={e => setBookingForm(prev => ({ ...prev, city: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="Toronto" />
+                                            </div>
+                                            <div className="form-group flex flex-col gap-1">
+                                                <label className="font-bold text-slate-700">Postal Code *</label>
+                                                <input type="text" required value={bookingForm.postalCode} onChange={e => setBookingForm(prev => ({ ...prev, postalCode: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="M5B 1S1" />
+                                            </div>
+                                            <div className="form-group flex flex-col gap-1">
+                                                <label className="font-bold text-slate-700">State / Province</label>
+                                                <input type="text" value={bookingForm.state} onChange={e => setBookingForm(prev => ({ ...prev, state: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="Ontario" />
+                                            </div>
+                                            <div className="form-group flex flex-col gap-1 md:col-span-2">
+                                                <label className="font-bold text-slate-700">Country</label>
+                                                <input type="text" value={bookingForm.country} onChange={e => setBookingForm(prev => ({ ...prev, country: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="Canada" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Step 5: Additional Information */}
+                                {formStep === 5 && (
                                     <div className="animate-fade" style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
                                         <div>
                                             <h4 className="font-extrabold text-slate-800 text-sm" style={{ margin: 0 }}>Additional Information</h4>
@@ -3706,8 +3714,8 @@ export default function Home() {
 
                             </div>
                             
-                            {/* Live Price Preview Strip (Steps 3–7) */}
-                            {formStep >= 3 && formStep <= 7 && (() => {
+                            {/* Live Price Preview Strip (Steps 1–4) */}
+                            {formStep >= 1 && formStep <= 4 && (() => {
                                 const liveCalc = calculateBookingTotal(bookingForm);
                                 const freqLabel = bookingForm.frequency && bookingForm.frequency !== 'One-Time' ? bookingForm.frequency : null;
                                 return (
@@ -3724,7 +3732,7 @@ export default function Home() {
                                                 </span>
                                             )}
                                             {!freqLabel && (
-                                                <span className="wizard-price-preview-hint">Choose a recurring frequency in Step 6 to unlock discounts</span>
+                                                <span className="wizard-price-preview-hint">Choose a recurring frequency in Step 4 to unlock discounts</span>
                                             )}
                                         </div>
                                     </div>
