@@ -2557,16 +2557,18 @@ export default function Home() {
                 {/* TAB 4: FIELD STAFF ASSIGNMENTS VIEW */}
                 {activeTab === "teams" && (
                     <div className="animate-fade flex flex-col gap-6">
-                        <div className="ops-control-header">
-                            <div>
-                                <p className="ops-eyebrow">People Management</p>
-                                <h3 className="ops-title">Field Staff Profiles</h3>
-                                <p className="ops-copy">
-                                    Open a staff profile to review branch status, required documents, eligibility, and approval requests. Staff can submit updates from their own login for branch admin approval.
-                                </p>
+                        {!isViewingOwnCleanerProfile && (
+                            <div className="ops-control-header">
+                                <div>
+                                    <p className="ops-eyebrow">People Management</p>
+                                    <h3 className="ops-title">Field Staff Profiles</h3>
+                                    <p className="ops-copy">
+                                        Open a staff profile to review branch status, required documents, eligibility, and approval requests. Staff can submit updates from their own login for branch admin approval.
+                                    </p>
+                                </div>
+                                <span className="ops-chip">{peopleRoster.length} Visible Staff</span>
                             </div>
-                            <span className="ops-chip">{peopleRoster.length} Visible Staff</span>
-                        </div>
+                        )}
                         {peopleRoster.length === 0 ? (
                             <div className="empty-state p-12 text-center text-slate-400 bg-white border border-slate-200 rounded-2xl shadow-md">
                                 <svg viewBox="0 0 24 24" width="48" height="48" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-4 text-slate-300"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
@@ -2575,61 +2577,63 @@ export default function Home() {
                             </div>
                         ) : (
                             <div className="people-management-shell">
-                                <div className="teams-grid">
-                                    {peopleRoster.map(member => {
-                                        const assignedJobs = bookings.filter(b => b.assignedStaffIds?.includes(member.uid) && b.status !== "Cancelled");
-                                        const completedCount = assignedJobs.filter(b => b.status === "Completed").length;
-                                        const initials = (member.name || member.email || "FS").split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2) || "FS";
-                                        const requestPending = member.staffProfileRequest?.requestedProfile;
-                                        return (
-                                            <button
-                                                key={member.uid}
-                                                type="button"
-                                                onClick={() => {
-                                                    setSelectedStaffUid(member.uid);
-                                                    setStaffProfileDraftOwnerUid(member.uid);
-                                                    setStaffProfileDraft(normalizeStaffProfile(member.staffProfile));
-                                                    setStaffProfileFeedback("");
-                                                    setStaffProfileRejectReason("");
-                                                    setStaffProfileEditOpen(false);
-                                                }}
-                                                className={`team-card team-card-button ${selectedStaffMember?.uid === member.uid ? "team-card-active" : ""}`}
-                                            >
-                                                <div className="team-card-header">
-                                                    <div className="team-card-title-group">
-                                                        <div className="team-avatar-square team-sparkle-bg">
-                                                            {initials}
+                                {!isViewingOwnCleanerProfile && (
+                                    <div className="teams-grid">
+                                        {peopleRoster.map(member => {
+                                            const assignedJobs = bookings.filter(b => b.assignedStaffIds?.includes(member.uid) && b.status !== "Cancelled");
+                                            const completedCount = assignedJobs.filter(b => b.status === "Completed").length;
+                                            const initials = (member.name || member.email || "FS").split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2) || "FS";
+                                            const requestPending = member.staffProfileRequest?.requestedProfile;
+                                            return (
+                                                <button
+                                                    key={member.uid}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setSelectedStaffUid(member.uid);
+                                                        setStaffProfileDraftOwnerUid(member.uid);
+                                                        setStaffProfileDraft(normalizeStaffProfile(member.staffProfile));
+                                                        setStaffProfileFeedback("");
+                                                        setStaffProfileRejectReason("");
+                                                        setStaffProfileEditOpen(false);
+                                                    }}
+                                                    className={`team-card team-card-button ${selectedStaffMember?.uid === member.uid ? "team-card-active" : ""}`}
+                                                >
+                                                    <div className="team-card-header">
+                                                        <div className="team-card-title-group">
+                                                            <div className="team-avatar-square team-sparkle-bg">
+                                                                {initials}
+                                                            </div>
+                                                            <div className="team-card-info">
+                                                                <h4>{member.name}</h4>
+                                                                <span>
+                                                                    {getRoleLabel(member.role)} · {member.branchName || "Ottawa"}
+                                                                </span>
+                                                            </div>
                                                         </div>
-                                                        <div className="team-card-info">
-                                                            <h4>{member.name}</h4>
-                                                            <span>
-                                                                {getRoleLabel(member.role)} · {member.branchName || "Ottawa"}
-                                                            </span>
+                                                        {requestPending && <span className="ops-chip ops-chip-green">Needs Review</span>}
+                                                    </div>
+                                                    <div className="team-card-body">
+                                                        <p className="text-xs text-slate-400 mb-4 italic">{member.email}</p>
+                                                        <div className="team-members-container">
+                                                            <h5 className="team-section-title">Profile Status</h5>
+                                                            <div className="flex flex-col gap-2 text-xs text-slate-600">
+                                                                <div><strong>Account:</strong> {member.status}</div>
+                                                                <div><strong>Profile:</strong> {member.staffProfileMeta?.status || "incomplete"}</div>
+                                                                <div><strong>Branch:</strong> {member.branchName || "Ottawa"}</div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="team-jobs-today-container mt-4 pt-3 border-t border-slate-100">
+                                                            <div className="flex justify-between items-center text-xs font-bold text-slate-500">
+                                                                <span>Assigned jobs: <strong>{assignedJobs.length}</strong></span>
+                                                                <span>Completed: <strong>{completedCount}</strong></span>
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                    {requestPending && <span className="ops-chip ops-chip-green">Needs Review</span>}
-                                                </div>
-                                                <div className="team-card-body">
-                                                    <p className="text-xs text-slate-400 mb-4 italic">{member.email}</p>
-                                                    <div className="team-members-container">
-                                                        <h5 className="team-section-title">Profile Status</h5>
-                                                        <div className="flex flex-col gap-2 text-xs text-slate-600">
-                                                            <div><strong>Account:</strong> {member.status}</div>
-                                                            <div><strong>Profile:</strong> {member.staffProfileMeta?.status || "incomplete"}</div>
-                                                            <div><strong>Branch:</strong> {member.branchName || "Ottawa"}</div>
-                                                        </div>
-                                                    </div>
-                                                    <div className="team-jobs-today-container mt-4 pt-3 border-t border-slate-100">
-                                                        <div className="flex justify-between items-center text-xs font-bold text-slate-500">
-                                                            <span>Assigned jobs: <strong>{assignedJobs.length}</strong></span>
-                                                            <span>Completed: <strong>{completedCount}</strong></span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
 
                                 {selectedStaffMember && activeStaffProfileDraft && (
                                     <section className="people-profile-canvas">
