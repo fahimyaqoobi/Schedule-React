@@ -69,6 +69,8 @@ const Icons = {
     Alert: () => <svg viewBox="0 0 24 24" width="36" height="36" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>,
     ChevronLeft: () => <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>,
     ChevronRight: () => <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>,
+    Clock: () => <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 3"></path></svg>,
+    Cash: () => <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"></rect><circle cx="12" cy="12" r="3"></circle><path d="M6 9h.01"></path><path d="M18 15h.01"></path></svg>,
     Loading: () => <svg className="animate-spin" viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>
 };
 
@@ -110,6 +112,41 @@ function normalizeBlockedDateList(values = []) {
     return Array.from(new Set((values || []).map(value => String(value || "").trim()).filter(Boolean))).sort();
 }
 
+function formatDurationMinutes(totalMinutes = 0) {
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return `${hours}h ${String(minutes).padStart(2, "0")}m`;
+}
+
+function formatRuntime(startedAt, now) {
+    if (!startedAt) return "00:00:00";
+    const diffSeconds = Math.max(0, Math.floor((now - new Date(startedAt).getTime()) / 1000));
+    const hours = String(Math.floor(diffSeconds / 3600)).padStart(2, "0");
+    const minutes = String(Math.floor((diffSeconds % 3600) / 60)).padStart(2, "0");
+    const seconds = String(diffSeconds % 60).padStart(2, "0");
+    return `${hours}:${minutes}:${seconds}`;
+}
+
+function getWeekRangeLabel(now = new Date()) {
+    const current = new Date(now);
+    const day = current.getDay();
+    const diffToMonday = day === 0 ? -6 : 1 - day;
+    const monday = new Date(current);
+    monday.setDate(current.getDate() + diffToMonday);
+    monday.setHours(0, 0, 0, 0);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    return `${monday.toLocaleDateString("en-US", { month: "short", day: "numeric" })} - ${sunday.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
+}
+
+function getBookingLocationLabel(booking = {}) {
+    return [booking.address1, booking.city].filter(Boolean).join(", ");
+}
+
+function getBookingCustomerFirstName(booking = {}) {
+    return booking.firstName || String(booking.clientName || "Client").split(" ")[0] || "Client";
+}
+
 function parseGooglePlaceDetails(place) {
     const components = place?.address_components || [];
     const getComponent = (type, useShort = false) => {
@@ -131,6 +168,10 @@ function parseGooglePlaceDetails(place) {
         state: province,
         postalCode,
         country,
+        location: place?.geometry?.location ? {
+            lat: place.geometry.location.lat(),
+            lng: place.geometry.location.lng()
+        } : null,
         formattedAddress: place?.formatted_address || address1
     };
 }
@@ -373,6 +414,7 @@ export default function Home() {
 
     // Core Data collections loaded from Serverless APIs
     const [bookings, setBookings] = useState([]);
+    const [timeEntries, setTimeEntries] = useState([]);
     const [teams, setTeams] = useState([]);
     const [editRequests, setEditRequests] = useState([]);
     const [pendingUsers, setPendingUsers] = useState([]);
@@ -400,6 +442,7 @@ export default function Home() {
     const canViewAdministration = isPendingCleanerOnboarding ? false : canViewDepartment("administration");
     const canManagePermissions = canManageSystem(currentUser);
     const canManagePeopleProfiles = currentUser ? ["super-admin", "branch-admin"].includes(normalizeRole(currentUser.role)) : false;
+    const isCleanerSelfServiceView = Boolean(canSelfManagePeopleProfile && !canManagePeopleProfiles && !isPendingCleanerOnboarding);
     const branchScope = currentUser ? getBranchScopeForUser({ ...currentUser, activeBranchId: selectedBranchId }) : null;
     const activeBranch = getBranchById(branchScope?.activeBranchId || selectedBranchId || DEFAULT_BRANCH_ID);
 
@@ -453,6 +496,7 @@ export default function Home() {
         state: "Ontario",
         postalCode: "",
         country: "Canada",
+        location: null,
         service: "Studio or 1 Bedroom",
         bathrooms: "1 Bathroom",
         extras: {},
@@ -499,6 +543,7 @@ export default function Home() {
         state: "Ontario",
         postalCode: "",
         country: "Canada",
+        location: null,
         date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' }),
         time: "09:00 AM",
         assignedStaffIds: [],
@@ -540,6 +585,9 @@ export default function Home() {
     const [staffProfileRejectReason, setStaffProfileRejectReason] = useState("");
     const [staffProfileEditOpen, setStaffProfileEditOpen] = useState(false);
     const [staffProfileMobileTab, setStaffProfileMobileTab] = useState("identity");
+    const [timeEntrySaving, setTimeEntrySaving] = useState(false);
+    const [jobsFeedback, setJobsFeedback] = useState("");
+    const [jobsNow, setJobsNow] = useState(0);
 
     // Shared Secure JWT Authorization Request Fetcher
     const getAuthHeaders = useCallback(async () => {
@@ -592,7 +640,7 @@ export default function Home() {
         if (!currentUser) return;
         if (!STAFF_SELF_SERVICE_ROLES.includes(normalizeRole(currentUser.role))) return;
         const timer = setTimeout(() => {
-            setActiveTab("teams");
+            setActiveTab(currentUser.status === "pending_approval" ? "teams" : "jobs");
             setSelectedStaffUid(currentUser.uid);
             setStaffProfileDraftOwnerUid(currentUser.uid);
             setStaffProfileDraft(normalizeStaffProfile(currentUser.staffProfile));
@@ -645,6 +693,74 @@ export default function Home() {
     const selectedStaffCompletedJobs = useMemo(() => {
         return selectedStaffAssignedJobs.filter(b => b.status === "Completed");
     }, [selectedStaffAssignedJobs]);
+
+    const cleanerAssignedJobs = useMemo(() => {
+        if (!currentUser || !canSelfManagePeopleProfile) return [];
+        return bookings
+            .filter(b => b.assignedStaffIds?.includes(currentUser.uid) && b.status !== "Cancelled")
+            .sort((a, b) => {
+                const aTime = new Date(`${a.date}T00:00:00`).getTime();
+                const bTime = new Date(`${b.date}T00:00:00`).getTime();
+                return aTime - bTime;
+            });
+    }, [bookings, canSelfManagePeopleProfile, currentUser]);
+
+    const ownTimeEntries = useMemo(() => {
+        if (!currentUser) return [];
+        return timeEntries.filter(entry => entry.cleanerUid === currentUser.uid);
+    }, [currentUser, timeEntries]);
+
+    const activeTimeEntry = useMemo(() => {
+        return ownTimeEntries.find(entry => entry.status === "active") || null;
+    }, [ownTimeEntries]);
+
+    const activeJobForCleaner = useMemo(() => {
+        if (!activeTimeEntry) return null;
+        return cleanerAssignedJobs.find(job => job.id === activeTimeEntry.bookingId) || null;
+    }, [activeTimeEntry, cleanerAssignedJobs]);
+
+    const recentOwnTimeEntries = useMemo(() => {
+        return ownTimeEntries.filter(entry => entry.status !== "active").slice(0, 6);
+    }, [ownTimeEntries]);
+
+    const weeklyTimeSummary = useMemo(() => {
+        const now = new Date();
+        const day = now.getDay();
+        const diffToMonday = day === 0 ? -6 : 1 - day;
+        const monday = new Date(now);
+        monday.setDate(now.getDate() + diffToMonday);
+        monday.setHours(0, 0, 0, 0);
+        const mondayTime = monday.getTime();
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 7);
+        const entries = ownTimeEntries.filter(entry => {
+            const started = new Date(entry.startedAt || entry.createdAt || 0).getTime();
+            return started >= mondayTime && started < sunday.getTime();
+        });
+        const totalMinutes = entries.reduce((sum, entry) => sum + Number(entry.durationMinutes || 0), 0);
+        const grossPay = entries.reduce((sum, entry) => sum + Number(entry.grossPayEstimate || 0), 0);
+        return {
+            totalMinutes,
+            grossPay
+        };
+    }, [ownTimeEntries]);
+
+    const payrollSummary = useMemo(() => {
+        const pending = timeEntries.filter(entry => entry.status === "pending_approval");
+        const approved = timeEntries.filter(entry => entry.status === "approved");
+        const referenceNow = jobsNow || 0;
+        const currentPeriodEntries = timeEntries.filter(entry => {
+            const started = new Date(entry.startedAt || entry.createdAt || 0).getTime();
+            return started >= referenceNow - (7 * 24 * 60 * 60 * 1000);
+        });
+        return {
+            totalPayroll: approved.reduce((sum, entry) => sum + Number(entry.grossPayEstimate || 0), 0),
+            trackedMinutes: currentPeriodEntries.reduce((sum, entry) => sum + Number(entry.durationMinutes || 0), 0),
+            pendingCount: pending.length,
+            nextPayDate: referenceNow ? new Date(referenceNow + (11 * 24 * 60 * 60 * 1000)).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "",
+            pendingEntries: pending
+        };
+    }, [jobsNow, timeEntries]);
 
     const selectedStaffAvailability = useMemo(() => {
         return buildAvailabilitySnapshot(activeStaffProfileDraft?.availability);
@@ -808,6 +924,11 @@ export default function Home() {
         return () => clearInterval(interval);
     }, []);
 
+    useEffect(() => {
+        const interval = setInterval(() => setJobsNow(Date.now()), 1000);
+        return () => clearInterval(interval);
+    }, []);
+
     // ----------------------------------------------------
     // User Profile Poller & Sync Hook
     // ----------------------------------------------------
@@ -825,6 +946,14 @@ export default function Home() {
                 setBookings(data);
             } else {
                 console.error("Bookings sync failed", bookingsRes.status, await bookingsRes.text());
+            }
+
+            const timeEntriesRes = await fetch("/api/time-entries", { headers });
+            if (timeEntriesRes.ok) {
+                const data = await timeEntriesRes.json();
+                setTimeEntries(data);
+            } else {
+                console.error("Time entries sync failed", timeEntriesRes.status, await timeEntriesRes.text());
             }
 
             // 2. Fetch approved field staff for person-based job assignment
@@ -907,7 +1036,7 @@ export default function Home() {
                         setCurrentUser(userData);
                         setSelectedBranchId(userData.branchId || userData.branchIds?.[0] || DEFAULT_BRANCH_ID);
                         if (STAFF_SELF_SERVICE_ROLES.includes(normalizeRole(userData.role))) {
-                            setActiveTab("teams");
+                            setActiveTab(userData.status === "pending_approval" ? "teams" : "jobs");
                             setSelectedStaffUid(userData.uid);
                         }
                         if (userData.status === "approved") {
@@ -1019,7 +1148,7 @@ export default function Home() {
     const handleAddressChange = async (e) => {
         const value = e.target.value;
         setAddressQuery(value);
-        setBookingForm(prev => ({ ...prev, address1: value }));
+        setBookingForm(prev => ({ ...prev, address1: value, location: null }));
         setShowSuggestions(true);
         loadGooglePredictions(value, setAddressSuggestions);
     };
@@ -1029,7 +1158,7 @@ export default function Home() {
         const service = new window.google.maps.places.PlacesService(document.createElement("div"));
         service.getDetails({
             placeId,
-            fields: ["address_components", "formatted_address"]
+            fields: ["address_components", "formatted_address", "geometry"]
         }, (place, status) => {
             if (status !== window.google.maps.places.PlacesServiceStatus.OK || !place) return;
             onApply(parseGooglePlaceDetails(place));
@@ -1044,7 +1173,8 @@ export default function Home() {
                 city: parsed.city,
                 state: parsed.state || "ON",
                 postalCode: parsed.postalCode,
-                country: parsed.country || "Canada"
+                country: parsed.country || "Canada",
+                location: parsed.location || null
             }));
             setAddressQuery(parsed.address1);
             setAddressSuggestions([]);
@@ -1053,7 +1183,7 @@ export default function Home() {
     };
 
     const handleAdminAddressChange = (value) => {
-        setAdminCheckoutForm(prev => ({ ...prev, address1: value }));
+        setAdminCheckoutForm(prev => ({ ...prev, address1: value, location: null }));
         setShowAdminAddressSuggestions(true);
         loadGooglePredictions(value, setAdminAddressSuggestions);
     };
@@ -1066,7 +1196,8 @@ export default function Home() {
                 city: parsed.city,
                 state: parsed.state || "ON",
                 postalCode: parsed.postalCode,
-                country: parsed.country || "Canada"
+                country: parsed.country || "Canada",
+                location: parsed.location || null
             }));
             setAdminAddressSuggestions([]);
             setShowAdminAddressSuggestions(false);
@@ -1226,6 +1357,7 @@ export default function Home() {
             state: b.state || "Ontario",
             postalCode: b.postalCode || "",
             country: b.country || "Canada",
+            location: b.location || null,
             service: b.service || "Studio or 1 Bedroom",
             bathrooms: b.bathrooms || "1 Bathroom",
             extras: b.extras || {},
@@ -1544,7 +1676,7 @@ export default function Home() {
 
     const updateStaffDraftField = useCallback((section, field, value) => {
         setStaffProfileDraft(prev => {
-            const base = prev || normalizeStaffProfile(selectedStaffMember?.staffProfile);
+            const base = prev || normalizeStaffProfile(selectedStaffMember?.staffProfileRequest?.requestedProfile || selectedStaffMember?.staffProfile);
             if (!base) return prev;
             if (section === "notes") {
                 return { ...base, notes: value };
@@ -1641,6 +1773,119 @@ export default function Home() {
             setStaffProfileSaving(false);
         }
     };
+
+    const getCurrentLocation = useCallback(() => new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+            reject(new Error("Geolocation is not supported on this device."));
+            return;
+        }
+        navigator.geolocation.getCurrentPosition(
+            (position) => resolve({
+                lat: position.coords.latitude,
+                lng: position.coords.longitude,
+                accuracy: position.coords.accuracy
+            }),
+            (error) => reject(new Error(error.message || "Unable to access your location.")),
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        );
+    }), []);
+
+    const geocodeBookingLocation = useCallback((booking) => new Promise((resolve) => {
+        if (booking?.location?.lat && booking?.location?.lng) {
+            resolve(booking.location);
+            return;
+        }
+        if (!googlePlacesReady || !window.google?.maps?.Geocoder) {
+            resolve(null);
+            return;
+        }
+        const geocoder = new window.google.maps.Geocoder();
+        const address = [booking?.address1, booking?.city, booking?.state, booking?.postalCode, booking?.country].filter(Boolean).join(", ");
+        geocoder.geocode({ address }, (results, status) => {
+            if (status !== "OK" || !results?.[0]?.geometry?.location) {
+                resolve(null);
+                return;
+            }
+            resolve({
+                lat: results[0].geometry.location.lat(),
+                lng: results[0].geometry.location.lng()
+            });
+        });
+    }), [googlePlacesReady]);
+
+    const handleClockIntoJob = useCallback(async (booking) => {
+        if (!booking) return;
+        setTimeEntrySaving(true);
+        setJobsFeedback("");
+        try {
+            const headers = await getAuthHeaders();
+            const currentLocation = await getCurrentLocation();
+            const jobLocation = await geocodeBookingLocation(booking);
+            const res = await fetch("/api/time-entries", {
+                method: "POST",
+                headers,
+                body: JSON.stringify({
+                    bookingId: booking.id,
+                    currentLocation,
+                    jobLocation
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Failed to check into job.");
+            setJobsFeedback(data.message || "Checked in successfully.");
+            syncDatabaseData(currentUser);
+        } catch (error) {
+            setJobsFeedback(error.message || "Failed to check into job.");
+        } finally {
+            setTimeEntrySaving(false);
+        }
+    }, [currentUser, geocodeBookingLocation, getAuthHeaders, getCurrentLocation, syncDatabaseData]);
+
+    const handleClockOutOfJob = useCallback(async () => {
+        if (!activeTimeEntry) return;
+        setTimeEntrySaving(true);
+        setJobsFeedback("");
+        try {
+            const headers = await getAuthHeaders();
+            const currentLocation = await getCurrentLocation();
+            const res = await fetch("/api/time-entries", {
+                method: "PUT",
+                headers,
+                body: JSON.stringify({
+                    action: "checkout",
+                    entryId: activeTimeEntry.id,
+                    currentLocation
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Failed to check out of job.");
+            setJobsFeedback(data.message || "Checked out successfully.");
+            syncDatabaseData(currentUser);
+        } catch (error) {
+            setJobsFeedback(error.message || "Failed to check out of job.");
+        } finally {
+            setTimeEntrySaving(false);
+        }
+    }, [activeTimeEntry, currentUser, getAuthHeaders, getCurrentLocation, syncDatabaseData]);
+
+    const handleReviewTimeEntry = useCallback(async (entryId, action) => {
+        setTimeEntrySaving(true);
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch("/api/time-entries", {
+                method: "PUT",
+                headers,
+                body: JSON.stringify({ entryId, action })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Failed to review time entry.");
+            syncDatabaseData(currentUser);
+        } catch (error) {
+            alert(error.message || "Failed to review time entry.");
+        } finally {
+            setTimeEntrySaving(false);
+        }
+    }, [currentUser, getAuthHeaders, syncDatabaseData]);
 
     // ----------------------------------------------------
     // Admin Review Merges (Approvals / Rejections)
@@ -1838,6 +2083,7 @@ export default function Home() {
                 state: adminCheckoutForm.state,
                 postalCode: adminCheckoutForm.postalCode,
                 country: adminCheckoutForm.country,
+                location: adminCheckoutForm.location || null,
                 date: adminCheckoutForm.date,
                 time: adminCheckoutForm.time,
                 team: "",
@@ -2189,13 +2435,13 @@ export default function Home() {
                 </div>
 
                 <nav className="nav-links">
-                    {!isPendingCleanerOnboarding && (
+                    {!isPendingCleanerOnboarding && !isCleanerSelfServiceView && (
                         <button onClick={() => setActiveTab("dashboard")} className={`nav-item ${activeTab === "dashboard" ? "active" : ""}`}>
                             {Icons.Dashboard()}
                             <span>Dashboard</span>
                         </button>
                     )}
-                    {!isPendingCleanerOnboarding && (
+                    {!isPendingCleanerOnboarding && !isCleanerSelfServiceView && (
                         <button onClick={() => setActiveTab("bookings")} className={`nav-item ${activeTab === "bookings" ? "active" : ""}`}>
                             {Icons.Bookings()}
                             <span>Bookings</span>
@@ -2204,7 +2450,13 @@ export default function Home() {
                     {canViewOperations && (
                         <button onClick={() => setActiveTab("calendar")} className={`nav-item ${activeTab === "calendar" ? "active" : ""}`}>
                             {Icons.Calendar()}
-                            <span>Calendar</span>
+                            <span>{isCleanerSelfServiceView ? "Schedule" : "Calendar"}</span>
+                        </button>
+                    )}
+                    {canViewOperations && (
+                        <button onClick={() => setActiveTab("jobs")} className={`nav-item ${activeTab === "jobs" ? "active" : ""}`}>
+                            {Icons.Clock()}
+                            <span>{isCleanerSelfServiceView ? "Jobs" : "Time Cards"}</span>
                         </button>
                     )}
                     {canViewPeople && (
@@ -2228,6 +2480,12 @@ export default function Home() {
                             {editRequests.filter(r => r.status === "Pending").length > 0 && (
                                 <span className="badge">{editRequests.filter(r => r.status === "Pending").length}</span>
                             )}
+                        </button>
+                    )}
+                    {canViewAdministration && (
+                        <button onClick={() => setActiveTab("payroll")} className={`nav-item ${activeTab === "payroll" ? "active" : ""}`}>
+                            {Icons.Cash()}
+                            <span>Payroll</span>
                         </button>
                     )}
                     {canViewAdministration && (
@@ -2276,6 +2534,8 @@ export default function Home() {
                             {activeTab === "dashboard" ? "Dashboard Overview" :
                                 activeTab === "bookings" ? "Client Booking Manager" :
                                     activeTab === "calendar" ? "Scheduling Calendar" :
+                                        activeTab === "jobs" ? (isCleanerSelfServiceView ? "Jobs & Time" : "Time Cards") :
+                                            activeTab === "payroll" ? "Payroll & Time Hub" :
                                         activeTab === "teams" ? "Field Staff Assignments" :
                                             activeTab === "departments" ? "Departments Hub" :
                                             activeTab === "edit-requests" ? "Modification Requests Inbox" :
@@ -2794,6 +3054,173 @@ export default function Home() {
                                 )}
                             </div>
                         </div>
+                    </div>
+                )}
+
+                {(activeTab === "jobs" || activeTab === "payroll") && (
+                    <div className={`animate-fade ${isCleanerSelfServiceView ? "cleaner-jobs-shell" : "admin-payroll-shell"}`}>
+                        {isCleanerSelfServiceView ? (
+                            <div className="cleaner-jobs-mobile">
+                                <section className="cleaner-payroll-summary-card">
+                                    <div className="cleaner-payroll-summary-head">
+                                        <div>
+                                            <span>Weekly Summary</span>
+                                            <h3>{getWeekRangeLabel()}</h3>
+                                        </div>
+                                        <div className="cleaner-period-badge">Active Period</div>
+                                    </div>
+                                    <div className="cleaner-payroll-summary-stats">
+                                        <div>
+                                            <span>Total Hours</span>
+                                            <strong>{formatDurationMinutes(weeklyTimeSummary.totalMinutes)}</strong>
+                                        </div>
+                                        <div>
+                                            <span>Est. Gross Pay</span>
+                                            <strong>${weeklyTimeSummary.grossPay.toFixed(2)}</strong>
+                                        </div>
+                                    </div>
+                                    <div className="cleaner-payroll-summary-foot">
+                                        <span>{Icons.Cash()}</span>
+                                        <strong>Next Pay Date</strong>
+                                        <em>{payrollSummary.nextPayDate}</em>
+                                    </div>
+                                </section>
+
+                                <section className="cleaner-active-shift-card">
+                                    <button
+                                        type="button"
+                                        className={`cleaner-shift-button ${activeTimeEntry ? "clock-out" : "clock-in"}`}
+                                        disabled={timeEntrySaving || (!activeTimeEntry && cleanerAssignedJobs.length === 0)}
+                                        onClick={() => activeTimeEntry ? handleClockOutOfJob() : handleClockIntoJob(cleanerAssignedJobs[0])}
+                                    >
+                                        <span>{Icons.Clock()}</span>
+                                        <strong>{activeTimeEntry ? "Clock Out" : "Clock In"}</strong>
+                                        <em>{activeTimeEntry ? formatRuntime(activeTimeEntry.startedAt, jobsNow) : "Ready"}</em>
+                                    </button>
+                                    <div className="cleaner-active-shift-meta">
+                                        <h4>{activeJobForCleaner?.service || cleanerAssignedJobs[0]?.service || "No active job"}</h4>
+                                        <p>
+                                            {activeJobForCleaner ? `${getBookingCustomerFirstName(activeJobForCleaner)} • ${getBookingLocationLabel(activeJobForCleaner)}` : "Choose an assigned job and check in on site."}
+                                        </p>
+                                        {activeTimeEntry && <span>Started at {new Date(activeTimeEntry.startedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</span>}
+                                    </div>
+                                    {jobsFeedback && <div className="people-profile-message">{jobsFeedback}</div>}
+                                </section>
+
+                                <section className="cleaner-assigned-jobs-list">
+                                    <div className="cleaner-section-head">
+                                        <h4>Assigned Jobs</h4>
+                                        <span>{cleanerAssignedJobs.length}</span>
+                                    </div>
+                                    {cleanerAssignedJobs.length === 0 ? (
+                                        <div className="admin-cart-empty">No assigned jobs yet.</div>
+                                    ) : cleanerAssignedJobs.map(job => {
+                                        const isCurrent = activeTimeEntry?.bookingId === job.id;
+                                        return (
+                                            <article key={job.id} className={`cleaner-job-card ${isCurrent ? "active" : ""}`}>
+                                                <div className="cleaner-job-card-head">
+                                                    <div>
+                                                        <strong>{job.service}</strong>
+                                                        <span>{getBookingCustomerFirstName(job)} • {getBookingLocationLabel(job)}</span>
+                                                    </div>
+                                                    <em>{job.date}</em>
+                                                </div>
+                                                <div className="cleaner-job-card-foot">
+                                                    <span>{job.time} • {job.duration}h</span>
+                                                    {!activeTimeEntry ? (
+                                                        <button type="button" onClick={() => handleClockIntoJob(job)} disabled={timeEntrySaving}>Check In</button>
+                                                    ) : (
+                                                        <button type="button" disabled={!isCurrent || timeEntrySaving} onClick={handleClockOutOfJob}>
+                                                            {isCurrent ? "Check Out" : "In Progress"}
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </article>
+                                        );
+                                    })}
+                                </section>
+
+                                <section className="cleaner-recent-time-list">
+                                    <div className="cleaner-section-head">
+                                        <h4>Recent Entries</h4>
+                                    </div>
+                                    {recentOwnTimeEntries.length === 0 ? (
+                                        <div className="admin-cart-empty">No completed time entries yet.</div>
+                                    ) : recentOwnTimeEntries.map(entry => (
+                                        <article key={entry.id} className="cleaner-recent-entry-card">
+                                            <div>
+                                                <strong>{entry.serviceName}</strong>
+                                                <span>{entry.bookingDate} • {formatDurationMinutes(entry.durationMinutes || 0)}</span>
+                                            </div>
+                                            <div className={`cleaner-entry-status status-${entry.status}`}>
+                                                <strong>{entry.status.replace("_", " ")}</strong>
+                                                <em>${Number(entry.grossPayEstimate || 0).toFixed(2)}</em>
+                                            </div>
+                                        </article>
+                                    ))}
+                                </section>
+                            </div>
+                        ) : (
+                            <div className="admin-payroll-grid">
+                                <div className="admin-payroll-main">
+                                    <div className="admin-payroll-hero">
+                                        <div>
+                                            <h3>Payroll & Time Hub</h3>
+                                            <p>Manage staff compensation and shift approvals for the current period.</p>
+                                        </div>
+                                        <div className="admin-payroll-actions">
+                                            <button type="button" className="team-secondary-action" onClick={() => syncDatabaseData(currentUser)}>Refresh</button>
+                                        </div>
+                                    </div>
+                                    <div className="admin-payroll-summary">
+                                        <article><span>Total Payroll</span><strong>${payrollSummary.totalPayroll.toFixed(2)}</strong></article>
+                                        <article><span>Hours Tracked</span><strong>{formatDurationMinutes(payrollSummary.trackedMinutes)}</strong></article>
+                                        <article><span>Pending Approvals</span><strong>{payrollSummary.pendingCount} entries</strong></article>
+                                        <article><span>Next Pay Date</span><strong>{payrollSummary.nextPayDate}</strong></article>
+                                    </div>
+                                    <section className="admin-payroll-queue">
+                                        <div className="cleaner-section-head">
+                                            <h4>Shift Approval Queue</h4>
+                                            <span>{payrollSummary.pendingEntries.length} pending</span>
+                                        </div>
+                                        <div className="admin-payroll-table">
+                                            <div className="admin-payroll-table-head">
+                                                <span>Staff</span>
+                                                <span>Date</span>
+                                                <span>Service</span>
+                                                <span>Duration</span>
+                                                <span>Total Pay</span>
+                                                <span>Status</span>
+                                                <span>Actions</span>
+                                            </div>
+                                            {payrollSummary.pendingEntries.length === 0 ? (
+                                                <div className="admin-cart-empty">No pending payroll approvals.</div>
+                                            ) : payrollSummary.pendingEntries.map(entry => (
+                                                <div key={entry.id} className="admin-payroll-row">
+                                                    <span>{entry.cleanerName}</span>
+                                                    <span>{entry.bookingDate || entry.startedAt?.split("T")[0]}</span>
+                                                    <span>{entry.serviceName}</span>
+                                                    <span>{formatDurationMinutes(entry.durationMinutes || 0)}</span>
+                                                    <span>${Number(entry.grossPayEstimate || 0).toFixed(2)}</span>
+                                                    <span>{entry.status}</span>
+                                                    <div className="admin-payroll-row-actions">
+                                                        <button type="button" onClick={() => handleReviewTimeEntry(entry.id, "approve")} disabled={timeEntrySaving}>Approve</button>
+                                                        <button type="button" className="team-secondary-action" onClick={() => handleReviewTimeEntry(entry.id, "reject")} disabled={timeEntrySaving}>Reject</button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </section>
+                                </div>
+                                <aside className="admin-payroll-side">
+                                    <div className="admin-payroll-alert-card">
+                                        <span>Approval Deadline</span>
+                                        <strong>Wednesday at 5:00 PM</strong>
+                                        <p>All pending shifts must be approved before the cutoff for payroll processing.</p>
+                                    </div>
+                                </aside>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -3872,13 +4299,13 @@ export default function Home() {
 
             {/* High Fidelity iOS Fixed Bottom Navigation Bar on Mobile Viewports */}
             <div className="mobile-nav-bar">
-                {!isPendingCleanerOnboarding && (
+                {!isPendingCleanerOnboarding && !isCleanerSelfServiceView && (
                     <button onClick={() => setActiveTab("dashboard")} className={`mobile-nav-item ${activeTab === "dashboard" ? "active" : ""}`}>
                         {Icons.Dashboard()}
                         <span>Dashboard</span>
                     </button>
                 )}
-                {!isPendingCleanerOnboarding && (
+                {!isPendingCleanerOnboarding && !isCleanerSelfServiceView && (
                     <button onClick={() => setActiveTab("bookings")} className={`mobile-nav-item ${activeTab === "bookings" ? "active" : ""}`}>
                         {Icons.Bookings()}
                         <span>Bookings</span>
@@ -3887,7 +4314,13 @@ export default function Home() {
                 {canViewOperations && (
                     <button onClick={() => setActiveTab("calendar")} className={`mobile-nav-item ${activeTab === "calendar" ? "active" : ""}`}>
                         {Icons.Calendar()}
-                        <span>Calendar</span>
+                        <span>{isCleanerSelfServiceView ? "Schedule" : "Calendar"}</span>
+                    </button>
+                )}
+                {canViewOperations && (
+                    <button onClick={() => setActiveTab("jobs")} className={`mobile-nav-item ${activeTab === "jobs" ? "active" : ""}`}>
+                        {Icons.Clock()}
+                        <span>Jobs</span>
                     </button>
                 )}
                 {canViewPeople && (
@@ -3905,6 +4338,12 @@ export default function Home() {
                                 {editRequests.filter(r => r.status === "Pending").length}
                             </span>
                         )}
+                    </button>
+                )}
+                {canViewAdministration && (
+                    <button onClick={() => setActiveTab("payroll")} className={`mobile-nav-item ${activeTab === "payroll" ? "active" : ""}`}>
+                        {Icons.Cash()}
+                        <span>Payroll</span>
                     </button>
                 )}
                 {canViewAdministration && (

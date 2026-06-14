@@ -85,8 +85,16 @@ export async function GET(request) {
             const booking = doc.data();
             const bookingBranchId = booking.branchId || DEFAULT_BRANCH_ID;
             if (!branchFilterId || bookingBranchId === branchFilterId) {
+                const isFieldStaff = role === "cleaner" || role === "subcontractor" || role === "supervisor" || role === "employee";
                 list.push({
                     ...booking,
+                    clientName: isFieldStaff ? (booking.firstName || booking.clientName?.split(" ")[0] || "Client") : booking.clientName,
+                    lastName: isFieldStaff ? "" : booking.lastName,
+                    email: isFieldStaff ? "" : booking.email,
+                    phone: isFieldStaff ? "" : booking.phone,
+                    price: isFieldStaff ? undefined : booking.price,
+                    subtotal: isFieldStaff ? undefined : booking.subtotal,
+                    tax: isFieldStaff ? undefined : booking.tax,
                     branchId: bookingBranchId
                 });
             }
