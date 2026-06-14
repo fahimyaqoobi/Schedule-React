@@ -7,6 +7,14 @@ const fieldClass = "catalog-studio-field";
 export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
     const [activeTab, setActiveTab] = useState(catalog.categories[0]?.id || "");
     const [isSaving, setIsSaving] = useState(false);
+
+    const createLocalId = (prefix) => {
+        if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+            return `${prefix}_${crypto.randomUUID()}`;
+        }
+        return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    };
+
     const catalogStats = React.useMemo(() => {
         const categories = catalog.categories.length;
         const tiers = catalog.categories.reduce((sum, cat) => sum + (cat.sizes?.length || 0), 0);
@@ -41,7 +49,7 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
                 cat.id === activeTab
                     ? {
                         ...cat,
-                        sizes: cat.sizes.map(s => s.id === sizeId ? { ...s, [field]: value } : s)
+                        sizes: (cat.sizes || []).map(s => s.id === sizeId ? { ...s, [field]: value } : s)
                     }
                     : cat
             )
@@ -55,8 +63,44 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
                 cat.id === activeTab
                     ? {
                         ...cat,
-                        addons: cat.addons.map(a => a.id === addonId ? { ...a, [field]: value } : a)
+                        addons: (cat.addons || []).map(a => a.id === addonId ? { ...a, [field]: value } : a)
                     }
+                    : cat
+            )
+        }));
+    };
+
+    const addSizeTier = () => {
+        const newTier = {
+            id: createLocalId("tier"),
+            name: "New Tier",
+            price: 0,
+            durationHrs: 1
+        };
+
+        setCatalog(prev => ({
+            ...prev,
+            categories: prev.categories.map(cat =>
+                cat.id === activeTab
+                    ? { ...cat, sizes: [...(cat.sizes || []), newTier] }
+                    : cat
+            )
+        }));
+    };
+
+    const addAddon = () => {
+        const newAddon = {
+            id: createLocalId("addon"),
+            name: "New Add-on",
+            price: 0,
+            qtySelector: false
+        };
+
+        setCatalog(prev => ({
+            ...prev,
+            categories: prev.categories.map(cat =>
+                cat.id === activeTab
+                    ? { ...cat, addons: [...(cat.addons || []), newAddon] }
                     : cat
             )
         }));
@@ -198,7 +242,7 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
                         <div className="rounded-brand-lg border border-brand-mist bg-white p-6 shadow-sm">
                             <div className="mb-5 flex items-center justify-between">
                                 <h4 className="font-heading text-xs font-black uppercase tracking-wider text-brand-slate">Size Tiers</h4>
-                                <button type="button" className="rounded-brand-sm bg-brand-action/10 px-3 py-2 font-heading text-xs font-bold text-brand-action transition hover:bg-brand-action hover:text-white">
+                                <button type="button" onClick={addSizeTier} className="rounded-brand-sm bg-brand-action/10 px-3 py-2 font-heading text-xs font-bold text-brand-action transition hover:bg-brand-action hover:text-white">
                                     + Add Tier
                                 </button>
                             </div>
@@ -208,7 +252,7 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
                                 <span>Hours</span>
                             </div>
                             <div className="max-h-[360px] overflow-y-auto pt-3">
-                                {activeCategory.sizes.map(size => (
+                                {(activeCategory.sizes || []).map(size => (
                                     <div key={size.id} className="grid grid-cols-[minmax(0,1fr)_118px_104px] gap-3 py-2">
                                         <input
                                             type="text"
@@ -243,7 +287,7 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
                                 <p className="font-heading text-[11px] font-bold uppercase tracking-wider text-brand-sky">Rules</p>
                                 <h4 className="font-heading text-lg font-black text-brand-slate">Service-Specific Add-ons</h4>
                             </div>
-                            <button type="button" className="rounded-brand-sm bg-brand-action/10 px-3 py-2 font-heading text-xs font-bold text-brand-action transition hover:bg-brand-action hover:text-white">
+                            <button type="button" onClick={addAddon} className="rounded-brand-sm bg-brand-action/10 px-3 py-2 font-heading text-xs font-bold text-brand-action transition hover:bg-brand-action hover:text-white">
                                 + Add Add-on
                             </button>
                         </div>
@@ -255,12 +299,12 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
                         </div>
 
                         <div className="flex-1 overflow-y-auto px-6 py-4">
-                            {activeCategory.addons.length === 0 ? (
+                            {(activeCategory.addons || []).length === 0 ? (
                                 <div className="flex h-40 items-center justify-center rounded-brand-sm border border-dashed border-brand-mist text-sm font-semibold text-slate-400">
                                     No add-ons configured for this service.
                                 </div>
                             ) : (
-                                activeCategory.addons.map(addon => (
+                                (activeCategory.addons || []).map(addon => (
                                     <div key={addon.id} className="grid grid-cols-[minmax(0,1fr)_124px_150px] gap-4 border-b border-slate-100 py-2.5 last:border-b-0">
                                         <input
                                             type="text"
