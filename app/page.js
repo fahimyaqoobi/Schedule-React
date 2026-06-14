@@ -12,7 +12,8 @@ import {
     reauthenticateWithCredential,
     EmailAuthProvider
 } from "firebase/auth";
-import { auth } from "../lib/firebase";
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { auth, storage } from "../lib/firebase";
 import {
     DEPARTMENTS,
     ROLE_DEFINITIONS,
@@ -484,6 +485,7 @@ export default function Home() {
     // Profile and Security settings states
     const [profileName, setProfileName] = useState("");
     const [profileLoading, setProfileLoading] = useState(false);
+    const [profilePhotoUploading, setProfilePhotoUploading] = useState(false);
     const [securityForm, setSecurityForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
     const [securityLoading, setSecurityLoading] = useState(false);
     const [selectedStaffUid, setSelectedStaffUid] = useState("");
@@ -1242,6 +1244,36 @@ export default function Home() {
             alert(`Error updating profile: ${err.message}`);
         } finally {
             setProfileLoading(false);
+        }
+    };
+
+    const handleProfilePhotoCapture = async (file) => {
+        if (!file || !currentUser) return;
+        setProfilePhotoUploading(true);
+        try {
+            const storageRef = ref(storage, `staff-profile-photos/${currentUser.uid}/${Date.now()}-${file.name || "camera-photo.jpg"}`);
+            await uploadBytes(storageRef, file, { contentType: file.type || "image/jpeg" });
+            const photoURL = await getDownloadURL(storageRef);
+
+            if (auth.currentUser) {
+                await updateProfile(auth.currentUser, { photoURL });
+            }
+
+            const headers = await getAuthHeaders();
+            const res = await fetch("/api/users", {
+                method: "PUT",
+                headers,
+                body: JSON.stringify({ updateSelf: true, photoURL })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Failed to save profile photo.");
+            setCurrentUser(data.user);
+            syncDatabaseData(data.user);
+            setStaffProfileFeedback("Profile photo updated successfully.");
+        } catch (err) {
+            setStaffProfileFeedback(err.message || "Failed to upload profile photo.");
+        } finally {
+            setProfilePhotoUploading(false);
         }
     };
 
@@ -2678,6 +2710,18 @@ export default function Home() {
                                                     <span></span>
                                                     Active
                                                 </div>
+                                                {canEditSelectedStaffProfile && (
+                                                    <label className="people-photo-upload-button">
+                                                        <input
+                                                            type="file"
+                                                            accept="image/*"
+                                                            capture="user"
+                                                            onChange={e => handleProfilePhotoCapture(e.target.files?.[0])}
+                                                            disabled={profilePhotoUploading}
+                                                        />
+                                                        {profilePhotoUploading ? "Uploading Photo..." : "Take Live Photo"}
+                                                    </label>
+                                                )}
                                             </div>
 
                                             <div className="people-mobile-profile-stats">
@@ -2836,10 +2880,10 @@ export default function Home() {
 
                                                         {staffProfileMobileTab === "employment" && (
                                                             <div className="people-mobile-editor-section">
-                                                                <label><span>Worker type</span><input value={activeStaffProfileDraft.employment.workerType} onChange={e => updateStaffDraftField("employment", "workerType", e.target.value)} /></label>
-                                                                <label><span>Years experience</span><input value={activeStaffProfileDraft.employment.yearsExperience} onChange={e => updateStaffDraftField("employment", "yearsExperience", e.target.value)} /></label>
-                                                                <label><span>Work status</span><input value={activeStaffProfileDraft.eligibility.workStatus} onChange={e => updateStaffDraftField("eligibility", "workStatus", e.target.value)} /></label>
-                                                                <label><span>Background check</span><input value={activeStaffProfileDraft.compliance.backgroundCheckStatus} onChange={e => updateStaffDraftField("compliance", "backgroundCheckStatus", e.target.value)} /></label>
+                                                                {canAdminDirectEditSelectedStaffProfile && <label><span>Worker type</span><input value={activeStaffProfileDraft.employment.workerType} onChange={e => updateStaffDraftField("employment", "workerType", e.target.value)} /></label>}
+                                                                {canAdminDirectEditSelectedStaffProfile && <label><span>Years experience</span><input value={activeStaffProfileDraft.employment.yearsExperience} onChange={e => updateStaffDraftField("employment", "yearsExperience", e.target.value)} /></label>}
+                                                                <label><span>Document upload</span><input value={activeStaffProfileDraft.eligibility.workStatus} onChange={e => updateStaffDraftField("eligibility", "workStatus", e.target.value)} placeholder="ID or document reference" /></label>
+                                                                {canAdminDirectEditSelectedStaffProfile && <label><span>Background check</span><input value={activeStaffProfileDraft.compliance.backgroundCheckStatus} onChange={e => updateStaffDraftField("compliance", "backgroundCheckStatus", e.target.value)} /></label>}
                                                                 <label className="span-2"><span>Availability notes</span><textarea value={activeStaffProfileDraft.employment.availabilityNotes} onChange={e => updateStaffDraftField("employment", "availabilityNotes", e.target.value)} /></label>
                                                             </div>
                                                         )}
@@ -3061,7 +3105,7 @@ export default function Home() {
                                                 </div>
                                                 <div className="people-profile-read-list">
                                                     <div><span>Worker Type</span><strong>{activeStaffProfileDraft.employment.workerType || getRoleLabel(selectedStaffMember.role)}</strong></div>
-                                                    <div><span>Work Permit</span><strong>{activeStaffProfileDraft.eligibility.workStatus || "Pending review"}</strong></div>
+                                                    <div><span>Document Upload</span><strong>{activeStaffProfileDraft.eligibility.workStatus || "Pending review"}</strong></div>
                                                     <div><span>Police Clearance</span><strong>{activeStaffProfileDraft.compliance.backgroundCheckStatus || "Pending"}</strong></div>
                                                     <div><span>Start Date</span><strong>{selectedStaffMember.createdAt ? selectedStaffMember.createdAt.split("T")[0] : "Pending"}</strong></div>
                                                     <div className="people-note-card">
@@ -3151,19 +3195,19 @@ export default function Home() {
                                                     </section>
                                                 </div>
                                                 <div className="people-profile-form-grid people-profile-form-grid-wide">
-                                                    <label><span>Worker type</span><input value={activeStaffProfileDraft.employment.workerType} onChange={e => updateStaffDraftField("employment", "workerType", e.target.value)} /></label>
-                                                    <label><span>Years experience</span><input value={activeStaffProfileDraft.employment.yearsExperience} onChange={e => updateStaffDraftField("employment", "yearsExperience", e.target.value)} /></label>
-                                                    <label><span>Languages</span><input value={activeStaffProfileDraft.employment.languages} onChange={e => updateStaffDraftField("employment", "languages", e.target.value)} /></label>
+                                                    {canAdminDirectEditSelectedStaffProfile && <label><span>Worker type</span><input value={activeStaffProfileDraft.employment.workerType} onChange={e => updateStaffDraftField("employment", "workerType", e.target.value)} /></label>}
+                                                    {canAdminDirectEditSelectedStaffProfile && <label><span>Years experience</span><input value={activeStaffProfileDraft.employment.yearsExperience} onChange={e => updateStaffDraftField("employment", "yearsExperience", e.target.value)} /></label>}
+                                                    {canAdminDirectEditSelectedStaffProfile && <label><span>Languages</span><input value={activeStaffProfileDraft.employment.languages} onChange={e => updateStaffDraftField("employment", "languages", e.target.value)} /></label>}
                                                     <label><span>T-shirt size</span><input value={activeStaffProfileDraft.employment.tshirtSize} onChange={e => updateStaffDraftField("employment", "tshirtSize", e.target.value)} /></label>
                                                     <label className="span-2"><span>Availability notes</span><textarea value={activeStaffProfileDraft.employment.availabilityNotes} onChange={e => updateStaffDraftField("employment", "availabilityNotes", e.target.value)} /></label>
-                                                    <label><span>Work status</span><input value={activeStaffProfileDraft.eligibility.workStatus} onChange={e => updateStaffDraftField("eligibility", "workStatus", e.target.value)} /></label>
+                                                    <label><span>Document upload</span><input value={activeStaffProfileDraft.eligibility.workStatus} onChange={e => updateStaffDraftField("eligibility", "workStatus", e.target.value)} placeholder="ID or document reference" /></label>
                                                     <label><span>Permit expiry</span><input type="date" value={activeStaffProfileDraft.eligibility.workPermitExpiry} onChange={e => updateStaffDraftField("eligibility", "workPermitExpiry", e.target.value)} /></label>
                                                     <label><span>SIN last 4</span><input value={activeStaffProfileDraft.eligibility.sinLast4} onChange={e => updateStaffDraftField("eligibility", "sinLast4", e.target.value)} /></label>
                                                     <label><span>License class</span><input value={activeStaffProfileDraft.eligibility.driversLicenseClass} onChange={e => updateStaffDraftField("eligibility", "driversLicenseClass", e.target.value)} /></label>
-                                                    <label><span>Background check</span><input value={activeStaffProfileDraft.compliance.backgroundCheckStatus} onChange={e => updateStaffDraftField("compliance", "backgroundCheckStatus", e.target.value)} /></label>
-                                                    <label><span>Background expiry</span><input type="date" value={activeStaffProfileDraft.compliance.backgroundCheckExpiry} onChange={e => updateStaffDraftField("compliance", "backgroundCheckExpiry", e.target.value)} /></label>
-                                                    <label><span>Insurance status</span><input value={activeStaffProfileDraft.compliance.insuranceStatus} onChange={e => updateStaffDraftField("compliance", "insuranceStatus", e.target.value)} /></label>
-                                                    <label><span>Insurance expiry</span><input type="date" value={activeStaffProfileDraft.compliance.insuranceExpiry} onChange={e => updateStaffDraftField("compliance", "insuranceExpiry", e.target.value)} /></label>
+                                                    {canAdminDirectEditSelectedStaffProfile && <label><span>Background check</span><input value={activeStaffProfileDraft.compliance.backgroundCheckStatus} onChange={e => updateStaffDraftField("compliance", "backgroundCheckStatus", e.target.value)} /></label>}
+                                                    {canAdminDirectEditSelectedStaffProfile && <label><span>Background expiry</span><input type="date" value={activeStaffProfileDraft.compliance.backgroundCheckExpiry} onChange={e => updateStaffDraftField("compliance", "backgroundCheckExpiry", e.target.value)} /></label>}
+                                                    {canAdminDirectEditSelectedStaffProfile && <label><span>Insurance status</span><input value={activeStaffProfileDraft.compliance.insuranceStatus} onChange={e => updateStaffDraftField("compliance", "insuranceStatus", e.target.value)} /></label>}
+                                                    {canAdminDirectEditSelectedStaffProfile && <label><span>Insurance expiry</span><input type="date" value={activeStaffProfileDraft.compliance.insuranceExpiry} onChange={e => updateStaffDraftField("compliance", "insuranceExpiry", e.target.value)} /></label>}
                                                     <label><span>Training status</span><input value={activeStaffProfileDraft.compliance.trainingStatus} onChange={e => updateStaffDraftField("compliance", "trainingStatus", e.target.value)} /></label>
                                                 </div>
                                                 <div className="people-profile-footer">
@@ -3419,6 +3463,16 @@ export default function Home() {
                                             <span className="settings-profile-role">{roleLabel}</span>
                                         </div>
                                     </div>
+                                    <label className="settings-photo-upload">
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            capture="user"
+                                            onChange={e => handleProfilePhotoCapture(e.target.files?.[0])}
+                                            disabled={profilePhotoUploading}
+                                        />
+                                        {profilePhotoUploading ? "Uploading Photo..." : "Take Or Upload Profile Photo"}
+                                    </label>
                                     <div className="form-group">
                                         <label>Display Name</label>
                                         <input

@@ -2956,6 +2956,31 @@ label {
     background: #166534;
 }
 
+.people-photo-upload-button,
+.settings-photo-upload {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 42px;
+    border-radius: 999px;
+    background: #eff6ff;
+    color: #0f4aa3;
+    padding: 0 16px;
+    font-size: 13px;
+    font-weight: 900;
+    cursor: pointer;
+    border: 1px solid #bfdbfe;
+}
+
+.people-photo-upload-button input,
+.settings-photo-upload input {
+    display: none;
+}
+
+.settings-photo-upload {
+    margin-bottom: 14px;
+}
+
 .people-mobile-profile-stats {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));

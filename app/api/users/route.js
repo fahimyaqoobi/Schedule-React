@@ -209,11 +209,20 @@ export async function PUT(request) {
         const body = await request.json();
         
         if (body.updateSelf) {
-            if (!body.name) {
-                return NextResponse.json({ error: "Name is required" }, { status: 400 });
+            if (!body.name && !body.photoURL) {
+                return NextResponse.json({ error: "At least one profile field is required" }, { status: 400 });
             }
             const userRef = adminDb.collection("users").doc(user.uid);
-            await userRef.update({ name: body.name });
+            const updatePayload = {
+                updatedAt: new Date().toISOString()
+            };
+            if (body.name) {
+                updatePayload.name = body.name;
+            }
+            if (typeof body.photoURL === "string") {
+                updatePayload.photoURL = body.photoURL;
+            }
+            await userRef.update(updatePayload);
             
             const docSnap = await userRef.get();
             return NextResponse.json({ message: "Profile updated successfully", user: normalizeStaffMember(docSnap.data()) }, { status: 200 });
