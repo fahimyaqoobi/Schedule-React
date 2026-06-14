@@ -21,6 +21,7 @@ async function authenticateRequest(request) {
     const token = authHeader.split("Bearer ")[1];
     const decodedToken = await adminAuth.verifyIdToken(token);
     const uid = decodedToken.uid;
+    const authUser = await adminAuth.getUser(uid);
     
     const userRef = adminDb.collection("users").doc(uid);
     let userDoc = await userRef.get();
@@ -34,6 +35,7 @@ async function authenticateRequest(request) {
             uid,
             name: decodedToken.name || decodedToken.email.split("@")[0],
             email: decodedToken.email,
+            photoURL: authUser.photoURL || decodedToken.picture || "",
             role: isFirst ? "super-admin" : "cleaner",
             departmentIds: isFirst ? ROLE_DEFINITIONS["super-admin"].departments : ROLE_DEFINITIONS.cleaner.departments,
             ...createDefaultBranchUserFields(isFirst ? "super-admin" : "cleaner"),
@@ -46,6 +48,14 @@ async function authenticateRequest(request) {
     }
     
     const userData = userDoc.data();
+    const syncPatch = {};
+    if ((authUser.photoURL || "") !== (userData.photoURL || "")) {
+        syncPatch.photoURL = authUser.photoURL || "";
+    }
+    if (Object.keys(syncPatch).length > 0) {
+        await userRef.update(syncPatch);
+        Object.assign(userData, syncPatch);
+    }
     if (userData.status !== "approved") {
         throw new Error("User account is pending approval or disabled");
     }
@@ -98,6 +108,7 @@ export async function GET(request) {
                         uid: authUser.uid,
                         name: authUser.displayName || authUser.email.split("@")[0],
                         email: authUser.email,
+                        photoURL: authUser.photoURL || "",
                         role: isFirst ? "super-admin" : "cleaner",
                         departmentIds: isFirst ? ROLE_DEFINITIONS["super-admin"].departments : ROLE_DEFINITIONS.cleaner.departments,
                         ...createDefaultBranchUserFields(isFirst ? "super-admin" : "cleaner"),

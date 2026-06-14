@@ -12,8 +12,9 @@ export async function POST(request) {
         }
 
         // 1. Verify the user exists in Firebase Auth to ensure it's not a spoofed request
+        let authUser;
         try {
-            await adminAuth.getUser(uid);
+            authUser = await adminAuth.getUser(uid);
         } catch (authErr) {
             return NextResponse.json({ error: "User is not authenticated in Firebase Auth." }, { status: 401 });
         }
@@ -46,6 +47,7 @@ export async function POST(request) {
             uid,
             name,
             email,
+            photoURL: authUser.photoURL || "",
             role: roleVal,
             departmentIds: ROLE_DEFINITIONS[roleVal]?.departments || [],
             ...createDefaultBranchUserFields(roleVal),

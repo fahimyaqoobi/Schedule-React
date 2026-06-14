@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import dynamic from "next/dynamic";
+import Image from "next/image";
 import {
     signInWithEmailAndPassword,
     signOut,
@@ -79,6 +80,10 @@ const INITIAL_TEAMS = [
     { id: 'team-deluxe', name: 'Team Deluxe', color: 'deluxe', lead: 'Robert Miller', size: 3, members: 'Robert Miller, Clara Oswald, Arthur Dent', description: 'Standard Residential & Sparkle cleans' },
     { id: 'team-ecoclean', name: 'Team EcoClean', color: 'ecoclean', lead: 'Sarah Green', size: 2, members: 'Sarah Green, Lily Evans', description: 'Green, pet-friendly biodegradable cleaning' }
 ];
+
+function getInitials(value = "") {
+    return (value || "FS").split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2) || "FS";
+}
 
 const DEFAULT_PRICES = {
     services: {
@@ -2014,7 +2019,11 @@ export default function Home() {
                 <div className="sidebar-footer">
                     <div className="user-profile flex justify-between items-center w-full">
                         <div className="flex items-center gap-2.5">
-                            <div className="user-avatar text-white font-bold">{currentUser.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)}</div>
+                            <div className={`user-avatar text-white font-bold ${currentUser.photoURL ? "user-avatar-photo" : ""}`}>
+                                {currentUser.photoURL ? (
+                                    <Image src={currentUser.photoURL} alt={currentUser.name} fill sizes="40px" className="avatar-image" unoptimized />
+                                ) : getInitials(currentUser.name)}
+                            </div>
                             <div className="user-details flex flex-col">
                                 <span className="user-name text-slate-800 text-xs font-bold leading-tight">{currentUser.name}</span>
                                 <span className="user-role text-[10px] text-slate-400 mt-0.5">{roleLabel}{currentUser.teamId ? ` (${currentUser.teamId})` : ""}</span>
@@ -2582,7 +2591,7 @@ export default function Home() {
                                         {peopleRoster.map(member => {
                                             const assignedJobs = bookings.filter(b => b.assignedStaffIds?.includes(member.uid) && b.status !== "Cancelled");
                                             const completedCount = assignedJobs.filter(b => b.status === "Completed").length;
-                                            const initials = (member.name || member.email || "FS").split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2) || "FS";
+                                            const initials = getInitials(member.name || member.email || "FS");
                                             const requestPending = member.staffProfileRequest?.requestedProfile;
                                             return (
                                                 <button
@@ -2600,8 +2609,10 @@ export default function Home() {
                                                 >
                                                     <div className="team-card-header">
                                                         <div className="team-card-title-group">
-                                                            <div className="team-avatar-square team-sparkle-bg">
-                                                                {initials}
+                                                        <div className="team-avatar-square team-sparkle-bg">
+                                                                {member.photoURL ? (
+                                                                    <Image src={member.photoURL} alt={member.name || member.email} fill sizes="68px" className="avatar-image" unoptimized />
+                                                                ) : initials}
                                                             </div>
                                                             <div className="team-card-info">
                                                                 <h4>{member.name}</h4>
@@ -2640,8 +2651,10 @@ export default function Home() {
                                         <section className={`people-mobile-profile-shell ${isViewingOwnCleanerProfile ? "people-mobile-profile-shell-self" : ""}`}>
                                             <div className="people-mobile-profile-top">
                                                 <div className="people-mobile-profile-avatar-wrap">
-                                                    <div className="people-mobile-profile-avatar">
-                                                        {(selectedStaffMember.name || selectedStaffMember.email || "FS").split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)}
+                                                    <div className={`people-mobile-profile-avatar ${selectedStaffMember.photoURL ? "people-mobile-profile-avatar-photo" : ""}`}>
+                                                        {selectedStaffMember.photoURL ? (
+                                                            <Image src={selectedStaffMember.photoURL} alt={selectedStaffMember.name || selectedStaffMember.email} fill sizes="110px" className="avatar-image" unoptimized />
+                                                        ) : getInitials(selectedStaffMember.name || selectedStaffMember.email || "FS")}
                                                     </div>
                                                     <span className="people-mobile-profile-presence"></span>
                                                 </div>
@@ -2913,8 +2926,10 @@ export default function Home() {
                                         <div className="people-profile-hero people-profile-hero-reference">
                                             <div className="people-profile-hero-main">
                                                 <div className="people-profile-photo-card">
-                                                    <div className="people-profile-photo">
-                                                        {(selectedStaffMember.name || selectedStaffMember.email || "FS").split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)}
+                                                    <div className={`people-profile-photo ${selectedStaffMember.photoURL ? "people-profile-photo-image" : ""}`}>
+                                                        {selectedStaffMember.photoURL ? (
+                                                            <Image src={selectedStaffMember.photoURL} alt={selectedStaffMember.name || selectedStaffMember.email} fill sizes="140px" className="avatar-image" unoptimized />
+                                                        ) : getInitials(selectedStaffMember.name || selectedStaffMember.email || "FS")}
                                                     </div>
                                                     <span className="people-profile-active-badge">Active</span>
                                                 </div>
@@ -3405,8 +3420,10 @@ export default function Home() {
                                 </div>
                                 <form onSubmit={handleProfileUpdate} className="settings-form">
                                     <div className="settings-avatar-group">
-                                        <div className="settings-avatar">
-                                            {currentUser.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)}
+                                        <div className={`settings-avatar ${currentUser.photoURL ? "settings-avatar-photo" : ""}`}>
+                                            {currentUser.photoURL ? (
+                                                <Image src={currentUser.photoURL} alt={currentUser.name} fill sizes="64px" className="avatar-image" unoptimized />
+                                            ) : getInitials(currentUser.name)}
                                         </div>
                                         <div>
                                             <h5 className="settings-profile-name">{currentUser.name}</h5>
