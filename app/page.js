@@ -505,6 +505,7 @@ export default function Home() {
     }, [peopleRoster, activeSelectedStaffUid]);
 
     const canEditSelectedStaffProfile = Boolean(currentUser && selectedStaffMember && currentUser.uid === selectedStaffMember.uid);
+    const canAdminDirectEditSelectedStaffProfile = Boolean(currentUser && selectedStaffMember && canManagePeopleProfiles);
 
     const activeStaffProfileDraft = useMemo(() => {
         if (!selectedStaffMember) return null;
@@ -1312,6 +1313,33 @@ export default function Home() {
             syncDatabaseData(currentUser);
         } catch (err) {
             setStaffProfileFeedback(err.message || "Failed to review staff profile request.");
+        } finally {
+            setStaffProfileSaving(false);
+        }
+    };
+
+    const handleSaveStaffProfileDirect = async () => {
+        if (!selectedStaffMember || !activeStaffProfileDraft) return;
+        setStaffProfileSaving(true);
+        setStaffProfileFeedback("");
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch("/api/users", {
+                method: "PUT",
+                headers,
+                body: JSON.stringify({
+                    updateStaffProfileDirect: true,
+                    targetUid: selectedStaffMember.uid,
+                    staffProfile: activeStaffProfileDraft
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Failed to save staff profile.");
+            setStaffProfileFeedback(data.message || "Staff profile updated.");
+            setStaffProfileEditOpen(false);
+            syncDatabaseData(currentUser);
+        } catch (err) {
+            setStaffProfileFeedback(err.message || "Failed to save staff profile.");
         } finally {
             setStaffProfileSaving(false);
         }
@@ -2621,13 +2649,13 @@ export default function Home() {
                                                 <button
                                                     type="button"
                                                     className="people-icon-action"
-                                                    disabled={!canEditSelectedStaffProfile}
+                                                    disabled={!canEditSelectedStaffProfile && !canAdminDirectEditSelectedStaffProfile}
                                                     onClick={() => {
-                                                        if (!canEditSelectedStaffProfile) return;
+                                                        if (!canEditSelectedStaffProfile && !canAdminDirectEditSelectedStaffProfile) return;
                                                         setStaffProfileDraftOwnerUid(selectedStaffMember.uid);
                                                         setStaffProfileDraft(normalizeStaffProfile(selectedStaffMember.staffProfileRequest?.requestedProfile || selectedStaffMember.staffProfile));
                                                         setStaffProfileFeedback("");
-                                                        setStaffProfileEditOpen(prev => !prev);
+                                                        setStaffProfileEditOpen(true);
                                                     }}
                                                 >
                                                     {Icons.Edit()}
@@ -2666,6 +2694,7 @@ export default function Home() {
                                             </div>
                                         )}
 
+                                        {!staffProfileEditOpen ? (
                                         <div className="people-profile-reference-grid">
                                             <article className="people-profile-section">
                                                 <div className="people-profile-section-head">
@@ -2775,24 +2804,71 @@ export default function Home() {
                                             </article>
 
                                         </div>
-
-                                        {staffProfileEditOpen && (
-                                            <section className="people-profile-editor">
+                                        ) : (
+                                            <section className="people-profile-editor people-profile-editor-full">
                                                 <div className="people-profile-section-head">
                                                     <p className="ops-eyebrow">Edit Profile</p>
-                                                    <h4>Submit Profile Changes For Review</h4>
+                                                    <h4>{canAdminDirectEditSelectedStaffProfile ? "Edit Staff Profile" : "Submit Profile Changes For Review"}</h4>
+                                                </div>
+                                                <div className="people-edit-groups">
+                                                    <section className="people-edit-group">
+                                                        <div className="people-profile-section-head">
+                                                            <p className="ops-eyebrow">Approval Required</p>
+                                                            <h4>Identity</h4>
+                                                        </div>
+                                                        <div className="people-profile-form-grid people-profile-form-grid-wide">
+                                                            <label><span>Legal name</span><input value={activeStaffProfileDraft.personal.legalName} onChange={e => updateStaffDraftField("personal", "legalName", e.target.value)} /></label>
+                                                            <label><span>Preferred name</span><input value={activeStaffProfileDraft.personal.preferredName} onChange={e => updateStaffDraftField("personal", "preferredName", e.target.value)} /></label>
+                                                            <label><span>Phone</span><input value={activeStaffProfileDraft.personal.phone} onChange={e => updateStaffDraftField("personal", "phone", e.target.value)} /></label>
+                                                            <label><span>Date of birth</span><input type="date" value={activeStaffProfileDraft.personal.dateOfBirth} onChange={e => updateStaffDraftField("personal", "dateOfBirth", e.target.value)} /></label>
+                                                            <label className="span-2"><span>Address</span><input value={activeStaffProfileDraft.personal.address} onChange={e => updateStaffDraftField("personal", "address", e.target.value)} /></label>
+                                                            <label><span>City</span><input value={activeStaffProfileDraft.personal.city} onChange={e => updateStaffDraftField("personal", "city", e.target.value)} /></label>
+                                                            <label><span>Postal code</span><input value={activeStaffProfileDraft.personal.postalCode} onChange={e => updateStaffDraftField("personal", "postalCode", e.target.value)} /></label>
+                                                        </div>
+                                                    </section>
+
+                                                    <section className="people-edit-group">
+                                                        <div className="people-profile-section-head">
+                                                            <p className="ops-eyebrow">Approval Required</p>
+                                                            <h4>Emergency Contact</h4>
+                                                        </div>
+                                                        <div className="people-profile-form-grid people-profile-form-grid-wide">
+                                                            <label><span>Emergency contact</span><input value={activeStaffProfileDraft.emergency.contactName} onChange={e => updateStaffDraftField("emergency", "contactName", e.target.value)} /></label>
+                                                            <label><span>Relationship</span><input value={activeStaffProfileDraft.emergency.relationship} onChange={e => updateStaffDraftField("emergency", "relationship", e.target.value)} /></label>
+                                                            <label><span>Emergency phone</span><input value={activeStaffProfileDraft.emergency.phone} onChange={e => updateStaffDraftField("emergency", "phone", e.target.value)} /></label>
+                                                        </div>
+                                                    </section>
+
+                                                    <section className="people-edit-group">
+                                                        <div className="people-profile-section-head">
+                                                            <p className="ops-eyebrow">Scheduling Logic</p>
+                                                            <h4>Availability</h4>
+                                                        </div>
+                                                        <div className="people-availability-edit-grid">
+                                                            {activeStaffProfileDraft.availability.weekdays.map((day, index) => (
+                                                                <label key={`${day.label}-${index}`} className="people-availability-toggle">
+                                                                    <span>{day.label}</span>
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={day.enabled}
+                                                                        onChange={e => {
+                                                                            const nextWeekdays = activeStaffProfileDraft.availability.weekdays.map((entry, entryIndex) =>
+                                                                                entryIndex === index ? { ...entry, enabled: e.target.checked } : entry
+                                                                            );
+                                                                            updateStaffDraftField("availability", "weekdays", nextWeekdays);
+                                                                        }}
+                                                                    />
+                                                                </label>
+                                                            ))}
+                                                            <label className="people-checkbox"><input type="checkbox" checked={activeStaffProfileDraft.availability.shifts.morning} onChange={e => updateStaffDraftField("availability", "shifts", { ...activeStaffProfileDraft.availability.shifts, morning: e.target.checked })} /><span>Morning shift</span></label>
+                                                            <label className="people-checkbox"><input type="checkbox" checked={activeStaffProfileDraft.availability.shifts.afternoon} onChange={e => updateStaffDraftField("availability", "shifts", { ...activeStaffProfileDraft.availability.shifts, afternoon: e.target.checked })} /><span>Afternoon shift</span></label>
+                                                            <label className="people-checkbox"><input type="checkbox" checked={activeStaffProfileDraft.availability.shifts.evening} onChange={e => updateStaffDraftField("availability", "shifts", { ...activeStaffProfileDraft.availability.shifts, evening: e.target.checked })} /><span>Evening shift</span></label>
+                                                            <label><span>Max jobs per day</span><input type="number" value={activeStaffProfileDraft.availability.maxJobsPerDay} onChange={e => updateStaffDraftField("availability", "maxJobsPerDay", parseInt(e.target.value || "0", 10))} /></label>
+                                                            <label className="span-2"><span>Blocked dates (comma separated YYYY-MM-DD)</span><input value={(activeStaffProfileDraft.availability.blockedDates || []).join(", ")} onChange={e => updateStaffDraftField("availability", "blockedDates", e.target.value.split(",").map(value => value.trim()).filter(Boolean))} /></label>
+                                                        </div>
+                                                    </section>
                                                 </div>
                                                 <div className="people-profile-form-grid people-profile-form-grid-wide">
-                                                    <label><span>Legal name</span><input value={activeStaffProfileDraft.personal.legalName} onChange={e => updateStaffDraftField("personal", "legalName", e.target.value)} /></label>
-                                                    <label><span>Preferred name</span><input value={activeStaffProfileDraft.personal.preferredName} onChange={e => updateStaffDraftField("personal", "preferredName", e.target.value)} /></label>
-                                                    <label><span>Phone</span><input value={activeStaffProfileDraft.personal.phone} onChange={e => updateStaffDraftField("personal", "phone", e.target.value)} /></label>
-                                                    <label><span>Date of birth</span><input type="date" value={activeStaffProfileDraft.personal.dateOfBirth} onChange={e => updateStaffDraftField("personal", "dateOfBirth", e.target.value)} /></label>
-                                                    <label className="span-2"><span>Address</span><input value={activeStaffProfileDraft.personal.address} onChange={e => updateStaffDraftField("personal", "address", e.target.value)} /></label>
-                                                    <label><span>City</span><input value={activeStaffProfileDraft.personal.city} onChange={e => updateStaffDraftField("personal", "city", e.target.value)} /></label>
-                                                    <label><span>Postal code</span><input value={activeStaffProfileDraft.personal.postalCode} onChange={e => updateStaffDraftField("personal", "postalCode", e.target.value)} /></label>
-                                                    <label><span>Emergency contact</span><input value={activeStaffProfileDraft.emergency.contactName} onChange={e => updateStaffDraftField("emergency", "contactName", e.target.value)} /></label>
-                                                    <label><span>Relationship</span><input value={activeStaffProfileDraft.emergency.relationship} onChange={e => updateStaffDraftField("emergency", "relationship", e.target.value)} /></label>
-                                                    <label><span>Emergency phone</span><input value={activeStaffProfileDraft.emergency.phone} onChange={e => updateStaffDraftField("emergency", "phone", e.target.value)} /></label>
                                                     <label><span>Worker type</span><input value={activeStaffProfileDraft.employment.workerType} onChange={e => updateStaffDraftField("employment", "workerType", e.target.value)} /></label>
                                                     <label><span>Years experience</span><input value={activeStaffProfileDraft.employment.yearsExperience} onChange={e => updateStaffDraftField("employment", "yearsExperience", e.target.value)} /></label>
                                                     <label><span>Languages</span><input value={activeStaffProfileDraft.employment.languages} onChange={e => updateStaffDraftField("employment", "languages", e.target.value)} /></label>
@@ -2810,15 +2886,21 @@ export default function Home() {
                                                 </div>
                                                 <div className="people-profile-footer">
                                                     <p>
-                                                        This profile is stored in Firestore. Changes are submitted as a pending staff profile request and only move into the live profile after branch admin approval.
+                                                        This profile is stored in Firestore. Identity and emergency contact changes require admin approval. Availability follows separate scheduling rules with the next 48 hours locked from direct cleaner changes.
                                                     </p>
                                                     <div className="people-editor-actions">
                                                         <button type="button" className="team-secondary-action" onClick={() => setStaffProfileEditOpen(false)} disabled={staffProfileSaving}>
                                                             Cancel
                                                         </button>
-                                                        <button type="button" className="team-primary-action" onClick={handleSubmitStaffProfile} disabled={staffProfileSaving}>
-                                                            {staffProfileSaving ? "Submitting..." : "Submit For Review"}
-                                                        </button>
+                                                        {canAdminDirectEditSelectedStaffProfile ? (
+                                                            <button type="button" className="team-primary-action" onClick={handleSaveStaffProfileDirect} disabled={staffProfileSaving}>
+                                                                {staffProfileSaving ? "Saving..." : "Save Directly"}
+                                                            </button>
+                                                        ) : (
+                                                            <button type="button" className="team-primary-action" onClick={handleSubmitStaffProfile} disabled={staffProfileSaving}>
+                                                                {staffProfileSaving ? "Submitting..." : "Submit For Review"}
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </section>

@@ -5,6 +5,7 @@ import { createDefaultBranchUserFields } from "../../../lib/branches";
 import {
     canSelfEditEligibility,
     getChangedStaffProfileSections,
+    isAvailabilityOnlyChange,
     isEligibilityOnlyChange,
     normalizeStaffMember,
     normalizeStaffProfile,
@@ -247,6 +248,20 @@ export async function PUT(request) {
                 return NextResponse.json({ message: "Eligibility updated successfully.", user: normalizeStaffMember(nextData) }, { status: 200 });
             }
 
+            if (isAvailabilityOnlyChange(changedSections)) {
+                const nextData = {
+                    ...currentData,
+                    staffProfile: {
+                        ...currentData.staffProfile,
+                        availability: nextProfile.availability
+                    },
+                    updatedAt: nowIso
+                };
+
+                await userRef.set(nextData);
+                return NextResponse.json({ message: "Availability updated successfully.", user: normalizeStaffMember(nextData) }, { status: 200 });
+            }
+
             const nextData = {
                 ...currentData,
                 staffProfileRequest: {
@@ -267,6 +282,40 @@ export async function PUT(request) {
 
             await userRef.set(nextData);
             return NextResponse.json({ message: "Profile update submitted for branch admin approval.", user: normalizeStaffMember(nextData) }, { status: 200 });
+        }
+
+        if (body.updateStaffProfileDirect) {
+            if (!canManageBranch(user)) {
+                return NextResponse.json({ error: "Forbidden: Only branch administrators can directly edit staff profiles." }, { status: 403 });
+            }
+
+            const { targetUid, staffProfile } = body;
+            if (!targetUid) {
+                return NextResponse.json({ error: "Missing target user UID." }, { status: 400 });
+            }
+
+            const userRef = adminDb.collection("users").doc(targetUid);
+            const docSnap = await userRef.get();
+            if (!docSnap.exists) {
+                return NextResponse.json({ error: "User profile not found" }, { status: 404 });
+            }
+
+            const currentData = normalizeStaffMember(docSnap.data());
+            const nowIso = new Date().toISOString();
+            const nextData = {
+                ...currentData,
+                staffProfile: normalizeStaffProfile(staffProfile),
+                staffProfileRequest: null,
+                staffProfileMeta: {
+                    ...normalizeStaffProfileMeta(currentData.staffProfileMeta),
+                    lastAdminReviewAt: nowIso,
+                    rejectionReason: ""
+                },
+                updatedAt: nowIso
+            };
+
+            await userRef.set(nextData);
+            return NextResponse.json({ message: "Staff profile updated successfully.", user: normalizeStaffMember(nextData) }, { status: 200 });
         }
 
         if (body.reviewStaffProfileRequest) {
