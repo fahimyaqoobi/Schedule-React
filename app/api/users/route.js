@@ -49,8 +49,8 @@ async function authenticateRequest(request) {
     
     const userData = userDoc.data();
     const syncPatch = {};
-    if ((authUser.photoURL || "") !== (userData.photoURL || "")) {
-        syncPatch.photoURL = authUser.photoURL || "";
+    if (authUser.photoURL && authUser.photoURL !== (userData.photoURL || "")) {
+        syncPatch.photoURL = authUser.photoURL;
     }
     if (Object.keys(syncPatch).length > 0) {
         await userRef.update(syncPatch);

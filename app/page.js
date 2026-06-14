@@ -1365,6 +1365,7 @@ export default function Home() {
         if (!file || !currentUser) return;
         setProfilePhotoUploading(true);
         setProfilePhotoStatus("");
+        setStaffProfileFeedback("");
         try {
             const headers = await getAuthHeaders();
             const formData = new FormData();
@@ -1382,6 +1383,15 @@ export default function Home() {
 
             if (auth.currentUser) {
                 await updateProfile(auth.currentUser, { photoURL });
+            }
+
+            const optimisticUser = normalizeStaffMember({
+                ...currentUser,
+                photoURL
+            });
+            setCurrentUser(optimisticUser);
+            if (selectedStaffUid === currentUser.uid) {
+                setStaffProfileDraftOwnerUid(currentUser.uid);
             }
 
             const res = await fetch("/api/users", {
@@ -3052,9 +3062,23 @@ export default function Home() {
                                                                     {staffProfileSaving ? "Saving..." : "Save Directly"}
                                                                 </button>
                                                             ) : (
-                                                                <button type="button" className="team-primary-action" onClick={handleSubmitStaffProfile} disabled={staffProfileSaving}>
-                                                                    {staffProfileSaving ? "Submitting..." : "Submit"}
-                                                                </button>
+                                                                <>
+                                                                    {staffProfileMobileTab === "identity" && (
+                                                                        <button type="button" className="team-primary-action" onClick={() => setStaffProfileMobileTab("employment")} disabled={staffProfileSaving}>
+                                                                            Next
+                                                                        </button>
+                                                                    )}
+                                                                    {staffProfileMobileTab === "employment" && (
+                                                                        <button type="button" className="team-primary-action" onClick={() => setStaffProfileMobileTab("availability")} disabled={staffProfileSaving}>
+                                                                            Next
+                                                                        </button>
+                                                                    )}
+                                                                    {staffProfileMobileTab === "availability" && (
+                                                                        <button type="button" className="team-primary-action" onClick={handleSubmitStaffProfile} disabled={staffProfileSaving}>
+                                                                            {staffProfileSaving ? "Submitting..." : "Submit"}
+                                                                        </button>
+                                                                    )}
+                                                                </>
                                                             )}
                                                         </div>
                                                     </section>
