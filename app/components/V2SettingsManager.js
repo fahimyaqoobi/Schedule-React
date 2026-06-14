@@ -3,6 +3,8 @@
 import React, { useState } from "react";
 
 const fieldClass = "catalog-studio-field";
+const secondaryButtonClass = "catalog-studio-button catalog-studio-button-secondary";
+const dangerButtonClass = "catalog-studio-button catalog-studio-button-danger";
 
 export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
     const [activeTab, setActiveTab] = useState(catalog.categories[0]?.id || "");
@@ -164,28 +166,28 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
     if (!activeCategory) return null;
 
     return (
-        <section className="mt-10 overflow-hidden rounded-brand-lg border border-brand-mist bg-white shadow-sparkle">
-            <div className="flex items-center justify-between gap-8 border-b border-brand-mist bg-white px-10 py-8">
+        <section className="catalog-studio-shell mt-10 overflow-hidden rounded-brand-lg border border-brand-mist bg-white shadow-sparkle">
+            <div className="catalog-studio-topbar border-b border-brand-mist bg-white px-8 py-7">
                 <div className="min-w-0">
                     <p className="font-heading text-xs font-bold uppercase tracking-wider text-brand-sky">Desktop Catalog Studio</p>
-                    <h3 className="mt-1 font-heading text-2xl font-black uppercase leading-none text-brand-slate">
+                    <h3 className="mt-1 font-heading text-3xl font-black uppercase leading-none text-brand-slate">
                         V2 Dynamic Service Manager
                     </h3>
-                    <p className="mt-2 max-w-3xl text-sm font-semibold text-slate-500">
+                    <p className="mt-3 max-w-3xl text-base font-semibold leading-6 text-slate-500">
                         A wide-format control surface for pricing models, service tiers, and add-on rules.
                     </p>
                 </div>
                 <div className="grid shrink-0 grid-cols-3 overflow-hidden rounded-brand-sm border border-brand-mist bg-slate-50">
                     <div className="border-r border-brand-mist px-5 py-3 text-center">
-                        <span className="block font-heading text-lg font-black text-brand-action">{catalogStats.categories}</span>
+                        <span className="block font-heading text-2xl font-black text-brand-action">{catalogStats.categories}</span>
                         <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Services</span>
                     </div>
                     <div className="border-r border-brand-mist px-5 py-3 text-center">
-                        <span className="block font-heading text-lg font-black text-brand-green">{catalogStats.tiers}</span>
+                        <span className="block font-heading text-2xl font-black text-brand-green">{catalogStats.tiers}</span>
                         <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Tiers</span>
                     </div>
                     <div className="px-5 py-3 text-center">
-                        <span className="block font-heading text-lg font-black text-brand-deep">{catalogStats.addons}</span>
+                        <span className="block font-heading text-2xl font-black text-brand-deep">{catalogStats.addons}</span>
                         <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Add-ons</span>
                     </div>
                 </div>
@@ -193,16 +195,16 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
                     type="button"
                     onClick={handleSave}
                     disabled={isSaving}
-                    className="inline-flex h-12 min-w-[240px] items-center justify-center rounded-brand-sm bg-brand-action px-6 font-heading text-sm font-bold text-white shadow-sparkle transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex h-14 min-w-[240px] items-center justify-center rounded-brand-sm bg-brand-action px-7 font-heading text-base font-bold text-white shadow-sparkle transition hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                     {isSaving ? "Saving Catalog..." : "Save V2 Catalog"}
                 </button>
             </div>
 
-            <div className="grid min-h-[720px] grid-cols-[240px_minmax(390px,0.92fr)_minmax(480px,1.08fr)] gap-6 bg-slate-50/70 p-6">
+            <div className="catalog-studio-layout bg-slate-50/70 p-6">
                 <aside className="rounded-brand-lg border border-brand-mist bg-white p-5 shadow-sm">
                     <div className="mb-5 flex items-center justify-between">
-                        <h4 className="font-heading text-xs font-black uppercase tracking-wider text-brand-slate">Services</h4>
+                        <h4 className="font-heading text-sm font-black uppercase tracking-wider text-brand-slate">Services</h4>
                         <span className="rounded-full bg-brand-mist/55 px-2.5 py-1 text-[10px] font-bold text-brand-slate">
                             {catalog.categories.length}
                         </span>
@@ -213,14 +215,14 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
                                 key={cat.id}
                                 type="button"
                                 onClick={() => setActiveTab(cat.id)}
-                                className={`group rounded-brand-sm border p-4 text-left transition ${
+                                className={`catalog-studio-service-card group text-left transition ${
                                     activeTab === cat.id
                                         ? "border-brand-action bg-brand-action text-white shadow-sparkle"
                                         : "border-brand-mist bg-white text-brand-slate hover:border-brand-sky hover:bg-brand-mist/20"
                                 }`}
                             >
-                                <span className="block truncate font-heading text-sm font-black">{cat.name}</span>
-                                <span className={`mt-1 block text-[11px] font-semibold ${
+                                <span className="block font-heading text-base font-black leading-6">{cat.name}</span>
+                                <span className={`mt-2 block text-xs font-semibold uppercase tracking-wide ${
                                     activeTab === cat.id ? "text-white/75" : "text-slate-400 group-hover:text-brand-deep"
                                 }`}>
                                     {cat.pricingModel.replaceAll("_", " ")}
@@ -231,37 +233,37 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
                     <button
                         type="button"
                         onClick={addService}
-                        className="mt-5 h-11 w-full rounded-brand-sm border border-brand-mint bg-brand-mint/25 px-4 font-heading text-xs font-bold text-brand-green transition hover:bg-brand-mint/45"
+                        className="catalog-studio-button mt-5 w-full border border-brand-mint bg-brand-mint/25 font-heading text-sm font-bold text-brand-green transition hover:bg-brand-mint/45"
                     >
                         + Add Service
                     </button>
                 </aside>
 
                 <div className="flex min-w-0 flex-col gap-6">
-                    <div className="rounded-brand-lg border border-brand-mist bg-white p-6 shadow-sm">
-                        <div className="mb-6 flex items-start justify-between gap-5">
-                            <div>
+                    <div className="rounded-brand-lg border border-brand-mist bg-white p-7 shadow-sm">
+                        <div className="catalog-studio-service-header mb-6 gap-5">
+                            <div className="min-w-0">
                                 <p className="font-heading text-[11px] font-bold uppercase tracking-wider text-brand-sky">Selected Service</p>
-                                <h4 className="mt-1 font-heading text-xl font-black text-brand-slate">{activeCategory.name}</h4>
+                                <h4 className="mt-2 break-words font-heading text-[2rem] font-black leading-tight text-brand-slate">{activeCategory.name}</h4>
                             </div>
-                            <div className="flex items-center gap-3">
-                                <span className="rounded-full bg-brand-action/10 px-3 py-1 font-heading text-[10px] font-bold uppercase text-brand-action">
+                            <div className="flex flex-wrap items-center justify-end gap-3">
+                                <span className="rounded-full bg-brand-action/10 px-4 py-2 font-heading text-xs font-bold uppercase text-brand-action">
                                     {activeCategory.pricingModel.replaceAll("_", " ")}
                                 </span>
                                 <button
                                     type="button"
                                     onClick={deleteService}
                                     disabled={catalog.categories.length <= 1}
-                                    className="rounded-brand-sm border border-red-200 bg-red-50 px-3 py-2 font-heading text-xs font-bold text-red-600 transition hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                                    className={`${dangerButtonClass} disabled:cursor-not-allowed disabled:opacity-50`}
                                 >
                                     Delete Service
                                 </button>
                             </div>
                         </div>
 
-                        <div className="space-y-5">
+                        <div className="space-y-6">
                             <div>
-                                <label className="mb-2 block font-heading text-xs font-bold uppercase tracking-wide text-brand-slate">Service Name</label>
+                                <label className="mb-2.5 block font-heading text-xs font-bold uppercase tracking-wide text-brand-slate">Service Name</label>
                                 <input
                                     type="text"
                                     value={activeCategory.name}
@@ -271,7 +273,7 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
                             </div>
 
                             <div>
-                                <label className="mb-2 block font-heading text-xs font-bold uppercase tracking-wide text-brand-slate">Pricing Model</label>
+                                <label className="mb-2.5 block font-heading text-xs font-bold uppercase tracking-wide text-brand-slate">Pricing Model</label>
                                 <select
                                     value={activeCategory.pricingModel}
                                     onChange={e => updateCategoryField("pricingModel", e.target.value)}
@@ -284,9 +286,9 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
                                 </select>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 gap-5">
                                 <div>
-                                    <label className="mb-2 block font-heading text-xs font-bold uppercase tracking-wide text-brand-slate">Base Rate</label>
+                                    <label className="mb-2.5 block font-heading text-xs font-bold uppercase tracking-wide text-brand-slate">Base Rate</label>
                                     <div className="relative">
                                         <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 font-heading text-xs font-black text-slate-400">$</span>
                                         <input
@@ -298,7 +300,7 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="mb-2 block font-heading text-xs font-bold uppercase tracking-wide text-brand-slate">Duration</label>
+                                    <label className="mb-2.5 block font-heading text-xs font-bold uppercase tracking-wide text-brand-slate">Duration</label>
                                     <div className="relative">
                                         <input
                                             type="number"
@@ -342,20 +344,21 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
 
                     {activeCategory.pricingModel === "size_based" && (
                         <div className="rounded-brand-lg border border-brand-mist bg-white p-6 shadow-sm">
-                            <div className="mb-5 flex items-center justify-between">
-                                <h4 className="font-heading text-xs font-black uppercase tracking-wider text-brand-slate">Size Tiers</h4>
-                                <button type="button" onClick={addSizeTier} className="rounded-brand-sm bg-brand-action/10 px-3 py-2 font-heading text-xs font-bold text-brand-action transition hover:bg-brand-action hover:text-white">
+                            <div className="mb-5 flex items-center justify-between gap-4">
+                                <h4 className="font-heading text-sm font-black uppercase tracking-wider text-brand-slate">Size Tiers</h4>
+                                <button type="button" onClick={addSizeTier} className={secondaryButtonClass}>
                                     + Add Tier
                                 </button>
                             </div>
-                            <div className="grid grid-cols-[minmax(0,1fr)_118px_104px] gap-3 border-b border-brand-mist px-1 pb-3 font-heading text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                            <div className="catalog-studio-grid-head catalog-studio-tier-row border-b border-brand-mist pb-3">
                                 <span>Tier Name</span>
                                 <span>Price</span>
                                 <span>Hours</span>
+                                <span className="text-right">Action</span>
                             </div>
-                            <div className="max-h-[360px] overflow-y-auto pt-3">
+                            <div className="max-h-[360px] overflow-y-auto pt-4">
                                 {(activeCategory.sizes || []).map(size => (
-                                    <div key={size.id} className="grid grid-cols-[minmax(0,1fr)_118px_104px_112px] gap-3 py-2">
+                                    <div key={size.id} className="catalog-studio-grid-row catalog-studio-tier-row">
                                         <input
                                             type="text"
                                             value={size.name}
@@ -378,7 +381,7 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
                                         <button
                                             type="button"
                                             onClick={() => deleteSizeTier(size.id)}
-                                            className="h-11 rounded-brand-sm border border-red-200 bg-red-50 px-3 font-heading text-xs font-bold text-red-600 transition hover:bg-red-600 hover:text-white"
+                                            className={dangerButtonClass}
                                         >
                                             Delete
                                         </button>
@@ -391,20 +394,21 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
 
                 <div className="min-w-0">
                     <div className="flex h-full flex-col rounded-brand-lg border border-brand-mist bg-white shadow-sm">
-                        <div className="flex items-center justify-between border-b border-brand-mist px-6 py-5">
+                        <div className="flex items-center justify-between gap-4 border-b border-brand-mist px-6 py-5">
                             <div>
                                 <p className="font-heading text-[11px] font-bold uppercase tracking-wider text-brand-sky">Rules</p>
-                                <h4 className="font-heading text-lg font-black text-brand-slate">Service-Specific Add-ons</h4>
+                                <h4 className="font-heading text-2xl font-black text-brand-slate">Service-Specific Add-ons</h4>
                             </div>
-                            <button type="button" onClick={addAddon} className="rounded-brand-sm bg-brand-action/10 px-3 py-2 font-heading text-xs font-bold text-brand-action transition hover:bg-brand-action hover:text-white">
+                            <button type="button" onClick={addAddon} className={secondaryButtonClass}>
                                 + Add Add-on
                             </button>
                         </div>
 
-                        <div className="grid grid-cols-[minmax(0,1fr)_124px_150px] gap-4 border-b border-brand-mist bg-slate-50/70 px-6 py-3 font-heading text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        <div className="catalog-studio-grid-head catalog-studio-addon-row border-b border-brand-mist bg-slate-50/70 px-6 py-3">
                             <span>Add-on Name</span>
                             <span>Price</span>
                             <span>Quantity</span>
+                            <span className="text-right">Action</span>
                         </div>
 
                         <div className="flex-1 overflow-y-auto px-6 py-4">
@@ -414,7 +418,7 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
                                 </div>
                             ) : (
                                 (activeCategory.addons || []).map(addon => (
-                                    <div key={addon.id} className="grid grid-cols-[minmax(0,1fr)_124px_150px_112px] gap-4 border-b border-slate-100 py-2.5 last:border-b-0">
+                                    <div key={addon.id} className="catalog-studio-grid-row catalog-studio-addon-row border-b border-slate-100 last:border-b-0">
                                         <input
                                             type="text"
                                             value={addon.name}
@@ -442,7 +446,7 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
                                         <button
                                             type="button"
                                             onClick={() => deleteAddon(addon.id)}
-                                            className="h-11 rounded-brand-sm border border-red-200 bg-red-50 px-3 font-heading text-xs font-bold text-red-600 transition hover:bg-red-600 hover:text-white"
+                                            className={dangerButtonClass}
                                         >
                                             Delete
                                         </button>
