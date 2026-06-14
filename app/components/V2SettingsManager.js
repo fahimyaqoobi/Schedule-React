@@ -106,6 +106,61 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
         }));
     };
 
+    const addService = () => {
+        const newService = {
+            id: createLocalId("service"),
+            name: "New Service",
+            pricingModel: "flat_rate",
+            baseRate: 0,
+            durationHrs: 1,
+            unitName: "Unit",
+            unitPrice: 0,
+            sizes: [],
+            addons: []
+        };
+
+        setCatalog(prev => ({
+            ...prev,
+            categories: [...prev.categories, newService]
+        }));
+        setActiveTab(newService.id);
+    };
+
+    const deleteService = () => {
+        setCatalog(prev => {
+            const remainingCategories = prev.categories.filter(cat => cat.id !== activeTab);
+            const nextActiveTab = remainingCategories[0]?.id || "";
+            setActiveTab(nextActiveTab);
+
+            return {
+                ...prev,
+                categories: remainingCategories
+            };
+        });
+    };
+
+    const deleteSizeTier = (sizeId) => {
+        setCatalog(prev => ({
+            ...prev,
+            categories: prev.categories.map(cat =>
+                cat.id === activeTab
+                    ? { ...cat, sizes: (cat.sizes || []).filter(size => size.id !== sizeId) }
+                    : cat
+            )
+        }));
+    };
+
+    const deleteAddon = (addonId) => {
+        setCatalog(prev => ({
+            ...prev,
+            categories: prev.categories.map(cat =>
+                cat.id === activeTab
+                    ? { ...cat, addons: (cat.addons || []).filter(addon => addon.id !== addonId) }
+                    : cat
+            )
+        }));
+    };
+
     if (!activeCategory) return null;
 
     return (
@@ -175,6 +230,7 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
                     </div>
                     <button
                         type="button"
+                        onClick={addService}
                         className="mt-5 h-11 w-full rounded-brand-sm border border-brand-mint bg-brand-mint/25 px-4 font-heading text-xs font-bold text-brand-green transition hover:bg-brand-mint/45"
                     >
                         + Add Service
@@ -188,12 +244,32 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
                                 <p className="font-heading text-[11px] font-bold uppercase tracking-wider text-brand-sky">Selected Service</p>
                                 <h4 className="mt-1 font-heading text-xl font-black text-brand-slate">{activeCategory.name}</h4>
                             </div>
-                            <span className="rounded-full bg-brand-action/10 px-3 py-1 font-heading text-[10px] font-bold uppercase text-brand-action">
-                                {activeCategory.pricingModel.replaceAll("_", " ")}
-                            </span>
+                            <div className="flex items-center gap-3">
+                                <span className="rounded-full bg-brand-action/10 px-3 py-1 font-heading text-[10px] font-bold uppercase text-brand-action">
+                                    {activeCategory.pricingModel.replaceAll("_", " ")}
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={deleteService}
+                                    disabled={catalog.categories.length <= 1}
+                                    className="rounded-brand-sm border border-red-200 bg-red-50 px-3 py-2 font-heading text-xs font-bold text-red-600 transition hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    Delete Service
+                                </button>
+                            </div>
                         </div>
 
                         <div className="space-y-5">
+                            <div>
+                                <label className="mb-2 block font-heading text-xs font-bold uppercase tracking-wide text-brand-slate">Service Name</label>
+                                <input
+                                    type="text"
+                                    value={activeCategory.name}
+                                    onChange={e => updateCategoryField("name", e.target.value)}
+                                    className={fieldClass}
+                                />
+                            </div>
+
                             <div>
                                 <label className="mb-2 block font-heading text-xs font-bold uppercase tracking-wide text-brand-slate">Pricing Model</label>
                                 <select
@@ -235,6 +311,32 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
                                     </div>
                                 </div>
                             </div>
+
+                            {(activeCategory.pricingModel === "flat_plus_unit" || activeCategory.pricingModel === "flat_plus_sqft") && (
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="mb-2 block font-heading text-xs font-bold uppercase tracking-wide text-brand-slate">Unit Label</label>
+                                        <input
+                                            type="text"
+                                            value={activeCategory.unitName || ""}
+                                            onChange={e => updateCategoryField("unitName", e.target.value)}
+                                            className={fieldClass}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="mb-2 block font-heading text-xs font-bold uppercase tracking-wide text-brand-slate">Unit Price</label>
+                                        <div className="relative">
+                                            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 font-heading text-xs font-black text-slate-400">$</span>
+                                            <input
+                                                type="number"
+                                                value={activeCategory.unitPrice || 0}
+                                                onChange={e => updateCategoryField("unitPrice", parseFloat(e.target.value) || 0)}
+                                                className={`${fieldClass} catalog-studio-field-currency`}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -253,7 +355,7 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
                             </div>
                             <div className="max-h-[360px] overflow-y-auto pt-3">
                                 {(activeCategory.sizes || []).map(size => (
-                                    <div key={size.id} className="grid grid-cols-[minmax(0,1fr)_118px_104px] gap-3 py-2">
+                                    <div key={size.id} className="grid grid-cols-[minmax(0,1fr)_118px_104px_112px] gap-3 py-2">
                                         <input
                                             type="text"
                                             value={size.name}
@@ -270,9 +372,16 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
                                             type="number"
                                             step="0.5"
                                             value={size.durationHrs}
-                                            onChange={e => updateSize(size.id, "durationHrs", parseFloat(e.target.value))}
+                                            onChange={e => updateSize(size.id, "durationHrs", parseFloat(e.target.value) || 0)}
                                             className={fieldClass}
                                         />
+                                        <button
+                                            type="button"
+                                            onClick={() => deleteSizeTier(size.id)}
+                                            className="h-11 rounded-brand-sm border border-red-200 bg-red-50 px-3 font-heading text-xs font-bold text-red-600 transition hover:bg-red-600 hover:text-white"
+                                        >
+                                            Delete
+                                        </button>
                                     </div>
                                 ))}
                             </div>
@@ -305,7 +414,7 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
                                 </div>
                             ) : (
                                 (activeCategory.addons || []).map(addon => (
-                                    <div key={addon.id} className="grid grid-cols-[minmax(0,1fr)_124px_150px] gap-4 border-b border-slate-100 py-2.5 last:border-b-0">
+                                    <div key={addon.id} className="grid grid-cols-[minmax(0,1fr)_124px_150px_112px] gap-4 border-b border-slate-100 py-2.5 last:border-b-0">
                                         <input
                                             type="text"
                                             value={addon.name}
@@ -330,6 +439,13 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
                                             />
                                             <span className="font-heading text-[10px] font-bold uppercase text-slate-500">Qty selector</span>
                                         </label>
+                                        <button
+                                            type="button"
+                                            onClick={() => deleteAddon(addon.id)}
+                                            className="h-11 rounded-brand-sm border border-red-200 bg-red-50 px-3 font-heading text-xs font-bold text-red-600 transition hover:bg-red-600 hover:text-white"
+                                        >
+                                            Delete
+                                        </button>
                                     </div>
                                 ))
                             )}
