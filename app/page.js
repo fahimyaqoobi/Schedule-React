@@ -635,7 +635,7 @@ export default function Home() {
         if (staffProfileDraftOwnerUid === selectedStaffMember.uid && staffProfileDraft) {
             return staffProfileDraft;
         }
-        return normalizeStaffProfile(selectedStaffMember.staffProfile);
+        return normalizeStaffProfile(selectedStaffMember.staffProfileRequest?.requestedProfile || selectedStaffMember.staffProfile);
     }, [selectedStaffMember, staffProfileDraftOwnerUid, staffProfileDraft]);
 
     const selectedStaffAssignedJobs = useMemo(() => {
@@ -1569,7 +1569,7 @@ export default function Home() {
             if (!res.ok) throw new Error(data.error || "Failed to submit staff profile.");
             setCurrentUser(data.user);
             setStaffProfileDraftOwnerUid(data.user.uid);
-            setStaffProfileDraft(normalizeStaffProfile(data.user.staffProfile));
+            setStaffProfileDraft(normalizeStaffProfile(data.user.staffProfileRequest?.requestedProfile || data.user.staffProfile));
             setStaffProfileFeedback(data.message || "Profile saved.");
             syncDatabaseData(data.user);
         } catch (err) {
