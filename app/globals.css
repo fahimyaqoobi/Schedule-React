@@ -2981,6 +2981,26 @@ label {
     margin-bottom: 14px;
 }
 
+.people-file-upload-field input[type="file"] {
+    border: 1px dashed #93c5fd;
+    border-radius: 14px;
+    background: #eff6ff;
+    padding: 12px;
+}
+
+.people-file-upload-field strong {
+    color: #0f4aa3;
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.people-file-upload-field a,
+.people-profile-read-list a {
+    color: #0f4aa3;
+    text-decoration: underline;
+    font-weight: 800;
+}
+
 .people-mobile-profile-stats {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));

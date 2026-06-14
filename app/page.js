@@ -99,6 +99,14 @@ function updateAvailabilityDayShift(weekdays = [], dayIndex, shiftKey, enabled) 
     });
 }
 
+function buildDocumentMeta(file, url) {
+    return {
+        name: file?.name || "document",
+        url,
+        uploadedAt: new Date().toISOString()
+    };
+}
+
 const DEFAULT_PRICES = {
     services: {
         // House Cleaning — size-based tiers
@@ -485,6 +493,7 @@ export default function Home() {
     const [profileLoading, setProfileLoading] = useState(false);
     const [profilePhotoUploading, setProfilePhotoUploading] = useState(false);
     const [profilePhotoStatus, setProfilePhotoStatus] = useState("");
+    const [staffDocumentUploading, setStaffDocumentUploading] = useState(false);
     const [securityForm, setSecurityForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
     const [securityLoading, setSecurityLoading] = useState(false);
     const [selectedStaffUid, setSelectedStaffUid] = useState("");
@@ -609,8 +618,8 @@ export default function Home() {
         },
         {
             key: "work-status",
-            label: "Work Eligibility",
-            value: activeStaffProfileDraft?.eligibility?.workStatus || "Pending review"
+            label: "Document Upload",
+            value: activeStaffProfileDraft?.eligibility?.documentUpload?.name || "No document uploaded"
         },
         {
             key: "background-check",
@@ -1294,6 +1303,24 @@ export default function Home() {
             setStaffProfileFeedback(err.message || "Failed to upload profile photo.");
         } finally {
             setProfilePhotoUploading(false);
+        }
+    };
+
+    const handleStaffDocumentUpload = async (file) => {
+        if (!file || !activeStaffProfileDraft || !selectedStaffMember) return;
+        setStaffDocumentUploading(true);
+        setStaffProfileFeedback("");
+        try {
+            const safeFileKey = `${file.lastModified || 0}-${(file.name || "document").replace(/\s+/g, "-")}`;
+            const storageRef = ref(storage, `staff-documents/${selectedStaffMember.uid}/${safeFileKey}`);
+            await uploadBytes(storageRef, file, { contentType: file.type || "application/octet-stream" });
+            const url = await getDownloadURL(storageRef);
+            updateStaffDraftField("eligibility", "documentUpload", buildDocumentMeta(file, url));
+            setStaffProfileFeedback("Document uploaded and attached to this profile.");
+        } catch (err) {
+            setStaffProfileFeedback(err.message || "Failed to upload document.");
+        } finally {
+            setStaffDocumentUploading(false);
         }
     };
 
@@ -2872,7 +2899,11 @@ export default function Home() {
                                                             <div className="people-mobile-editor-section">
                                                                 {canAdminDirectEditSelectedStaffProfile && <label><span>Worker type</span><input value={activeStaffProfileDraft.employment.workerType} onChange={e => updateStaffDraftField("employment", "workerType", e.target.value)} /></label>}
                                                                 {canAdminDirectEditSelectedStaffProfile && <label><span>Years experience</span><input value={activeStaffProfileDraft.employment.yearsExperience} onChange={e => updateStaffDraftField("employment", "yearsExperience", e.target.value)} /></label>}
-                                                                <label><span>Document upload</span><input value={activeStaffProfileDraft.eligibility.workStatus} onChange={e => updateStaffDraftField("eligibility", "workStatus", e.target.value)} placeholder="ID or document reference" /></label>
+                                                                <label className="span-2 people-file-upload-field">
+                                                                    <span>Document upload</span>
+                                                                    <input type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.webp" onChange={e => handleStaffDocumentUpload(e.target.files?.[0])} disabled={staffDocumentUploading} />
+                                                                    <strong>{staffDocumentUploading ? "Uploading document..." : (activeStaffProfileDraft.eligibility.documentUpload?.name || "No document uploaded yet")}</strong>
+                                                                </label>
                                                                 {canAdminDirectEditSelectedStaffProfile && <label><span>Background check</span><input value={activeStaffProfileDraft.compliance.backgroundCheckStatus} onChange={e => updateStaffDraftField("compliance", "backgroundCheckStatus", e.target.value)} /></label>}
                                                                 <label className="span-2"><span>Availability notes</span><textarea value={activeStaffProfileDraft.employment.availabilityNotes} onChange={e => updateStaffDraftField("employment", "availabilityNotes", e.target.value)} /></label>
                                                             </div>
@@ -3101,7 +3132,14 @@ export default function Home() {
                                                 </div>
                                                 <div className="people-profile-read-list">
                                                     <div><span>Worker Type</span><strong>{activeStaffProfileDraft.employment.workerType || getRoleLabel(selectedStaffMember.role)}</strong></div>
-                                                    <div><span>Document Upload</span><strong>{activeStaffProfileDraft.eligibility.workStatus || "Pending review"}</strong></div>
+                                                    <div>
+                                                        <span>Document Upload</span>
+                                                        {activeStaffProfileDraft.eligibility.documentUpload?.url ? (
+                                                            <a href={activeStaffProfileDraft.eligibility.documentUpload.url} target="_blank" rel="noreferrer"><strong>{activeStaffProfileDraft.eligibility.documentUpload.name || "View document"}</strong></a>
+                                                        ) : (
+                                                            <strong>No document uploaded</strong>
+                                                        )}
+                                                    </div>
                                                     <div><span>Police Clearance</span><strong>{activeStaffProfileDraft.compliance.backgroundCheckStatus || "Pending"}</strong></div>
                                                     <div><span>Start Date</span><strong>{selectedStaffMember.createdAt ? selectedStaffMember.createdAt.split("T")[0] : "Pending"}</strong></div>
                                                     <div className="people-note-card">
@@ -3202,7 +3240,14 @@ export default function Home() {
                                                     {canAdminDirectEditSelectedStaffProfile && <label><span>Languages</span><input value={activeStaffProfileDraft.employment.languages} onChange={e => updateStaffDraftField("employment", "languages", e.target.value)} /></label>}
                                                     <label><span>T-shirt size</span><input value={activeStaffProfileDraft.employment.tshirtSize} onChange={e => updateStaffDraftField("employment", "tshirtSize", e.target.value)} /></label>
                                                     <label className="span-2"><span>Availability notes</span><textarea value={activeStaffProfileDraft.employment.availabilityNotes} onChange={e => updateStaffDraftField("employment", "availabilityNotes", e.target.value)} /></label>
-                                                    <label><span>Document upload</span><input value={activeStaffProfileDraft.eligibility.workStatus} onChange={e => updateStaffDraftField("eligibility", "workStatus", e.target.value)} placeholder="ID or document reference" /></label>
+                                                    <label className="span-2 people-file-upload-field">
+                                                        <span>Document upload</span>
+                                                        <input type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.webp" onChange={e => handleStaffDocumentUpload(e.target.files?.[0])} disabled={staffDocumentUploading} />
+                                                        <strong>{staffDocumentUploading ? "Uploading document..." : (activeStaffProfileDraft.eligibility.documentUpload?.name || "No document uploaded yet")}</strong>
+                                                        {canAdminDirectEditSelectedStaffProfile && activeStaffProfileDraft.eligibility.documentUpload?.url && (
+                                                            <a href={activeStaffProfileDraft.eligibility.documentUpload.url} target="_blank" rel="noreferrer">View uploaded document</a>
+                                                        )}
+                                                    </label>
                                                     <label><span>Permit expiry</span><input type="date" value={activeStaffProfileDraft.eligibility.workPermitExpiry} onChange={e => updateStaffDraftField("eligibility", "workPermitExpiry", e.target.value)} /></label>
                                                     <label><span>SIN last 4</span><input value={activeStaffProfileDraft.eligibility.sinLast4} onChange={e => updateStaffDraftField("eligibility", "sinLast4", e.target.value)} /></label>
                                                     <label><span>License class</span><input value={activeStaffProfileDraft.eligibility.driversLicenseClass} onChange={e => updateStaffDraftField("eligibility", "driversLicenseClass", e.target.value)} /></label>
