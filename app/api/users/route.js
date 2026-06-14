@@ -173,7 +173,26 @@ export async function POST(request) {
         }
         
         if (action === "approve") {
-            await userRef.update({ status: "approved" });
+            const existingData = normalizeStaffMember(userDoc.data());
+            const nowIso = new Date().toISOString();
+            const approvalUpdate = {
+                status: "approved",
+                updatedAt: nowIso
+            };
+
+            if (existingData.staffProfileRequest?.requestedProfile) {
+                approvalUpdate.staffProfile = normalizeStaffProfile(existingData.staffProfileRequest.requestedProfile);
+                approvalUpdate.staffProfileRequest = null;
+                approvalUpdate.staffProfileMeta = {
+                    ...normalizeStaffProfileMeta(existingData.staffProfileMeta),
+                    status: "approved",
+                    approvedAt: nowIso,
+                    lastAdminReviewAt: nowIso,
+                    rejectionReason: ""
+                };
+            }
+
+            await userRef.update(approvalUpdate);
             return NextResponse.json({ message: "User account activated successfully." }, { status: 200 });
         } else if (action === "reject") {
             // Delete user document profile
