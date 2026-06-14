@@ -107,6 +107,10 @@ function buildDocumentMeta(file, url) {
     };
 }
 
+function normalizeBlockedDateList(values = []) {
+    return Array.from(new Set((values || []).map(value => String(value || "").trim()).filter(Boolean))).sort();
+}
+
 function parseGooglePlaceDetails(place) {
     const components = place?.address_components || [];
     const getComponent = (type, useShort = false) => {
@@ -526,6 +530,7 @@ export default function Home() {
     const [profilePhotoUploading, setProfilePhotoUploading] = useState(false);
     const [profilePhotoStatus, setProfilePhotoStatus] = useState("");
     const [staffDocumentUploading, setStaffDocumentUploading] = useState(false);
+    const [blockedDateInput, setBlockedDateInput] = useState("");
     const [securityForm, setSecurityForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
     const [securityLoading, setSecurityLoading] = useState(false);
     const [selectedStaffUid, setSelectedStaffUid] = useState("");
@@ -660,7 +665,7 @@ export default function Home() {
         {
             key: "email",
             label: "Email Address",
-            value: selectedStaffMember?.email || "Not submitted",
+            value: activeStaffProfileDraft?.personal?.email || selectedStaffMember?.email || "Not submitted",
             icon: Icons.Mail()
         }
     ]), [activeStaffProfileDraft, selectedStaffMember]);
@@ -678,8 +683,13 @@ export default function Home() {
         },
         {
             key: "work-status",
-            label: "Document Upload",
+            label: "Work Permit Document",
             value: activeStaffProfileDraft?.eligibility?.documentUpload?.name || "No document uploaded"
+        },
+        {
+            key: "photo-id",
+            label: "Photo ID Upload",
+            value: activeStaffProfileDraft?.eligibility?.photoIdUpload?.name || "No photo ID uploaded"
         },
         {
             key: "background-check",
@@ -1441,7 +1451,7 @@ export default function Home() {
         }
     };
 
-    const handleStaffDocumentUpload = async (file) => {
+    const handleStaffDocumentUpload = async (file, fieldKey = "documentUpload", successLabel = "Document") => {
         if (!file || !activeStaffProfileDraft || !selectedStaffMember) return;
         setStaffDocumentUploading(true);
         setStaffProfileFeedback("");
@@ -1450,13 +1460,29 @@ export default function Home() {
             const storageRef = ref(storage, `staff-documents/${selectedStaffMember.uid}/${safeFileKey}`);
             await uploadBytes(storageRef, file, { contentType: file.type || "application/octet-stream" });
             const url = await getDownloadURL(storageRef);
-            updateStaffDraftField("eligibility", "documentUpload", buildDocumentMeta(file, url));
-            setStaffProfileFeedback("Document uploaded and attached to this profile.");
+            updateStaffDraftField("eligibility", fieldKey, buildDocumentMeta(file, url));
+            setStaffProfileFeedback(`${successLabel} uploaded and attached to this profile.`);
         } catch (err) {
             setStaffProfileFeedback(err.message || "Failed to upload document.");
         } finally {
             setStaffDocumentUploading(false);
         }
+    };
+
+    const addBlockedDateToDraft = () => {
+        if (!blockedDateInput || !activeStaffProfileDraft) return;
+        const nextDates = normalizeBlockedDateList([
+            ...(activeStaffProfileDraft.availability.blockedDates || []),
+            blockedDateInput
+        ]);
+        updateStaffDraftField("availability", "blockedDates", nextDates);
+        setBlockedDateInput("");
+    };
+
+    const removeBlockedDateFromDraft = (value) => {
+        if (!activeStaffProfileDraft) return;
+        const nextDates = (activeStaffProfileDraft.availability.blockedDates || []).filter(date => date !== value);
+        updateStaffDraftField("availability", "blockedDates", nextDates);
     };
 
 
@@ -2988,7 +3014,7 @@ export default function Home() {
                                                                 <strong>Weekly Schedule</strong>
                                                                 <span>Live scheduling data from Firestore</span>
                                                             </div>
-                                                            <span>Max {selectedStaffAvailability.maxJobsPerDay} Jobs/Day</span>
+                                                            <span>Max {selectedStaffAvailability.maxJobsPerDay} Jobs/Week</span>
                                                         </section>
                                                         <section className="people-mobile-availability-card">
                                                             <div className="people-mobile-availability-week">
@@ -3023,6 +3049,7 @@ export default function Home() {
                                                             <div className="people-mobile-editor-section">
                                                                 <label className="span-2"><span>Legal name</span><input value={activeStaffProfileDraft.personal.legalName} onChange={e => updateStaffDraftField("personal", "legalName", e.target.value)} /></label>
                                                                 <label><span>Preferred name</span><input value={activeStaffProfileDraft.personal.preferredName} onChange={e => updateStaffDraftField("personal", "preferredName", e.target.value)} /></label>
+                                                                <label><span>Email</span><input type="email" value={activeStaffProfileDraft.personal.email || selectedStaffMember.email || ""} onChange={e => updateStaffDraftField("personal", "email", e.target.value)} /></label>
                                                                 <label><span>Phone</span><input value={activeStaffProfileDraft.personal.phone} onChange={e => updateStaffDraftField("personal", "phone", e.target.value)} /></label>
                                                                 <label className="span-2 people-address-field" ref={staffAutocompleteRef}><span>Address</span><input value={activeStaffProfileDraft.personal.address} onChange={e => handleStaffAddressChange(e.target.value)} />
                                                                     {showStaffAddressSuggestions && staffAddressSuggestions.length > 0 && (
@@ -3037,7 +3064,7 @@ export default function Home() {
                                                                 </label>
                                                                 <label><span>City</span><input value={activeStaffProfileDraft.personal.city} onChange={e => updateStaffDraftField("personal", "city", e.target.value)} /></label>
                                                                 <label><span>Postal code</span><input value={activeStaffProfileDraft.personal.postalCode} onChange={e => updateStaffDraftField("personal", "postalCode", e.target.value)} /></label>
-                                                                <label className="span-2"><span>Emergency contact</span><input value={activeStaffProfileDraft.emergency.contactName} onChange={e => updateStaffDraftField("emergency", "contactName", e.target.value)} /></label>
+                                                                <label className="span-2"><span>Emergency Contact Name</span><input value={activeStaffProfileDraft.emergency.contactName} onChange={e => updateStaffDraftField("emergency", "contactName", e.target.value)} /></label>
                                                                 <label><span>Relationship</span><input value={activeStaffProfileDraft.emergency.relationship} onChange={e => updateStaffDraftField("emergency", "relationship", e.target.value)} /></label>
                                                                 <label><span>Emergency phone</span><input value={activeStaffProfileDraft.emergency.phone} onChange={e => updateStaffDraftField("emergency", "phone", e.target.value)} /></label>
                                                             </div>
@@ -3048,9 +3075,14 @@ export default function Home() {
                                                                 {canAdminDirectEditSelectedStaffProfile && <label><span>Worker type</span><input value={activeStaffProfileDraft.employment.workerType} onChange={e => updateStaffDraftField("employment", "workerType", e.target.value)} /></label>}
                                                                 {canAdminDirectEditSelectedStaffProfile && <label><span>Years experience</span><input value={activeStaffProfileDraft.employment.yearsExperience} onChange={e => updateStaffDraftField("employment", "yearsExperience", e.target.value)} /></label>}
                                                                 <label className="span-2 people-file-upload-field">
-                                                                    <span>Document upload</span>
-                                                                    <input type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.webp" onChange={e => handleStaffDocumentUpload(e.target.files?.[0])} disabled={staffDocumentUploading} />
-                                                                    <strong>{staffDocumentUploading ? "Uploading document..." : (activeStaffProfileDraft.eligibility.documentUpload?.name || "No document uploaded yet")}</strong>
+                                                                    <span>Photo ID Upload</span>
+                                                                    <input type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.webp" onChange={e => handleStaffDocumentUpload(e.target.files?.[0], "photoIdUpload", "Photo ID")} disabled={staffDocumentUploading} />
+                                                                    <strong>{staffDocumentUploading ? "Uploading document..." : (activeStaffProfileDraft.eligibility.photoIdUpload?.name || "No photo ID uploaded yet")}</strong>
+                                                                </label>
+                                                                <label className="span-2 people-file-upload-field">
+                                                                    <span>Work Permit Document</span>
+                                                                    <input type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.webp" onChange={e => handleStaffDocumentUpload(e.target.files?.[0], "documentUpload", "Work permit document")} disabled={staffDocumentUploading} />
+                                                                    <strong>{staffDocumentUploading ? "Uploading document..." : (activeStaffProfileDraft.eligibility.documentUpload?.name || "No work permit uploaded yet")}</strong>
                                                                 </label>
                                                                 {canAdminDirectEditSelectedStaffProfile && <label><span>Background check</span><input value={activeStaffProfileDraft.compliance.backgroundCheckStatus} onChange={e => updateStaffDraftField("compliance", "backgroundCheckStatus", e.target.value)} /></label>}
                                                                 <label className="span-2"><span>Availability notes</span><textarea value={activeStaffProfileDraft.employment.availabilityNotes} onChange={e => updateStaffDraftField("employment", "availabilityNotes", e.target.value)} /></label>
@@ -3075,8 +3107,19 @@ export default function Home() {
                                                                         </div>
                                                                     ))}
                                                                 </div>
-                                                                <label><span>Max jobs per day</span><input type="number" value={activeStaffProfileDraft.availability.maxJobsPerDay} onChange={e => updateStaffDraftField("availability", "maxJobsPerDay", parseInt(e.target.value || "0", 10))} /></label>
-                                                                <label className="span-2"><span>Blocked dates (comma separated YYYY-MM-DD)</span><input value={(activeStaffProfileDraft.availability.blockedDates || []).join(", ")} onChange={e => updateStaffDraftField("availability", "blockedDates", e.target.value.split(",").map(value => value.trim()).filter(Boolean))} /></label>
+                                                                <label><span>Max jobs per week</span><input type="number" value={activeStaffProfileDraft.availability.maxJobsPerDay} onChange={e => updateStaffDraftField("availability", "maxJobsPerDay", parseInt(e.target.value || "0", 10))} /></label>
+                                                                <div className="span-2 people-file-upload-field">
+                                                                    <span>Blocked dates</span>
+                                                                    <div className="flex gap-2 items-center flex-wrap">
+                                                                        <input type="date" value={blockedDateInput} onChange={e => setBlockedDateInput(e.target.value)} />
+                                                                        <button type="button" className="team-secondary-action" onClick={addBlockedDateToDraft}>Add date</button>
+                                                                    </div>
+                                                                    <div className="people-blocked-dates">
+                                                                        {(activeStaffProfileDraft.availability.blockedDates || []).length > 0 ? activeStaffProfileDraft.availability.blockedDates.map(date => (
+                                                                            <button key={date} type="button" className="people-blocked-date-remove" onClick={() => removeBlockedDateFromDraft(date)}>{date} ×</button>
+                                                                        )) : <span>No blocked dates</span>}
+                                                                    </div>
+                                                                </div>
                                                             </div>
                                                         )}
 
@@ -3228,7 +3271,7 @@ export default function Home() {
                                                     <h4>Identity</h4>
                                                 </div>
                                                 <div className="people-profile-read-list">
-                                                    <div><span>Email Address</span><strong>{selectedStaffMember.email}</strong></div>
+                                                    <div><span>Email Address</span><strong>{activeStaffProfileDraft.personal.email || selectedStaffMember.email}</strong></div>
                                                     <div><span>Phone</span><strong>{activeStaffProfileDraft.personal.phone || "Not submitted"}</strong></div>
                                                     <div className="people-profile-divider"></div>
                                                     <div><span className="people-alert-label">Emergency Contact</span><strong>{activeStaffProfileDraft.emergency.contactName || "Not submitted"}</strong></div>
@@ -3243,7 +3286,7 @@ export default function Home() {
                                                     <h4>Availability</h4>
                                                 </div>
                                                 <div className="people-availability-header">
-                                                    <strong>Max {selectedStaffAvailability.maxJobsPerDay} Jobs/Day</strong>
+                                                    <strong>Max {selectedStaffAvailability.maxJobsPerDay} Jobs/Week</strong>
                                                 </div>
                                                 <div className="people-availability-week">
                                                     {selectedStaffAvailability.weekdays.map((day, index) => (
@@ -3295,11 +3338,19 @@ export default function Home() {
                                                 <div className="people-profile-read-list">
                                                     <div><span>Worker Type</span><strong>{activeStaffProfileDraft.employment.workerType || getRoleLabel(selectedStaffMember.role)}</strong></div>
                                                     <div>
-                                                        <span>Document Upload</span>
+                                                        <span>Work Permit Document</span>
                                                         {activeStaffProfileDraft.eligibility.documentUpload?.url ? (
                                                             <a href={activeStaffProfileDraft.eligibility.documentUpload.url} target="_blank" rel="noreferrer"><strong>{activeStaffProfileDraft.eligibility.documentUpload.name || "View document"}</strong></a>
                                                         ) : (
                                                             <strong>No document uploaded</strong>
+                                                        )}
+                                                    </div>
+                                                    <div>
+                                                        <span>Photo ID Upload</span>
+                                                        {activeStaffProfileDraft.eligibility.photoIdUpload?.url ? (
+                                                            <a href={activeStaffProfileDraft.eligibility.photoIdUpload.url} target="_blank" rel="noreferrer"><strong>{activeStaffProfileDraft.eligibility.photoIdUpload.name || "View photo ID"}</strong></a>
+                                                        ) : (
+                                                            <strong>No photo ID uploaded</strong>
                                                         )}
                                                     </div>
                                                     <div><span>Police Clearance</span><strong>{activeStaffProfileDraft.compliance.backgroundCheckStatus || "Pending"}</strong></div>
@@ -3349,6 +3400,7 @@ export default function Home() {
                                                         <div className="people-profile-form-grid people-profile-form-grid-wide">
                                                             <label><span>Legal name</span><input value={activeStaffProfileDraft.personal.legalName} onChange={e => updateStaffDraftField("personal", "legalName", e.target.value)} /></label>
                                                             <label><span>Preferred name</span><input value={activeStaffProfileDraft.personal.preferredName} onChange={e => updateStaffDraftField("personal", "preferredName", e.target.value)} /></label>
+                                                            <label><span>Email</span><input type="email" value={activeStaffProfileDraft.personal.email || selectedStaffMember.email || ""} onChange={e => updateStaffDraftField("personal", "email", e.target.value)} /></label>
                                                             <label><span>Phone</span><input value={activeStaffProfileDraft.personal.phone} onChange={e => updateStaffDraftField("personal", "phone", e.target.value)} /></label>
                                                             <label><span>Date of birth</span><input type="date" value={activeStaffProfileDraft.personal.dateOfBirth} onChange={e => updateStaffDraftField("personal", "dateOfBirth", e.target.value)} /></label>
                                                             <label className="span-2 people-address-field" ref={staffAutocompleteRef}><span>Address</span><input value={activeStaffProfileDraft.personal.address} onChange={e => handleStaffAddressChange(e.target.value)} />
@@ -3373,7 +3425,7 @@ export default function Home() {
                                                             <h4>Emergency Contact</h4>
                                                         </div>
                                                         <div className="people-profile-form-grid people-profile-form-grid-wide">
-                                                            <label><span>Emergency contact</span><input value={activeStaffProfileDraft.emergency.contactName} onChange={e => updateStaffDraftField("emergency", "contactName", e.target.value)} /></label>
+                                                            <label><span>Emergency Contact Name</span><input value={activeStaffProfileDraft.emergency.contactName} onChange={e => updateStaffDraftField("emergency", "contactName", e.target.value)} /></label>
                                                             <label><span>Relationship</span><input value={activeStaffProfileDraft.emergency.relationship} onChange={e => updateStaffDraftField("emergency", "relationship", e.target.value)} /></label>
                                                             <label><span>Emergency phone</span><input value={activeStaffProfileDraft.emergency.phone} onChange={e => updateStaffDraftField("emergency", "phone", e.target.value)} /></label>
                                                         </div>
@@ -3401,8 +3453,19 @@ export default function Home() {
                                                                     </div>
                                                                 ))}
                                                             </div>
-                                                            <label><span>Max jobs per day</span><input type="number" value={activeStaffProfileDraft.availability.maxJobsPerDay} onChange={e => updateStaffDraftField("availability", "maxJobsPerDay", parseInt(e.target.value || "0", 10))} /></label>
-                                                            <label className="span-2"><span>Blocked dates (comma separated YYYY-MM-DD)</span><input value={(activeStaffProfileDraft.availability.blockedDates || []).join(", ")} onChange={e => updateStaffDraftField("availability", "blockedDates", e.target.value.split(",").map(value => value.trim()).filter(Boolean))} /></label>
+                                                            <label><span>Max jobs per week</span><input type="number" value={activeStaffProfileDraft.availability.maxJobsPerDay} onChange={e => updateStaffDraftField("availability", "maxJobsPerDay", parseInt(e.target.value || "0", 10))} /></label>
+                                                            <div className="span-2 people-file-upload-field">
+                                                                <span>Blocked dates</span>
+                                                                <div className="flex gap-2 items-center flex-wrap">
+                                                                    <input type="date" value={blockedDateInput} onChange={e => setBlockedDateInput(e.target.value)} />
+                                                                    <button type="button" className="team-secondary-action" onClick={addBlockedDateToDraft}>Add date</button>
+                                                                </div>
+                                                                <div className="people-blocked-dates">
+                                                                    {(activeStaffProfileDraft.availability.blockedDates || []).length > 0 ? activeStaffProfileDraft.availability.blockedDates.map(date => (
+                                                                        <button key={date} type="button" className="people-blocked-date-remove" onClick={() => removeBlockedDateFromDraft(date)}>{date} ×</button>
+                                                                    )) : <span>No blocked dates</span>}
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                     </section>
                                                 </div>
@@ -3413,11 +3476,19 @@ export default function Home() {
                                                     <label><span>T-shirt size</span><input value={activeStaffProfileDraft.employment.tshirtSize} onChange={e => updateStaffDraftField("employment", "tshirtSize", e.target.value)} /></label>
                                                     <label className="span-2"><span>Availability notes</span><textarea value={activeStaffProfileDraft.employment.availabilityNotes} onChange={e => updateStaffDraftField("employment", "availabilityNotes", e.target.value)} /></label>
                                                     <label className="span-2 people-file-upload-field">
-                                                        <span>Document upload</span>
-                                                        <input type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.webp" onChange={e => handleStaffDocumentUpload(e.target.files?.[0])} disabled={staffDocumentUploading} />
-                                                        <strong>{staffDocumentUploading ? "Uploading document..." : (activeStaffProfileDraft.eligibility.documentUpload?.name || "No document uploaded yet")}</strong>
+                                                        <span>Photo ID Upload</span>
+                                                        <input type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.webp" onChange={e => handleStaffDocumentUpload(e.target.files?.[0], "photoIdUpload", "Photo ID")} disabled={staffDocumentUploading} />
+                                                        <strong>{staffDocumentUploading ? "Uploading document..." : (activeStaffProfileDraft.eligibility.photoIdUpload?.name || "No photo ID uploaded yet")}</strong>
+                                                        {canAdminDirectEditSelectedStaffProfile && activeStaffProfileDraft.eligibility.photoIdUpload?.url && (
+                                                            <a href={activeStaffProfileDraft.eligibility.photoIdUpload.url} target="_blank" rel="noreferrer">View uploaded photo ID</a>
+                                                        )}
+                                                    </label>
+                                                    <label className="span-2 people-file-upload-field">
+                                                        <span>Work Permit Document</span>
+                                                        <input type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.webp" onChange={e => handleStaffDocumentUpload(e.target.files?.[0], "documentUpload", "Work permit document")} disabled={staffDocumentUploading} />
+                                                        <strong>{staffDocumentUploading ? "Uploading document..." : (activeStaffProfileDraft.eligibility.documentUpload?.name || "No work permit uploaded yet")}</strong>
                                                         {canAdminDirectEditSelectedStaffProfile && activeStaffProfileDraft.eligibility.documentUpload?.url && (
-                                                            <a href={activeStaffProfileDraft.eligibility.documentUpload.url} target="_blank" rel="noreferrer">View uploaded document</a>
+                                                            <a href={activeStaffProfileDraft.eligibility.documentUpload.url} target="_blank" rel="noreferrer">View uploaded work permit</a>
                                                         )}
                                                     </label>
                                                     <label><span>Permit expiry</span><input type="date" value={activeStaffProfileDraft.eligibility.workPermitExpiry} onChange={e => updateStaffDraftField("eligibility", "workPermitExpiry", e.target.value)} /></label>

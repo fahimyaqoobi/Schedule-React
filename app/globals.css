@@ -2672,6 +2672,16 @@ label {
     font-weight: 800;
 }
 
+.people-blocked-date-remove {
+    padding: 8px 14px;
+    border-radius: 8px;
+    background: #fee2e2;
+    color: #b91c1c;
+    font-size: 14px;
+    font-weight: 800;
+    border: 1px solid #fecaca;
+}
+
 .people-performance-rating {
     display: flex;
     align-items: center;
