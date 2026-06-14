@@ -1457,12 +1457,13 @@ export default function Home() {
 
     const adminCommandMetrics = useMemo(() => {
         const activeBookings = bookings.filter(b => b.status !== "Cancelled");
+        const completedBookings = activeBookings.filter(booking => booking.status === "Completed");
         const uniqueClients = new Set(activeBookings.map(b => (b.email || b.phone || b.clientName || "").toLowerCase()).filter(Boolean));
         const bookedServices = activeBookings.reduce((total, booking) => {
             if (Array.isArray(booking.cartItems) && booking.cartItems.length > 0) return total + booking.cartItems.length;
             return total + 1;
         }, 0);
-        const revenue = activeBookings.reduce((total, booking) => total + parseFloat(booking.price || booking.totalAmount || 0), 0);
+        const revenue = completedBookings.reduce((total, booking) => total + parseFloat(booking.price || booking.totalAmount || 0), 0);
         const pending = activeBookings.filter(booking => booking.status === "Pending").length;
         const confirmed = activeBookings.filter(booking => booking.status === "Confirmed").length;
 
@@ -1949,7 +1950,7 @@ export default function Home() {
                                         <div className="admin-metric-card">
                                             <span>Total Revenue</span>
                                             <strong>${adminCommandMetrics.revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-                                            <small>All active booked revenue</small>
+                                            <small>Completed jobs/bookings only</small>
                                         </div>
                                         <div className="admin-metric-card">
                                             <span>Booked Clients</span>
