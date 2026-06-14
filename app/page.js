@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import dynamic from "next/dynamic";
 import {
     signInWithEmailAndPassword,
     signOut,
@@ -11,12 +12,43 @@ import {
     EmailAuthProvider
 } from "firebase/auth";
 import { auth } from "../lib/firebase";
+import {
+    DEPARTMENTS,
+    ROLE_DEFINITIONS,
+    ROLE_OPTIONS,
+    canManageSystem,
+    getRoleLabel,
+    normalizeRole,
+    roleHasDepartment
+} from "../lib/permissions";
+import {
+    BRANCHES,
+    DEFAULT_BRANCH_ID,
+    findBranchForAddress,
+    getBranchById,
+    getBranchScopeForUser
+} from "../lib/branches";
+
+const V2SettingsManager = dynamic(() => import("./components/V2SettingsManager"), {
+    ssr: false,
+    loading: () => (
+        <div className="mt-8 rounded-brand-lg border border-brand-mist bg-white p-10 text-center shadow-sparkle">
+            <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-brand-mist border-t-brand-action"></div>
+            <p className="font-heading text-xs font-bold uppercase tracking-wider text-brand-slate">
+                Loading Catalog Studio
+            </p>
+        </div>
+    )
+});
 
 // Font Awesome / Lucide style icons rendered via secure standalone inline SVGs for 100% crash-proof safety
 const Icons = {
     Dashboard: () => <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>,
     Bookings: () => <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>,
     Calendar: () => <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>,
+    Catalog: () => <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M4 5a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"></path><path d="M8 11h8"></path><path d="M8 15h5"></path></svg>,
+    Departments: () => <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect></svg>,
+    Shield: () => <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="M9 12l2 2 4-4"></path></svg>,
     Teams: () => <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>,
     EditReview: () => <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4z"></path></svg>,
     Logout: () => <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>,
@@ -108,6 +140,137 @@ const DEFAULT_PRICES = {
     }
 };
 
+// --- V1.02 DYNAMIC SERVICE CATALOG SCHEMA ---
+// This isolates the new dynamic cart engine from the old v1 system during development.
+const INITIAL_V2_CATALOG = {
+    categories: [
+        {
+            id: 'house_cleaning',
+            name: 'House Cleaning (Interior)',
+            pricingModel: 'size_based', // flat_rate, size_based, hourly, flat_plus_unit
+            baseRate: 0,
+            sizes: [
+                { id: 'hc_1bed', name: 'Studio or 1 Bedroom', price: 87.50, durationHrs: 2 },
+                { id: 'hc_2bed', name: '2 bedroom apartment', price: 101.50, durationHrs: 2.5 },
+                { id: 'hc_3bed_apt', name: '3 bedroom apartment or townhouse', price: 115.50, durationHrs: 3 },
+                { id: 'hc_3bed_house', name: '3 or 4 bedroom house (or between 1700 to 1999 sqft)', price: 143.50, durationHrs: 3.5 },
+                { id: 'hc_2000sqft', name: 'between 2000 to 2499 sq ft', price: 150.50, durationHrs: 4 },
+                { id: 'hc_2500sqft', name: 'between 2500 to 2999 sq ft', price: 175.00, durationHrs: 4.5 },
+                { id: 'hc_3000sqft', name: 'between 3000 to 3499 sq ft', price: 208.60, durationHrs: 5 },
+                { id: 'hc_3500sqft', name: 'between 3500 to 3999 sq ft', price: 243.60, durationHrs: 5.5 }
+            ],
+            addons: [
+                { id: 'firstTimeClean', name: 'First Time Clean Upgrade', price: 87.50, qtySelector: false },
+                { id: 'moveInOut', name: 'Move In/Out Upgrade', price: 87.50, qtySelector: false },
+                { id: 'havePets', name: 'I Have Pets Premium', price: 17.50, qtySelector: false },
+                { id: 'insideOven', name: 'Inside the Oven', price: 31.50, qtySelector: true },
+                { id: 'insideEmptyFridge', name: 'Inside an Empty Fridge', price: 17.50, qtySelector: true },
+                { id: 'insideFullFridge', name: 'Inside a Full Fridge', price: 31.50, qtySelector: true },
+                { id: 'secondKitchen', name: 'Second Kitchen', price: 35.00, qtySelector: false },
+                { id: 'walls', name: 'Walls ($14 per room)', price: 14.00, qtySelector: true },
+                { id: 'shedPoolHouse', name: 'Shed/Pool House', price: 52.50, qtySelector: false },
+                { id: 'insideCabinets', name: 'Inside Cabinets (emptied)', price: 35.00, qtySelector: false },
+                { id: 'interiorWindows', name: 'Interior Windows ($7 per window)', price: 7.00, qtySelector: true },
+                { id: 'slidingDoorWindow', name: 'Sliding Door Interior Window', price: 14.00, qtySelector: true },
+                { id: 'garageSweep', name: 'Garage Sweep', price: 21.00, qtySelector: false },
+                { id: 'balconySweep', name: 'Balcony Sweep', price: 14.00, qtySelector: true },
+                { id: 'homeConcierge', name: 'Home Concierge ($35/hr, min 2 hrs)', price: 35.00, qtySelector: true, minQty: 2 },
+                { id: 'organization', name: 'Organization ($56/hr, min 3 hrs)', price: 56.00, qtySelector: true, minQty: 3 },
+                { id: 'laundryWashFold', name: 'Laundry - Wash & Fold (per load)', price: 17.50, qtySelector: true }
+            ]
+        },
+        {
+            id: 'window_washing',
+            name: 'Window Washing (Exterior)',
+            pricingModel: 'flat_plus_unit',
+            baseRate: 150.00,
+            durationHrs: 2,
+            unitName: 'Additional Pane',
+            unitPrice: 5.00,
+            sizes: [],
+            addons: [
+                { id: 'screenCleaning', name: 'Screen Cleaning', price: 20.00, qtySelector: false },
+                { id: 'hardWaterStain', name: 'Hard Water Stain Removal', price: 35.00, qtySelector: false }
+            ]
+        },
+        {
+            id: 'pressure_washing_siding',
+            name: 'Pressure Washing (Siding)',
+            pricingModel: 'flat_plus_sqft',
+            baseRate: 200.00,
+            durationHrs: 2.5,
+            unitName: 'Per Sq Ft over 1000',
+            unitPrice: 0.20,
+            sizes: [],
+            addons: []
+        },
+        {
+            id: 'pressure_washing_deck',
+            name: 'Pressure Washing (Deck, Sidewalk, Concrete)',
+            pricingModel: 'flat_rate',
+            baseRate: 150.00,
+            durationHrs: 2,
+            sizes: [],
+            addons: []
+        },
+        {
+            id: 'gutter_cleaning',
+            name: 'Gutter & Downspout Cleaning',
+            pricingModel: 'flat_rate',
+            baseRate: 150.00,
+            durationHrs: 1.5,
+            sizes: [
+                { id: 'gc_1story', name: '1-Story Home', price: 150.00, durationHrs: 1.5 },
+                { id: 'gc_2story', name: '2-Story Home', price: 250.00, durationHrs: 2.5 }
+            ],
+            addons: [
+                { id: 'downspoutFlush', name: 'Downspout Flushing', price: 50.00, qtySelector: false }
+            ]
+        },
+        {
+            id: 'lawn_mowing',
+            name: 'Lawn Mower Mowing',
+            pricingModel: 'flat_rate',
+            baseRate: 60.00,
+            durationHrs: 1,
+            sizes: [
+                { id: 'lm_small', name: 'Small Yard (Under 1/4 acre)', price: 60.00, durationHrs: 1 },
+                { id: 'lm_med', name: 'Medium Yard (1/4 to 1/2 acre)', price: 90.00, durationHrs: 1.5 },
+                { id: 'lm_large', name: 'Large Yard (Over 1/2 acre)', price: 140.00, durationHrs: 2 }
+            ],
+            addons: [
+                { id: 'edgeTrimming', name: 'Edge Trimming', price: 25.00, qtySelector: false },
+                { id: 'clippingsRemoval', name: 'Clippings Removal', price: 30.00, qtySelector: false }
+            ]
+        }
+    ],
+    bathrooms: {
+        '1 Bathroom': 14.00,
+        '2 Bathroom': 28.00,
+        '3 Bathroom': 42.00,
+        '4 Bathroom': 56.00,
+        '5 Bathroom': 70.00,
+        '6 Bathroom': 84.00,
+        '7 Bathroom': 98.00
+    },
+    frequencies: {
+        'One-Time': { name: 'one time service', discount: 0 },
+        'Weekly': { name: 'Weekly 20% off', discount: 0.20 },
+        'Bi-Weekly': { name: 'Bi-Weekly 15% off', discount: 0.15 },
+        'Tri-Weekly': { name: 'Tri weekly 12% off', discount: 0.12 },
+        'Monthly': { name: 'Monthly 10% off', discount: 0.10 }
+    },
+    globalAddons: [
+        { id: 'downtownParking', name: 'Downtown Street Parking Fee', price: 14.00, qtySelector: false },
+        { id: 'nextDayBooking', name: 'Next Day Booking Fee', price: 52.50, qtySelector: false },
+        { id: 'sameDayCancellation', name: 'Same Day Cancellation Fee', price: 55.30, qtySelector: false }
+    ],
+    promotions: [
+        { id: 'promo_next30', name: 'Next Service $30 Off', type: 'fixed', value: 30, triggersOn: 'immediate_booking' }
+    ]
+};
+
+
 const HOUSE_CLEANING_SERVICES = [
     'Studio or 1 Bedroom',
     '2 bedroom apartment',
@@ -150,6 +313,8 @@ export default function Home() {
     const [editRequests, setEditRequests] = useState([]);
     const [pendingUsers, setPendingUsers] = useState([]);
     const [teamLeaders, setTeamLeaders] = useState([]);
+    const [fieldStaff, setFieldStaff] = useState([]);
+    const [selectedBranchId, setSelectedBranchId] = useState(DEFAULT_BRANCH_ID);
 
     // Auth Forms state
     const [authMode, setAuthMode] = useState("login"); // "login" | "signup"
@@ -157,12 +322,27 @@ export default function Home() {
     const [password, setPassword] = useState("");
     const [name, setName] = useState("");
     const [signupTeam, setSignupTeam] = useState("");
+    const [signupRole, setSignupRole] = useState("customer");
+    const roleDefinition = currentUser ? ROLE_DEFINITIONS[currentUser.role] || ROLE_DEFINITIONS["super-admin"] : null;
+    const roleLabel = currentUser ? getRoleLabel(currentUser.role) : "";
+    const canViewDepartment = useCallback((departmentId) => {
+        if (!currentUser) return false;
+        return roleHasDepartment(currentUser.role, departmentId);
+    }, [currentUser]);
+    const canViewPeople = canViewDepartment("people");
+    const canViewOperations = canViewDepartment("operations");
+    const canViewAdministration = canViewDepartment("administration");
+    const canManagePermissions = canManageSystem(currentUser);
+    const needsCrewAssignment = false;
+    const branchScope = currentUser ? getBranchScopeForUser({ ...currentUser, activeBranchId: selectedBranchId }) : null;
+    const activeBranch = getBranchById(branchScope?.activeBranchId || selectedBranchId || DEFAULT_BRANCH_ID);
 
     // Address Autocomplete (Restricted to Ontario, Canada)
     const [addressQuery, setAddressQuery] = useState("");
     const [addressSuggestions, setAddressSuggestions] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const autocompleteRef = useRef(null);
+    const serviceCatalogRef = useRef(null);
 
     // Bookings Filters
     const [searchVal, setSearchVal] = useState("");
@@ -180,10 +360,12 @@ export default function Home() {
         return new Date(today.getFullYear(), today.getMonth(), 1);
     });
 
-    // Pricing rates manager and wizard step counter states
+    // Pricing rates manager states
+    // --- V1 Core Booking Engine State ---
     const [pricingRates, setPricingRates] = useState(DEFAULT_PRICES);
-    const [formStep, setFormStep] = useState(1);
-    const [submitCooldown, setSubmitCooldown] = useState(false);
+
+    // --- V2 Dynamic Catalog State ---
+    const [v2Catalog, setV2Catalog] = useState(INITIAL_V2_CATALOG);
 
     // Form inputs for scheduling modal
     const [bookingForm, setBookingForm] = useState({
@@ -215,6 +397,8 @@ export default function Home() {
         date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' }),
         time: "09:00 AM",
         team: "",
+        assignedStaff: [],
+        assignedStaffIds: [],
         status: "Pending",
         serviceDescription: "",
         accessDescription: ""
@@ -224,11 +408,47 @@ export default function Home() {
     const [detailsModalOpen, setDetailsModalOpen] = useState(false);
     const [selectedBooking, setSelectedBooking] = useState(null);
     const [bookingModalOpen, setBookingModalOpen] = useState(false);
-    const [bookingModalMode, setBookingModalMode] = useState("create"); // "create" | "edit"
+    const [adminServiceCart, setAdminServiceCart] = useState([]);
+    const [serviceConfigOpen, setServiceConfigOpen] = useState(false);
+    const [configCategory, setConfigCategory] = useState(null);
+    const [configSizeId, setConfigSizeId] = useState("");
+    const [configBathroomKey, setConfigBathroomKey] = useState("1 Bathroom");
+    const [configAddons, setConfigAddons] = useState({});
+    const [adminCheckoutOpen, setAdminCheckoutOpen] = useState(false);
+    const [adminCheckoutForm, setAdminCheckoutForm] = useState({
+        firstName: "",
+        lastName: "",
+        phone: "",
+        email: "",
+        address1: "",
+        address2: "",
+        city: "Ottawa",
+        state: "Ontario",
+        postalCode: "",
+        country: "Canada",
+        date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' }),
+        time: "09:00 AM",
+        assignedStaffIds: [],
+        promoCode: "",
+        giftCardCode: "",
+        discountAmount: 0,
+        discountPercent: 0,
+        notes: ""
+    });
 
     // Admin team crew creation modal
     const [teamModalOpen, setTeamModalOpen] = useState(false);
-    const [teamForm, setTeamForm] = useState({ id: "", name: "", color: "sparkle", lead: "", size: 2, members: "", description: "" });
+    const [teamForm, setTeamForm] = useState({
+        id: "",
+        name: "",
+        color: "sparkle",
+        lead: "",
+        size: 2,
+        members: "",
+        description: "",
+        employmentType: "in_house", // 'in_house' or 'subcontractor'
+        availability: {} // Map of dates/days to availability status
+    });
 
     // Profile and Security settings states
     const [profileName, setProfileName] = useState("");
@@ -236,9 +456,22 @@ export default function Home() {
     const [securityForm, setSecurityForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
     const [securityLoading, setSecurityLoading] = useState(false);
 
+    // Shared Secure JWT Authorization Request Fetcher
+    const getAuthHeaders = useCallback(async () => {
+        if (!auth.currentUser) return {};
+        const token = await auth.currentUser.getIdToken();
+        return {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
+        };
+    }, []);
+
     useEffect(() => {
         if (currentUser) {
-            setProfileName(currentUser.name || "");
+            const timer = setTimeout(() => {
+                setProfileName(currentUser.name || "");
+            }, 0);
+            return () => clearTimeout(timer);
         }
     }, [currentUser]);
 
@@ -251,11 +484,14 @@ export default function Home() {
                 if (res.ok) {
                     const data = await res.json();
                     if (data && Object.keys(data).length > 0) {
+                        if (data.v2_catalog) {
+                            setV2Catalog(data.v2_catalog);
+                        }
                         setPricingRates(prev => {
                             const mergedServices = { ...DEFAULT_PRICES.services, ...data.services };
                             const mergedBathrooms = { ...DEFAULT_PRICES.bathrooms, ...data.bathrooms };
                             const mergedExtras = { ...DEFAULT_PRICES.extras, ...data.extras };
-                            
+
                             // Merge and sanitize frequencies discount to decimal
                             const mergedFrequencies = { ...DEFAULT_PRICES.frequencies };
                             if (data.frequencies) {
@@ -271,7 +507,7 @@ export default function Home() {
                                     }
                                 });
                             }
-                            
+
                             const mergedServiceDurations = { ...DEFAULT_PRICES.serviceDurations, ...(data.serviceDurations || {}) };
 
                             return {
@@ -291,29 +527,7 @@ export default function Home() {
         if (currentUser) {
             loadPricingRates();
         }
-    }, [currentUser]);
-
-
-    // Auto-select first available team when booking modal is open and no team is selected yet
-    useEffect(() => {
-        if (bookingModalOpen && !bookingForm.team && teams.length > 0) {
-            setBookingForm(prev => ({
-                ...prev,
-                team: currentUser && currentUser.role === "team-leader" ? currentUser.teamId : teams[0].name
-            }));
-        }
-    }, [bookingModalOpen, teams, currentUser, bookingForm.team]);
-
-    // Cooldown timer to prevent premature dispatch submission due to ghost-clicks / double-taps on iPad/mobile
-    useEffect(() => {
-        if (formStep === 8) {
-            setSubmitCooldown(true);
-            const timer = setTimeout(() => {
-                setSubmitCooldown(false);
-            }, 800);
-            return () => clearTimeout(timer);
-        }
-    }, [formStep]);
+    }, [currentUser, getAuthHeaders]);
 
     // Dynamic price calculator combining Base Service, Bathrooms, Extras, Frequencies, and Custom Discounts
     const calculateBookingTotal = (formState) => {
@@ -358,17 +572,7 @@ export default function Home() {
     };
 
 
-    // ----------------------------------------------------
-    // Shared Secure JWT Authorization Request Fetcher
-    // ----------------------------------------------------
-    const getAuthHeaders = async () => {
-        if (!auth.currentUser) return {};
-        const token = await auth.currentUser.getIdToken();
-        return {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json"
-        };
-    };
+
 
     // Live clock utility
     useEffect(() => {
@@ -383,90 +587,32 @@ export default function Home() {
     }, []);
 
     // ----------------------------------------------------
-    // Real-Time Auth Observer & Database Syncing
-    // ----------------------------------------------------
-    useEffect(() => {
-        const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
-            if (firebaseUser) {
-                try {
-                    // Try to fetch custom profile from firestore users collection
-                    // Wait briefly in case it's a registration setting up in the background
-                    let retries = 0;
-                    let profile = null;
-
-                    const fetchProfile = async () => {
-                        const token = await firebaseUser.getIdToken();
-                        const res = await fetch(`/api/bookings`, { headers: { "Authorization": `Bearer ${token}` } });
-                        if (res.status === 401 || res.status === 403) {
-                            // User is not approved or document not found yet
-                            return null;
-                        }
-                        // To get user profile, fetch standard users collection or parse idToken decodes
-                        // Let's call /api/bookings to see if authenticated session verifies.
-                        // We will decode user parameters by reading firestore document directly inside the api
-                        return firebaseUser;
-                    };
-
-                    // Load user profile parameters securely. We can query firestore users collection directly using API.
-                    const token = await firebaseUser.getIdToken();
-                    // Let's decode or read profile by hitting /api/bookings which verifies auth
-                    const profileRes = await fetch("/api/bookings", { headers: { "Authorization": `Bearer ${token}` } });
-
-                    if (profileRes.ok) {
-                        // The user document should exist. Let's load user profile via API or fallback.
-                        // We can load profile document details by querying Firestore users collection
-                        // Wait, we need the exact role and teamId for front-end rendering!
-                        // Let's write a simple secure API to return the current user's profile!
-                        // Wait! Instead of building a new API route, we can fetch from firestore users directly inside client-side JS?
-                        // No, we want to completely remove client-side direct reads!
-                        // Wait, we can decode the client ID token or we can write a simple endpoint /api/auth/profile that returns user profile!
-                        // Actually, we can fetch from users collection securely. Wait!
-                        // Let's build a secure profile fetch inside /api/bookings or /api/auth/profile.
-                        // Wait, we can modify `/api/bookings` or add `/api/auth/profile` in next step, or fetch profile securely.
-                        // Wait! A simpler, elegant way is to retrieve it in client-side using firebase.firestore() client-side?
-                        // No, the client-side SDK can still do reads if Rules allow it! But we want it 100% decoupled.
-                        // Let's write a fast endpoint `/api/auth/profile`! No, let's just make `/api/bookings` return user payload if query param has profile, or create `/api/auth/profile/route.js`.
-                        // Let's write it in client side directly since the client is authenticated, reads are perfectly fine!
-                        // Wait! Yes! Read of a single user's own profile document `users/{uid}` is perfectly secure and standard in Firebase!
-                        // So the client can safely read `users/{uid}` directly from Firestore on the frontend, because the user can only read their own document!
-                        // Let's fetch it via client Firestore!
-                    }
-                } catch (e) {
-                    console.error("Auth Load Error", e);
-                }
-            } else {
-                setCurrentUser(null);
-                setBookings([]);
-                setEditRequests([]);
-                setPendingUsers([]);
-            }
-            setLoading(false);
-        });
-        return () => unsub();
-    }, []);
-
-    // ----------------------------------------------------
     // User Profile Poller & Sync Hook
     // ----------------------------------------------------
-    const syncDatabaseData = async (user) => {
+    const syncDatabaseData = useCallback(async (user) => {
         try {
             const headers = await getAuthHeaders();
+            const role = normalizeRole(user?.role);
+            const isBranchManager = canManageSystem(user) || role === "super-admin" || role === "branch-admin";
 
             // 1. Fetch scoped bookings
-            const bookingsRes = await fetch("/api/bookings", { headers });
+            const branchQuery = selectedBranchId && !isBranchManager ? `?branchId=${encodeURIComponent(selectedBranchId)}` : "";
+            const bookingsRes = await fetch(`/api/bookings${branchQuery}`, { headers });
             if (bookingsRes.ok) {
                 const data = await bookingsRes.json();
                 setBookings(data);
+            } else {
+                console.error("Bookings sync failed", bookingsRes.status, await bookingsRes.text());
             }
 
-            // 2. Fetch crews/teams
-            const teamsRes = await fetch("/api/teams", { headers });
-            if (teamsRes.ok) {
-                const data = await teamsRes.json();
-                setTeams(data);
-                if (data.length > 0 && !signupTeam) {
-                    setSignupTeam(data[0].name);
-                }
+            // 2. Fetch approved field staff for person-based job assignment
+            const fieldStaffRes = await fetch("/api/users?type=field-staff", { headers });
+            if (fieldStaffRes.ok) {
+                const data = await fieldStaffRes.json();
+                setFieldStaff(data);
+                setTeamLeaders(data.filter(member => ["cleaner", "supervisor"].includes(member.role)));
+            } else {
+                console.error("Field staff sync failed", fieldStaffRes.status, await fieldStaffRes.text());
             }
 
             // 3. Fetch edit requests scoped by role
@@ -474,10 +620,12 @@ export default function Home() {
             if (editsRes.ok) {
                 const data = await editsRes.json();
                 setEditRequests(data);
+            } else {
+                console.error("Edit requests sync failed", editsRes.status, await editsRes.text());
             }
 
-            // 4. Fetch pending user accounts & registered approved team leaders (Admin Only)
-            if (user.role === "admin") {
+            // 4. Fetch pending user accounts & registered approved team leaders (permissioned admin only)
+            if (canManageSystem(user)) {
                 const pendingRes = await fetch("/api/users", { headers });
                 if (pendingRes.ok) {
                     const data = await pendingRes.json();
@@ -492,14 +640,17 @@ export default function Home() {
         } catch (e) {
             console.error("Data syncing failed", e);
         }
-    };
+    }, [getAuthHeaders, selectedBranchId]);
 
     // Keep data fresh by syncing when user changes or tab switches
     useEffect(() => {
         if (currentUser && currentUser.status === "approved") {
-            syncDatabaseData(currentUser);
+            const timer = setTimeout(() => {
+                syncDatabaseData(currentUser);
+            }, 0);
+            return () => clearTimeout(timer);
         }
-    }, [currentUser, activeTab]);
+    }, [currentUser, activeTab, syncDatabaseData]);
 
     // Handle authentication state changes & read server-side user document securely
     useEffect(() => {
@@ -530,21 +681,13 @@ export default function Home() {
 
                     if (userData) {
                         setCurrentUser(userData);
+                        setSelectedBranchId(userData.branchId || userData.branchIds?.[0] || DEFAULT_BRANCH_ID);
                         if (userData.status === "approved") {
                             syncDatabaseData(userData);
                         }
                     } else {
-                        // Safe fallback for console-registered cleaners or admins
-                        const fallbackAdmin = {
-                            uid: firebaseUser.uid,
-                            name: firebaseUser.displayName || firebaseUser.email.split("@")[0],
-                            email: firebaseUser.email,
-                            role: "admin",
-                            teamId: "",
-                            status: "approved"
-                        };
-                        setCurrentUser(fallbackAdmin);
-                        syncDatabaseData(fallbackAdmin);
+                        await signOut(auth);
+                        setCurrentUser(null);
                     }
                 } catch (err) {
                     console.error("Failed to load user profile securely", err);
@@ -557,7 +700,7 @@ export default function Home() {
             setLoading(false);
         });
         return () => unsub();
-    }, []);
+    }, [syncDatabaseData]);
 
 
     // ----------------------------------------------------
@@ -596,7 +739,7 @@ export default function Home() {
             const res = await fetch("/api/auth/register", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ uid: user.uid, name, email, teamId: signupTeam })
+                body: JSON.stringify({ uid: user.uid, name, email, teamId: signupTeam, requestedRole: signupRole })
             });
 
             if (res.ok) {
@@ -776,84 +919,17 @@ export default function Home() {
     // ----------------------------------------------------
     // Booking Form Submit Actions
     // ----------------------------------------------------
-    const validateFormStep = (step) => {
-        if (step === 1) {
-            if (!bookingForm.firstName.trim()) { alert("First Name is required."); return false; }
-            if (!bookingForm.lastName.trim()) { alert("Last Name is required."); return false; }
-            if (!bookingForm.email.trim()) { alert("Email Address is required."); return false; }
-            if (!bookingForm.email.includes("@")) { alert("Please enter a valid email address."); return false; }
-            if (!bookingForm.phone.trim()) { alert("Phone Number is required."); return false; }
-        }
-        if (step === 2) {
-            if (!bookingForm.address1.trim()) { alert("Street address is required."); return false; }
-            if (!bookingForm.city.trim()) { alert("City is required."); return false; }
-            if (!bookingForm.postalCode.trim()) { alert("Postal Code is required."); return false; }
-        }
-        if (step === 5) {
-            if (!bookingForm.date) { alert("Please select a schedule date."); return false; }
-            if (!bookingForm.time) { alert("Please select an arrival time slot."); return false; }
-            const finalTeam = currentUser?.role === "team-leader" ? currentUser.teamId : bookingForm.team;
-            if (!finalTeam) { alert("Please select a dispatch crew."); return false; }
-            if (bookingForm.team !== finalTeam) {
-                setBookingForm(prev => ({ ...prev, team: finalTeam }));
-            }
-        }
-        return true;
-    };
 
-    const handleNextStep = () => {
-        if (validateFormStep(formStep)) {
-            setFormStep(prev => prev + 1);
-        }
-    };
-
-    const handleBackStep = () => {
-        setFormStep(prev => prev - 1);
-    };
-
-    const openCreateBookingModal = () => {
-        setBookingModalMode("create");
-        setFormStep(1);
-        setBookingForm({
-            id: "",
-            firstName: "",
-            lastName: "",
-            phone: "",
-            email: "",
-            address1: "",
-            address2: "",
-            city: "",
-            state: "Ontario",
-            postalCode: "",
-            country: "Canada",
-            service: "Studio or 1 Bedroom",
-            bathrooms: "1 Bathroom",
-            extras: {},
-            frequency: "One-Time",
-            hasPets: false,
-            accessMode: "Will be home",
-            freeParking: true,
-            firstClean30: false,
-            specialNotes: "",
-            accessDetails: "",
-            customDiscountPercent: 0,
-            customDiscountAmount: 0,
-            price: 87.50,
-            duration: 2,
-            date: selectedCalDate,
-            time: "09:00 AM",
-            team: currentUser ? (currentUser.role === "team-leader" ? currentUser.teamId : (teams[0]?.name || "")) : (teams[0]?.name || ""),
-            status: "Pending",
-            serviceDescription: "",
-            accessDescription: ""
+    const openNewBookingCommand = () => {
+        setActiveTab("dashboard");
+        setAdminCheckoutOpen(false);
+        setServiceConfigOpen(false);
+        requestAnimationFrame(() => {
+            serviceCatalogRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
         });
-        setAddressQuery("");
-        setBookingModalOpen(true);
     };
 
     const openEditBookingModal = (b) => {
-        setBookingModalMode("edit");
-        setFormStep(1);
         const nameParts = (b.clientName || "").split(" ");
         const fName = b.firstName || nameParts[0] || "";
         const lName = b.lastName || nameParts.slice(1).join(" ") || "";
@@ -885,7 +961,9 @@ export default function Home() {
             duration: b.duration || 2,
             date: b.date,
             time: b.time,
-            team: b.team,
+            team: "",
+            assignedStaff: b.assignedStaff || [],
+            assignedStaffIds: b.assignedStaffIds || [],
             status: b.status,
             serviceDescription: b.serviceDescription || "",
             accessDescription: b.accessDescription || ""
@@ -903,42 +981,18 @@ export default function Home() {
     const handleBookingSubmit = async (e) => {
         if (e && e.preventDefault) e.preventDefault();
 
-        // Prevent premature submission prior to step 8
-        if (formStep < 8) {
-            handleNextStep();
-            return;
-        }
-
-        // Validate collision
         const durationNum = parseFloat(bookingForm.duration || 2);
-        const isOverlap = checkScheduleCollisions(
-            bookingForm.date,
-            bookingForm.time,
-            durationNum,
-            bookingForm.team,
-            bookingModalMode === "edit" ? bookingForm.id : null
-        );
-
-        if (isOverlap) {
-            alert(`Schedule Collision Warning!\n\n${bookingForm.team} is already booked during this time window (${formatTimeWindow(bookingForm.time, durationNum)}). Please select another time slot, date, or team crew.`);
-            return;
-        }
-
         try {
-            const calculated = calculateBookingTotal(bookingForm);
-            const priceNum = parseFloat(calculated.total || 0);
-
             const headers = await getAuthHeaders();
             const payload = {
                 ...bookingForm,
                 clientName: `${bookingForm.firstName} ${bookingForm.lastName}`.trim(),
-                price: priceNum,
+                price: parseFloat(bookingForm.price || 0),
                 duration: durationNum
             };
 
-            const method = bookingModalMode === "create" ? "POST" : "PUT";
             const res = await fetch("/api/bookings", {
-                method,
+                method: "PUT",
                 headers,
                 body: JSON.stringify(payload)
             });
@@ -1077,7 +1131,6 @@ export default function Home() {
         try {
             const user = auth.currentUser;
             if (!user) throw new Error("No authenticated user found.");
-
             // 1. Reauthenticate
             const credential = EmailAuthProvider.credential(user.email, securityForm.currentPassword);
             await reauthenticateWithCredential(user, credential);
@@ -1091,6 +1144,24 @@ export default function Home() {
             alert(`Error updating password: ${err.message}`);
         } finally {
             setSecurityLoading(false);
+        }
+    };
+
+    const handleSaveV2Catalog = async (updatedCatalog) => {
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch("/api/settings", {
+                method: "POST",
+                headers,
+                body: JSON.stringify({ v2_catalog: updatedCatalog })
+            });
+            if (!res.ok) {
+                const errData = await res.json();
+                throw new Error(errData.error || "Failed to update V2 settings");
+            }
+            alert("V2 Dynamic Catalog saved successfully in database!");
+        } catch (err) {
+            alert("Failed to save V2 catalog: " + err.message);
         }
     };
 
@@ -1139,6 +1210,194 @@ export default function Home() {
         }
     };
 
+    const getCategoryBasePrice = useCallback((category) => {
+        if (!category) return 0;
+        if (category.sizes?.length) return parseFloat(category.sizes[0].price || 0);
+        return parseFloat(category.baseRate || 0);
+    }, []);
+
+    const getCategoryDuration = useCallback((category) => {
+        if (!category) return 0;
+        if (category.sizes?.length) return parseFloat(category.sizes[0].durationHrs || 0);
+        return parseFloat(category.durationHrs || 0);
+    }, []);
+
+    const openServiceConfigurator = useCallback((category) => {
+        setConfigCategory(category);
+        setConfigSizeId(category.sizes?.[0]?.id || "base");
+        setConfigBathroomKey("1 Bathroom");
+        setConfigAddons({});
+        setServiceConfigOpen(true);
+    }, []);
+
+    const setConfigAddonQty = useCallback((addonId, qty) => {
+        setConfigAddons(prev => {
+            const next = { ...prev };
+            const cleanQty = Math.max(0, Number(qty) || 0);
+            if (cleanQty <= 0) {
+                delete next[addonId];
+            } else {
+                next[addonId] = cleanQty;
+            }
+            return next;
+        });
+    }, []);
+
+    const addConfiguredServiceToCart = useCallback(() => {
+        if (!configCategory) return;
+        const selectedSize = configCategory.sizes?.find(size => size.id === configSizeId);
+        const basePrice = selectedSize ? parseFloat(selectedSize.price || 0) : getCategoryBasePrice(configCategory);
+        const baseDuration = selectedSize ? parseFloat(selectedSize.durationHrs || 0) : getCategoryDuration(configCategory);
+        const isHouseCleaning = configCategory.id === "house_cleaning";
+        const bathroomPrice = isHouseCleaning ? parseFloat(v2Catalog.bathrooms?.[configBathroomKey] || 0) : 0;
+        const selectedAddons = (configCategory.addons || [])
+            .map(addon => {
+                const qty = Number(configAddons[addon.id] || 0);
+                if (qty <= 0) return null;
+                return {
+                    id: addon.id,
+                    name: addon.name,
+                    price: parseFloat(addon.price || 0),
+                    qty,
+                    total: parseFloat(addon.price || 0) * qty
+                };
+            })
+            .filter(Boolean);
+        const addonTotal = selectedAddons.reduce((total, addon) => total + addon.total, 0);
+        const configuredExtras = isHouseCleaning ? [{
+            id: "bathrooms",
+            name: configBathroomKey,
+            price: bathroomPrice,
+            qty: 1,
+            total: bathroomPrice
+        }] : [];
+
+        setAdminServiceCart(prev => [
+            ...prev,
+            {
+                cartId: `${configCategory.id}-${Date.now()}`,
+                categoryId: configCategory.id,
+                name: configCategory.name,
+                pricingModel: configCategory.pricingModel,
+                optionId: selectedSize?.id || "base",
+                optionName: selectedSize?.name || "Base service",
+                basePrice,
+                bathroomKey: isHouseCleaning ? configBathroomKey : "",
+                bathroomPrice,
+                price: basePrice + bathroomPrice + addonTotal,
+                durationHrs: baseDuration,
+                configuredExtras,
+                addons: selectedAddons
+            }
+        ]);
+        setServiceConfigOpen(false);
+    }, [configAddons, configBathroomKey, configCategory, configSizeId, getCategoryBasePrice, getCategoryDuration, v2Catalog.bathrooms]);
+
+    const removeAdminCartItem = useCallback((cartId) => {
+        setAdminServiceCart(prev => prev.filter(item => item.cartId !== cartId));
+    }, []);
+
+    const adminCartTotals = useMemo(() => {
+        const subtotal = adminServiceCart.reduce((total, item) => total + parseFloat(item.price || 0), 0);
+        const duration = adminServiceCart.reduce((total, item) => total + parseFloat(item.durationHrs || 0), 0);
+        const taxRate = activeBranch.taxRate || 0;
+        const tax = subtotal * taxRate;
+        return {
+            subtotal,
+            tax,
+            total: subtotal + tax,
+            duration
+        };
+    }, [activeBranch.taxRate, adminServiceCart]);
+
+    const checkoutAdminCart = useCallback(() => {
+        setAdminCheckoutOpen(true);
+    }, []);
+
+    const saveAdminCartBooking = useCallback(async (event) => {
+        event.preventDefault();
+        if (adminServiceCart.length === 0) {
+            alert("Add at least one configured service before checkout.");
+            return;
+        }
+        try {
+            const discountAmount = parseFloat(adminCheckoutForm.discountAmount || 0);
+            const discountPercent = parseFloat(adminCheckoutForm.discountPercent || 0);
+            const percentDiscountValue = adminCartTotals.subtotal * (discountPercent / 100);
+            const totalDiscount = Math.min(adminCartTotals.subtotal, discountAmount + percentDiscountValue);
+            const finalTotal = Math.max(0, adminCartTotals.total - totalDiscount);
+            const matchedBranch = findBranchForAddress({
+                city: adminCheckoutForm.city,
+                country: adminCheckoutForm.country,
+                postalCode: adminCheckoutForm.postalCode
+            }) || activeBranch;
+            const assignedStaff = fieldStaff
+                .filter(member => adminCheckoutForm.assignedStaffIds.includes(member.uid))
+                .map(member => ({
+                    uid: member.uid,
+                    name: member.name,
+                    email: member.email,
+                    role: member.role,
+                    branchId: member.branchId || matchedBranch.id
+                }));
+            const payload = {
+                id: `bk-${Date.now()}`,
+                isV2Booking: true,
+                source: "admin_service_cart",
+                branchId: matchedBranch.id,
+                branchName: matchedBranch.name,
+                timezone: matchedBranch.timezone,
+                currency: matchedBranch.currency,
+                taxLabel: matchedBranch.taxLabel,
+                taxRate: matchedBranch.taxRate,
+                clientName: `${adminCheckoutForm.firstName} ${adminCheckoutForm.lastName}`.trim(),
+                firstName: adminCheckoutForm.firstName,
+                lastName: adminCheckoutForm.lastName,
+                phone: adminCheckoutForm.phone,
+                email: adminCheckoutForm.email,
+                address1: adminCheckoutForm.address1,
+                address2: adminCheckoutForm.address2,
+                city: adminCheckoutForm.city,
+                state: adminCheckoutForm.state,
+                postalCode: adminCheckoutForm.postalCode,
+                country: adminCheckoutForm.country,
+                date: adminCheckoutForm.date,
+                time: adminCheckoutForm.time,
+                team: "",
+                assignedStaff,
+                assignedStaffIds: assignedStaff.map(member => member.uid),
+                status: "Pending",
+                service: adminServiceCart.map(item => item.name).join(" + "),
+                bathrooms: "N/A",
+                frequency: "One-Time",
+                duration: adminCartTotals.duration,
+                price: finalTotal,
+                subtotal: adminCartTotals.subtotal,
+                tax: adminCartTotals.tax,
+                customDiscountAmount: totalDiscount,
+                promoCode: adminCheckoutForm.promoCode,
+                giftCardCode: adminCheckoutForm.giftCardCode,
+                specialNotes: adminCheckoutForm.notes,
+                cartItems: adminServiceCart
+            };
+            const res = await fetch("/api/bookings", {
+                method: "POST",
+                headers: await getAuthHeaders(),
+                body: JSON.stringify(payload)
+            });
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                throw new Error(errorData.error || "Failed to create cart booking.");
+            }
+            setAdminCheckoutOpen(false);
+            setAdminServiceCart([]);
+            syncDatabaseData(currentUser);
+            alert("Service cart booking created successfully.");
+        } catch (err) {
+            alert(`Checkout failed: ${err.message}`);
+        }
+    }, [activeBranch, adminCartTotals, adminCheckoutForm, adminServiceCart, currentUser, fieldStaff, getAuthHeaders, syncDatabaseData]);
+
     // ----------------------------------------------------
     // Filtered & Sorted Booking Data computations
     // ----------------------------------------------------
@@ -1158,7 +1417,9 @@ export default function Home() {
             const matchTeam = !filterTeam || b.team === filterTeam;
             const matchStatus = !filterStatus || b.status === filterStatus;
 
-            return matchSearch && matchService && matchTeam && matchStatus;
+            const matchRoleAccess = currentUser?.role === "customer" ? b.email === currentUser?.email : true;
+
+            return matchSearch && matchService && matchTeam && matchStatus && matchRoleAccess;
         }).sort((a, b) => {
             if (sortVal === "date-asc") {
                 return new Date(`${a.date} ${a.time}`) - new Date(`${b.date} ${b.time}`);
@@ -1171,7 +1432,7 @@ export default function Home() {
             }
             return 0;
         });
-    }, [bookings, searchVal, filterService, filterTeam, filterStatus, sortVal]);
+    }, [bookings, searchVal, filterService, filterTeam, filterStatus, sortVal, currentUser]);
 
     // Stat metric computations
     const dashboardMetrics = useMemo(() => {
@@ -1190,28 +1451,91 @@ export default function Home() {
         return { revenue, total: bookings.length, completed, pending };
     }, [bookings]);
 
+    const coreServiceNames = useMemo(() => {
+        return (v2Catalog.categories || []).map(category => category.name);
+    }, [v2Catalog]);
+
+    const adminCommandMetrics = useMemo(() => {
+        const activeBookings = bookings.filter(b => b.status !== "Cancelled");
+        const uniqueClients = new Set(activeBookings.map(b => (b.email || b.phone || b.clientName || "").toLowerCase()).filter(Boolean));
+        const bookedServices = activeBookings.reduce((total, booking) => {
+            if (Array.isArray(booking.cartItems) && booking.cartItems.length > 0) return total + booking.cartItems.length;
+            return total + 1;
+        }, 0);
+        const revenue = activeBookings.reduce((total, booking) => total + parseFloat(booking.price || booking.totalAmount || 0), 0);
+        const pending = activeBookings.filter(booking => booking.status === "Pending").length;
+        const confirmed = activeBookings.filter(booking => booking.status === "Confirmed").length;
+
+        return {
+            activeBookings: activeBookings.length,
+            uniqueClients: uniqueClients.size,
+            bookedServices,
+            revenue,
+            pending,
+            confirmed
+        };
+    }, [bookings]);
+
+    const catalogServiceCards = useMemo(() => {
+        const serviceImages = [
+            "service-visual-home",
+            "service-visual-window",
+            "service-visual-pressure",
+            "service-visual-deck",
+            "service-visual-gutter",
+            "service-visual-lawn"
+        ];
+
+        return (v2Catalog.categories || []).map((category, index) => {
+            const count = bookings.filter(booking => {
+                if (booking.status === "Cancelled") return false;
+                const name = String(booking.service || "").toLowerCase();
+                const categoryName = String(category.name || "").toLowerCase();
+                const categoryId = String(category.id || "").toLowerCase();
+                const inCart = Array.isArray(booking.cartItems) && booking.cartItems.some(item =>
+                    String(item.categoryId || item.serviceId || item.name || "").toLowerCase().includes(categoryId) ||
+                    String(item.name || "").toLowerCase().includes(categoryName)
+                );
+                return name.includes(categoryName) || name.includes(categoryId) || inCart;
+            }).length;
+
+            return {
+                ...category,
+                count,
+                visualClass: serviceImages[index % serviceImages.length],
+                basePrice: getCategoryBasePrice(category),
+                durationHrs: getCategoryDuration(category)
+            };
+        });
+    }, [bookings, getCategoryBasePrice, getCategoryDuration, v2Catalog]);
+
     const serviceCounts = useMemo(() => {
         const counts = {};
-        Object.keys(pricingRates.services).forEach(key => {
-            counts[key] = 0;
+        const categoryLookup = new Map();
+
+        (v2Catalog.categories || []).forEach(category => {
+            counts[category.name] = 0;
+            categoryLookup.set(category.name.toLowerCase(), category.name);
+            categoryLookup.set(category.id.toLowerCase(), category.name);
+            (category.sizes || []).forEach(size => {
+                categoryLookup.set(size.name.toLowerCase(), category.name);
+            });
         });
+
         let validJobs = 0;
 
         bookings.forEach(b => {
             if (b.status !== "Cancelled") {
-                const s = b.service;
-                if (counts[s] !== undefined) {
-                    counts[s]++;
-                } else {
-                    const firstKey = Object.keys(pricingRates.services)[0];
-                    if (firstKey) counts[firstKey] = (counts[firstKey] || 0) + 1;
+                const coreService = categoryLookup.get(String(b.service || "").toLowerCase());
+                if (coreService) {
+                    counts[coreService]++;
+                    validJobs++;
                 }
-                validJobs++;
             }
         });
 
         return { counts, total: validJobs };
-    }, [bookings, pricingRates]);
+    }, [bookings, v2Catalog]);
 
     // Today's appointments (Toronto timezone)
     const todayBookings = useMemo(() => {
@@ -1282,6 +1606,14 @@ export default function Home() {
         return parts.join(" • ");
     };
 
+    const statusClassName = (status) => {
+        const normalized = String(status || "Pending").toLowerCase();
+        if (["pending", "confirmed", "completed", "cancelled"].includes(normalized)) {
+            return `status-pill-${normalized}`;
+        }
+        return "status-pill-pending";
+    };
+
     // ----------------------------------------------------
     // Loading Screen
     // ----------------------------------------------------
@@ -1305,12 +1637,12 @@ export default function Home() {
                 {/* RIGHT: Form panel */}
                 <div className="auth-panel">
                     <div className="auth-card-inner">
-                        <img src="/logo.png" alt="SmartTouch Clean" className="auth-card-logo-mobile" />
+                        <img src="/logo.png" alt="SmarTouch Clean" className="auth-card-logo-mobile" />
 
                         {authMode === "login" ? (
                             <>
                                 <h2 className="auth-card-heading">Welcome back 👋</h2>
-                                <p className="auth-card-sub">Sign in to access the SmartTouch Clean scheduling portal.</p>
+                                <p className="auth-card-sub">Sign in to access the SmarTouch Clean scheduling portal.</p>
                                 <form onSubmit={handleLogin}>
                                     <div className="auth-field">
                                         <label>Email Address</label>
@@ -1344,11 +1676,23 @@ export default function Home() {
                                         <input type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="Min 6 characters" />
                                     </div>
                                     <div className="auth-field">
-                                        <label>Assigned Crew / Team</label>
-                                        <select value={signupTeam} onChange={e => setSignupTeam(e.target.value)}>
-                                            {teams.length === 0 ? <option value="">No Crews Available Yet</option> : teams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                                        <label>Account Type</label>
+                                        <select value={signupRole} onChange={e => setSignupRole(e.target.value)}>
+                                            {ROLE_OPTIONS
+                                                .filter(role => !["super-admin", "branch-admin"].includes(role.id))
+                                                .map(role => (
+                                                    <option key={role.id} value={role.id}>{role.label}</option>
+                                                ))}
                                         </select>
                                     </div>
+                                    {needsCrewAssignment && (
+                                        <div className="auth-field">
+                                            <label>Assigned Crew / Team</label>
+                                            <select value={signupTeam} onChange={e => setSignupTeam(e.target.value)}>
+                                                {teams.length === 0 ? <option value="">No Crews Available Yet</option> : teams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                                            </select>
+                                        </div>
+                                    )}
                                     <button type="submit" className="auth-submit-btn">Create Account</button>
                                 </form>
                                 <p className="auth-switch-text">
@@ -1367,21 +1711,21 @@ export default function Home() {
     // ----------------------------------------------------
     if (currentUser.status === "pending_approval") {
         return (
-            <div className="auth-fullscreen" style={{ alignItems: "center", justifyContent: "center", background: "linear-gradient(145deg, #0a3d7a 0%, #0268b3 50%, #1a8a40 100%)" }}>
+            <div className="auth-fullscreen auth-pending-screen">
                 <div className="auth-pending-card animate-pop">
-                    <img src="/logo.png" alt="SmartTouch Clean" style={{ width: "110px", margin: "0 auto 24px", display: "block" }} />
-                    <div style={{ background: "#fef3c7", color: "#b45309", width: "64px", height: "64px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", border: "1px solid #fde68a" }}>
+                    <img src="/logo.png" alt="SmarTouch Clean" className="auth-pending-logo" />
+                    <div className="auth-pending-alert">
                         {Icons.Alert()}
                     </div>
-                    <h2 style={{ fontSize: "20px", fontWeight: 800, color: "#0f172a", marginBottom: "12px" }}>Awaiting Activation</h2>
-                    <p style={{ fontSize: "14px", color: "#475569", lineHeight: 1.7, marginBottom: "8px" }}>
-                        Welcome to <strong>SmartTouch Clean</strong>! Your account has been registered and is <strong>Pending Admin Approval</strong>.
+                    <h2 className="auth-pending-title">Awaiting Activation</h2>
+                    <p className="auth-pending-copy">
+                        Welcome to <strong>SmarTouch Clean</strong>! Your account has been registered and is <strong>Pending Admin Approval</strong>.
                     </p>
-                    <p style={{ fontSize: "12px", color: "#94a3b8", lineHeight: 1.6, marginBottom: "28px" }}>
+                    <p className="auth-pending-note">
                         Please contact management or wait for an administrator to review and activate your crew role.
                     </p>
-                    <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: "24px" }}>
-                        <button type="button" onClick={handleSignout} className="btn btn-secondary" style={{ width: "100%", justifyContent: "center", gap: "8px" }}>
+                    <div className="auth-pending-actions">
+                        <button type="button" onClick={handleSignout} className="btn btn-secondary w-full justify-center gap-2">
                             {Icons.Logout()}
                             <span>Sign Out</span>
                         </button>
@@ -1399,7 +1743,7 @@ export default function Home() {
             {/* Sidebar Navigation */}
             <aside className="sidebar">
                 <div className="brand-logo">
-                    <img src="/logo.png" alt="SmartTouch Clean" style={{ height: "44px", width: "auto", objectFit: "contain" }} />
+                    <img src="/logo.png" alt="SmarTouch Clean" className="brand-logo-img" />
                 </div>
 
                 <nav className="nav-links">
@@ -1411,17 +1755,25 @@ export default function Home() {
                         {Icons.Bookings()}
                         <span>Bookings</span>
                     </button>
-                    <button onClick={() => setActiveTab("calendar")} className={`nav-item ${activeTab === "calendar" ? "active" : ""}`}>
-                        {Icons.Calendar()}
-                        <span>Calendar</span>
-                    </button>
-                    {currentUser.role === "admin" && (
-                        <button onClick={() => setActiveTab("teams")} className={`nav-item ${activeTab === "teams" ? "active" : ""}`}>
-                            {Icons.Teams()}
-                            <span>Teams</span>
+                    {canViewOperations && (
+                        <button onClick={() => setActiveTab("calendar")} className={`nav-item ${activeTab === "calendar" ? "active" : ""}`}>
+                            {Icons.Calendar()}
+                            <span>Calendar</span>
                         </button>
                     )}
-                    {currentUser.role === "admin" && (
+                    {canViewPeople && (
+                        <button onClick={() => setActiveTab("teams")} className={`nav-item ${activeTab === "teams" ? "active" : ""}`}>
+                            {Icons.Teams()}
+                            <span>Staff</span>
+                        </button>
+                    )}
+                    {canViewAdministration && (
+                        <button onClick={() => setActiveTab("departments")} className={`nav-item ${activeTab === "departments" ? "active" : ""}`}>
+                            {Icons.Departments()}
+                            <span>Departments</span>
+                        </button>
+                    )}
+                    {canViewAdministration && (
                         <button onClick={() => setActiveTab("edit-requests")} className={`nav-item ${activeTab === "edit-requests" ? "active" : ""}`}>
                             <div className="flex items-center gap-3">
                                 {Icons.EditReview()}
@@ -1430,6 +1782,18 @@ export default function Home() {
                             {editRequests.filter(r => r.status === "Pending").length > 0 && (
                                 <span className="badge">{editRequests.filter(r => r.status === "Pending").length}</span>
                             )}
+                        </button>
+                    )}
+                    {canViewAdministration && (
+                        <button onClick={() => setActiveTab("catalog")} className={`nav-item ${activeTab === "catalog" ? "active" : ""}`}>
+                            {Icons.Catalog()}
+                            <span>Catalog Studio</span>
+                        </button>
+                    )}
+                    {canManagePermissions && (
+                        <button onClick={() => setActiveTab("permissions")} className={`nav-item ${activeTab === "permissions" ? "active" : ""}`}>
+                            {Icons.Shield()}
+                            <span>Permissions</span>
                         </button>
                     )}
                     <button onClick={() => setActiveTab("settings")} className={`nav-item ${activeTab === "settings" ? "active" : ""}`}>
@@ -1444,7 +1808,7 @@ export default function Home() {
                             <div className="user-avatar text-white font-bold">{currentUser.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)}</div>
                             <div className="user-details flex flex-col">
                                 <span className="user-name text-slate-800 text-xs font-bold leading-tight">{currentUser.name}</span>
-                                <span className="user-role text-[10px] text-slate-400 mt-0.5">{currentUser.role === "admin" ? "Administrator" : `Leader (${currentUser.teamId})`}</span>
+                                <span className="user-role text-[10px] text-slate-400 mt-0.5">{roleLabel}{currentUser.teamId ? ` (${currentUser.teamId})` : ""}</span>
                             </div>
                         </div>
                         <button onClick={handleSignout} className="action-btn" title="Log Out">{Icons.Logout()}</button>
@@ -1460,169 +1824,324 @@ export default function Home() {
                             {activeTab === "dashboard" ? "Dashboard Overview" :
                                 activeTab === "bookings" ? "Client Booking Manager" :
                                     activeTab === "calendar" ? "Scheduling Calendar" :
-                                        activeTab === "teams" ? "Cleaning Crew Dispatch" : "Modification Requests Inbox"}
+                                        activeTab === "teams" ? "Field Staff Assignments" :
+                                            activeTab === "departments" ? "Departments Hub" :
+                                            activeTab === "edit-requests" ? "Modification Requests Inbox" :
+                                                activeTab === "catalog" ? "Catalog Studio" :
+                                                    activeTab === "permissions" ? "Permissions & Roles" : "Account Settings"}
                         </h2>
                     </div>
                     <div className="header-right">
+                        <div className="branch-context-control">
+                            <span>Branch</span>
+                            {branchScope?.canSwitchBranches ? (
+                                <select value={selectedBranchId} onChange={e => setSelectedBranchId(e.target.value)}>
+                                    {BRANCHES.map(branch => (
+                                        <option key={branch.id} value={branch.id}>
+                                            {branch.name} · {branch.currency}
+                                        </option>
+                                    ))}
+                                </select>
+                            ) : (
+                                <strong>{activeBranch.name} · {activeBranch.currency}</strong>
+                            )}
+                        </div>
                         <div className="datetime-indicator text-xs font-bold text-slate-500 bg-white p-2.5 rounded-full border border-slate-200">{clockString}</div>
-                        <button onClick={openCreateBookingModal} className="btn btn-primary shadow-lg font-bold flex items-center gap-2">
-                            {Icons.Plus()}
-                            <span>New Booking</span>
-                        </button>
                     </div>
                 </header>
 
                 {/* TAB 1: DASHBOARD VIEW */}
                 {activeTab === "dashboard" && (
                     <div className="animate-fade">
-                        <div className="stats-grid">
-                            <div className="stat-card glow-cyan">
-                                <div className="stat-icon-wrapper cyan-bg">$</div>
-                                <div className="stat-data">
-                                    <h3>${dashboardMetrics.revenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</h3>
-                                    <span>Total Booked Revenue</span>
+                        {currentUser.role === "customer" ? (
+                            <div className="customer-dashboard flex flex-col gap-8">
+                                <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 bg-gradient-to-br from-blue-50 to-indigo-50">
+                                    <h2 className="text-3xl font-black text-slate-800 tracking-tight">Welcome back, {currentUser.name.split(" ")[0]}!</h2>
+                                    <p className="text-slate-500 font-medium mt-2 max-w-lg">Manage your home cleaning schedule, view past services, and earn credits through our referral program.</p>
                                 </div>
-                            </div>
-                            <div className="stat-card glow-purple">
-                                <div className="stat-icon-wrapper purple-bg">#</div>
-                                <div className="stat-data">
-                                    <h3>{dashboardMetrics.total}</h3>
-                                    <span>Total Bookings</span>
-                                </div>
-                            </div>
-                            <div className="stat-card glow-blue">
-                                <div className="stat-icon-wrapper blue-bg">⏳</div>
-                                <div className="stat-data">
-                                    <h3>{dashboardMetrics.pending}</h3>
-                                    <span>Pending Bookings</span>
-                                </div>
-                            </div>
-                            <div className="stat-card glow-green">
-                                <div className="stat-icon-wrapper green-bg">✓</div>
-                                <div className="stat-data">
-                                    <h3>{dashboardMetrics.completed}</h3>
-                                    <span>Completed Cleanings</span>
-                                </div>
-                            </div>
-                        </div>
 
-                        <div className="dashboard-panels">
-                            {/* Today's Jobs agenda panel */}
-                            <div className="panel-card">
-                                <div className="panel-header">
-                                    <div>
-                                        <h4>Today's Operational Dispatches</h4>
-                                        <span className="subtext text-xs text-slate-400">Toronto Reference Date: {new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto', year: 'numeric', month: 'long', day: 'numeric' })}</span>
-                                    </div>
-                                    <span className="badge">{todayBookings.length} Job{todayBookings.length === 1 ? '' : 's'}</span>
-                                </div>
-                                <div className="panel-body">
-                                    {todayBookings.length === 0 ? (
-                                        <div className="text-center p-8 text-slate-400 text-xs">No dispatches scheduled for today.</div>
-                                    ) : (
-                                        <div className="today-list">
-                                            {todayBookings.map(b => (
-                                                <div key={b.id} className="today-item">
-                                                    <div className="today-left">
-                                                        <div className="today-time-badge">{b.time}</div>
-                                                        <div className="today-info">
-                                                            <h5>{b.clientName}</h5>
-                                                            <p>
-                                                                {Icons.MapPin()}
-                                                                <span>{formatAddress(b)}</span>
-                                                            </p>
-                                                            <div className="text-[10px] text-slate-400 mt-1">Duration: <strong>{b.duration} hrs</strong> ({formatTimeWindow(b.time, b.duration)})</div>
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                    <div className="lg:col-span-2 flex flex-col gap-6">
+                                        <div className="panel-card">
+                                            <div className="panel-header">
+                                                <h4>Your Bookings</h4>
+                                            </div>
+                                            <div className="panel-body p-0">
+                                                {(() => {
+                                                    const myBookings = bookings.filter(b => b.email === currentUser.email).sort((a, b) => new Date(b.date) - new Date(a.date));
+                                                    if (myBookings.length === 0) {
+                                                        return <div className="p-8 text-center text-slate-400 text-sm">You haven&apos;t booked any services yet.</div>;
+                                                    }
+                                                    return (
+                                                        <div className="flex flex-col">
+                                                            {myBookings.map((b, idx) => (
+                                                                <div key={b.id || idx} className="flex justify-between items-center p-4 border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
+                                                                    <div>
+                                                                        <div className="font-bold text-slate-800 text-sm">{b.date} at {b.time}</div>
+                                                                        <div className="text-[10px] text-slate-500 uppercase tracking-wider mt-1">{b.status}</div>
+                                                                        {b.isV2Booking && b.cartItems && b.cartItems.some(i => ["Weekly", "Bi-Weekly", "Monthly"].includes(i.frequency)) && (
+                                                                            <div className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded inline-block mt-2">
+                                                                                ↻ Next Scheduled: {
+                                                                                    (() => {
+                                                                                        const freq = b.cartItems.find(i => ["Weekly", "Bi-Weekly", "Monthly"].includes(i.frequency))?.frequency;
+                                                                                        const d = new Date(b.date);
+                                                                                        if (freq === "Weekly") d.setDate(d.getDate() + 7);
+                                                                                        if (freq === "Bi-Weekly") d.setDate(d.getDate() + 14);
+                                                                                        if (freq === "Monthly") d.setMonth(d.getMonth() + 1);
+                                                                                        return d.toLocaleDateString('en-CA');
+                                                                                    })()
+                                                                                } ({b.cartItems.find(i => ["Weekly", "Bi-Weekly", "Monthly"].includes(i.frequency))?.frequency})
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="text-right">
+                                                                        <div className="font-black text-slate-800">${parseFloat(b.price || b.totalAmount || 0).toFixed(2)}</div>
+                                                                        <div className="text-[10px] text-slate-400 mt-1">{b.duration} hrs</div>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
                                                         </div>
-                                                    </div>
-                                                    <div className="today-right">
-                                                        <div className="team-pill">
-                                                            <span className={`dot dot-${teams.find(t => t.name === b.team)?.color || "sparkle"}`}></span>
-                                                            <span>{b.team}</span>
-                                                        </div>
-                                                        <span className={`status-badge status-${b.status.toLowerCase()}`}>{b.status}</span>
-                                                        <div className="actions-cell">
-                                                            <button onClick={() => { setSelectedBooking(b); setDetailsModalOpen(true); }} className="action-btn btn-view" title="View">{Icons.Eye()}</button>
-                                                            <button onClick={() => openEditBookingModal(b)} className="action-btn btn-edit" title="Edit">{Icons.Edit()}</button>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ))}
+                                                    );
+                                                })()}
+                                            </div>
                                         </div>
-                                    )}
-                                </div>
-                            </div>
+                                    </div>
 
-                            {/* Service Breakdown progress bar panels */}
-                            <div className="panel-card">
-                                <div className="panel-header">
-                                    <h4>Service Breakdown</h4>
-                                </div>
-                                <div className="panel-body">
-                                    <div className="analytics-bars">
-                                        {Object.keys(pricingRates.services).map(serv => {
-                                            const count = serviceCounts.counts[serv] || 0;
-                                            const percentage = serviceCounts.total > 0 ? Math.round((count / serviceCounts.total) * 100) : 0;
-                                            const fillClass = serv.toLowerCase().includes("studio") || serv.toLowerCase().includes("1 bedroom") ? "fill-standard" :
-                                                serv.toLowerCase().includes("2 bedroom") ? "fill-deep" :
-                                                serv.toLowerCase().includes("3 bedroom") || serv.toLowerCase().includes("townhouse") ? "fill-move" :
-                                                serv.toLowerCase().includes("4 bedroom") || serv.toLowerCase().includes("1700") ? "fill-window" :
-                                                serv.toLowerCase().includes("2000") || serv.toLowerCase().includes("2499") ? "fill-commercial" :
-                                                serv.toLowerCase().includes("2500") || serv.toLowerCase().includes("2999") ? "fill-deep" :
-                                                serv.toLowerCase().includes("3000") || serv.toLowerCase().includes("3499") ? "fill-move" : "fill-commercial";
-                                            return (
-                                                <div key={serv} className="bar-item">
-                                                    <div className="bar-label-row text-xs">
-                                                        <span className="bar-name font-bold text-slate-600">{serv}</span>
-                                                        <span className="bar-value text-slate-400">{count} Job{count === 1 ? '' : 's'} ({percentage}%)</span>
-                                                    </div>
-                                                    <div className="bar-track">
-                                                        <div className={`bar-fill ${fillClass}`} style={{ width: `${percentage}%` }}></div>
-                                                    </div>
+                                    <div className="lg:col-span-1 flex flex-col gap-6">
+                                        <div className="panel-card bg-amber-50 border-amber-200">
+                                            <div className="panel-header border-amber-200">
+                                                <h4 className="text-amber-800">Refer & Earn</h4>
+                                            </div>
+                                            <div className="panel-body p-6">
+                                                <p className="text-sm text-amber-700 font-medium mb-4">Give your friends <strong>$20 off</strong> their first cleaning, and get <strong>$40 off</strong> your next cleaning when they book!</p>
+                                                <div className="bg-white p-3 rounded-xl border border-amber-200 text-center font-mono font-bold text-amber-900 text-lg tracking-widest shadow-inner">
+                                                    REF-{currentUser.uid.slice(0, 6).toUpperCase()}
                                                 </div>
-                                            );
-                                        })}
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        ) : (
+                            <>
+                                <section className="admin-command-shell">
+                                    <div className="admin-command-header">
+                                        <div>
+                                            <p className="admin-command-kicker">Admin booking command</p>
+                                            <h3>Start a booking from the service catalog</h3>
+                                            <p>
+                                                Choose a core service, configure the subcategory and add-ons, add it to the cart, then repeat for multiple services before checkout.
+                                            </p>
+                                            <div className="admin-workflow-steps" aria-label="Booking workflow">
+                                                <span><strong>1</strong> Select service</span>
+                                                <span><strong>2</strong> Configure details</span>
+                                                <span><strong>3</strong> Add to cart</span>
+                                                <span><strong>4</strong> Checkout</span>
+                                            </div>
+                                        </div>
+                                        <button onClick={openNewBookingCommand} className="admin-primary-action">
+                                            {Icons.Plus()}
+                                            Start Service Cart
+                                        </button>
+                                    </div>
 
-                        {/* Admin-only pending user approvals table in Dashboard */}
-                        {currentUser.role === "admin" && pendingUsers.length > 0 && (
-                            <div className="panel-card mt-6">
-                                <div className="panel-header">
-                                    <h4>Awaiting operational registration approvals</h4>
-                                    <span className="badge bg-[#fef3c7] text-[#b45309]">{pendingUsers.length} Pending</span>
-                                </div>
-                                <div className="panel-body">
-                                    <div className="table-container">
-                                        <table className="bookings-table">
-                                            <thead>
-                                                <tr>
-                                                    <th>Cleaner Name</th>
-                                                    <th>Email Address</th>
-                                                    <th>Assigned Team/Crew</th>
-                                                    <th className="text-right">Actions</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {pendingUsers.map(u => (
-                                                    <tr key={u.uid}>
-                                                        <td className="font-bold text-slate-800">{u.name}</td>
-                                                        <td>{u.email}</td>
-                                                        <td>{u.teamId || "None"}</td>
-                                                        <td className="text-right">
-                                                            <div className="flex gap-2 justify-end">
-                                                                <button onClick={() => handleResolveUserApproval(u.uid, "approve")} className="btn btn-primary btn-sm bg-[#39a93e] hover:bg-[#2b8a30]">Approve</button>
-                                                                <button onClick={() => handleResolveUserApproval(u.uid, "reject")} className="btn btn-danger btn-sm">Reject</button>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
+                                    <div className="admin-metric-row">
+                                        <div className="admin-metric-card">
+                                            <span>Total Revenue</span>
+                                            <strong>${adminCommandMetrics.revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                                            <small>All active booked revenue</small>
+                                        </div>
+                                        <div className="admin-metric-card">
+                                            <span>Booked Clients</span>
+                                            <strong>{adminCommandMetrics.uniqueClients}</strong>
+                                            <small>{adminCommandMetrics.activeBookings} active bookings</small>
+                                        </div>
+                                        <div className="admin-metric-card">
+                                            <span>Booked Services</span>
+                                            <strong>{adminCommandMetrics.bookedServices}</strong>
+                                            <small>Cart and legacy bookings</small>
+                                        </div>
+                                        <div className="admin-metric-card warning">
+                                            <span>Pending Work</span>
+                                            <strong>{adminCommandMetrics.pending}</strong>
+                                            <small>{adminCommandMetrics.confirmed} confirmed jobs</small>
+                                        </div>
                                     </div>
-                                </div>
-                            </div>
+
+                                    <div className="admin-booking-workspace">
+                                        <div ref={serviceCatalogRef} className="admin-service-panel" tabIndex="-1">
+                                            <div className="admin-section-heading">
+                                                <div>
+                                                    <h4>Service Catalog</h4>
+                                                    <p>Core services from your V2 Dynamic Service Manager.</p>
+                                                </div>
+                                                <span>{catalogServiceCards.length} Services</span>
+                                            </div>
+                                            <div className="admin-service-grid">
+                                                {catalogServiceCards.map(service => (
+                                                    <article key={service.id} className="admin-service-card">
+                                                        <div className={`admin-service-visual ${service.visualClass}`}>
+                                                            <span>{service.count} booked</span>
+                                                        </div>
+                                                        <div className="admin-service-body">
+                                                            <div className="admin-service-title-row">
+                                                                <h5>{service.name}</h5>
+                                                                <strong>${service.basePrice.toFixed(2)}</strong>
+                                                            </div>
+                                                            <p>{service.pricingModel.replaceAll("_", " ")} • {service.durationHrs || "Custom"} hrs baseline</p>
+                                                            <div className="admin-service-meta">
+                                                                <span>{service.sizes?.length || 0} subcategories</span>
+                                                                <span>{service.addons?.length || 0} add-ons</span>
+                                                            </div>
+                                                            <button onClick={() => openServiceConfigurator(service)} type="button" className="admin-add-service-btn">
+                                                                {Icons.Plus()}
+                                                                Configure
+                                                            </button>
+                                                        </div>
+                                                    </article>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <aside className="admin-cart-panel">
+                                            <div className="admin-section-heading">
+                                                <div>
+                                                    <h4>Client Service Cart</h4>
+                                                    <p>Add multiple services before checkout.</p>
+                                                </div>
+                                                <span>{adminServiceCart.length} Items</span>
+                                            </div>
+                                            {adminServiceCart.length === 0 ? (
+                                                <div className="admin-cart-empty">
+                                                    <strong>No services selected yet.</strong>
+                                                    <p>Tap Configure on any core service, choose the tier and add-ons, then add it to this cart.</p>
+                                                </div>
+                                            ) : (
+                                                <div className="admin-cart-list">
+                                                    {adminServiceCart.map(item => (
+                                                        <div key={item.cartId} className="admin-cart-item">
+                                                            <div>
+                                                                <strong>{item.name}</strong>
+                                                                <span>
+                                                                    {item.optionName}
+                                                                    {item.bathroomKey ? ` • ${item.bathroomKey}` : ""}
+                                                                    {` • ${item.addons?.length || 0} add-ons selected`}
+                                                                </span>
+                                                            </div>
+                                                            <div className="admin-cart-price">
+                                                                <strong>${item.price.toFixed(2)}</strong>
+                                                                <button onClick={() => removeAdminCartItem(item.cartId)} type="button" aria-label={`Remove ${item.name}`}>
+                                                                    {Icons.Trash()}
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                            <div className="admin-cart-totals">
+                                                <div><span>Subtotal</span><strong>${adminCartTotals.subtotal.toFixed(2)}</strong></div>
+                                                <div><span>{activeBranch.taxLabel}</span><strong>${adminCartTotals.tax.toFixed(2)}</strong></div>
+                                                <div><span>Estimated Hours</span><strong>{adminCartTotals.duration.toFixed(1)}</strong></div>
+                                                <div className="admin-cart-grand"><span>Total</span><strong>${adminCartTotals.total.toFixed(2)}</strong></div>
+                                            </div>
+                                            <button disabled={adminServiceCart.length === 0} onClick={checkoutAdminCart} type="button" className="admin-checkout-btn">
+                                                Continue to Checkout
+                                            </button>
+                                        </aside>
+                                    </div>
+
+                                    <div className="admin-ops-grid">
+                                        <div className="admin-live-panel">
+                                            <div className="admin-section-heading">
+                                                <div>
+                                                    <h4>Today&apos;s Dispatches</h4>
+                                                    <p>{new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                                                </div>
+                                                <span>{todayBookings.length} Jobs</span>
+                                            </div>
+                                            {todayBookings.length === 0 ? (
+                                                <div className="admin-cart-empty">No dispatches scheduled for today.</div>
+                                            ) : (
+                                                <div className="admin-dispatch-list">
+                                                    {todayBookings.slice(0, 5).map(b => (
+                                                        <button key={b.id} onClick={() => { setSelectedBooking(b); setDetailsModalOpen(true); }} className="admin-dispatch-item" type="button">
+                                                            <span>{b.time}</span>
+                                                            <div>
+                                                                <strong>{b.clientName}</strong>
+                                                                <small>{b.service} • {b.team}</small>
+                                                            </div>
+                                                            <em>{b.status}</em>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="admin-live-panel">
+                                            <div className="admin-section-heading">
+                                                <div>
+                                                    <h4>HR & Compliance Queue</h4>
+                                                    <p>Employee/subcontractor readiness.</p>
+                                                </div>
+                                                <span>{pendingUsers.length} Pending</span>
+                                            </div>
+                                            <div className="admin-hr-queue">
+                                                <div><strong>{fieldStaff.length}</strong><span>Approved field staff</span></div>
+                                                <div><strong>{pendingUsers.length}</strong><span>Pending approvals</span></div>
+                                                <div><strong>{bookings.filter(b => b.assignedStaffIds?.length > 0).length}</strong><span>Assigned jobs</span></div>
+                                            </div>
+                                            <button onClick={() => setActiveTab("departments")} className="admin-secondary-action" type="button">
+                                                Open HR modules
+                                            </button>
+                                        </div>
+                                    </div>
+                                </section>
+
+                                {/* Permissioned pending user approvals table in Dashboard */}
+                                {canManagePermissions && pendingUsers.length > 0 && (
+                                    <div className="panel-card mt-6">
+                                        <div className="panel-header">
+                                            <h4>Awaiting operational registration approvals</h4>
+                                            <span className="badge badge-warning">{pendingUsers.length} Pending</span>
+                                        </div>
+                                        <div className="panel-body">
+                                            <div className="table-container">
+                                                <table className="bookings-table">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Person Name</th>
+                                                            <th>Email Address</th>
+                                                            <th>Account Role</th>
+                                                            <th>Requested Role</th>
+                                                            <th className="text-right">Actions</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {pendingUsers.map(u => (
+                                                            <tr key={u.uid}>
+                                                                <td className="font-bold text-slate-800">{u.name}</td>
+                                                                <td>{u.email}</td>
+                                                                <td>
+                                                                    <span className={`px-2 py-1 rounded text-xs font-bold ${u.role === 'customer' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                                        {getRoleLabel(u.role)}
+                                                                    </span>
+                                                                </td>
+                                                                <td>{getRoleLabel(u.role)}</td>
+                                                                <td className="text-right">
+                                                                    <div className="flex gap-2 justify-end">
+                                                                        <button onClick={() => handleResolveUserApproval(u.uid, "approve")} className="btn btn-secondary btn-sm">Approve</button>
+                                                                        <button onClick={() => handleResolveUserApproval(u.uid, "reject")} className="btn btn-danger btn-sm">Reject</button>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </>
                         )}
                     </div>
                 )}
@@ -1639,10 +2158,6 @@ export default function Home() {
                                 <select value={filterService} onChange={e => setFilterService(e.target.value)}>
                                     <option value="">All Services</option>
                                     {Object.keys(pricingRates.services).map(s => <option key={s} value={s}>{s}</option>)}
-                                </select>
-                                <select value={filterTeam} onChange={e => setFilterTeam(e.target.value)}>
-                                    <option value="">All Teams</option>
-                                    {teams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
                                 </select>
                                 <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
                                     <option value="">All Statuses</option>
@@ -1671,49 +2186,58 @@ export default function Home() {
                                             <th>Street Address</th>
                                             <th>Service Details</th>
                                             <th>Schedule Window</th>
-                                            <th>Assigned Crew</th>
+                                            <th>Assigned Staff</th>
                                             <th>Status</th>
                                             <th className="text-right">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {filteredBookings.map(b => {
-                                            const teamColor = teams.find(t => t.name === b.team)?.color || "sparkle";
                                             const hasPendingEdit = editRequests.some(r => r.bookingId === b.id && r.status === "Pending");
                                             return (
                                                 <tr key={b.id}>
                                                     <td data-label="Client Details">
-                                                        <div className="client-name-cell">{b.clientName}</div>
-                                                        <div className="text-[10px] text-slate-400 mt-0.5">{b.phone}</div>
-                                                        {hasPendingEdit && (
-                                                            <div className="inline-block text-[9px] bg-amber-50 border border-amber-200 text-amber-700 font-bold px-1.5 py-0.5 rounded-full mt-1">Pending Admin Review</div>
-                                                        )}
+                                                        <div className="flex flex-col items-end md:items-start">
+                                                            <div className="client-name-cell">{b.clientName}</div>
+                                                            <div className="text-[10px] text-slate-400 mt-0.5">{b.phone}</div>
+                                                            {hasPendingEdit && (
+                                                                <div className="inline-block text-[9px] bg-amber-50 border border-amber-200 text-amber-700 font-bold px-1.5 py-0.5 rounded-full mt-1">Pending Admin Review</div>
+                                                            )}
+                                                        </div>
                                                     </td>
                                                     <td data-label="Street Address">
                                                         <div className="address-cell text-xs" title={formatAddress(b)}>{formatAddress(b)}</div>
                                                     </td>
                                                     <td data-label="Service Details" className="service-cell">
-                                                        <div className="font-bold text-slate-700 text-xs">{b.service}</div>
-                                                        <div className="price-text">${parseFloat(b.price || 0).toFixed(2)}</div>
+                                                        <div className="flex flex-col items-end md:items-start">
+                                                            <div className="font-bold text-slate-700 text-xs">{b.service}</div>
+                                                            <div className="price-text">${parseFloat(b.price || 0).toFixed(2)}</div>
+                                                        </div>
                                                     </td>
                                                     <td data-label="Schedule Window" className="datetime-cell">
-                                                        <div className="font-bold text-xs">{b.date}</div>
-                                                        <div className="time-text text-[11px]">{formatTimeWindow(b.time, b.duration)}</div>
+                                                        <div className="flex flex-col items-end md:items-start">
+                                                            <div className="font-bold text-xs">{b.date}</div>
+                                                            <div className="time-text text-[11px]">{formatTimeWindow(b.time, b.duration)}</div>
+                                                        </div>
                                                     </td>
-                                                    <td data-label="Assigned Crew">
-                                                        <div className="team-pill">
-                                                            <span className={`dot dot-${teamColor}`}></span>
-                                                            <span>{b.team}</span>
+                                                    <td data-label="Assigned Staff">
+                                                        <div className="assigned-staff-list">
+                                                            {(b.assignedStaff || []).map(member => (
+                                                                <span key={member.uid || member.email}>{member.name}</span>
+                                                            ))}
+                                                            {!b.assignedStaff?.length && <span>{b.team || "Unassigned"}</span>}
                                                         </div>
                                                     </td>
                                                     <td data-label="Status">
-                                                        <span className={`status-badge status-${b.status.toLowerCase()}`}>{b.status}</span>
+                                                        <div>
+                                                            <span className={`status-badge status-${b.status.toLowerCase()}`}>{b.status}</span>
+                                                        </div>
                                                     </td>
-                                                    <td data-label="Actions" className="text-right">
-                                                        <div className="actions-cell">
+                                                    <td data-label="Actions" className="actions-cell text-right">
+                                                        <div className="actions-cell-inner flex gap-2 justify-end">
                                                             <button onClick={() => { setSelectedBooking(b); setDetailsModalOpen(true); }} className="action-btn btn-view" title="Details">{Icons.Eye()}</button>
                                                             <button onClick={() => openEditBookingModal(b)} className="action-btn btn-edit" title="Edit">{Icons.Edit()}</button>
-                                                            {currentUser.role === "admin" && (
+                                                            {canManagePermissions && (
                                                                 <button onClick={() => handleDeleteBooking(b.id)} className="action-btn btn-delete" title="Cancel">{Icons.Trash()}</button>
                                                             )}
                                                         </div>
@@ -1781,9 +2305,9 @@ export default function Home() {
 
                         {/* Calendar Agenda Pane */}
                         <div className="agenda-card">
-                            <div className="panel-header" style={{ padding: "20px 24px" }}>
+                            <div className="panel-header agenda-panel-header">
                                 <div>
-                                    <h4 className="text-xs text-slate-400 font-bold uppercase tracking-widest" style={{ fontSize: "10px", letterSpacing: "1px" }}>Day agenda list</h4>
+                                    <h4 className="agenda-panel-kicker">Day agenda list</h4>
                                     <h3 className="font-extrabold text-slate-800 text-sm mt-1">{selectedCalDate}</h3>
                                 </div>
                                 <span className="badge">{agendaBookings.length} Job{agendaBookings.length === 1 ? '' : 's'}</span>
@@ -1803,7 +2327,7 @@ export default function Home() {
                                                 <div className="agenda-item-desc">{b.service} ({b.duration} hrs)</div>
                                                 <div className="agenda-item-addr">
                                                     {Icons.MapPin()}
-                                                    <span style={{ marginLeft: "4px" }}>{b.address1}</span>
+                                                    <span className="agenda-address-text">{b.address1}</span>
                                                 </div>
                                                 <div className="flex justify-between items-center mt-2 border-t border-slate-100 pt-2">
                                                     <span className={`status-badge status-${b.status.toLowerCase()}`}>{b.status}</span>
@@ -1821,62 +2345,61 @@ export default function Home() {
                     </div>
                 )}
 
-                {/* TAB 4: TEAMS DISPATCH VIEW */}
+                {/* TAB 4: FIELD STAFF ASSIGNMENTS VIEW */}
                 {activeTab === "teams" && (
-                    <div className="animate-fade">
-                        {currentUser.role === "admin" && (
-                            <div className="flex justify-end mb-4">
-                                <button onClick={() => { setTeamForm({ id: `team-${Date.now()}`, name: "", color: "sparkle", lead: "", size: 2, members: "", description: "" }); setTeamModalOpen(true); }} className="btn btn-primary font-bold">Add New Crew</button>
+                    <div className="animate-fade flex flex-col gap-6">
+                        <div className="ops-control-header">
+                            <div>
+                                <p className="ops-eyebrow">Person-based scheduling</p>
+                                <h3 className="ops-title">Field Staff Assignments</h3>
+                                <p className="ops-copy">
+                                    Jobs are assigned to individual cleaners, supervisors, employees, and subcontractors. Crew availability is no longer used for booking.
+                                </p>
                             </div>
-                        )}
-                        {teams.length === 0 ? (
+                            <span className="ops-chip">{fieldStaff.length} Approved Staff</span>
+                        </div>
+                        {fieldStaff.length === 0 ? (
                             <div className="empty-state p-12 text-center text-slate-400 bg-white border border-slate-200 rounded-2xl shadow-md">
                                 <svg viewBox="0 0 24 24" width="48" height="48" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-4 text-slate-300"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-                                <h4 className="font-extrabold text-slate-700 text-sm mb-1">No cleaning crews dispatched</h4>
-                                <p className="text-xs text-slate-400 max-w-[280px] mx-auto">Dispatch operations are clean. Click Add New Crew above to configure a cleaning squad.</p>
+                                <h4 className="font-extrabold text-slate-700 text-sm mb-1">No approved field staff yet</h4>
+                                <p className="text-xs text-slate-400 max-w-[280px] mx-auto">Register and approve cleaners, supervisors, employees, or subcontractors to assign them to jobs.</p>
                             </div>
                         ) : (
                             <div className="teams-grid">
-                                {teams.map(t => {
-                                    const teamJobs = bookings.filter(b => b.team === t.name && b.status !== "Cancelled");
-                                    const completedCount = teamJobs.filter(b => b.status === "Completed").length;
-                                    const colorClass = ["sparkle", "deluxe", "ecoclean"].includes((t.color || "").toLowerCase()) ? (t.color || "").toLowerCase() : "sparkle";
-                                    const bgClass = `team-${colorClass}-bg`;
-                                    const initials = t.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2) || "TM";
+                                {fieldStaff.map(member => {
+                                    const assignedJobs = bookings.filter(b => b.assignedStaffIds?.includes(member.uid) && b.status !== "Cancelled");
+                                    const completedCount = assignedJobs.filter(b => b.status === "Completed").length;
+                                    const initials = (member.name || member.email || "FS").split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2) || "FS";
                                     return (
-                                        <div key={t.id} className="team-card">
+                                        <div key={member.uid} className="team-card">
                                             <div className="team-card-header">
                                                 <div className="team-card-title-group">
-                                                    <div className={`team-avatar-square ${bgClass}`}>
+                                                    <div className="team-avatar-square team-sparkle-bg">
                                                         {initials}
                                                     </div>
                                                     <div className="team-card-info">
-                                                        <h4>{t.name}</h4>
-                                                        <span>{t.color.toUpperCase()} Crew</span>
+                                                        <h4>{member.name}</h4>
+                                                        <span>
+                                                            {getRoleLabel(member.role)} · {member.branchName || "Ottawa"}
+                                                        </span>
                                                     </div>
                                                 </div>
-                                                {currentUser.role === "admin" && (
-                                                    <div className="team-card-actions">
-                                                        <button onClick={() => { setTeamForm(t); setTeamModalOpen(true); }} className="action-btn btn-edit" title="Edit Crew">{Icons.Edit()}</button>
-                                                        <button onClick={() => handleDeleteTeam(t.id)} className="action-btn btn-delete" title="Delete Crew">{Icons.Trash()}</button>
-                                                    </div>
-                                                )}
                                             </div>
                                             <div className="team-card-body">
-                                                <p className="text-xs text-slate-400 mb-4 italic">"{t.description || "Operational Cleaning Crew"}"</p>
+                                                <p className="text-xs text-slate-400 mb-4 italic">{member.email}</p>
 
                                                 <div className="team-members-container">
-                                                    <h5 style={{ fontSize: "12px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "8px", color: "var(--text-primary)" }}>Crew Specifications</h5>
+                                                    <h5 className="team-section-title">Assignment Profile</h5>
                                                     <div className="flex flex-col gap-2 text-xs text-slate-600">
-                                                        <div><strong>Crew Lead:</strong> {t.lead}</div>
-                                                        <div><strong>Crew Size:</strong> {t.size || 2} cleaners</div>
-                                                        <div><strong>Members:</strong> <span className="italic text-[11px] block mt-0.5 text-slate-500">{t.members}</span></div>
+                                                        <div><strong>Status:</strong> {member.status}</div>
+                                                        <div><strong>Role:</strong> {getRoleLabel(member.role)}</div>
+                                                        <div><strong>Branch:</strong> {member.branchName || "Ottawa"}</div>
                                                     </div>
                                                 </div>
 
                                                 <div className="team-jobs-today-container mt-4 pt-3 border-t border-slate-100">
                                                     <div className="flex justify-between items-center text-xs font-bold text-slate-500">
-                                                        <span>Active jobs: <strong>{teamJobs.length}</strong></span>
+                                                        <span>Assigned jobs: <strong>{assignedJobs.length}</strong></span>
                                                         <span>Completed: <strong>{completedCount}</strong></span>
                                                     </div>
                                                 </div>
@@ -1888,7 +2411,118 @@ export default function Home() {
                         )}
                     </div>
                 )}
-                {activeTab === "edit-requests" && currentUser.role === "admin" && (
+
+                {activeTab === "departments" && canViewAdministration && (
+                    <div className="animate-fade flex flex-col gap-6">
+                        <div className="ops-control-header">
+                            <div>
+                                <p className="ops-eyebrow">SmarTouch Clean v1.000 foundation</p>
+                                <h3 className="ops-title">Departments Hub</h3>
+                                <p className="ops-copy">
+                                    Use this as the old system&apos;s upgrade map: every department is branch-aware and permission-ready.
+                                </p>
+                            </div>
+                            <span className="ops-chip">Ottawa Branch</span>
+                        </div>
+
+                        <div className="department-grid">
+                            {DEPARTMENTS.map(department => {
+                                const unlocked = roleHasDepartment(currentUser.role, department.id);
+                                return (
+                                    <article key={department.id} className={`department-card ${unlocked ? "department-card-active" : ""}`}>
+                                        <div className="department-card-top">
+                                            <div className="department-icon">{Icons.Departments()}</div>
+                                            <span className={`ops-chip ${unlocked ? "ops-chip-green" : ""}`}>
+                                                {unlocked ? "Enabled" : "Locked"}
+                                            </span>
+                                        </div>
+                                        <h4>{department.name}</h4>
+                                        <p>{department.description}</p>
+                                        <div className="department-modules">
+                                            {department.modules.map(module => (
+                                                <span key={module}>{module}</span>
+                                            ))}
+                                        </div>
+                                    </article>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === "permissions" && canManagePermissions && (
+                    <div className="animate-fade flex flex-col gap-6">
+                        <div className="ops-control-header">
+                            <div>
+                                <p className="ops-eyebrow">Access control</p>
+                                <h3 className="ops-title">Permissions & Roles</h3>
+                                <p className="ops-copy">
+                                    Legacy roles remain compatible while we introduce real departments, branch rules, and people management.
+                                </p>
+                            </div>
+                            <span className="ops-chip ops-chip-green">Super Admin controlled</span>
+                        </div>
+
+                        <div className="permissions-grid">
+                            {Object.entries(ROLE_DEFINITIONS).map(([roleId, definition]) => (
+                                <article key={roleId} className="permission-card">
+                                    <div className="permission-card-head">
+                                        <div>
+                                            <h4>{definition.label}</h4>
+                                            <p>{definition.description}</p>
+                                        </div>
+                                        <span className="ops-chip">{roleId}</span>
+                                    </div>
+                                    <div className="permission-departments">
+                                        {DEPARTMENTS.map(department => (
+                                            <span
+                                                key={department.id}
+                                                className={definition.departments.includes(department.id) ? "allowed" : ""}
+                                            >
+                                                {department.name}
+                                            </span>
+                                        ))}
+                                    </div>
+                                    <div className="permission-flags">
+                                        <span>{definition.canSwitchBranches ? "Can switch branches" : "Branch scoped"}</span>
+                                        <span>{definition.canManagePermissions ? "Can manage permissions" : "No permission edits"}</span>
+                                    </div>
+                                </article>
+                            ))}
+                        </div>
+
+                        <div className="notification-readiness-panel">
+                            <div>
+                                <p className="ops-eyebrow">Communication infrastructure</p>
+                                <h3 className="ops-title">Email, SMS, and App Push Requirements</h3>
+                                <p className="ops-copy">
+                                    To send reminders from info@smartouchclean.com and notify customers, cleaners, supervisors, and admins,
+                                    the app needs these production services connected.
+                                </p>
+                            </div>
+                            <div className="notification-requirements-grid">
+                                <div>
+                                    <strong>Email</strong>
+                                    <span>SendGrid, Resend, Postmark, or Gmail Workspace SMTP with SPF/DKIM/DMARC configured for smartouchclean.com.</span>
+                                </div>
+                                <div>
+                                    <strong>SMS / Phone</strong>
+                                    <span>Twilio or Telnyx number, consent tracking, opt-out handling, and customer/cleaner phone verification.</span>
+                                </div>
+                                <div>
+                                    <strong>Web Push</strong>
+                                    <span>PWA manifest, service worker, VAPID keys, browser permission prompts, and saved push subscriptions per user/device.</span>
+                                </div>
+                                <div>
+                                    <strong>In-App Notes</strong>
+                                    <span>Firestore notifications collection for supervisor notes, admin alerts, job comments, unread counts, and audit trail.</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === "edit-requests" && canViewAdministration && (
                     <div className="animate-fade flex flex-col gap-6">
                         {editRequests.filter(r => r.status === "Pending").length === 0 ? (
                             <div className="panel-card p-12 text-center text-slate-400 text-sm">Review Inbox is clean. No cleaner modification requests pending.</div>
@@ -1904,7 +2538,7 @@ export default function Home() {
                                                 <span className="text-[10px] text-slate-400 block mt-1">Submitted by: <strong>{req.requestedBy}</strong> • {req.createdAt.split("T")[0]}</span>
                                             </div>
                                             <div className="flex gap-2">
-                                                <button onClick={() => handleResolveEdit(req.id, "approve")} className="btn btn-primary btn-sm bg-[#39a93e] hover:bg-[#2b8a30]">Approve & Merge</button>
+                                                <button onClick={() => handleResolveEdit(req.id, "approve")} className="btn btn-primary btn-sm">Approve &amp; Merge</button>
                                                 <button onClick={() => handleResolveEdit(req.id, "reject")} className="btn btn-danger btn-sm">Reject Request</button>
                                             </div>
                                         </div>
@@ -1959,6 +2593,25 @@ export default function Home() {
                     </div>
                 )}
 
+                {activeTab === "catalog" && canViewAdministration && (
+                    <div className="animate-fade">
+                        <div className="rounded-brand-lg border border-brand-mist bg-white p-8 shadow-sparkle xl:hidden">
+                            <p className="font-heading text-xs font-bold uppercase tracking-wider text-brand-sky">Desktop Workspace</p>
+                            <h3 className="mt-2 font-heading text-2xl font-black text-brand-slate">Catalog Studio needs a wide screen</h3>
+                            <p className="mt-2 max-w-2xl text-sm font-semibold text-slate-500">
+                                This pricing and add-on control surface is intentionally optimized for desktop editing accuracy.
+                            </p>
+                        </div>
+                        <div className="hidden xl:block">
+                            <V2SettingsManager
+                                catalog={v2Catalog}
+                                setCatalog={setV2Catalog}
+                                onSave={handleSaveV2Catalog}
+                            />
+                        </div>
+                    </div>
+                )}
+
                 {activeTab === "settings" && (
                     <div className="animate-fade">
                         <div className="settings-container">
@@ -1973,8 +2626,8 @@ export default function Home() {
                                             {currentUser.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)}
                                         </div>
                                         <div>
-                                            <h5 className="font-bold text-slate-800 text-base" style={{ fontSize: "16px", color: "var(--text-primary)" }}>{currentUser.name}</h5>
-                                            <span className="text-xs text-slate-400 font-bold uppercase tracking-widest" style={{ fontSize: "10px", color: "var(--text-secondary)", marginTop: "4px", display: "block" }}>{currentUser.role === "admin" ? "System Administrator" : "Team Leader"}</span>
+                                            <h5 className="settings-profile-name">{currentUser.name}</h5>
+                                            <span className="settings-profile-role">{roleLabel}</span>
                                         </div>
                                     </div>
                                     <div className="form-group">
@@ -1992,29 +2645,29 @@ export default function Home() {
                                             type="email"
                                             value={currentUser.email}
                                             disabled
-                                            style={{ backgroundColor: "#f8fafc", color: "var(--text-muted)", cursor: "not-allowed" }}
+                                            className="input-readonly"
                                         />
                                     </div>
-                                    {currentUser.role !== "admin" && (
+                                    {!canManagePermissions && (
                                         <div className="form-group">
                                             <label>Assigned Cleaning Crew</label>
                                             <input
                                                 type="text"
                                                 value={currentUser.teamId || "None"}
                                                 disabled
-                                                style={{ backgroundColor: "#f8fafc", color: "var(--text-muted)", cursor: "not-allowed" }}
+                                                className="input-readonly"
                                             />
                                         </div>
                                     )}
                                     <button type="submit" disabled={profileLoading} className="btn btn-primary h-[44px] rounded-lg text-white font-bold transition mt-2">
                                         {profileLoading ? "Updating Profile..." : "Save Profile Details"}
                                     </button>
-                                    
+
                                     {/* Mobile Accessible Log Out Button */}
                                     <div className="mt-4 pt-4 border-t border-slate-100/80 w-full">
-                                        <button 
-                                            type="button" 
-                                            onClick={handleSignout} 
+                                        <button
+                                            type="button"
+                                            onClick={handleSignout}
                                             className="btn btn-danger w-full h-[44px] flex items-center justify-center gap-2 font-bold transition-all mt-2"
                                         >
                                             {Icons.Logout()} Log Out of Account
@@ -2059,232 +2712,12 @@ export default function Home() {
                                             placeholder="••••••••"
                                         />
                                     </div>
-                                    <button type="submit" disabled={securityLoading} className="btn btn-primary h-[44px] rounded-lg text-white font-bold transition mt-2" style={{ backgroundColor: "#dc2626", borderColor: "#dc2626" }}>
+                                    <button type="submit" disabled={securityLoading} className="btn btn-danger h-[44px] rounded-lg font-bold transition mt-2">
                                         {securityLoading ? "Updating Password..." : "Change Security Password"}
                                     </button>
                                 </form>
                             </div>
 
-                            {/* Card 3: Rates & Pricing Manager (Admin-Only) */}
-                            {currentUser.role === "admin" && (
-                                <div className="settings-card settings-card-full">
-                                    <div className="panel-header border-b border-slate-100 pb-3 flex justify-between items-center" style={{ flexWrap: 'wrap', gap: '12px' }}>
-                                        <div style={{ flex: '1 1 200px' }}>
-                                            <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">Pricing & Rates Manager Settings</h4>
-                                            <p className="text-slate-400 text-[10px] mt-0.5">Customize real-time booking rates, bathroom fees, extras, and discounts</p>
-                                        </div>
-                                        <button 
-                                            type="button"
-                                            onClick={async () => {
-                                                try {
-                                                    const headers = await getAuthHeaders();
-                                                    const res = await fetch("/api/settings", {
-                                                        method: "POST",
-                                                        headers,
-                                                        body: JSON.stringify(pricingRates)
-                                                    });
-                                                    if (!res.ok) {
-                                                        const errData = await res.json();
-                                                        throw new Error(errData.error || "Failed to update settings");
-                                                    }
-                                                    alert("Pricing and rates updated successfully in database!");
-                                                } catch (err) {
-                                                    alert("Failed to save rates: " + err.message);
-                                                }
-                                            }}
-                                            className="btn btn-primary btn-sm rounded-lg text-white font-bold"
-                                        >
-                                            Save System Rates
-                                        </button>
-                                    </div>
-                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 p-6">
-                                        {/* Column 1: Services (House Cleaning & Standalone) */}
-                                        <div className="flex flex-col gap-6">
-                                            {/* House Cleaning Services */}
-                                            <div>
-                                                <h5 className="font-bold text-xs uppercase tracking-wider text-slate-700 border-b border-slate-100 pb-1 mb-2">House Cleaning Services</h5>
-                                                <div className="max-h-[250px] overflow-y-auto pr-1 flex flex-col gap-1">
-                                                    {HOUSE_CLEANING_SERVICES.map(key => (
-                                                        <div key={key} className="rates-row">
-                                                            <span className="rates-row-label" title={key}>{key}</span>
-                                                            <div className="flex items-center gap-2 flex-shrink-0" style={{ display: 'flex' }}>
-                                                                <div className="relative flex items-center" style={{ display: 'flex', alignItems: 'center' }}>
-                                                                    <span className="absolute left-2 text-slate-400 font-extrabold text-[10px] z-10">$</span>
-                                                                    <input 
-                                                                        type="number" 
-                                                                        value={pricingRates.services?.[key] || 0} 
-                                                                        onChange={e => {
-                                                                            const val = parseFloat(e.target.value || 0);
-                                                                            setPricingRates(prev => ({
-                                                                                ...prev,
-                                                                                services: { ...prev.services, [key]: val }
-                                                                            }));
-                                                                        }}
-                                                                        className="rates-manager-input-price focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 font-bold text-slate-700 transition-all outline-none" 
-                                                                    />
-                                                                </div>
-                                                                <div className="relative flex items-center" style={{ display: 'flex', alignItems: 'center' }}>
-                                                                    <input 
-                                                                        type="number" 
-                                                                        step="0.5"
-                                                                        value={pricingRates.serviceDurations?.[key] || 2} 
-                                                                        onChange={e => {
-                                                                            const val = parseFloat(e.target.value || 0);
-                                                                            setPricingRates(prev => ({
-                                                                                ...prev,
-                                                                                serviceDurations: { ...(prev.serviceDurations || {}), [key]: val }
-                                                                            }));
-                                                                        }}
-                                                                        className="rates-manager-input-price focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 font-bold text-slate-700 transition-all outline-none" 
-                                                                    />
-                                                                    <span className="absolute right-2 text-slate-400 font-extrabold text-[10px] z-10">hrs</span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-
-                                            {/* Standalone Specialty Services */}
-                                            <div>
-                                                <h5 className="font-bold text-xs uppercase tracking-wider text-slate-700 border-b border-slate-100 pb-1 mb-2">Standalone Specialty Services</h5>
-                                                <div className="flex flex-col gap-1">
-                                                    {STANDALONE_SERVICES.map(key => (
-                                                        <div key={key} className="rates-row">
-                                                            <span className="rates-row-label" title={key}>{key}</span>
-                                                            <div className="flex items-center gap-2 flex-shrink-0" style={{ display: 'flex' }}>
-                                                                <div className="relative flex items-center" style={{ display: 'flex', alignItems: 'center' }}>
-                                                                    <span className="absolute left-2 text-slate-400 font-extrabold text-[10px] z-10">$</span>
-                                                                    <input 
-                                                                        type="number" 
-                                                                        value={pricingRates.services?.[key] || 0} 
-                                                                        onChange={e => {
-                                                                            const val = parseFloat(e.target.value || 0);
-                                                                            setPricingRates(prev => ({
-                                                                                ...prev,
-                                                                                services: { ...prev.services, [key]: val }
-                                                                            }));
-                                                                        }}
-                                                                        className="rates-manager-input-price focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 font-bold text-slate-700 transition-all outline-none" 
-                                                                    />
-                                                                </div>
-                                                                <div className="relative flex items-center" style={{ display: 'flex', alignItems: 'center' }}>
-                                                                    <input 
-                                                                        type="number" 
-                                                                        step="0.5"
-                                                                        value={pricingRates.serviceDurations?.[key] || 2} 
-                                                                        onChange={e => {
-                                                                            const val = parseFloat(e.target.value || 0);
-                                                                            setPricingRates(prev => ({
-                                                                                ...prev,
-                                                                                serviceDurations: { ...(prev.serviceDurations || {}), [key]: val }
-                                                                            }));
-                                                                        }}
-                                                                        className="rates-manager-input-price focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 font-bold text-slate-700 transition-all outline-none" 
-                                                                    />
-                                                                    <span className="absolute right-2 text-slate-400 font-extrabold text-[10px] z-10">hrs</span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Column 2: Bathrooms, Extras & Frequencies */}
-                                        <div className="flex flex-col gap-6">
-                                            {/* Bathrooms */}
-                                            <div>
-                                                <h5 className="font-bold text-xs uppercase tracking-wider text-slate-700 border-b border-slate-100 pb-1 mb-2">Bathroom Increments ($)</h5>
-                                                <div className="max-h-[140px] overflow-y-auto pr-1 flex flex-col gap-1">
-                                                    {Object.keys(pricingRates.bathrooms || {}).map(key => (
-                                                        <div key={key} className="rates-row">
-                                                            <span className="rates-row-label">{key}</span>
-                                                            <div className="relative flex items-center" style={{ display: 'flex', alignItems: 'center' }}>
-                                                                <span className="absolute left-2.5 text-slate-400 font-extrabold text-[11px] z-10">$</span>
-                                                                <input 
-                                                                    type="number" 
-                                                                    value={pricingRates.bathrooms[key]} 
-                                                                    onChange={e => {
-                                                                        const val = parseFloat(e.target.value || 0);
-                                                                        setPricingRates(prev => ({
-                                                                            ...prev,
-                                                                            bathrooms: { ...prev.bathrooms, [key]: val }
-                                                                        }));
-                                                                    }}
-                                                                    className="rates-manager-input-price focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 font-bold text-slate-700 transition-all outline-none" 
-                                                                />
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-
-                                            {/* Extras */}
-                                            <div>
-                                                <h5 className="font-bold text-xs uppercase tracking-wider text-slate-700 border-b border-slate-100 pb-1 mb-2">Select Extras Upgrade Rates ($)</h5>
-                                                <div className="max-h-[160px] overflow-y-auto pr-1 flex flex-col gap-1">
-                                                    {Object.entries(pricingRates.extras || {}).map(([key, extra]) => (
-                                                        <div key={key} className="rates-row">
-                                                            <span className="rates-row-label">{extra.name}</span>
-                                                            <div className="relative flex items-center" style={{ display: 'flex', alignItems: 'center' }}>
-                                                                <span className="absolute left-2.5 text-slate-400 font-extrabold text-[11px] z-10">$</span>
-                                                                <input 
-                                                                    type="number" 
-                                                                    value={extra.price} 
-                                                                    onChange={e => {
-                                                                        const val = parseFloat(e.target.value || 0);
-                                                                        setPricingRates(prev => ({
-                                                                            ...prev,
-                                                                            extras: {
-                                                                                ...prev.extras,
-                                                                                [key]: { ...prev.extras[key], price: val }
-                                                                            }
-                                                                        }));
-                                                                    }}
-                                                                    className="rates-manager-input-price focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 font-bold text-slate-700 transition-all outline-none" 
-                                                                />
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-
-                                            {/* Frequencies */}
-                                            <div>
-                                                <h5 className="font-bold text-xs uppercase tracking-wider text-slate-700 border-b border-slate-100 pb-1 mb-2">Frequency Discounts (%)</h5>
-                                                <div className="flex flex-col gap-1">
-                                                    {Object.entries(pricingRates.frequencies || {}).map(([key, freq]) => (
-                                                        <div key={key} className="rates-row">
-                                                            <span className="rates-row-label capitalize">{freq.name}</span>
-                                                            <div className="relative flex items-center" style={{ display: 'flex', alignItems: 'center' }}>
-                                                                <input 
-                                                                    type="number" 
-                                                                    min="0"
-                                                                    max="100"
-                                                                    value={Math.round(freq.discount * 100)} 
-                                                                    onChange={e => {
-                                                                        const val = parseFloat(e.target.value || 0) / 100;
-                                                                        setPricingRates(prev => ({
-                                                                            ...prev,
-                                                                            frequencies: {
-                                                                                ...prev.frequencies,
-                                                                                [key]: { ...prev.frequencies[key], discount: val }
-                                                                            }
-                                                                        }));
-                                                                    }}
-                                                                    className="rates-manager-input-percent focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 font-bold text-slate-700 transition-all outline-none" 
-                                                                />
-                                                                <span className="absolute right-2.5 text-slate-400 font-extrabold text-[11px] z-10">%</span>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
                         </div>
                     </div>
                 )}
@@ -2300,17 +2733,19 @@ export default function Home() {
                     {Icons.Bookings()}
                     <span>Bookings</span>
                 </button>
-                <button onClick={() => setActiveTab("calendar")} className={`mobile-nav-item ${activeTab === "calendar" ? "active" : ""}`}>
-                    {Icons.Calendar()}
-                    <span>Calendar</span>
-                </button>
-                {currentUser.role === "admin" && (
-                    <button onClick={() => setActiveTab("teams")} className={`mobile-nav-item ${activeTab === "teams" ? "active" : ""}`}>
-                        {Icons.Teams()}
-                        <span>Teams</span>
+                {canViewOperations && (
+                    <button onClick={() => setActiveTab("calendar")} className={`mobile-nav-item ${activeTab === "calendar" ? "active" : ""}`}>
+                        {Icons.Calendar()}
+                        <span>Calendar</span>
                     </button>
                 )}
-                {currentUser.role === "admin" && (
+                {canViewPeople && (
+                    <button onClick={() => setActiveTab("teams")} className={`mobile-nav-item ${activeTab === "teams" ? "active" : ""}`}>
+                        {Icons.Teams()}
+                        <span>Staff</span>
+                    </button>
+                )}
+                {canViewAdministration && (
                     <button onClick={() => setActiveTab("edit-requests")} className={`mobile-nav-item relative ${activeTab === "edit-requests" ? "active" : ""}`}>
                         {Icons.EditReview()}
                         <span>Review</span>
@@ -2321,42 +2756,299 @@ export default function Home() {
                         )}
                     </button>
                 )}
+                {canViewAdministration && (
+                    <button onClick={() => setActiveTab("departments")} className={`mobile-nav-item ${activeTab === "departments" ? "active" : ""}`}>
+                        {Icons.Departments()}
+                        <span>Departments</span>
+                    </button>
+                )}
+                {canManagePermissions && (
+                    <button onClick={() => setActiveTab("permissions")} className={`mobile-nav-item ${activeTab === "permissions" ? "active" : ""}`}>
+                        {Icons.Shield()}
+                        <span>Permissions</span>
+                    </button>
+                )}
                 <button onClick={() => setActiveTab("settings")} className={`mobile-nav-item ${activeTab === "settings" ? "active" : ""}`}>
                     <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
                     <span>Settings</span>
                 </button>
             </div>
 
+            {serviceConfigOpen && configCategory && (() => {
+                const selectedSize = configCategory.sizes?.find(size => size.id === configSizeId);
+                const basePrice = selectedSize ? parseFloat(selectedSize.price || 0) : getCategoryBasePrice(configCategory);
+                const isHouseCleaning = configCategory.id === "house_cleaning";
+                const bathroomPrice = isHouseCleaning ? parseFloat(v2Catalog.bathrooms?.[configBathroomKey] || 0) : 0;
+                const selectedAddonRows = (configCategory.addons || []).map(addon => {
+                    const qty = Number(configAddons[addon.id] || 0);
+                    return {
+                        ...addon,
+                        qty,
+                        total: qty * parseFloat(addon.price || 0)
+                    };
+                });
+                const addonTotal = selectedAddonRows.reduce((sum, addon) => sum + addon.total, 0);
+                return (
+                    <div className="modal-backdrop show">
+                        <div className="modal-content modal-content-service-config animate-pop">
+                            <div className="modal-header modal-header-brand">
+                                <div className="modal-title-stack">
+                                    <h3 className="modal-title-inverse">Configure Service</h3>
+                                    <p className="modal-subtitle-inverse">{configCategory.name}</p>
+                                </div>
+                                <button onClick={() => setServiceConfigOpen(false)} className="modal-close-btn" aria-label="Close">
+                                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="1" y1="1" x2="13" y2="13" /><line x1="13" y1="1" x2="1" y2="13" /></svg>
+                                </button>
+                            </div>
+                            <div className="service-config-body">
+                                <section className="service-config-section">
+                                    <div className="service-config-heading">
+                                        <h4>Subcategory</h4>
+                                        <span>{configCategory.pricingModel?.replaceAll("_", " ")}</span>
+                                    </div>
+                                    {configCategory.sizes?.length > 0 ? (
+                                        <div className="service-option-grid">
+                                            {configCategory.sizes.map(size => (
+                                                <button
+                                                    key={size.id}
+                                                    onClick={() => setConfigSizeId(size.id)}
+                                                    type="button"
+                                                    className={`service-option-card ${configSizeId === size.id ? "active" : ""}`}
+                                                >
+                                                    <strong>{size.name}</strong>
+                                                    <span>${parseFloat(size.price || 0).toFixed(2)} • {size.durationHrs || 0} hrs</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="service-option-card active">
+                                            <strong>Base service</strong>
+                                            <span>${basePrice.toFixed(2)} • {getCategoryDuration(configCategory)} hrs</span>
+                                        </div>
+                                    )}
+                                    {isHouseCleaning && (
+                                        <div className="service-bathroom-picker">
+                                            <label htmlFor="bathroom-price-tier">Bathrooms</label>
+                                            <select
+                                                id="bathroom-price-tier"
+                                                value={configBathroomKey}
+                                                onChange={e => setConfigBathroomKey(e.target.value)}
+                                            >
+                                                {Object.entries(v2Catalog.bathrooms || {}).map(([label, price]) => (
+                                                    <option key={label} value={label}>
+                                                        {label} (+${parseFloat(price || 0).toFixed(2)})
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <span>Bathroom charge: ${bathroomPrice.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                </section>
+
+                                <section className="service-config-section">
+                                    <div className="service-config-heading">
+                                        <h4>Add-ons</h4>
+                                        <span>{configCategory.addons?.length || 0} available</span>
+                                    </div>
+                                    {configCategory.addons?.length > 0 ? (
+                                        <div className="service-addon-list">
+                                            {configCategory.addons.map(addon => {
+                                                const qty = Number(configAddons[addon.id] || 0);
+                                                return (
+                                                    <div key={addon.id} className={`service-addon-row ${qty > 0 ? "active" : ""}`}>
+                                                        <div>
+                                                            <strong>{addon.name}</strong>
+                                                            <span>${parseFloat(addon.price || 0).toFixed(2)} each</span>
+                                                        </div>
+                                                        {addon.qtySelector ? (
+                                                            <input
+                                                                type="number"
+                                                                min="0"
+                                                                value={qty}
+                                                                onChange={e => setConfigAddonQty(addon.id, e.target.value)}
+                                                            />
+                                                        ) : (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setConfigAddonQty(addon.id, qty > 0 ? 0 : 1)}
+                                                            >
+                                                                {qty > 0 ? "Selected" : "Add"}
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    ) : (
+                                        <div className="admin-cart-empty">No add-ons configured for this service yet.</div>
+                                    )}
+                                </section>
+                            </div>
+                            <div className="service-config-footer">
+                                <div>
+                                    <span>Configured total</span>
+                                    <strong>${(basePrice + bathroomPrice + addonTotal).toFixed(2)}</strong>
+                                </div>
+                                <button onClick={addConfiguredServiceToCart} type="button" className="admin-primary-action">
+                                    Add Configured Service
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
+
+            {adminCheckoutOpen && (
+                <div className="modal-backdrop show">
+                    <div className="modal-content modal-content-admin-checkout animate-pop">
+                        <div className="modal-header modal-header-brand">
+                            <div className="modal-title-stack">
+                                <h3 className="modal-title-inverse">Admin Checkout</h3>
+                                <p className="modal-subtitle-inverse">{adminServiceCart.length} configured service{adminServiceCart.length === 1 ? "" : "s"}</p>
+                            </div>
+                            <button onClick={() => setAdminCheckoutOpen(false)} className="modal-close-btn" aria-label="Close">
+                                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="1" y1="1" x2="13" y2="13" /><line x1="13" y1="1" x2="1" y2="13" /></svg>
+                            </button>
+                        </div>
+                        <form onSubmit={saveAdminCartBooking} className="admin-checkout-form">
+                            <div className="admin-checkout-grid">
+                                <label>
+                                    <span>First Name</span>
+                                    <input required value={adminCheckoutForm.firstName} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, firstName: e.target.value }))} />
+                                </label>
+                                <label>
+                                    <span>Last Name</span>
+                                    <input required value={adminCheckoutForm.lastName} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, lastName: e.target.value }))} />
+                                </label>
+                                <label>
+                                    <span>Phone</span>
+                                    <input required value={adminCheckoutForm.phone} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, phone: e.target.value }))} />
+                                </label>
+                                <label>
+                                    <span>Email</span>
+                                    <input type="email" required value={adminCheckoutForm.email} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, email: e.target.value }))} />
+                                </label>
+                                <label className="span-2">
+                                    <span>Street Address</span>
+                                    <input required value={adminCheckoutForm.address1} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, address1: e.target.value }))} />
+                                </label>
+                                <label>
+                                    <span>Unit / Apt</span>
+                                    <input value={adminCheckoutForm.address2} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, address2: e.target.value }))} />
+                                </label>
+                                <label>
+                                    <span>City</span>
+                                    <input required value={adminCheckoutForm.city} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, city: e.target.value }))} />
+                                </label>
+                                <label>
+                                    <span>Postal Code</span>
+                                    <input required value={adminCheckoutForm.postalCode} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, postalCode: e.target.value }))} />
+                                </label>
+                                <label>
+                                    <span>Date</span>
+                                    <input type="date" required value={adminCheckoutForm.date} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, date: e.target.value }))} />
+                                </label>
+                                <label>
+                                    <span>Time</span>
+                                    <input required value={adminCheckoutForm.time} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, time: e.target.value }))} />
+                                </label>
+                                <div className="span-2 admin-staff-assignment">
+                                    <span>Assign Field Staff</span>
+                                    <div className="admin-staff-picker">
+                                        {fieldStaff.length === 0 ? (
+                                            <p>No approved cleaners, supervisors, employees, or subcontractors found yet.</p>
+                                        ) : (
+                                            fieldStaff.map(member => {
+                                                const checked = adminCheckoutForm.assignedStaffIds.includes(member.uid);
+                                                return (
+                                                    <label key={member.uid} className={checked ? "active" : ""}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={checked}
+                                                            onChange={e => setAdminCheckoutForm(prev => {
+                                                                const current = prev.assignedStaffIds || [];
+                                                                return {
+                                                                    ...prev,
+                                                                    assignedStaffIds: e.target.checked
+                                                                        ? [...current, member.uid]
+                                                                        : current.filter(uid => uid !== member.uid)
+                                                                };
+                                                            })}
+                                                        />
+                                                        <strong>{member.name}</strong>
+                                                        <small>{getRoleLabel(member.role)} · {member.branchName || "Ottawa"}</small>
+                                                    </label>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+                                </div>
+                                <label>
+                                    <span>Promo Code</span>
+                                    <input value={adminCheckoutForm.promoCode} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, promoCode: e.target.value }))} placeholder="PROMO30" />
+                                </label>
+                                <label>
+                                    <span>Gift Card Code</span>
+                                    <input value={adminCheckoutForm.giftCardCode} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, giftCardCode: e.target.value }))} placeholder="GC-12345" />
+                                </label>
+                                <label>
+                                    <span>Discount $</span>
+                                    <input type="number" min="0" step="0.01" value={adminCheckoutForm.discountAmount} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, discountAmount: e.target.value }))} />
+                                </label>
+                                <label>
+                                    <span>Discount %</span>
+                                    <input type="number" min="0" max="100" step="1" value={adminCheckoutForm.discountPercent} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, discountPercent: e.target.value }))} />
+                                </label>
+                                <label className="span-2">
+                                    <span>Admin Notes</span>
+                                    <textarea rows={3} value={adminCheckoutForm.notes} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, notes: e.target.value }))} />
+                                </label>
+                            </div>
+                            <aside className="admin-checkout-summary">
+                                {adminServiceCart.map(item => (
+                                    <div key={item.cartId}>
+                                        <strong>{item.name}</strong>
+                                        <span>{item.optionName}{item.bathroomKey ? ` • ${item.bathroomKey}` : ""}</span>
+                                        <em>${item.price.toFixed(2)}</em>
+                                    </div>
+                                ))}
+                                <div className="admin-checkout-total">
+                                    <span>Subtotal</span><strong>${adminCartTotals.subtotal.toFixed(2)}</strong>
+                                    <span>{activeBranch.taxLabel}</span><strong>${adminCartTotals.tax.toFixed(2)}</strong>
+                                    <span>Total before discounts</span><strong>${adminCartTotals.total.toFixed(2)}</strong>
+                                </div>
+                            </aside>
+                            <div className="admin-checkout-actions">
+                                <button type="button" onClick={() => setAdminCheckoutOpen(false)} className="btn btn-secondary btn-sm">Back to Cart</button>
+                                <button type="submit" className="btn btn-primary btn-sm">Create Booking</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
             {/* MODAL 1: VIEW DETAILS MODAL */}
             {detailsModalOpen && selectedBooking && (() => {
                 const b = selectedBooking;
-                const statusColors = {
-                    Pending:   { bg: '#fef3c7', color: '#b45309', border: '#fcd34d' },
-                    Confirmed: { bg: '#dbeafe', color: '#1d4ed8', border: '#93c5fd' },
-                    Completed: { bg: '#dcfce7', color: '#15803d', border: '#86efac' },
-                    Cancelled: { bg: '#fee2e2', color: '#b91c1c', border: '#fca5a5' },
-                };
-                const sc = statusColors[b.status] || statusColors.Pending;
-                const teamColor = teams.find(t => t.name === b.team)?.color || 'sparkle';
                 const extrasEntries = Object.entries(b.extras || {}).filter(([, qty]) => qty);
                 const hasExtras = extrasEntries.length > 0;
                 const price = parseFloat(b.price || 0);
                 const discount = parseFloat(b.customDiscountAmount || 0);
                 return (
                     <div className="modal-backdrop show">
-                        <div className="modal-content animate-pop" style={{ maxWidth: '640px', width: '95%' }}>
+                        <div className="modal-content modal-content-details animate-pop">
                             {/* Header */}
-                            <div className="modal-header" style={{ background: 'linear-gradient(135deg, #0268b3, #16a34a)', borderBottom: 'none', padding: '18px 24px' }}>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                    <h3 style={{ margin: 0, fontSize: '13px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '1px', color: '#ffffff' }}>
+                            <div className="modal-header modal-header-brand modal-header-compact">
+                                <div className="modal-title-stack">
+                                    <h3 className="modal-title-inverse">
                                         Dispatch Details
                                     </h3>
-                                    <p style={{ margin: 0, fontSize: '10px', color: 'rgba(255,255,255,0.75)', fontWeight: '500' }}>
+                                    <p className="modal-subtitle-inverse">
                                         {b.date} · {b.time} · {b.duration}h
                                     </p>
                                 </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                    <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px', background: sc.bg, color: sc.color, border: `1.5px solid ${sc.border}` }}>
+                                <div className="modal-header-actions">
+                                    <span className={`detail-status-pill ${statusClassName(b.status)}`}>
                                         {b.status || 'Pending'}
                                     </span>
                                     <button onClick={() => setDetailsModalOpen(false)} className="modal-close-btn" aria-label="Close">
@@ -2366,7 +3058,7 @@ export default function Home() {
                             </div>
 
                             {/* Body */}
-                            <div className="modal-body" style={{ overflowY: 'auto', maxHeight: '70vh', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            <div className="modal-body modal-body-scroll">
 
                                 {/* Client Info */}
                                 <div className="detail-card">
@@ -2420,7 +3112,7 @@ export default function Home() {
                                     <div className="detail-card-grid">
                                         <div className="detail-row full-width">
                                             <span className="detail-label">Service</span>
-                                            <span className="detail-value bold" style={{ color: '#0268b3' }}>{b.service}</span>
+                                            <span className="detail-value detail-value-brand bold">{b.service}</span>
                                         </div>
                                         <div className="detail-row">
                                             <span className="detail-label">Bathrooms</span>
@@ -2443,11 +3135,13 @@ export default function Home() {
                                             <span className="detail-value">{b.duration} hours</span>
                                         </div>
                                         <div className="detail-row">
-                                            <span className="detail-label">Assigned Crew</span>
+                                            <span className="detail-label">Assigned Staff</span>
                                             <span className="detail-value">
-                                                <span className="team-pill" style={{ marginTop: 0 }}>
-                                                    <span className={`dot dot-${teamColor}`}></span>
-                                                    {b.team || '—'}
+                                                <span className="assigned-staff-list assigned-staff-list-inline">
+                                                    {(b.assignedStaff || []).map(member => (
+                                                        <span key={member.uid || member.email}>{member.name}</span>
+                                                    ))}
+                                                    {!b.assignedStaff?.length && <span>{b.team || "Unassigned"}</span>}
                                                 </span>
                                             </span>
                                         </div>
@@ -2458,15 +3152,15 @@ export default function Home() {
                                 {hasExtras && (
                                     <div className="detail-card">
                                         <div className="detail-card-title">✨ Selected Extras</div>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '2px' }}>
+                                        <div className="detail-extras-list">
                                             {extrasEntries.map(([key, qty]) => {
                                                 const extra = pricingRates.extras[key];
                                                 if (!extra) return null;
                                                 const qtyVal = typeof qty === 'boolean' ? 1 : qty;
                                                 return (
-                                                    <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                                                        <span style={{ fontSize: '10px', color: '#334155', fontWeight: '600' }}>• {extra.name}{qtyVal > 1 ? ` × ${qtyVal}` : ''}</span>
-                                                        <span style={{ fontSize: '10px', fontWeight: '800', color: '#0f172a' }}>${(extra.price * qtyVal).toFixed(2)}</span>
+                                                    <div key={key} className="detail-extra-row">
+                                                        <span className="detail-extra-name">• {extra.name}{qtyVal > 1 ? ` × ${qtyVal}` : ''}</span>
+                                                        <span className="detail-extra-price">${(extra.price * qtyVal).toFixed(2)}</span>
                                                     </div>
                                                 );
                                             })}
@@ -2477,15 +3171,15 @@ export default function Home() {
                                 {/* Pricing */}
                                 <div className="detail-card">
                                     <div className="detail-card-title">💰 Pricing</div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
+                                    <div className="detail-pricing-list">
                                         <div className="detail-row">
                                             <span className="detail-label">Total Price (incl. HST)</span>
-                                            <span className="detail-value bold" style={{ fontSize: '14px', color: '#0268b3' }}>${price.toFixed(2)}</span>
+                                            <span className="detail-value detail-price-total bold">${price.toFixed(2)}</span>
                                         </div>
                                         {discount > 0 && (
                                             <div className="detail-row">
                                                 <span className="detail-label">Special Discount</span>
-                                                <span className="detail-value" style={{ color: '#15803d', fontWeight: '800' }}>-${discount.toFixed(2)}</span>
+                                                <span className="detail-value detail-discount-value">-${discount.toFixed(2)}</span>
                                             </div>
                                         )}
                                         {b.frequency && b.frequency !== 'One-Time' && (() => {
@@ -2494,7 +3188,7 @@ export default function Home() {
                                             return pct > 0 ? (
                                                 <div className="detail-row">
                                                     <span className="detail-label">Frequency Discount</span>
-                                                    <span style={{ fontSize: '10px', fontWeight: '800', padding: '2px 8px', borderRadius: '20px', background: '#dcfce7', color: '#15803d', border: '1px solid #86efac' }}>{b.frequency} — {pct}% off</span>
+                                                    <span className="frequency-discount-pill">{b.frequency} — {pct}% off</span>
                                                 </div>
                                             ) : null;
                                         })()}
@@ -2530,7 +3224,7 @@ export default function Home() {
                                         {b.specialNotes && (
                                             <div className="detail-row full-width">
                                                 <span className="detail-label">Special Notes</span>
-                                                <span className="detail-value" style={{ whiteSpace: 'pre-wrap' }}>{b.specialNotes}</span>
+                                                <span className="detail-value whitespace-pre-wrap">{b.specialNotes}</span>
                                             </div>
                                         )}
                                     </div>
@@ -2550,849 +3244,165 @@ export default function Home() {
 
 
 
-            {/* MODAL 2: SCHEDULING FORM MODAL */}
+            {/* MODAL 2: DISPATCH EDIT MODAL */}
             {bookingModalOpen && (
                 <div className="modal-backdrop show">
-                    <div className="modal-content animate-pop" style={{ maxWidth: "850px", width: "95%" }}>
-                        <div className="modal-header" style={{ background: "linear-gradient(135deg, var(--accent-blue), var(--accent-green))", borderBottom: "none" }}>
-                            <h3 className="font-extrabold text-sm uppercase tracking-wider text-white" style={{ margin: 0 }}>
-                                {bookingModalMode === "create" ? "Schedule New Dispatch" : "Request Modification Review"}
-                            </h3>
-                            <button onClick={() => setBookingModalOpen(false)} className="modal-close-btn" aria-label="Close">
-                                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="1" y1="1" x2="13" y2="13" /><line x1="13" y1="1" x2="1" y2="13" /></svg>
-                            </button>
-                        </div>
-                        <div style={{ display: "flex", flexDirection: "column", flexGrow: 1, overflowY: "auto" }}>
-                            <div className="modal-body flex flex-col text-xs" style={{ padding: "20px 24px" }}>
-                                
-                                {/* Stepper Progress Header */}
-                                <div className="wizard-stepper select-none">
-                                    {/* Connecting Background Progress Bar Track */}
-                                    <div className="wizard-progress-track">
-                                        {/* Filled progress bar portion */}
-                                        <div 
-                                            className="wizard-progress-bar" 
-                                            style={{ width: `${((formStep - 1) / 7) * 100}%` }}
-                                        ></div>
-                                    </div>
-                                    
-                                    {[1, 2, 3, 4, 5, 6, 7, 8].map(stepNum => {
-                                        const stepLabels = ["Contact", "Address", "Services", "Extras", "Schedule", "Frequency", "Info", "Review"];
-                                        const isActive = formStep === stepNum;
-                                        const isCompleted = formStep > stepNum;
-                                        return (
-                                            <div key={stepNum} className="wizard-step-node">
-                                                {/* Circle step badge */}
-                                                <div 
-                                                    className={`wizard-step-circle ${
-                                                        isActive ? 'active' : (isCompleted ? 'completed' : '')
-                                                    }`}
-                                                >
-                                                    {isCompleted ? "✓" : stepNum}
-                                                </div>
-                                                {/* Text Label - visible and responsive */}
-                                                <span 
-                                                    className={`wizard-step-label ${
-                                                        isActive ? 'active' : (isCompleted ? 'completed' : '')
-                                                    }`}
-                                                >
-                                                    {stepLabels[stepNum - 1]}
-                                                </span>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-
-
-
-                                {/* Step 1: Contact Information */}
-                                {formStep === 1 && (
-                                    <div className="flex flex-col gap-4 animate-fade">
-                                        <div>
-                                            <h4 className="font-extrabold text-slate-800 text-sm">Contact Information</h4>
-                                            <p className="text-slate-400 text-[11px]">The information will be used to contact you about your service</p>
-                                        </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div className="form-group flex flex-col gap-1">
-                                                <label className="font-bold text-slate-700">First Name *</label>
-                                                <input type="text" required value={bookingForm.firstName} onChange={e => setBookingForm(prev => ({ ...prev, firstName: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="Jane" />
-                                            </div>
-                                            <div className="form-group flex flex-col gap-1">
-                                                <label className="font-bold text-slate-700">Last Name *</label>
-                                                <input type="text" required value={bookingForm.lastName} onChange={e => setBookingForm(prev => ({ ...prev, lastName: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="Jenkins" />
-                                            </div>
-                                            <div className="form-group flex flex-col gap-1 md:col-span-2">
-                                                <label className="font-bold text-slate-700">Email Address *</label>
-                                                <input type="email" required value={bookingForm.email} onChange={e => setBookingForm(prev => ({ ...prev, email: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="jane@jenkins.com" />
-                                            </div>
-                                            <div className="form-group flex flex-col gap-1 md:col-span-2">
-                                                <label className="font-bold text-slate-700">Phone Number *</label>
-                                                <input type="tel" required value={bookingForm.phone} onChange={e => setBookingForm(prev => ({ ...prev, phone: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="555-0199" />
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Step 2: Service Address */}
-                                {formStep === 2 && (
-                                    <div className="flex flex-col gap-4 animate-fade">
-                                        <div>
-                                            <h4 className="font-extrabold text-slate-800 text-sm">Service Address</h4>
-                                            <p className="text-slate-400 text-[11px]">Where would you like us to clean?</p>
-                                        </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            {/* Autocomplete restricted to Ontario, Canada maps */}
-                                            <div ref={autocompleteRef} className="form-group flex flex-col gap-1 md:col-span-2 relative">
-                                                <label className="font-bold text-slate-700">Street Address *</label>
-                                                <div className="search-input-wrapper w-full">
-                                                    <input type="text" required value={bookingForm.address1} onChange={handleAddressChange} onFocus={() => addressSuggestions.length > 0 && setShowSuggestions(true)} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="Type street address to search Ontario maps..." />
-                                                </div>
-                                                {showSuggestions && addressSuggestions.length > 0 && (
-                                                    <div className="absolute top-[60px] left-0 right-0 bg-white border border-slate-200 rounded-lg shadow-xl max-h-[160px] overflow-y-auto z-[20000] flex flex-col">
-                                                        {addressSuggestions.map((place, idx) => (
-                                                            <div key={idx} onClick={() => selectSuggestion(place)} className="p-3 border-b border-slate-100 hover:bg-slate-50 cursor-pointer text-[11px] text-slate-600 truncate">{place.display_name}</div>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="form-group flex flex-col gap-1">
-                                                <label className="font-bold text-slate-700">Apt # / Suite / Unit</label>
-                                                <input type="text" value={bookingForm.address2} onChange={e => setBookingForm(prev => ({ ...prev, address2: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="Suite 404" />
-                                            </div>
-                                            <div className="form-group flex flex-col gap-1">
-                                                <label className="font-bold text-slate-700">City *</label>
-                                                <input type="text" required value={bookingForm.city} onChange={e => setBookingForm(prev => ({ ...prev, city: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="Toronto" />
-                                            </div>
-                                            <div className="form-group flex flex-col gap-1">
-                                                <label className="font-bold text-slate-700">Postal Code *</label>
-                                                <input type="text" required value={bookingForm.postalCode} onChange={e => setBookingForm(prev => ({ ...prev, postalCode: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="M5B 1S1" />
-                                            </div>
-                                            <div className="form-group flex flex-col gap-1">
-                                                <label className="font-bold text-slate-700">State / Province</label>
-                                                <input type="text" value={bookingForm.state} onChange={e => setBookingForm(prev => ({ ...prev, state: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="Ontario" />
-                                            </div>
-                                            <div className="form-group flex flex-col gap-1 md:col-span-2">
-                                                <label className="font-bold text-slate-700">Country</label>
-                                                <input type="text" value={bookingForm.country} onChange={e => setBookingForm(prev => ({ ...prev, country: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" placeholder="Canada" />
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Step 3: Choose Your Services */}
-                                {formStep === 3 && (
-                                    <div className="flex flex-col gap-4 animate-fade">
-                                        <div>
-                                            <h4 className="font-extrabold text-slate-800 text-sm">Choose Your Services</h4>
-                                            <p className="text-slate-400 text-[11px]">Tell us about your home</p>
-                                        </div>
-                                        <div className="flex flex-col gap-4">
-                                            <div className="form-group flex flex-col gap-1">
-                                                <label className="font-bold text-slate-700">Service Size / Type *</label>
-                                                <select value={bookingForm.service} onChange={handleServiceChange} className="border border-slate-200 rounded-lg p-2.5 w-full">
-                                                    {Object.keys(pricingRates.services).map(s => (
-                                                        <option key={s} value={s}>{s} (${pricingRates.services[s].toFixed(2)})</option>
-                                                    ))}
-                                                </select>
-                                            </div>
-                                            <div className="form-group flex flex-col gap-1">
-                                                <label className="font-bold text-slate-700">Bathrooms *</label>
-                                                <select value={bookingForm.bathrooms} onChange={e => setBookingForm(prev => ({ ...prev, bathrooms: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full">
-                                                    {Object.keys(pricingRates.bathrooms).map(b => (
-                                                        <option key={b} value={b}>{b} (+${pricingRates.bathrooms[b].toFixed(2)})</option>
-                                                    ))}
-                                                </select>
-                                            </div>
-                                            <div className="form-group flex flex-col gap-1 border-t border-slate-100 pt-3">
-                                                <label className="font-bold text-slate-700">Job Duration Estimate (Hours) *</label>
-                                                <input type="number" step="0.5" required value={bookingForm.duration} onChange={e => setBookingForm(prev => ({ ...prev, duration: parseFloat(e.target.value || 0) }))} className="border border-slate-200 rounded-lg p-2.5 font-bold w-full" />
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Step 4: Select Extras Grid */}
-                                {formStep === 4 && (
-                                    <div className="flex flex-col gap-4 animate-fade">
-                                        <div className="text-center">
-                                            <h4 className="font-extrabold text-slate-800 text-sm">Select Extras</h4>
-                                            <p className="text-slate-400 text-[11px]">Add upgrades to your service</p>
-                                        </div>
-                                        <div className="extras-grid-container">
-                                            {Object.entries(pricingRates.extras).map(([key, extra]) => {
-                                                const qty = bookingForm.extras[key] || 0;
-                                                const isActive = qty > 0;
-                                                const extraIcons = {
-                                                    downtownParking: "🅿️",
-                                                    firstTimeClean: "🧹",
-                                                    moveInOut: "🚚",
-                                                    havePets: "🐶",
-                                                    insideOven: "🍳",
-                                                    insideEmptyFridge: "🧊",
-                                                    insideFullFridge: "🥦",
-                                                    secondKitchen: "🍳",
-                                                    walls: "🧽",
-                                                    shedPoolHouse: "🏡",
-                                                    insideCabinets: "🚪",
-                                                    interiorWindows: "🪟",
-                                                    slidingDoorWindow: "🚪",
-                                                    garageSweep: "🧹",
-                                                    balconySweep: "🌇",
-                                                    homeConcierge: "🛎️",
-                                                    organization: "📦",
-                                                    laundryWashFold: "🧺",
-                                                    nextDayBooking: "📅",
-                                                    sameDayCancellation: "⚠️"
-                                                };
-
-                                                const toggleExtra = () => {
-                                                    setBookingForm(prev => {
-                                                        const newExtras = { ...prev.extras };
-                                                        if (newExtras[key]) {
-                                                            delete newExtras[key];
-                                                        } else {
-                                                            newExtras[key] = extra.qtySelector ? (extra.minQty || 1) : 1;
-                                                        }
-                                                        return { ...prev, extras: newExtras };
-                                                    });
-                                                };
-
-                                                const adjustQty = (amount) => {
-                                                    setBookingForm(prev => {
-                                                        const newExtras = { ...prev.extras };
-                                                        const min = extra.minQty || 1;
-                                                        const current = newExtras[key] || 0;
-                                                        const updated = current + amount;
-                                                        if (updated < min) {
-                                                            delete newExtras[key];
-                                                        } else {
-                                                            newExtras[key] = updated;
-                                                        }
-                                                        return { ...prev, extras: newExtras };
-                                                    });
-                                                };
-
-                                                return (
-                                                    <div 
-                                                        key={key} 
-                                                        onClick={!extra.qtySelector ? toggleExtra : undefined}
-                                                        className={`extra-card ${isActive ? 'active' : ''}`}
-                                                    >
-                                                        <div className="extra-card-icon">{extraIcons[key] || "✨"}</div>
-                                                        <span className="extra-card-name">{extra.name}</span>
-                                                        <span className="extra-card-price">${extra.price.toFixed(2)}</span>
-                                                        {extra.qtySelector ? (
-                                                            <div onClick={e => e.stopPropagation()}>
-                                                                {!isActive ? (
-                                                                    <button type="button" onClick={toggleExtra} className="extra-card-badge unselected">Add</button>
-                                                                ) : (
-                                                                    <div className="extra-card-qty-wrapper">
-                                                                        <button type="button" onClick={() => adjustQty(-1)} className="extra-card-qty-btn">-</button>
-                                                                        <span className="extra-card-qty-val">{qty}X</span>
-                                                                        <button type="button" onClick={() => adjustQty(1)} className="extra-card-qty-btn">+</button>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        ) : (
-                                                            <div>
-                                                                {isActive ? (
-                                                                    <span className="extra-card-badge selected">Added</span>
-                                                                ) : (
-                                                                    <span className="extra-card-badge unselected">Select</span>
-                                                                )}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Step 5: Schedule Date & Time Availability */}
-                                {formStep === 5 && (
-                                    <div className="animate-fade" style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
-                                        <div>
-                                            <h4 className="font-extrabold text-slate-800 text-sm" style={{ margin: 0 }}>When would you like us to come?</h4>
-                                            <p className="text-slate-400 text-[11px]" style={{ margin: '4px 0 0 0' }}>The day and time that suits you best</p>
-                                        </div>
-                                        <div className="step5-grid">
-                                            <div className="form-group flex flex-col gap-1">
-                                                <label className="font-bold text-slate-700">Schedule Date *</label>
-                                                <input type="date" required value={bookingForm.date} onChange={e => setBookingForm(prev => ({ ...prev, date: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full" />
-                                            </div>
-                                            
-                                            <div className="form-group flex flex-col gap-1">
-                                                <label className="font-bold text-slate-700">Assigned Crew / Team *</label>
-                                                {currentUser.role === "team-leader" ? (
-                                                    <input type="text" disabled value={currentUser.teamId} className="border border-slate-200 rounded-lg p-2.5 bg-slate-50 text-slate-400 w-full" />
-                                                ) : (
-                                                    <select value={bookingForm.team} onChange={e => setBookingForm(prev => ({ ...prev, team: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5 w-full">
-                                                        <option value="">-- Choose Crew --</option>
-                                                        {teams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
-                                                    </select>
-                                                )}
-                                            </div>
-
-                                            <div className="time-slots-wrapper">
-                                                <label className="font-bold text-slate-700">Select Available Time Slot *</label>
-                                                <div className="time-slots-scroll">
-                                                    <div className="time-slot-grid">
-                                                        {timeSlots.map(t => {
-                                                            // Display: grey out only slots that fall DURING an existing booking's window
-                                                            // This prevents early slots being blocked just because the new job is long
-                                                            const isBooked = isSlotDuringExistingBooking(
-                                                                bookingForm.date,
-                                                                t,
-                                                                bookingForm.team,
-                                                                bookingForm.id
-                                                            );
-                                                            const isSelected = bookingForm.time === t;
-
-                                                            return (
-                                                                <button
-                                                                    key={t}
-                                                                    type="button"
-                                                                    disabled={isBooked}
-                                                                    onClick={() => setBookingForm(prev => ({ ...prev, time: t }))}
-                                                                    className={`time-slot-btn ${isBooked ? 'booked' : ''} ${isSelected ? 'selected' : ''}`}
-                                                                >
-                                                                    {t}
-                                                                </button>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Step 6: How Often? (Frequency) */}
-                                {formStep === 6 && (
-                                    <div className="flex flex-col gap-4 animate-fade">
-                                        <div className="text-center">
-                                            <h4 className="font-extrabold text-slate-800 text-sm">How Often?</h4>
-                                            <p className="text-slate-400 text-[11px] max-w-sm mx-auto">It's all about matching you with the perfect cleaner for your home. Scheduling is flexible. Cancel or reschedule anytime.</p>
-                                        </div>
-                                        <div className="frequency-list-container" style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
-                                            {Object.entries(pricingRates.frequencies).map(([key, freq]) => {
-                                                const isSelected = bookingForm.frequency === key;
-                                                const freqIcons = {
-                                                    'One-Time': "🗓️",
-                                                    'Weekly': "🌟",
-                                                    'Bi-Weekly': "📅",
-                                                    'Tri-Weekly': "📆",
-                                                    'Monthly': "🗓️"
-                                                };
-
-                                                return (
-                                                    <div
-                                                        key={key}
-                                                        onClick={() => setBookingForm(prev => ({ ...prev, frequency: key }))}
-                                                        className={`frequency-card ${isSelected ? 'active' : ''}`}
-                                                        style={{
-                                                            display: 'flex',
-                                                            flexDirection: 'row',
-                                                            alignItems: 'center',
-                                                            justifyContent: 'space-between',
-                                                            border: isSelected ? '2.5px solid #0268b3' : '1.5px solid #cbd5e1',
-                                                            borderRadius: '16px',
-                                                            padding: '14px 20px',
-                                                            backgroundColor: isSelected ? '#f0f7ff' : '#ffffff',
-                                                            cursor: 'pointer',
-                                                            transition: 'all 0.2s ease',
-                                                            userSelect: 'none',
-                                                            boxSizing: 'border-box',
-                                                            boxShadow: isSelected ? '0 0 0 4px rgba(2, 104, 179, 0.1)' : 'none'
-                                                        }}
-                                                    >
-                                                        <div className="frequency-card-left" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '14px' }}>
-                                                            {/* Custom Radio Button Circle */}
-                                                            <div 
-                                                                style={{
-                                                                    width: '18px',
-                                                                    height: '18px',
-                                                                    borderRadius: '50%',
-                                                                    border: isSelected ? '2.5px solid #0268b3' : '2px solid #cbd5e1',
-                                                                    display: 'flex',
-                                                                    alignItems: 'center',
-                                                                    justifyContent: 'center',
-                                                                    backgroundColor: '#ffffff',
-                                                                    transition: 'all 0.2s ease',
-                                                                    flexShrink: 0
-                                                                }}
-                                                            >
-                                                                {isSelected && (
-                                                                    <div 
-                                                                        style={{
-                                                                            width: '9px',
-                                                                            height: '9px',
-                                                                            borderRadius: '50%',
-                                                                            backgroundColor: '#0268b3'
-                                                                        }}
-                                                                    />
-                                                                )}
-                                                            </div>
-                                                            <span className="frequency-card-icon" style={{ fontSize: '22px' }}>{freqIcons[key] || "📅"}</span>
-                                                            <div className="frequency-card-details" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', textAlign: 'left' }}>
-                                                                <span className="frequency-card-title" style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#334155', lineHeight: '1.2' }}>{freq.name}</span>
-                                                                <span className="frequency-card-sub" style={{ fontSize: '10px', color: '#94a3b8', marginTop: '1px' }}>Cancel or reschedule anytime</span>
-                                                            </div>
-                                                        </div>
-                                                        {freq.discount > 0 ? (
-                                                            <span className="frequency-card-discount save" style={{ fontSize: '10px', fontWeight: '800', padding: '4px 12px', borderRadius: '20px', textTransform: 'uppercase', display: 'inline-block', color: '#166534', backgroundColor: '#dcfce7', border: '1px solid #bbf7d0' }}>Save {(freq.discount * 100).toFixed(0)}%</span>
-                                                        ) : (
-                                                            <span className="frequency-card-discount standard" style={{ fontSize: '10px', fontWeight: '800', padding: '4px 12px', borderRadius: '20px', textTransform: 'uppercase', display: 'inline-block', color: '#64748b', backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0' }}>Standard</span>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Step 7: Additional Information */}
-                                {formStep === 7 && (
-                                    <div className="animate-fade" style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
-                                        <div>
-                                            <h4 className="font-extrabold text-slate-800 text-sm" style={{ margin: 0 }}>Additional Information</h4>
-                                            <p className="text-slate-400 text-[11px]" style={{ margin: '4px 0 0 0' }}>Share with us more details about your home</p>
-                                        </div>
-                                        <div className="step7-container">
-                                            {/* Pets */}
-                                            <div className="form-group flex flex-col gap-1.5" style={{ textAlign: 'left' }}>
-                                                <label className="font-bold text-slate-700">Do you have any pets?</label>
-                                                <div className="step7-btn-row">
-                                                    {[true, false].map(val => (
-                                                        <button
-                                                            key={String(val)}
-                                                            type="button"
-                                                            onClick={() => setBookingForm(prev => ({ ...prev, hasPets: val }))}
-                                                            className={`step7-btn ${bookingForm.hasPets === val ? 'selected' : ''}`}
-                                                        >
-                                                            {val ? "Yes, I have pets 🐶" : "No pets 🚫"}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-
-                                            {/* Access Mode */}
-                                            <div className="form-group flex flex-col gap-1" style={{ textAlign: 'left' }}>
-                                                <label className="font-bold text-slate-700">Will you be home, or is there a code for access?</label>
-                                                <select value={bookingForm.accessMode} onChange={e => setBookingForm(prev => ({ ...prev, accessMode: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5">
-                                                    <option value="Will be home">I will be home to let the cleaners in</option>
-                                                    <option value="Access Code">Provide access / lockbox code</option>
-                                                    <option value="Concierge">Leave key with concierge / front desk</option>
-                                                    <option value="Other">Other access method</option>
-                                                </select>
-                                            </div>
-
-                                            {/* Access Details details */}
-                                            <div className="form-group flex flex-col gap-1" style={{ textAlign: 'left' }}>
-                                                <label className="font-bold text-slate-700">Property Access Information, your dog's name, etc</label>
-                                                <textarea
-                                                    rows={2}
-                                                    value={bookingForm.accessDetails}
-                                                    onChange={e => setBookingForm(prev => ({ ...prev, accessDetails: e.target.value }))}
-                                                    className="border border-slate-200 rounded-lg p-2.5 resize-none text-xs"
-                                                    placeholder="Enter gate code, alarm code, dog's name, alarm details, or specific entry instructions..."
-                                                />
-                                            </div>
-
-                                            {/* Parking */}
-                                            <div className="form-group flex flex-col gap-1.5" style={{ textAlign: 'left' }}>
-                                                <label className="font-bold text-slate-700">Is there free parking available for the cleaners?</label>
-                                                <div className="step7-btn-row">
-                                                    {[true, false].map(val => (
-                                                        <button
-                                                            key={String(val)}
-                                                            type="button"
-                                                            onClick={() => setBookingForm(prev => ({ ...prev, freeParking: val }))}
-                                                            className={`step7-btn ${bookingForm.freeParking === val ? 'selected' : ''}`}
-                                                        >
-                                                            {val ? "Yes, Free Parking 🚗" : "No, Street/Paid Parking ⚠️"}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-
-                                            {/* First Pro Clean 30 Days */}
-                                            <div className="form-group flex flex-col gap-1.5" style={{ textAlign: 'left' }}>
-                                                <label className="font-bold text-slate-700">Is this your first pro clean in 30+ days?</label>
-                                                <div className="step7-btn-row">
-                                                    {[true, false].map(val => (
-                                                        <button
-                                                            key={String(val)}
-                                                            type="button"
-                                                            onClick={() => setBookingForm(prev => ({ ...prev, firstClean30: val }))}
-                                                            className={`step7-btn ${bookingForm.firstClean30 === val ? 'selected' : ''}`}
-                                                        >
-                                                            {val ? "Yes, first time in 30+ days" : "No, cleaned recently"}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-
-                                            {/* Special Instructions */}
-                                            <div className="form-group flex flex-col gap-1" style={{ textAlign: 'left' }}>
-                                                <label className="font-bold text-slate-700">Anything else we should know?</label>
-                                                <textarea
-                                                    rows={2}
-                                                    value={bookingForm.specialNotes}
-                                                    onChange={e => setBookingForm(prev => ({ ...prev, specialNotes: e.target.value }))}
-                                                    className="border border-slate-200 rounded-lg p-2.5 resize-none text-xs"
-                                                    placeholder="Describe specific cleaning requests, sensitive surfaces, areas to skip, or focus preferences..."
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Step 8: Review & Dynamic Receipt summary */}
-                                {formStep === 8 && (() => {
-                                    const calc = calculateBookingTotal(bookingForm);
-                                    
-                                    // Generate dynamic Quote Number
-                                    const quoteNum = `STC-2026-${bookingForm.id ? bookingForm.id.replace('bk-', '').slice(-3) : Math.floor(Math.random() * 800) + 100}`;
-                                    
-                                    // Quote Validity Date (30 days from today)
-                                    const nextMonth = new Date();
-                                    nextMonth.setDate(nextMonth.getDate() + 30);
-                                    const validityDate = nextMonth.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-
-                                    return (
-                                        <div className="animate-fade" style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
-                                            <div>
-                                                <h4 className="font-extrabold text-slate-800 text-sm" style={{ margin: 0 }}>Review & Quote Preview</h4>
-                                                <p className="text-slate-400 text-[11px]" style={{ margin: '4px 0 0 0' }}>Verify dispatch information and inspect the customer-facing invoice quote</p>
-                                            </div>
-                                            
-                                            <div className="quote-review-container">
-                                                {/* Left Panel: Invoice/Quote Sheet view (matching user design) */}
-                                                <div className="quote-sheet">
-                                                    {/* Company Header */}
-                                                    <div className="quote-header-block">
-                                                        <div>
-                                                            <div className="quote-brand-title">
-                                                                <span>SmarTouch</span>
-                                                                <span className="quote-brand-clean">CLEAN</span>
-                                                            </div>
-                                                            <p className="quote-brand-subtitle">Professional Residential & Commercial Cleaning</p>
-                                                            <div className="quote-company-details">
-                                                                <p>SmarTouch Clean Inc.</p>
-                                                                <p>Phone: (613) 416-5001</p>
-                                                                <p>Email: sale@smartouchclean.com</p>
-                                                                <p>Web: www.smartouchclean.com</p>
-                                                            </div>
-                                                        </div>
-                                                        <div className="quote-meta-details">
-                                                            <h4 className="quote-meta-number">{quoteNum}</h4>
-                                                            <p style={{ margin: '2px 0 0 0' }}>Date: {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
-                                                            <p style={{ margin: '2px 0 0 0', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                                Status:{' '}
-                                                                <span style={{
-                                                                    display: 'inline-block',
-                                                                    padding: '1px 8px',
-                                                                    borderRadius: '20px',
-                                                                    fontSize: '8px',
-                                                                    fontWeight: '800',
-                                                                    textTransform: 'uppercase',
-                                                                    letterSpacing: '0.4px',
-                                                                    background: bookingForm.status === 'Confirmed' ? '#dbeafe' : bookingForm.status === 'Completed' ? '#dcfce7' : bookingForm.status === 'Cancelled' ? '#fee2e2' : '#fef3c7',
-                                                                    color: bookingForm.status === 'Confirmed' ? '#1d4ed8' : bookingForm.status === 'Completed' ? '#15803d' : bookingForm.status === 'Cancelled' ? '#b91c1c' : '#b45309',
-                                                                }}>
-                                                                    {bookingForm.status || 'Pending'}
-                                                                </span>
-                                                            </p>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Bill To */}
-                                                    <div className="quote-billto-block">
-                                                        <h4 className="quote-section-title">BILL TO</h4>
-                                                        <div className="quote-billto-details">
-                                                            <p className="quote-billto-name">{bookingForm.firstName} {bookingForm.lastName}</p>
-                                                            <p style={{ margin: 0 }}>{bookingForm.address1} {bookingForm.address2 ? `, ${bookingForm.address2}` : ''}</p>
-                                                            <p style={{ margin: 0 }}>{bookingForm.city}, {bookingForm.postalCode}</p>
-                                                            <p style={{ margin: 0 }}>{bookingForm.email}</p>
-                                                            <p style={{ margin: 0 }}>{bookingForm.phone}</p>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Services Table */}
-                                                    <div>
-                                                        <h4 className="quote-section-title">SERVICES</h4>
-                                                        <div className="quote-table-wrapper">
-                                                            <table className="quote-table">
-                                                                <thead>
-                                                                    <tr>
-                                                                        <th style={{ width: '50%' }}>Service</th>
-                                                                        <th style={{ width: '10%', textAlign: 'center' }}>Qty</th>
-                                                                        <th style={{ width: '20%', textAlign: 'right' }}>Unit Price</th>
-                                                                        <th style={{ width: '20%', textAlign: 'right' }}>Total</th>
-                                                                    </tr>
-                                                                </thead>
-                                                                <tbody>
-                                                                    <tr>
-                                                                        <td>
-                                                                            <div style={{ fontWeight: '800', color: '#0f172a' }}>{bookingForm.service}</div>
-                                                                            <div style={{ fontSize: '8px', color: '#94a3b8', marginTop: '2px' }}>{bookingForm.bathrooms}</div>
-                                                                            {bookingForm.frequency && bookingForm.frequency !== 'One-Time' && (
-                                                                                <div style={{ display: 'inline-block', marginTop: '4px', fontSize: '8px', fontWeight: '800', padding: '2px 8px', borderRadius: '20px', backgroundColor: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-                                                                                    {bookingForm.frequency} · {Math.round(calc.freqDiscountPercent * 100)}% off recurring
-                                                                                </div>
-                                                                            )}
-                                                                        </td>
-                                                                        <td style={{ textAlign: 'center', fontWeight: '700' }}>1</td>
-                                                                        <td style={{ textAlign: 'right' }}>${(calc.baseServicePrice + calc.bathroomsPrice).toFixed(2)}</td>
-                                                                        <td style={{ textAlign: 'right', fontWeight: '800', color: '#0f172a' }}>${(calc.baseServicePrice + calc.bathroomsPrice).toFixed(2)}</td>
-                                                                    </tr>
-                                                                    {Object.entries(bookingForm.extras).map(([key, qty]) => {
-                                                                        const extra = pricingRates.extras[key];
-                                                                        if (!extra || !qty) return null;
-                                                                        const qtyVal = typeof qty === 'boolean' ? 1 : qty;
-                                                                        return (
-                                                                            <tr key={key}>
-                                                                                <td style={{ paddingLeft: '16px', color: '#64748b' }}>• {extra.name}</td>
-                                                                                <td style={{ textAlign: 'center' }}>{qtyVal}</td>
-                                                                                <td style={{ textAlign: 'right' }}>${extra.price.toFixed(2)}</td>
-                                                                                <td style={{ textAlign: 'right', fontWeight: '800', color: '#0f172a' }}>${(extra.price * qtyVal).toFixed(2)}</td>
-                                                                            </tr>
-                                                                        );
-                                                                    })}
-                                                                </tbody>
-                                                             </table>
-                                                         </div>
-                                                     </div>
-
-                                                    {/* Totals Breakdown */}
-                                                    <div className="quote-totals-row">
-                                                        <div className="quote-totals-box">
-                                                            <div className="quote-total-line">
-                                                                <span>Subtotal:</span>
-                                                                <span className="quote-total-value">${calc.subtotal.toFixed(2)}</span>
-                                                            </div>
-                                                            {calc.freqDiscountDeduction > 0 && (
-                                                                <div className="quote-total-discount">
-                                                                    <span>Discount ({bookingForm.frequency} — {Math.round(calc.freqDiscountPercent * 100)}% off):</span>
-                                                                    <span style={{ color: '#16a34a', fontWeight: '800' }}>-${calc.freqDiscountDeduction.toFixed(2)}</span>
-                                                                </div>
-                                                            )}
-                                                            <div className="quote-total-discount">
-                                                                <span>Special Discount ($):</span>
-                                                                <div className="quote-discount-input-box">
-                                                                    <span>-$</span>
-                                                                    <input 
-                                                                        type="number" 
-                                                                        min="0" 
-                                                                        value={bookingForm.customDiscountAmount || ""} 
-                                                                        placeholder="0.00"
-                                                                        onChange={e => setBookingForm(prev => ({ ...prev, customDiscountAmount: Math.max(0, parseFloat(e.target.value || 0)) }))}
-                                                                        className="quote-discount-field"
-                                                                    />
-                                                                </div>
-                                                            </div>
-                                                            <div className="quote-total-line">
-                                                                <span>HST (13%):</span>
-                                                                <span className="quote-total-value">${calc.hst.toFixed(2)}</span>
-                                                            </div>
-                                                            <div className="quote-total-final">
-                                                                <span className="quote-total-final-label">TOTAL:</span>
-                                                                <span className="quote-total-final-val">${calc.total.toFixed(2)}</span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Quote Validity tag */}
-                                                    <div className="quote-validity-banner">
-                                                        Quote Valid Until: {validityDate}
-                                                    </div>
-
-                                                    {/* Quote Footer Slogan */}
-                                                    <div className="quote-footer-block">
-                                                        <p style={{ margin: 0 }}><span className="quote-footer-company">SmarTouch Clean Inc.</span> | Professional Cleaning Services</p>
-                                                        <p style={{ margin: '2px 0 0 0' }}>Thank you for choosing SmarTouch Clean!</p>
-                                                    </div>
-                                                </div>
-
-                                                {/* Right Panel: Operations Details & Controls */}
-                                                <div className="quote-sidebar">
-                                                    {/* Live Custom Discount Modifier */}
-                                                    <div className="quote-sidebar-card">
-                                                        <h5 className="quote-sidebar-title">Quote Adjustments</h5>
-                                                        <div className="quote-op-row">
-                                                            <span className="quote-op-label">Special Discount ($):</span>
-                                                            <div className="quote-discount-input-box" style={{ width: '100px' }}>
-                                                                <span>$</span>
-                                                                <input 
-                                                                    type="number" 
-                                                                    min="0" 
-                                                                    value={bookingForm.customDiscountAmount} 
-                                                                    onChange={e => setBookingForm(prev => ({ ...prev, customDiscountAmount: Math.max(0, parseFloat(e.target.value || 0)) }))}
-                                                                    className="quote-discount-field" 
-                                                                />
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    {/* Booking Status Selector */}
-                                                    <div className="quote-sidebar-card">
-                                                        <h5 className="quote-sidebar-title">Booking Status</h5>
-                                                        <div className="status-selector-grid">
-                                                            {[
-                                                                { value: 'Pending',   label: 'Pending',   icon: '🕐', color: '#b45309', bg: '#fef3c7', border: '#fcd34d' },
-                                                                { value: 'Confirmed', label: 'Confirmed', icon: '✅', color: '#1d4ed8', bg: '#dbeafe', border: '#93c5fd' },
-                                                                { value: 'Completed', label: 'Completed', icon: '🏆', color: '#15803d', bg: '#dcfce7', border: '#86efac' },
-                                                                { value: 'Cancelled', label: 'Cancelled', icon: '🚫', color: '#b91c1c', bg: '#fee2e2', border: '#fca5a5' },
-                                                            ].map(s => {
-                                                                const isActive = (bookingForm.status || 'Pending') === s.value;
-                                                                return (
-                                                                    <button
-                                                                        key={s.value}
-                                                                        type="button"
-                                                                        onClick={() => setBookingForm(prev => ({ ...prev, status: s.value }))}
-                                                                        style={{
-                                                                            display: 'flex',
-                                                                            flexDirection: 'column',
-                                                                            alignItems: 'center',
-                                                                            justifyContent: 'center',
-                                                                            gap: '3px',
-                                                                            padding: '8px 4px',
-                                                                            borderRadius: '10px',
-                                                                            border: isActive ? `2px solid ${s.border}` : '1.5px solid #e2e8f0',
-                                                                            background: isActive ? s.bg : '#f8fafc',
-                                                                            cursor: 'pointer',
-                                                                            transition: 'all 0.15s ease',
-                                                                            fontSize: '9px',
-                                                                            fontWeight: '800',
-                                                                            color: isActive ? s.color : '#94a3b8',
-                                                                            textTransform: 'uppercase',
-                                                                            letterSpacing: '0.3px',
-                                                                            boxShadow: isActive ? `0 0 0 3px ${s.border}44` : 'none',
-                                                                        }}
-                                                                    >
-                                                                        <span style={{ fontSize: '16px', lineHeight: 1 }}>{s.icon}</span>
-                                                                        {s.label}
-                                                                    </button>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    </div>
-
-
-                                                    <div className="quote-sidebar-card">
-                                                        <h5 className="quote-sidebar-title">Operational Dispatch</h5>
-                                                        
-                                                        <div className="quote-op-row">
-                                                            <span className="quote-op-label">Assigned Team:</span>
-                                                            <span className="quote-op-team-badge">{bookingForm.team || "Not Assigned"}</span>
-                                                        </div>
-                                                        <div className="quote-op-row">
-                                                             <span className="quote-op-label">Schedule Date:</span>
-                                                             <span className="quote-op-val">{bookingForm.date}</span>
-                                                        </div>
-                                                        <div className="quote-op-row">
-                                                             <span className="quote-op-label">Arrival Time:</span>
-                                                             <span className="quote-op-val">{bookingForm.time}</span>
-                                                        </div>
-                                                        <div className="quote-op-row">
-                                                             <span className="quote-op-label">Estimated Work:</span>
-                                                             <span className="quote-op-val">{bookingForm.duration} Hours</span>
-                                                        </div>
-                                                        <div className="quote-op-row">
-                                                             <span className="quote-op-label">Pets in Home:</span>
-                                                             <span className="quote-op-val">{bookingForm.hasPets ? "Yes 🐶" : "No 🚫"}</span>
-                                                        </div>
-                                                        <div className="quote-op-row">
-                                                             <span className="quote-op-label">Cleaner Parking:</span>
-                                                             <span className="quote-op-val">{bookingForm.freeParking ? "Free 🚗" : "Street/Paid ⚠️"}</span>
-                                                        </div>
-
-                                                        {bookingForm.accessDetails && (
-                                                            <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '8px', marginTop: '4px', fontSize: '10px', color: '#64748b', textAlign: 'left' }}>
-                                                                <span style={{ fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: '8px', display: 'block', marginBottom: '2px' }}>Access Instructions</span>
-                                                                {bookingForm.accessDetails}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    );
-                                })()}
-
+                    <div className="modal-content modal-content-booking animate-pop">
+                            <div className="modal-header modal-header-brand">
+                                <h3 className="modal-title-inverse">
+                                    Edit Dispatch Reservation
+                                </h3>
+                                <button onClick={() => setBookingModalOpen(false)} className="modal-close-btn" aria-label="Close">
+                                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="1" y1="1" x2="13" y2="13" /><line x1="13" y1="1" x2="1" y2="13" /></svg>
+                                </button>
                             </div>
-                            
-                            {/* Live Price Preview Strip (Steps 3–7) */}
-                            {formStep >= 3 && formStep <= 7 && (() => {
-                                const liveCalc = calculateBookingTotal(bookingForm);
-                                const freqLabel = bookingForm.frequency && bookingForm.frequency !== 'One-Time' ? bookingForm.frequency : null;
-                                return (
-                                    <div className="wizard-price-preview">
-                                        <div className="wizard-price-preview-left">
-                                            <span className="wizard-price-preview-label">Est. Total</span>
-                                            <span className="wizard-price-preview-total">${liveCalc.total.toFixed(2)}</span>
-                                            <span className="wizard-price-preview-tax">incl. HST</span>
+                            <form onSubmit={handleBookingSubmit} className="modal-form-scroll">
+                                <div className="modal-body flex flex-col gap-4 text-xs p-6">
+
+                                    {/* 2-Column Administrative Fields */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="form-group flex flex-col gap-1">
+                                            <label className="font-bold text-slate-700">Client First Name</label>
+                                            <input type="text" value={bookingForm.firstName} onChange={e => setBookingForm(prev => ({ ...prev, firstName: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
                                         </div>
-                                        <div className="wizard-price-preview-right">
-                                            {freqLabel && liveCalc.freqDiscountDeduction > 0 && (
-                                                <span className="wizard-price-preview-discount">
-                                                    🏷️ {freqLabel} saves you ${liveCalc.freqDiscountDeduction.toFixed(2)} ({Math.round(liveCalc.freqDiscountPercent * 100)}% off)
-                                                </span>
-                                            )}
-                                            {!freqLabel && (
-                                                <span className="wizard-price-preview-hint">Choose a recurring frequency in Step 6 to unlock discounts</span>
-                                            )}
+                                        <div className="form-group flex flex-col gap-1">
+                                            <label className="font-bold text-slate-700">Client Last Name</label>
+                                            <input type="text" value={bookingForm.lastName} onChange={e => setBookingForm(prev => ({ ...prev, lastName: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
+                                        </div>
+                                        <div className="form-group flex flex-col gap-1">
+                                            <label className="font-bold text-slate-700">Client Phone</label>
+                                            <input type="text" value={bookingForm.phone} onChange={e => setBookingForm(prev => ({ ...prev, phone: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
+                                        </div>
+                                        <div className="form-group flex flex-col gap-1">
+                                            <label className="font-bold text-slate-700">Client Email</label>
+                                            <input type="email" value={bookingForm.email} onChange={e => setBookingForm(prev => ({ ...prev, email: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
                                         </div>
                                     </div>
-                                );
-                            })()}
 
-                            {/* Wizard Footer Buttons Controls */}
-                            <div className="modal-footer flex justify-between items-center bg-slate-50 border-t border-slate-100 rounded-b-3xl" style={{ padding: "16px 24px" }}>
-                                {formStep > 1 ? (
-                                    <button type="button" onClick={handleBackStep} className="btn btn-secondary btn-sm rounded-lg font-bold">
-                                        Back
-                                    </button>
-                                ) : (
+                                    <div className="form-group flex flex-col gap-1">
+                                        <label className="font-bold text-slate-700">Service Street Address</label>
+                                        <input type="text" value={bookingForm.address1} onChange={e => setBookingForm(prev => ({ ...prev, address1: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div className="form-group flex flex-col gap-1">
+                                            <label className="font-bold text-slate-700">City</label>
+                                            <input type="text" value={bookingForm.city} onChange={e => setBookingForm(prev => ({ ...prev, city: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
+                                        </div>
+                                        <div className="form-group flex flex-col gap-1">
+                                            <label className="font-bold text-slate-700">Postal Code</label>
+                                            <input type="text" value={bookingForm.postalCode} onChange={e => setBookingForm(prev => ({ ...prev, postalCode: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
+                                        </div>
+                                        <div className="form-group flex flex-col gap-1">
+                                            <label className="font-bold text-slate-700">Service Category</label>
+                                            <input type="text" value={bookingForm.service} onChange={e => setBookingForm(prev => ({ ...prev, service: e.target.value }))} required className="border border-slate-200 rounded-lg p-2 bg-slate-50 cursor-not-allowed" disabled />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div className="form-group flex flex-col gap-1">
+                                            <label className="font-bold text-slate-700">Scheduled Date</label>
+                                            <input type="date" value={bookingForm.date} onChange={e => setBookingForm(prev => ({ ...prev, date: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
+                                        </div>
+                                        <div className="form-group flex flex-col gap-1">
+                                            <label className="font-bold text-slate-700">Scheduled Time</label>
+                                            <input type="text" value={bookingForm.time} onChange={e => setBookingForm(prev => ({ ...prev, time: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
+                                        </div>
+                                        <div className="form-group flex flex-col gap-1">
+                                            <label className="font-bold text-slate-700">Estimated Hours</label>
+                                            <input type="number" step="0.5" value={bookingForm.duration} onChange={e => setBookingForm(prev => ({ ...prev, duration: parseFloat(e.target.value) }))} required className="border border-slate-200 rounded-lg p-2" />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div className="form-group flex flex-col gap-1 md:col-span-3">
+                                            <label className="font-bold text-slate-700">Assigned Field Staff</label>
+                                            <div className="admin-staff-picker">
+                                                {fieldStaff.length === 0 ? (
+                                                    <p>No approved field staff found yet.</p>
+                                                ) : fieldStaff.map(member => {
+                                                    const assignedIds = bookingForm.assignedStaffIds || [];
+                                                    const checked = assignedIds.includes(member.uid);
+                                                    return (
+                                                        <label key={member.uid} className={checked ? "active" : ""}>
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={checked}
+                                                                onChange={e => setBookingForm(prev => {
+                                                                    const current = prev.assignedStaffIds || [];
+                                                                    const nextIds = e.target.checked
+                                                                        ? [...current, member.uid]
+                                                                        : current.filter(uid => uid !== member.uid);
+                                                                    const nextStaff = fieldStaff
+                                                                        .filter(person => nextIds.includes(person.uid))
+                                                                        .map(person => ({
+                                                                            uid: person.uid,
+                                                                            name: person.name,
+                                                                            email: person.email,
+                                                                            role: person.role,
+                                                                            branchId: person.branchId || activeBranch.id
+                                                                        }));
+                                                                    return {
+                                                                        ...prev,
+                                                                        team: "",
+                                                                        assignedStaffIds: nextIds,
+                                                                        assignedStaff: nextStaff
+                                                                    };
+                                                                })}
+                                                            />
+                                                            <strong>{member.name}</strong>
+                                                            <small>{getRoleLabel(member.role)} · {member.branchName || "Ottawa"}</small>
+                                                        </label>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                        <div className="form-group flex flex-col gap-1">
+                                            <label className="font-bold text-slate-700">Dispatch Status</label>
+                                            <select value={bookingForm.status} onChange={e => setBookingForm(prev => ({ ...prev, status: e.target.value }))} required className="border border-slate-200 rounded-lg p-2">
+                                                <option value="Pending">Pending</option>
+                                                <option value="Confirmed">Confirmed</option>
+                                                <option value="Completed">Completed</option>
+                                                <option value="Cancelled">Cancelled</option>
+                                            </select>
+                                        </div>
+                                        <div className="form-group flex flex-col gap-1">
+                                            <label className="font-bold text-slate-700">Override Total Price ($)</label>
+                                            <input type="number" step="0.01" value={bookingForm.price} onChange={e => setBookingForm(prev => ({ ...prev, price: parseFloat(e.target.value) }))} required className="border border-slate-200 rounded-lg p-2" />
+                                        </div>
+                                    </div>
+
+                                    <div className="form-group flex flex-col gap-1">
+                                        <label className="font-bold text-slate-700">Special Instructions / Dispatch Notes</label>
+                                        <textarea rows={2} value={bookingForm.specialNotes} onChange={e => setBookingForm(prev => ({ ...prev, specialNotes: e.target.value }))} className="border border-slate-200 rounded-lg p-2 resize-none" />
+                                    </div>
+
+                                </div>
+                                <div className="modal-footer flex justify-end gap-3 p-4 border-t border-slate-100">
                                     <button type="button" onClick={() => setBookingModalOpen(false)} className="btn btn-secondary btn-sm rounded-lg font-bold">
                                         Cancel
                                     </button>
-                                )}
-
-                                {formStep < 8 ? (
-                                    <button type="button" onClick={handleNextStep} className="btn btn-primary btn-sm rounded-lg text-white font-bold">
-                                        Next Step
+                                    <button type="submit" className="btn btn-primary btn-sm rounded-lg text-white font-bold">
+                                        Save Changes
                                     </button>
-                                ) : (
-                                    <button 
-                                        type="button" 
-                                        onClick={handleBookingSubmit} 
-                                        disabled={submitCooldown}
-                                        className={`btn btn-primary btn-sm rounded-lg text-white font-bold transition-all ${submitCooldown ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                    >
-
-                                        {bookingModalMode === "create" ? "Create Dispatch" : "Request Changes"}
-                                    </button>
-                                )}
-                            </div>
-                        </div>
+                                </div>
+                            </form>
                     </div>
                 </div>
             )}
 
             {/* MODAL 3: DISPATCH CREW MODAL */}
-            {teamModalOpen && currentUser.role === "admin" && (
+            {teamModalOpen && canViewPeople && (
                 <div className="modal-backdrop show">
-                    <div className="modal-content animate-pop" style={{ maxWidth: "500px" }}>
-                        <div className="modal-header" style={{ background: "linear-gradient(135deg, var(--accent-blue), var(--accent-green))", borderBottom: "none" }}>
-                            <h3 className="font-extrabold text-sm uppercase tracking-wider text-white" style={{ margin: 0 }}>Dispatch New Cleaning Crew</h3>
+                    <div className="modal-content modal-content-team animate-pop">
+                        <div className="modal-header modal-header-brand">
+                            <h3 className="modal-title-inverse">Dispatch New Cleaning Crew</h3>
                             <button onClick={() => setTeamModalOpen(false)} className="modal-close-btn" aria-label="Close">
                                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="1" y1="1" x2="13" y2="13" /><line x1="13" y1="1" x2="1" y2="13" /></svg>
                             </button>
                         </div>
-                        <form onSubmit={handleTeamSubmit} style={{ display: "flex", flexDirection: "column", flexGrow: 1, overflowY: "auto" }}>
-                            <div className="modal-body flex flex-col gap-4 text-xs" style={{ padding: "24px" }}>
+                        <form onSubmit={handleTeamSubmit} className="modal-form-scroll">
+                            <div className="modal-body flex flex-col gap-4 text-xs p-6">
                                 <div className="form-group flex flex-col gap-1">
                                     <label className="font-bold text-slate-700">Crews Name *</label>
                                     <input type="text" required value={teamForm.name} onChange={e => setTeamForm(prev => ({ ...prev, name: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5" placeholder="Team Sparkle" />
@@ -3429,6 +3439,13 @@ export default function Home() {
                                     </select>
                                 </div>
                                 <div className="form-group flex flex-col gap-1">
+                                    <label className="font-bold text-slate-700">Employment Type *</label>
+                                    <select value={teamForm.employmentType || "in_house"} onChange={e => setTeamForm(prev => ({ ...prev, employmentType: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5">
+                                        <option value="in_house">In-House Staff</option>
+                                        <option value="subcontractor">Subcontractor</option>
+                                    </select>
+                                </div>
+                                <div className="form-group flex flex-col gap-1">
                                     <label className="font-bold text-slate-700">Staff Count (Size)</label>
                                     <input type="number" value={teamForm.size} onChange={e => setTeamForm(prev => ({ ...prev, size: parseInt(e.target.value || 0) }))} className="border border-slate-200 rounded-lg p-2.5" />
                                 </div>
@@ -3439,6 +3456,63 @@ export default function Home() {
                                 <div className="form-group flex flex-col gap-1">
                                     <label className="font-bold text-slate-700">Service Description / Mottos</label>
                                     <textarea value={teamForm.description} onChange={e => setTeamForm(prev => ({ ...prev, description: e.target.value }))} className="border border-slate-200 rounded-lg p-2.5" placeholder="Deep Cleaning & Sparkle residential cleans..." />
+                                </div>
+                                <div className="form-group flex flex-col gap-1 mt-4 border-t border-slate-200 pt-4">
+                                    <label className="font-bold text-slate-700 flex justify-between items-center">
+                                        <span>Blocked Dates (Unavailable)</span>
+                                    </label>
+                                    <p className="text-[10px] text-slate-400 mb-2">Select dates this team is off duty or fully booked. These dates will be hidden in the checkout flow.</p>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="date"
+                                            id={`team-block-date-${teamForm.id}`}
+                                            className="border border-slate-200 rounded-lg p-2 flex-grow text-xs"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const el = document.getElementById(`team-block-date-${teamForm.id}`);
+                                                if (el && el.value) {
+                                                    const dateStr = el.value; // YYYY-MM-DD
+                                                    setTeamForm(prev => {
+                                                        const current = prev.availability || {};
+                                                        return {
+                                                            ...prev,
+                                                            availability: {
+                                                                ...current,
+                                                                [dateStr]: "blocked"
+                                                            }
+                                                        };
+                                                    });
+                                                    el.value = "";
+                                                }
+                                            }}
+                                            className="bg-slate-800 text-white font-bold px-4 rounded-lg text-xs"
+                                        >
+                                            Block Date
+                                        </button>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2 mt-3">
+                                        {Object.entries(teamForm.availability || {}).map(([date, status]) => {
+                                            if (status === "blocked") {
+                                                return (
+                                                    <span key={date} className="bg-red-50 text-red-600 border border-red-200 px-2 py-1 rounded text-xs font-bold flex items-center gap-2">
+                                                        {date}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setTeamForm(prev => {
+                                                                const newAvail = { ...prev.availability };
+                                                                delete newAvail[date];
+                                                                return { ...prev, availability: newAvail };
+                                                            })}
+                                                            className="hover:text-red-900"
+                                                        >×</button>
+                                                    </span>
+                                                );
+                                            }
+                                            return null;
+                                        })}
+                                    </div>
                                 </div>
                             </div>
                             <div className="modal-footer">

@@ -1,5 +1,14 @@
 import { NextResponse } from "next/server";
 import { adminDb, adminAuth } from "../../../lib/firebase-admin";
+import { ROLE_DEFINITIONS, canManageBranch, normalizeRole } from "../../../lib/permissions";
+import {
+    DEFAULT_BRANCH_ID,
+    findBranchForAddress,
+    getBranchById,
+    getBranchScopeForUser,
+    userCanAccessBranch,
+    buildBranchRecordFields
+} from "../../../lib/branches";
 
 // Shared Secure JWT and Role verification helper
 async function authenticateRequest(request) {
@@ -26,7 +35,11 @@ async function authenticateRequest(request) {
             uid,
             name: decodedToken.name || decodedToken.email.split("@")[0],
             email: decodedToken.email,
-            role: isFirst ? "admin" : "team-leader",
+            role: isFirst ? "super-admin" : "cleaner",
+            departmentIds: isFirst ? ROLE_DEFINITIONS["super-admin"].departments : ROLE_DEFINITIONS.cleaner.departments,
+            branchId: "ottawa-ca",
+            branchIds: ["ottawa-ca"],
+            branchName: "Ottawa",
             teamId: "",
             status: isFirst ? "approved" : "pending_approval",
             createdAt: new Date().toISOString()
@@ -43,20 +56,40 @@ async function authenticateRequest(request) {
     return userData;
 }
 
-// 1. Scoped READ: Return all bookings for Admin, or only assigned bookings for Team Leaders
+// 1. Scoped READ: Return branch bookings for admins, own bookings for customers, or assigned jobs for field staff.
 export async function GET(request) {
     try {
         const user = await authenticateRequest(request);
+        const role = normalizeRole(user.role);
+        const { searchParams } = new URL(request.url);
+        const requestedBranchId = searchParams.get("branchId");
+        const branchScope = getBranchScopeForUser(user);
+        const activeBranchId = requestedBranchId || branchScope.activeBranchId || DEFAULT_BRANCH_ID;
         
         let query = adminDb.collection("bookings");
-        if (user.role === "team-leader") {
-            query = query.where("team", "==", user.teamId);
+        let branchFilterId = null;
+        if (role === "cleaner" || role === "subcontractor" || role === "supervisor") {
+            query = query.where("assignedStaffIds", "array-contains", user.uid);
+        } else if (role === "customer") {
+            query = query.where("email", "==", user.email);
+        } else if (!branchScope.canSwitchBranches || requestedBranchId) {
+            if (!userCanAccessBranch(user, activeBranchId)) {
+                return NextResponse.json({ error: "Forbidden: You cannot access this branch." }, { status: 403 });
+            }
+            branchFilterId = activeBranchId;
         }
         
         const snapshot = await query.get();
         const list = [];
         snapshot.forEach(doc => {
-            list.push(doc.data());
+            const booking = doc.data();
+            const bookingBranchId = booking.branchId || DEFAULT_BRANCH_ID;
+            if (!branchFilterId || bookingBranchId === branchFilterId) {
+                list.push({
+                    ...booking,
+                    branchId: bookingBranchId
+                });
+            }
         });
         
         return NextResponse.json(list, { status: 200 });
@@ -66,25 +99,49 @@ export async function GET(request) {
     }
 }
 
-// 2. Scoped CREATE: Add booking (verifies Team Leader doesn't hijack other crew dispatches)
+// 2. Scoped CREATE: Add booking. Scheduling is based on assigned people, not fixed crews.
 export async function POST(request) {
     try {
         const user = await authenticateRequest(request);
+        const role = normalizeRole(user.role);
         const bookingData = await request.json();
         
-        if (!bookingData.clientName || !bookingData.date || !bookingData.time || !bookingData.team) {
+        if (!bookingData.clientName || !bookingData.date || !bookingData.time) {
             return NextResponse.json({ error: "Missing required booking details." }, { status: 400 });
         }
-        
-        if (user.role === "team-leader" && bookingData.team !== user.teamId) {
-            return NextResponse.json({ error: `Forbidden: As Team Leader of ${user.teamId}, you cannot schedule jobs for other crews.` }, { status: 403 });
+
+        const matchedBranch = bookingData.branchId
+            ? getBranchById(bookingData.branchId)
+            : findBranchForAddress({
+                city: bookingData.city,
+                country: bookingData.country,
+                postalCode: bookingData.postalCode
+            });
+
+        if (!matchedBranch) {
+            return NextResponse.json({
+                error: "We do not service this area yet. A lead should be created for admin follow-up."
+            }, { status: 422 });
+        }
+
+        if (!userCanAccessBranch(user, matchedBranch.id) && role !== "customer") {
+            return NextResponse.json({ error: "Forbidden: You cannot create bookings for this branch." }, { status: 403 });
         }
         
         const id = bookingData.id || `bk-${Date.now()}`;
+        const subtotal = parseFloat(bookingData.subtotal || bookingData.price || 0);
+        const tax = bookingData.tax !== undefined ? parseFloat(bookingData.tax || 0) : subtotal * matchedBranch.taxRate;
+        const total = parseFloat(bookingData.price || subtotal + tax);
         const newBooking = {
             ...bookingData,
+            ...buildBranchRecordFields(matchedBranch, user),
             id,
-            price: parseFloat(bookingData.price || 0),
+            team: "",
+            assignedStaff: Array.isArray(bookingData.assignedStaff) ? bookingData.assignedStaff : [],
+            assignedStaffIds: Array.isArray(bookingData.assignedStaffIds) ? bookingData.assignedStaffIds : [],
+            subtotal,
+            tax,
+            price: total,
             duration: parseFloat(bookingData.duration || 2),
             createdAt: new Date().toISOString(),
             createdBy: user.email
@@ -102,6 +159,7 @@ export async function POST(request) {
 export async function PUT(request) {
     try {
         const user = await authenticateRequest(request);
+        const role = normalizeRole(user.role);
         const bookingData = await request.json();
         
         if (!bookingData.id) {
@@ -115,12 +173,15 @@ export async function PUT(request) {
         }
         
         const originalData = existingDoc.data();
-        
-        if (user.role === "team-leader" && originalData.team !== user.teamId) {
-            return NextResponse.json({ error: "Forbidden: You are not authorized to modify other crews' bookings." }, { status: 403 });
+        if (!userCanAccessBranch(user, originalData.branchId || DEFAULT_BRANCH_ID)) {
+            return NextResponse.json({ error: "Forbidden: You cannot modify this branch booking." }, { status: 403 });
         }
         
-        if (user.role === "admin") {
+        if ((role === "cleaner" || role === "subcontractor" || role === "supervisor") && !originalData.assignedStaffIds?.includes(user.uid)) {
+            return NextResponse.json({ error: "Forbidden: You are not assigned to this job." }, { status: 403 });
+        }
+        
+        if (canManageBranch(user)) {
             const updatedBooking = {
                 ...originalData,
                 ...bookingData,
@@ -170,7 +231,7 @@ export async function DELETE(request) {
             return NextResponse.json({ error: "Missing booking ID in URL params" }, { status: 400 });
         }
         
-        if (user.role !== "admin") {
+        if (!canManageBranch(user)) {
             return NextResponse.json({ error: "Forbidden: Team Leaders are not authorized to cancel bookings." }, { status: 403 });
         }
         
@@ -181,6 +242,9 @@ export async function DELETE(request) {
         }
         
         const originalData = existingDoc.data();
+        if (!userCanAccessBranch(user, originalData.branchId || DEFAULT_BRANCH_ID)) {
+            return NextResponse.json({ error: "Forbidden: You cannot cancel this branch booking." }, { status: 403 });
+        }
         const cancelledBooking = {
             ...originalData,
             status: "Cancelled",

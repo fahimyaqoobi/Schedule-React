@@ -11,14 +11,12 @@ export const viewport = {
   initialScale: 1.0,
   maximumScale: 1.0,
   userScalable: false,
+  themeColor: "#005691",
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <head>
-        <meta name="theme-color" content="#f4f6fa" />
-      </head>
       <body>
         {children}
       </body>

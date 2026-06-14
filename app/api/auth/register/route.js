@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { adminDb, adminAuth } from "../../../../lib/firebase-admin";
+import { ROLE_DEFINITIONS } from "../../../../lib/permissions";
+import { createDefaultBranchUserFields } from "../../../../lib/branches";
 
 export async function POST(request) {
     try {
-        const { uid, name, email, teamId } = await request.json();
+        const { uid, name, email, teamId, requestedRole } = await request.json();
 
         if (!uid || !name || !email) {
             return NextResponse.json({ error: "Missing required fields: uid, name, email" }, { status: 400 });
@@ -28,7 +30,16 @@ export async function POST(request) {
             isFirstUser = true;
         }
 
-        const roleVal = isFirstUser ? "admin" : "team-leader";
+        // Role Resolution
+        let roleVal = "customer"; // Default
+        if (isFirstUser) {
+            roleVal = "super-admin";
+        } else if (requestedRole && ROLE_DEFINITIONS[requestedRole] && !["super-admin", "branch-admin"].includes(requestedRole)) {
+            roleVal = requestedRole;
+        } else if (requestedRole === "team-leader") {
+            roleVal = "cleaner";
+        }
+
         const statusVal = isFirstUser ? "approved" : "pending_approval";
 
         const userPayload = {
@@ -36,7 +47,9 @@ export async function POST(request) {
             name,
             email,
             role: roleVal,
-            teamId: isFirstUser ? "" : teamId,
+            departmentIds: ROLE_DEFINITIONS[roleVal]?.departments || [],
+            ...createDefaultBranchUserFields(roleVal),
+            teamId: ["cleaner", "supervisor", "employee", "subcontractor"].includes(roleVal) ? teamId : "",
             status: statusVal,
             createdAt: new Date().toISOString()
         };

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { adminDb, adminAuth } from "../../../lib/firebase-admin";
+import { ROLE_DEFINITIONS, canManageSystem } from "../../../lib/permissions";
 
 async function authenticateRequest(request) {
     const authHeader = request.headers.get("Authorization");
@@ -22,7 +23,10 @@ async function authenticateRequest(request) {
             uid,
             name: decodedToken.name || decodedToken.email.split("@")[0],
             email: decodedToken.email,
-            role: isFirst ? "admin" : "team-leader",
+            role: isFirst ? "super-admin" : "cleaner",
+            departmentIds: isFirst ? ROLE_DEFINITIONS["super-admin"].departments : ROLE_DEFINITIONS.cleaner.departments,
+            branchId: "ottawa-ca",
+            branchName: "Ottawa",
             teamId: "",
             status: isFirst ? "approved" : "pending_approval",
             createdAt: new Date().toISOString()
@@ -56,7 +60,7 @@ export async function GET(request) {
 export async function POST(request) {
     try {
         const user = await authenticateRequest(request);
-        if (user.role !== "admin") {
+        if (!canManageSystem(user)) {
             return NextResponse.json({ error: "Forbidden: Only Administrators can modify settings." }, { status: 403 });
         }
         

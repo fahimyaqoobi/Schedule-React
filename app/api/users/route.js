@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { adminDb, adminAuth } from "../../../lib/firebase-admin";
+import { ROLE_DEFINITIONS, canManageBranch, canManageSystem, normalizeRole } from "../../../lib/permissions";
+import { createDefaultBranchUserFields } from "../../../lib/branches";
 
 async function authenticateRequest(request) {
     const authHeader = request.headers.get("Authorization");
@@ -22,7 +24,9 @@ async function authenticateRequest(request) {
             uid,
             name: decodedToken.name || decodedToken.email.split("@")[0],
             email: decodedToken.email,
-            role: isFirst ? "admin" : "team-leader",
+            role: isFirst ? "super-admin" : "cleaner",
+            departmentIds: isFirst ? ROLE_DEFINITIONS["super-admin"].departments : ROLE_DEFINITIONS.cleaner.departments,
+            ...createDefaultBranchUserFields(isFirst ? "super-admin" : "cleaner"),
             teamId: "",
             status: isFirst ? "approved" : "pending_approval",
             createdAt: new Date().toISOString()
@@ -50,7 +54,23 @@ export async function GET(request) {
             return NextResponse.json(user, { status: 200 });
         }
         
-        if (user.role !== "admin") {
+        if (type === "field-staff") {
+            if (!canManageBranch(user)) {
+                return NextResponse.json({ error: "Forbidden: Only branch managers can view field staff." }, { status: 403 });
+            }
+            const snapshot = await adminDb.collection("users").where("status", "==", "approved").get();
+            const list = [];
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                const role = normalizeRole(data.role);
+                if (["cleaner", "supervisor", "employee", "subcontractor"].includes(role)) {
+                    list.push(data);
+                }
+            });
+            return NextResponse.json(list, { status: 200 });
+        }
+
+        if (!canManageSystem(user)) {
             return NextResponse.json({ error: "Forbidden: Only Administrators can review users." }, { status: 403 });
         }
         
@@ -68,7 +88,9 @@ export async function GET(request) {
                         uid: authUser.uid,
                         name: authUser.displayName || authUser.email.split("@")[0],
                         email: authUser.email,
-                        role: isFirst ? "admin" : "team-leader",
+                        role: isFirst ? "super-admin" : "cleaner",
+                        departmentIds: isFirst ? ROLE_DEFINITIONS["super-admin"].departments : ROLE_DEFINITIONS.cleaner.departments,
+                        ...createDefaultBranchUserFields(isFirst ? "super-admin" : "cleaner"),
                         teamId: "",
                         status: isFirst ? "approved" : "pending_approval",
                         createdAt: new Date().toISOString()
@@ -81,8 +103,12 @@ export async function GET(request) {
         // -----------------------------------------------------------
         
         let query = adminDb.collection("users");
+        let roleFilter = null;
         if (type === "leaders") {
-            query = query.where("role", "==", "team-leader").where("status", "==", "approved");
+            query = query.where("status", "==", "approved");
+            roleFilter = ["team-leader", "cleaner", "supervisor"];
+        } else if (type === "customers") {
+            query = query.where("role", "==", "customer").where("status", "==", "approved");
         } else {
             query = query.where("status", "==", "pending_approval");
         }
@@ -90,7 +116,11 @@ export async function GET(request) {
         const snapshot = await query.get();
         const list = [];
         snapshot.forEach(doc => {
-            list.push(doc.data());
+            const data = doc.data();
+            const role = normalizeRole(data.role);
+            if (!roleFilter || roleFilter.includes(data.role) || roleFilter.includes(role)) {
+                list.push(data);
+            }
         });
         
         return NextResponse.json(list, { status: 200 });
@@ -105,7 +135,7 @@ export async function POST(request) {
     try {
         const user = await authenticateRequest(request);
         
-        if (user.role !== "admin") {
+        if (!canManageSystem(user)) {
             return NextResponse.json({ error: "Forbidden: Only Administrators can modify user roles and statuses." }, { status: 403 });
         }
         
@@ -134,9 +164,13 @@ export async function POST(request) {
                 console.error("Failed to delete auth user during rejection cleanup:", delErr);
             }
             return NextResponse.json({ message: "User registration rejected and credentials deleted." }, { status: 200 });
-        } else if (action === "make_admin") {
-            await userRef.update({ role: "admin" });
-            return NextResponse.json({ message: "User promoted to Administrator role." }, { status: 200 });
+        } else if (action === "make_admin" || action === "make_super_admin") {
+            await userRef.update({
+                role: "super-admin",
+                departmentIds: ROLE_DEFINITIONS["super-admin"].departments,
+                updatedAt: new Date().toISOString()
+            });
+            return NextResponse.json({ message: "User promoted to Super Admin role." }, { status: 200 });
         } else {
             return NextResponse.json({ error: "Invalid action type." }, { status: 400 });
         }
@@ -164,11 +198,11 @@ export async function PUT(request) {
             return NextResponse.json({ message: "Profile updated successfully", user: docSnap.data() }, { status: 200 });
         }
         
-        if (user.role !== "admin") {
+        if (!canManageSystem(user)) {
             return NextResponse.json({ error: "Forbidden: Only Administrators can update user details." }, { status: 403 });
         }
         
-        const { targetUid, teamId } = body;
+        const { targetUid, teamId, role, branchId, branchName, branchIds, departmentIds } = body;
         if (!targetUid) {
             return NextResponse.json({ error: "Missing target user UID" }, { status: 400 });
         }
@@ -182,6 +216,11 @@ export async function PUT(request) {
         const targetUserData = docSnap.data();
         const updatedData = {
             ...targetUserData,
+            role: role || targetUserData.role,
+            branchId: branchId !== undefined ? branchId : (targetUserData.branchId || "ottawa-ca"),
+            branchIds: branchIds !== undefined ? branchIds : (targetUserData.branchIds || [targetUserData.branchId || "ottawa-ca"]),
+            branchName: branchName !== undefined ? branchName : (targetUserData.branchName || "Ottawa"),
+            departmentIds: departmentIds || ROLE_DEFINITIONS[role || targetUserData.role]?.departments || targetUserData.departmentIds || [],
             teamId: teamId !== undefined ? teamId : targetUserData.teamId,
             updatedAt: new Date().toISOString()
         };
@@ -193,4 +232,3 @@ export async function PUT(request) {
         return NextResponse.json({ error: err.message || "Unauthorized" }, { status: 401 });
     }
 }
-
