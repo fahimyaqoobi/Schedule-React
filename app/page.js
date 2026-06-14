@@ -2596,20 +2596,11 @@ export default function Home() {
 
                 {activeTab === "catalog" && canViewAdministration && (
                     <div className="animate-fade">
-                        <div className="rounded-brand-lg border border-brand-mist bg-white p-8 shadow-sparkle xl:hidden">
-                            <p className="font-heading text-xs font-bold uppercase tracking-wider text-brand-sky">Desktop Workspace</p>
-                            <h3 className="mt-2 font-heading text-2xl font-black text-brand-slate">Catalog Studio needs a wide screen</h3>
-                            <p className="mt-2 max-w-2xl text-sm font-semibold text-slate-500">
-                                This pricing and add-on control surface is intentionally optimized for desktop editing accuracy.
-                            </p>
-                        </div>
-                        <div className="hidden xl:block">
-                            <V2SettingsManager
-                                catalog={v2Catalog}
-                                setCatalog={setV2Catalog}
-                                onSave={handleSaveV2Catalog}
-                            />
-                        </div>
+                        <V2SettingsManager
+                            catalog={v2Catalog}
+                            setCatalog={setV2Catalog}
+                            onSave={handleSaveV2Catalog}
+                        />
                     </div>
                 )}
 

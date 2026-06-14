@@ -1769,11 +1769,78 @@ label {
     }
 
     .catalog-studio-layout {
-        grid-template-columns: 250px minmax(360px, 0.95fr) minmax(440px, 1fr);
+        grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
     }
 
     .catalog-studio-service-header {
         flex-direction: column;
+    }
+
+    .catalog-studio-layout > :nth-child(3) {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 1120px) {
+    .catalog-studio-shell {
+        margin-top: 24px;
+    }
+
+    .catalog-studio-topbar {
+        padding: 24px;
+        gap: 20px;
+    }
+
+    .catalog-studio-layout {
+        grid-template-columns: minmax(0, 1fr);
+        padding: 20px;
+    }
+
+    .catalog-studio-layout > :nth-child(3) {
+        grid-column: auto;
+    }
+
+    .catalog-studio-service-header {
+        gap: 16px;
+    }
+
+    .catalog-studio-grid-head,
+    .catalog-studio-grid-row,
+    .catalog-studio-tier-row,
+    .catalog-studio-addon-row {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .catalog-studio-grid-head {
+        display: none;
+    }
+
+    .catalog-studio-grid-row {
+        gap: 12px;
+        padding: 14px 0;
+    }
+
+    .catalog-studio-button-danger {
+        width: 100%;
+    }
+}
+
+@media (max-width: 768px) {
+    .catalog-studio-topbar {
+        padding: 20px 16px;
+    }
+
+    .catalog-studio-layout {
+        gap: 16px;
+        padding: 16px;
+    }
+
+    .catalog-studio-field {
+        font-size: 16px !important;
+    }
+
+    .catalog-studio-service-card {
+        padding: 14px 16px;
     }
 }
 
