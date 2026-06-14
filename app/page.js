@@ -29,6 +29,7 @@ import {
     getBranchScopeForUser
 } from "../lib/branches";
 import {
+    buildAvailabilitySnapshot,
     normalizeStaffMember,
     normalizeStaffProfile,
     STAFF_SELF_SERVICE_ROLES
@@ -525,33 +526,12 @@ export default function Home() {
     }, [selectedStaffAssignedJobs]);
 
     const selectedStaffAvailability = useMemo(() => {
-        const profile = activeStaffProfileDraft;
-        const notes = profile?.employment?.availabilityNotes || "";
-        return {
-            maxJobsPerDay: 3,
-            weekdays: [
-                { label: "M", status: "A" },
-                { label: "T", status: "A" },
-                { label: "W", status: "A" },
-                { label: "T", status: "A" },
-                { label: "F", status: "A" },
-                { label: "S", status: notes.toLowerCase().includes("weekend") ? "A" : "P" },
-                { label: "S", status: notes.toLowerCase().includes("weekend") ? "A" : "P" }
-            ],
-            shifts: [
-                { label: "Morning (08:00 - 12:00)", active: true },
-                { label: "Afternoon (13:00 - 17:00)", active: true },
-                { label: "Evening (18:00+)", active: false }
-            ]
-        };
+        return buildAvailabilitySnapshot(activeStaffProfileDraft?.availability);
     }, [activeStaffProfileDraft]);
 
     const selectedStaffBlockedDates = useMemo(() => {
-        return selectedStaffAssignedJobs
-            .filter(job => new Date(job.date) >= new Date())
-            .slice(0, 3)
-            .map(job => job.date);
-    }, [selectedStaffAssignedJobs]);
+        return (selectedStaffAvailability.blockedDates || []).slice(0, 6);
+    }, [selectedStaffAvailability]);
 
     // Live pricing rates loader from Serverless API settings/pricing
     useEffect(() => {

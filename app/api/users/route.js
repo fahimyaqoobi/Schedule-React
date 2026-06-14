@@ -3,6 +3,7 @@ import { adminDb, adminAuth } from "../../../lib/firebase-admin";
 import { ROLE_DEFINITIONS, canManageBranch, canManageSystem, normalizeRole } from "../../../lib/permissions";
 import { createDefaultBranchUserFields } from "../../../lib/branches";
 import {
+    availabilityNeedsAdminApproval,
     canSelfEditEligibility,
     getChangedStaffProfileSections,
     isAvailabilityOnlyChange,
@@ -249,6 +250,41 @@ export async function PUT(request) {
             }
 
             if (isAvailabilityOnlyChange(changedSections)) {
+                const needsApproval = availabilityNeedsAdminApproval(
+                    currentData.staffProfile.availability,
+                    nextProfile.availability,
+                    Date.now()
+                );
+
+                if (needsApproval) {
+                    const nextData = {
+                        ...currentData,
+                        staffProfileRequest: {
+                            requestedProfile: {
+                                ...currentData.staffProfile,
+                                availability: nextProfile.availability
+                            },
+                            changedSections,
+                            submittedAt: nowIso,
+                            submittedByUid: user.uid,
+                            submittedByName: currentData.name || currentData.email || "Staff member"
+                        },
+                        staffProfileMeta: {
+                            ...currentMeta,
+                            status: "pending_admin_review",
+                            lastSubmittedAt: nowIso,
+                            rejectionReason: ""
+                        },
+                        updatedAt: nowIso
+                    };
+
+                    await userRef.set(nextData);
+                    return NextResponse.json({
+                        message: "Availability changes inside the next 48 hours were sent to branch admin for approval.",
+                        user: normalizeStaffMember(nextData)
+                    }, { status: 200 });
+                }
+
                 const nextData = {
                     ...currentData,
                     staffProfile: {
@@ -259,7 +295,10 @@ export async function PUT(request) {
                 };
 
                 await userRef.set(nextData);
-                return NextResponse.json({ message: "Availability updated successfully.", user: normalizeStaffMember(nextData) }, { status: 200 });
+                return NextResponse.json({
+                    message: "Availability updated successfully and is now live for scheduling.",
+                    user: normalizeStaffMember(nextData)
+                }, { status: 200 });
             }
 
             const nextData = {
