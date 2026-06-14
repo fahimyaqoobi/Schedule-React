@@ -1277,15 +1277,24 @@ export default function Home() {
         setProfilePhotoUploading(true);
         setProfilePhotoStatus("");
         try {
-            const storageRef = ref(storage, `staff-profile-photos/${currentUser.uid}/${Date.now()}-${file.name || "camera-photo.jpg"}`);
-            await uploadBytes(storageRef, file, { contentType: file.type || "image/jpeg" });
-            const photoURL = await getDownloadURL(storageRef);
+            const headers = await getAuthHeaders();
+            const formData = new FormData();
+            formData.append("file", file);
+            const uploadRes = await fetch("/api/uploads/profile-photo", {
+                method: "POST",
+                headers: {
+                    Authorization: headers.Authorization
+                },
+                body: formData
+            });
+            const uploadData = await uploadRes.json();
+            if (!uploadRes.ok) throw new Error(uploadData.error || "Failed to upload profile photo.");
+            const photoURL = uploadData.photoURL;
 
             if (auth.currentUser) {
                 await updateProfile(auth.currentUser, { photoURL });
             }
 
-            const headers = await getAuthHeaders();
             const res = await fetch("/api/users", {
                 method: "PUT",
                 headers,
