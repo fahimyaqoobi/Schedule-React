@@ -404,10 +404,13 @@ export default function Home() {
     const [addressQuery, setAddressQuery] = useState("");
     const [addressSuggestions, setAddressSuggestions] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
+    const [adminAddressSuggestions, setAdminAddressSuggestions] = useState([]);
+    const [showAdminAddressSuggestions, setShowAdminAddressSuggestions] = useState(false);
     const [googlePlacesReady, setGooglePlacesReady] = useState(false);
     const [staffAddressSuggestions, setStaffAddressSuggestions] = useState([]);
     const [showStaffAddressSuggestions, setShowStaffAddressSuggestions] = useState(false);
     const autocompleteRef = useRef(null);
+    const adminAutocompleteRef = useRef(null);
     const staffAutocompleteRef = useRef(null);
     const serviceCatalogRef = useRef(null);
 
@@ -1040,6 +1043,27 @@ export default function Home() {
         });
     };
 
+    const handleAdminAddressChange = (value) => {
+        setAdminCheckoutForm(prev => ({ ...prev, address1: value }));
+        setShowAdminAddressSuggestions(true);
+        loadGooglePredictions(value, setAdminAddressSuggestions);
+    };
+
+    const selectAdminAddressSuggestion = (prediction) => {
+        applyPlaceSelection(prediction.place_id, (parsed) => {
+            setAdminCheckoutForm(prev => ({
+                ...prev,
+                address1: parsed.address1,
+                city: parsed.city,
+                state: parsed.state || "ON",
+                postalCode: parsed.postalCode,
+                country: parsed.country || "Canada"
+            }));
+            setAdminAddressSuggestions([]);
+            setShowAdminAddressSuggestions(false);
+        });
+    };
+
     const handleStaffAddressChange = (value) => {
         updateStaffDraftField("personal", "address", value);
         setShowStaffAddressSuggestions(true);
@@ -1071,6 +1095,9 @@ export default function Home() {
         const handleClickOutside = (e) => {
             if (autocompleteRef.current && !autocompleteRef.current.contains(e.target)) {
                 setShowSuggestions(false);
+            }
+            if (adminAutocompleteRef.current && !adminAutocompleteRef.current.contains(e.target)) {
+                setShowAdminAddressSuggestions(false);
             }
             if (staffAutocompleteRef.current && !staffAutocompleteRef.current.contains(e.target)) {
                 setShowStaffAddressSuggestions(false);
@@ -3974,9 +4001,18 @@ export default function Home() {
                                     <span>Email</span>
                                     <input type="email" required value={adminCheckoutForm.email} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, email: e.target.value }))} />
                                 </label>
-                                <label className="span-2">
+                                <label className="span-2 places-field" ref={adminAutocompleteRef}>
                                     <span>Street Address</span>
-                                    <input required value={adminCheckoutForm.address1} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, address1: e.target.value }))} />
+                                    <input required value={adminCheckoutForm.address1} onChange={e => handleAdminAddressChange(e.target.value)} />
+                                    {showAdminAddressSuggestions && adminAddressSuggestions.length > 0 && (
+                                        <div className="places-suggestion-list">
+                                            {adminAddressSuggestions.map(suggestion => (
+                                                <button key={suggestion.place_id} type="button" className="places-suggestion-item" onClick={() => selectAdminAddressSuggestion(suggestion)}>
+                                                    {suggestion.description}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                 </label>
                                 <label>
                                     <span>Unit / Apt</span>
