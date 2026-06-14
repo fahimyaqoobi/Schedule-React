@@ -2232,6 +2232,10 @@ label {
     gap: 24px;
 }
 
+.people-profile-stat-grid-top {
+    margin-bottom: 4px;
+}
+
 .people-profile-breadcrumb {
     display: flex;
     align-items: center;
@@ -2252,10 +2256,48 @@ label {
     align-items: flex-start;
 }
 
+.people-profile-hero-reference {
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    border-radius: 22px;
+    padding: 36px;
+}
+
 .people-profile-hero-main {
     display: flex;
     gap: 18px;
     align-items: center;
+}
+
+.people-profile-photo-card {
+    position: relative;
+}
+
+.people-profile-photo {
+    width: 146px;
+    height: 146px;
+    border-radius: 24px;
+    background: linear-gradient(135deg, #14b8a6 0%, #0f766e 100%);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 42px;
+    font-weight: 900;
+    box-shadow: 0 16px 30px rgba(15, 118, 110, 0.18);
+}
+
+.people-profile-active-badge {
+    position: absolute;
+    right: -6px;
+    bottom: -10px;
+    border-radius: 999px;
+    background: #184d3c;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 800;
+    padding: 8px 14px;
+    box-shadow: 0 10px 18px rgba(24, 77, 60, 0.18);
 }
 
 .people-profile-avatar {
@@ -2281,7 +2323,7 @@ label {
 }
 
 .people-profile-headings p {
-    font-size: 15px;
+    font-size: 18px;
     font-weight: 700;
     color: var(--text-secondary);
 }
@@ -2295,9 +2337,20 @@ label {
 
 .people-profile-hero-actions {
     display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 8px;
+    align-items: center;
+    gap: 12px;
+}
+
+.people-icon-action {
+    width: 56px;
+    height: 56px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 16px;
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    color: #334155;
 }
 
 .people-status-pill {
@@ -2325,9 +2378,10 @@ label {
 
 .people-profile-stat-card {
     background: #fff;
-    border: 1px solid #dbeafe;
+    border: 1px solid #cbd5e1;
     border-radius: 18px;
-    padding: 16px;
+    padding: 18px;
+    text-align: center;
 }
 
 .people-profile-stat-card p {
@@ -2340,7 +2394,7 @@ label {
 }
 
 .people-profile-stat-card strong {
-    font-size: 24px;
+    font-size: 22px;
     font-weight: 900;
     color: var(--text-primary);
 }
@@ -2428,9 +2482,16 @@ label {
     gap: 20px;
 }
 
+.people-profile-reference-grid {
+    display: grid;
+    grid-template-columns: minmax(320px, 0.95fr) minmax(400px, 1.2fr) minmax(260px, 0.7fr);
+    gap: 20px;
+    align-items: start;
+}
+
 .people-profile-section {
     background: #fff;
-    border: 1px solid #dbeafe;
+    border: 1px solid #cbd5e1;
     border-radius: 20px;
     padding: 20px;
     display: flex;
@@ -2443,6 +2504,291 @@ label {
     font-weight: 900;
     color: var(--text-primary);
     margin-top: 6px;
+}
+
+.people-profile-read-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.people-profile-read-list div {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.people-profile-read-list span {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.people-profile-read-list strong {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--text-primary);
+}
+
+.people-profile-divider {
+    height: 1px;
+    background: #cbd5e1;
+    margin: 6px 0;
+}
+
+.people-alert-label {
+    color: #dc2626;
+    font-weight: 800;
+}
+
+.people-availability-header {
+    display: flex;
+    justify-content: flex-end;
+    color: #0f766e;
+    font-size: 16px;
+    font-weight: 900;
+}
+
+.people-availability-week {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.people-day-tile-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: center;
+}
+
+.people-day-tile-wrap span {
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.people-day-tile {
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    background: #0f52ba;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 900;
+}
+
+.people-day-tile-passive {
+    background: #eef2f7;
+    color: #475569;
+}
+
+.people-availability-shifts {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.people-shift-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 15px;
+    color: var(--text-primary);
+}
+
+.people-shift-row strong {
+    margin-left: auto;
+}
+
+.people-shift-row-muted {
+    color: #94a3b8;
+}
+
+.people-shift-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 999px;
+    background: #0f52ba;
+    flex-shrink: 0;
+}
+
+.people-shift-row:nth-child(2) .people-shift-dot {
+    background: #0f766e;
+}
+
+.people-shift-row-muted .people-shift-dot {
+    background: #d1d5db;
+}
+
+.people-subsection-title {
+    display: block;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-secondary);
+    font-weight: 800;
+    margin-bottom: 10px;
+}
+
+.people-blocked-dates,
+.people-chip-list {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.people-blocked-dates span {
+    padding: 8px 14px;
+    border-radius: 8px;
+    background: #fee2e2;
+    color: #b91c1c;
+    font-size: 14px;
+    font-weight: 800;
+}
+
+.people-performance-rating {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.people-performance-rating strong {
+    color: #0f766e;
+    font-size: 30px;
+    font-weight: 900;
+}
+
+.people-performance-bar {
+    height: 10px;
+    border-radius: 999px;
+    background: #e2e8f0;
+    overflow: hidden;
+}
+
+.people-performance-bar span {
+    display: block;
+    width: 84%;
+    height: 100%;
+    background: #0f766e;
+}
+
+.people-performance-metrics {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.people-performance-metrics div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: #f8fafc;
+}
+
+.people-note-card {
+    border-radius: 14px;
+    background: #f8fafc;
+    padding: 16px;
+    font-size: 15px;
+    line-height: 1.5;
+    color: #475569;
+    font-style: italic;
+}
+
+.people-chip-list span {
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: #dcfce7;
+    color: #166534;
+    font-size: 14px;
+    font-weight: 800;
+}
+
+.people-restrictions-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+}
+
+.people-restrictions-list div {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 16px;
+    color: var(--text-primary);
+}
+
+.people-restrictions-list span {
+    color: var(--text-secondary);
+}
+
+.people-profile-summary-card {
+    background: linear-gradient(180deg, #0f4aa3 0%, #0a2f73 100%);
+    color: #fff;
+    border-radius: 20px;
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    min-height: 100%;
+}
+
+.people-profile-summary-card h4 {
+    font-size: 34px;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.people-summary-pill {
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,0.22);
+    background: rgba(255,255,255,0.08);
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.people-summary-pill span {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(255,255,255,0.8);
+    font-weight: 700;
+}
+
+.people-summary-pill strong {
+    font-size: 28px;
+    font-weight: 900;
+}
+
+.people-profile-summary-card ul {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.people-profile-summary-card li {
+    font-size: 16px;
+    line-height: 1.45;
+}
+
+.people-profile-summary-card button {
+    min-height: 52px;
+    border-radius: 14px;
+    background: #fff;
+    color: #0f4aa3;
+    font-size: 18px;
+    font-weight: 900;
 }
 
 .people-profile-form-grid {

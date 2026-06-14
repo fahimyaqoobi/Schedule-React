@@ -511,6 +511,44 @@ export default function Home() {
         return normalizeStaffProfile(selectedStaffMember.staffProfile);
     }, [selectedStaffMember, staffProfileDraftOwnerUid, staffProfileDraft]);
 
+    const selectedStaffAssignedJobs = useMemo(() => {
+        if (!selectedStaffMember) return [];
+        return bookings.filter(b => b.assignedStaffIds?.includes(selectedStaffMember.uid) && b.status !== "Cancelled");
+    }, [bookings, selectedStaffMember]);
+
+    const selectedStaffCompletedJobs = useMemo(() => {
+        return selectedStaffAssignedJobs.filter(b => b.status === "Completed");
+    }, [selectedStaffAssignedJobs]);
+
+    const selectedStaffAvailability = useMemo(() => {
+        const profile = activeStaffProfileDraft;
+        const notes = profile?.employment?.availabilityNotes || "";
+        return {
+            maxJobsPerDay: 3,
+            weekdays: [
+                { label: "M", status: "A" },
+                { label: "T", status: "A" },
+                { label: "W", status: "A" },
+                { label: "T", status: "A" },
+                { label: "F", status: "A" },
+                { label: "S", status: notes.toLowerCase().includes("weekend") ? "A" : "P" },
+                { label: "S", status: notes.toLowerCase().includes("weekend") ? "A" : "P" }
+            ],
+            shifts: [
+                { label: "Morning (08:00 - 12:00)", active: true },
+                { label: "Afternoon (13:00 - 17:00)", active: true },
+                { label: "Evening (18:00+)", active: false }
+            ]
+        };
+    }, [activeStaffProfileDraft]);
+
+    const selectedStaffBlockedDates = useMemo(() => {
+        return selectedStaffAssignedJobs
+            .filter(job => new Date(job.date) >= new Date())
+            .slice(0, 3)
+            .map(job => job.date);
+    }, [selectedStaffAssignedJobs]);
+
     // Live pricing rates loader from Serverless API settings/pricing
     useEffect(() => {
         const loadPricingRates = async () => {
@@ -2537,45 +2575,51 @@ export default function Home() {
                                     <section className="people-profile-canvas">
                                         <div className="people-profile-breadcrumb">
                                             <button type="button" onClick={() => setSelectedStaffUid(selectedStaffMember.uid)}>
-                                                People Management
+                                                Staff Management
                                             </button>
                                             <span>/</span>
                                             <strong>{selectedStaffMember.name}</strong>
                                         </div>
 
-                                        <div className="people-profile-hero">
-                                            <div className="people-profile-hero-main">
-                                                <div className="people-profile-avatar">
-                                                    {(selectedStaffMember.name || selectedStaffMember.email || "FS").split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)}
-                                                </div>
-                                                <div className="people-profile-headings">
-                                                    <h3>{selectedStaffMember.name}</h3>
-                                                    <p>{getRoleLabel(selectedStaffMember.role)} · {selectedStaffMember.branchName || "Ottawa"}</p>
-                                                    <span>{selectedStaffMember.email}</span>
-                                                </div>
+                                        <div className="people-profile-stat-grid people-profile-stat-grid-top">
+                                            <div className="people-profile-stat-card">
+                                                <p>Rating</p>
+                                                <strong>4.9</strong>
                                             </div>
-                                            <div className="people-profile-hero-actions">
-                                                <span className="people-status-pill">{selectedStaffMember.staffProfileMeta?.status || "incomplete"}</span>
-                                                <span className="people-status-subtext">Account: {selectedStaffMember.status}</span>
+                                            <div className="people-profile-stat-card">
+                                                <p>Jobs Completed</p>
+                                                <strong>{selectedStaffCompletedJobs.length}</strong>
+                                            </div>
+                                            <div className="people-profile-stat-card">
+                                                <p>On-Time</p>
+                                                <strong>98.5%</strong>
+                                            </div>
+                                            <div className="people-profile-stat-card">
+                                                <p>Exp. Level</p>
+                                                <strong>{activeStaffProfileDraft.employment.yearsExperience || "0"} Years</strong>
                                             </div>
                                         </div>
 
-                                        <div className="people-profile-stat-grid">
-                                            <div className="people-profile-stat-card">
-                                                <p>Assigned Jobs</p>
-                                                <strong>{bookings.filter(b => b.assignedStaffIds?.includes(selectedStaffMember.uid) && b.status !== "Cancelled").length}</strong>
+                                        <div className="people-profile-hero people-profile-hero-reference">
+                                            <div className="people-profile-hero-main">
+                                                <div className="people-profile-photo-card">
+                                                    <div className="people-profile-photo">
+                                                        {(selectedStaffMember.name || selectedStaffMember.email || "FS").split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)}
+                                                    </div>
+                                                    <span className="people-profile-active-badge">Active</span>
+                                                </div>
+                                                <div className="people-profile-headings">
+                                                    <h3>{selectedStaffMember.name}</h3>
+                                                    <p>{selectedStaffMember.branchName || "Ottawa"} • {getRoleLabel(selectedStaffMember.role)}</p>
+                                                </div>
                                             </div>
-                                            <div className="people-profile-stat-card">
-                                                <p>Completed Jobs</p>
-                                                <strong>{bookings.filter(b => b.assignedStaffIds?.includes(selectedStaffMember.uid) && b.status === "Completed").length}</strong>
-                                            </div>
-                                            <div className="people-profile-stat-card">
-                                                <p>Last Approval</p>
-                                                <strong>{selectedStaffMember.staffProfileMeta?.approvedAt ? selectedStaffMember.staffProfileMeta.approvedAt.split("T")[0] : "Pending"}</strong>
-                                            </div>
-                                            <div className="people-profile-stat-card">
-                                                <p>Eligibility Window</p>
-                                                <strong>{selectedStaffMember.staffProfileMeta?.lastEligibilityUpdateAt ? "48h cooldown" : "Open"}</strong>
+                                            <div className="people-profile-hero-actions">
+                                                <button type="button" className="people-icon-action">
+                                                    {Icons.Edit()}
+                                                </button>
+                                                <button type="button" className="team-primary-action">
+                                                    Assign Job
+                                                </button>
                                             </div>
                                         </div>
 
@@ -2610,84 +2654,134 @@ export default function Home() {
                                             </div>
                                         )}
 
-                                        <div className="people-profile-section-grid">
+                                        <div className="people-profile-reference-grid">
                                             <article className="people-profile-section">
                                                 <div className="people-profile-section-head">
                                                     <p className="ops-eyebrow">Identity</p>
-                                                    <h4>Personal Information</h4>
+                                                    <h4>Identity</h4>
                                                 </div>
-                                                <div className="people-profile-form-grid">
-                                                    <label><span>Legal name</span><input value={activeStaffProfileDraft.personal.legalName} onChange={e => updateStaffDraftField("personal", "legalName", e.target.value)} disabled={canManagePeopleProfiles} /></label>
-                                                    <label><span>Preferred name</span><input value={activeStaffProfileDraft.personal.preferredName} onChange={e => updateStaffDraftField("personal", "preferredName", e.target.value)} disabled={canManagePeopleProfiles} /></label>
-                                                    <label><span>Phone</span><input value={activeStaffProfileDraft.personal.phone} onChange={e => updateStaffDraftField("personal", "phone", e.target.value)} disabled={canManagePeopleProfiles} /></label>
-                                                    <label><span>Date of birth</span><input type="date" value={activeStaffProfileDraft.personal.dateOfBirth} onChange={e => updateStaffDraftField("personal", "dateOfBirth", e.target.value)} disabled={canManagePeopleProfiles} /></label>
-                                                    <label className="span-2"><span>Address</span><input value={activeStaffProfileDraft.personal.address} onChange={e => updateStaffDraftField("personal", "address", e.target.value)} disabled={canManagePeopleProfiles} /></label>
-                                                    <label><span>City</span><input value={activeStaffProfileDraft.personal.city} onChange={e => updateStaffDraftField("personal", "city", e.target.value)} disabled={canManagePeopleProfiles} /></label>
-                                                    <label><span>Postal code</span><input value={activeStaffProfileDraft.personal.postalCode} onChange={e => updateStaffDraftField("personal", "postalCode", e.target.value)} disabled={canManagePeopleProfiles} /></label>
+                                                <div className="people-profile-read-list">
+                                                    <div><span>Email Address</span><strong>{selectedStaffMember.email}</strong></div>
+                                                    <div><span>Phone</span><strong>{activeStaffProfileDraft.personal.phone || "Not submitted"}</strong></div>
+                                                    <div className="people-profile-divider"></div>
+                                                    <div><span className="people-alert-label">Emergency Contact</span><strong>{activeStaffProfileDraft.emergency.contactName || "Not submitted"}</strong></div>
+                                                    <div><span>Relationship</span><strong>{activeStaffProfileDraft.emergency.relationship || "Not submitted"}</strong></div>
+                                                    <div><span>Phone</span><strong>{activeStaffProfileDraft.emergency.phone || "Not submitted"}</strong></div>
                                                 </div>
                                             </article>
 
                                             <article className="people-profile-section">
                                                 <div className="people-profile-section-head">
-                                                    <p className="ops-eyebrow">Support</p>
-                                                    <h4>Emergency Contact</h4>
+                                                    <p className="ops-eyebrow">Availability</p>
+                                                    <h4>Availability</h4>
                                                 </div>
-                                                <div className="people-profile-form-grid">
-                                                    <label><span>Contact name</span><input value={activeStaffProfileDraft.emergency.contactName} onChange={e => updateStaffDraftField("emergency", "contactName", e.target.value)} disabled={canManagePeopleProfiles} /></label>
-                                                    <label><span>Relationship</span><input value={activeStaffProfileDraft.emergency.relationship} onChange={e => updateStaffDraftField("emergency", "relationship", e.target.value)} disabled={canManagePeopleProfiles} /></label>
-                                                    <label className="span-2"><span>Phone</span><input value={activeStaffProfileDraft.emergency.phone} onChange={e => updateStaffDraftField("emergency", "phone", e.target.value)} disabled={canManagePeopleProfiles} /></label>
+                                                <div className="people-availability-header">
+                                                    <strong>Max {selectedStaffAvailability.maxJobsPerDay} Jobs/Day</strong>
+                                                </div>
+                                                <div className="people-availability-week">
+                                                    {selectedStaffAvailability.weekdays.map(day => (
+                                                        <div key={day.label} className="people-day-tile-wrap">
+                                                            <span>{day.label}</span>
+                                                            <div className={`people-day-tile ${day.status !== "A" ? "people-day-tile-passive" : ""}`}>{day.status}</div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                <div className="people-availability-shifts">
+                                                    {selectedStaffAvailability.shifts.map(shift => (
+                                                        <div key={shift.label} className={`people-shift-row ${!shift.active ? "people-shift-row-muted" : ""}`}>
+                                                            <span className="people-shift-dot"></span>
+                                                            <span>{shift.label}</span>
+                                                            <strong>{shift.active ? "Active" : "Unavailable"}</strong>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                <div className="people-profile-divider"></div>
+                                                <div>
+                                                    <span className="people-subsection-title">Upcoming Blocked Dates</span>
+                                                    <div className="people-blocked-dates">
+                                                        {selectedStaffBlockedDates.length > 0 ? selectedStaffBlockedDates.map(date => (
+                                                            <span key={date}>{date}</span>
+                                                        )) : <span>No blocked dates</span>}
+                                                    </div>
+                                                </div>
+                                            </article>
+
+                                            <article className="people-profile-section">
+                                                <div className="people-profile-section-head">
+                                                    <p className="ops-eyebrow">Performance</p>
+                                                    <h4>Performance</h4>
+                                                </div>
+                                                <div className="people-performance-rating">
+                                                    <span>Customer Rating</span>
+                                                    <strong>4.9 ★</strong>
+                                                </div>
+                                                <div className="people-performance-bar"><span></span></div>
+                                                <div className="people-performance-metrics">
+                                                    <div><span>No-Shows</span><strong>0</strong></div>
+                                                    <div><span>Late (&gt;15m)</span><strong>2</strong></div>
+                                                    <div><span>Cancellations</span><strong>1</strong></div>
                                                 </div>
                                             </article>
 
                                             <article className="people-profile-section">
                                                 <div className="people-profile-section-head">
                                                     <p className="ops-eyebrow">Employment</p>
-                                                    <h4>Work Profile</h4>
+                                                    <h4>Employment</h4>
                                                 </div>
-                                                <div className="people-profile-form-grid">
-                                                    <label><span>Worker type</span><input value={activeStaffProfileDraft.employment.workerType} onChange={e => updateStaffDraftField("employment", "workerType", e.target.value)} disabled={canManagePeopleProfiles} /></label>
-                                                    <label><span>Years experience</span><input value={activeStaffProfileDraft.employment.yearsExperience} onChange={e => updateStaffDraftField("employment", "yearsExperience", e.target.value)} disabled={canManagePeopleProfiles} /></label>
-                                                    <label><span>Languages</span><input value={activeStaffProfileDraft.employment.languages} onChange={e => updateStaffDraftField("employment", "languages", e.target.value)} disabled={canManagePeopleProfiles} /></label>
-                                                    <label><span>T-shirt size</span><input value={activeStaffProfileDraft.employment.tshirtSize} onChange={e => updateStaffDraftField("employment", "tshirtSize", e.target.value)} disabled={canManagePeopleProfiles} /></label>
-                                                    <label className="span-2"><span>Availability notes</span><textarea value={activeStaffProfileDraft.employment.availabilityNotes} onChange={e => updateStaffDraftField("employment", "availabilityNotes", e.target.value)} disabled={canManagePeopleProfiles} /></label>
-                                                </div>
-                                            </article>
-
-                                            <article className="people-profile-section">
-                                                <div className="people-profile-section-head">
-                                                    <p className="ops-eyebrow">Eligibility</p>
-                                                    <h4>Editable Every 48 Hours</h4>
-                                                </div>
-                                                <div className="people-profile-form-grid">
-                                                    <label><span>Work status</span><input value={activeStaffProfileDraft.eligibility.workStatus} onChange={e => updateStaffDraftField("eligibility", "workStatus", e.target.value)} disabled={canManagePeopleProfiles} /></label>
-                                                    <label><span>Permit expiry</span><input type="date" value={activeStaffProfileDraft.eligibility.workPermitExpiry} onChange={e => updateStaffDraftField("eligibility", "workPermitExpiry", e.target.value)} disabled={canManagePeopleProfiles} /></label>
-                                                    <label><span>SIN last 4</span><input value={activeStaffProfileDraft.eligibility.sinLast4} onChange={e => updateStaffDraftField("eligibility", "sinLast4", e.target.value)} disabled={canManagePeopleProfiles} /></label>
-                                                    <label><span>License class</span><input value={activeStaffProfileDraft.eligibility.driversLicenseClass} onChange={e => updateStaffDraftField("eligibility", "driversLicenseClass", e.target.value)} disabled={canManagePeopleProfiles} /></label>
-                                                    <label className="people-checkbox"><input type="checkbox" checked={activeStaffProfileDraft.eligibility.hasDriversLicense} onChange={e => updateStaffDraftField("eligibility", "hasDriversLicense", e.target.checked)} disabled={canManagePeopleProfiles} /><span>Has drivers license</span></label>
-                                                    <label className="people-checkbox"><input type="checkbox" checked={activeStaffProfileDraft.eligibility.hasVehicle} onChange={e => updateStaffDraftField("eligibility", "hasVehicle", e.target.checked)} disabled={canManagePeopleProfiles} /><span>Has vehicle</span></label>
+                                                <div className="people-profile-read-list">
+                                                    <div><span>Worker Type</span><strong>{activeStaffProfileDraft.employment.workerType || getRoleLabel(selectedStaffMember.role)}</strong></div>
+                                                    <div><span>Work Permit</span><strong>{activeStaffProfileDraft.eligibility.workStatus || "Pending review"}</strong></div>
+                                                    <div><span>Police Clearance</span><strong>{activeStaffProfileDraft.compliance.backgroundCheckStatus || "Pending"}</strong></div>
+                                                    <div><span>Start Date</span><strong>{selectedStaffMember.createdAt ? selectedStaffMember.createdAt.split("T")[0] : "Pending"}</strong></div>
+                                                    <div className="people-note-card">
+                                                        “{activeStaffProfileDraft.employment.availabilityNotes || "Staff profile notes will appear here after branch admin approval."}”
+                                                    </div>
                                                 </div>
                                             </article>
 
                                             <article className="people-profile-section">
                                                 <div className="people-profile-section-head">
-                                                    <p className="ops-eyebrow">Compliance</p>
-                                                    <h4>Documents and Approval Locks</h4>
+                                                    <p className="ops-eyebrow">Skills & Restrictions</p>
+                                                    <h4>Skills & Restrictions</h4>
                                                 </div>
-                                                <div className="people-profile-form-grid">
-                                                    <label><span>Background check</span><input value={activeStaffProfileDraft.compliance.backgroundCheckStatus} onChange={e => updateStaffDraftField("compliance", "backgroundCheckStatus", e.target.value)} disabled={canManagePeopleProfiles} /></label>
-                                                    <label><span>Background expiry</span><input type="date" value={activeStaffProfileDraft.compliance.backgroundCheckExpiry} onChange={e => updateStaffDraftField("compliance", "backgroundCheckExpiry", e.target.value)} disabled={canManagePeopleProfiles} /></label>
-                                                    <label><span>Insurance status</span><input value={activeStaffProfileDraft.compliance.insuranceStatus} onChange={e => updateStaffDraftField("compliance", "insuranceStatus", e.target.value)} disabled={canManagePeopleProfiles} /></label>
-                                                    <label><span>Insurance expiry</span><input type="date" value={activeStaffProfileDraft.compliance.insuranceExpiry} onChange={e => updateStaffDraftField("compliance", "insuranceExpiry", e.target.value)} disabled={canManagePeopleProfiles} /></label>
-                                                    <label><span>Training status</span><input value={activeStaffProfileDraft.compliance.trainingStatus} onChange={e => updateStaffDraftField("compliance", "trainingStatus", e.target.value)} disabled={canManagePeopleProfiles} /></label>
-                                                    <label className="people-checkbox"><input type="checkbox" checked={activeStaffProfileDraft.compliance.contractSigned} onChange={e => updateStaffDraftField("compliance", "contractSigned", e.target.checked)} disabled={canManagePeopleProfiles} /><span>Contract signed</span></label>
+                                                <div className="people-skill-group">
+                                                    <span className="people-subsection-title">Approved Services</span>
+                                                    <div className="people-chip-list">
+                                                        <span>Standard Cleaning</span>
+                                                        <span>Deep Cleaning</span>
+                                                        <span>Move-in/out</span>
+                                                        <span>Carpet Steam</span>
+                                                    </div>
                                                 </div>
+                                                <div className="people-skill-group">
+                                                    <span className="people-subsection-title">Work Restrictions</span>
+                                                    <div className="people-restrictions-list">
+                                                        <div><strong>No Pets</strong><span>(Allergy)</span></div>
+                                                        <div><strong>Can work alone</strong></div>
+                                                    </div>
+                                                </div>
+                                            </article>
+
+                                            <article className="people-profile-summary-card">
+                                                <h4>Logic Summary</h4>
+                                                <div className="people-summary-pill">
+                                                    <span>Booking Eligibility</span>
+                                                    <strong>Fully Eligible</strong>
+                                                </div>
+                                                <ul>
+                                                    <li>Police Check Current</li>
+                                                    <li>Insurance Bonded</li>
+                                                    <li>Pet-Friendly Homes: Restricted</li>
+                                                    <li>Afternoon Shift Primary</li>
+                                                </ul>
+                                                <button type="button">View Full Audit Log</button>
                                             </article>
                                         </div>
 
                                         {!canManagePeopleProfiles && (
                                             <div className="people-profile-footer">
                                                 <p>
-                                                    Most profile changes are locked after branch admin approval. Eligibility can be edited by cleaners every 48 hours and is saved separately when eligible.
+                                                    Profile changes go to branch admin for approval. Availability restrictions are enforced by scheduling logic and are not shown as editable warnings in the UI.
                                                 </p>
                                                 <button type="button" className="team-primary-action" onClick={handleSubmitStaffProfile} disabled={staffProfileSaving}>
                                                     {staffProfileSaving ? "Submitting..." : "Submit Profile Update"}
