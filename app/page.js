@@ -60,6 +60,9 @@ const Icons = {
     Logout: () => <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>,
     Search: () => <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>,
     Plus: () => <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>,
+    Phone: () => <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.33 1.78.62 2.63a2 2 0 0 1-.45 2.11L8 9.91a16 16 0 0 0 6.09 6.09l1.45-1.28a2 2 0 0 1 2.11-.45c.85.29 1.73.5 2.63.62A2 2 0 0 1 22 16.92z"></path></svg>,
+    Mail: () => <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16v16H4z"></path><path d="m22 6-10 7L2 6"></path></svg>,
+    Contact: () => <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"></rect><circle cx="9" cy="10" r="2"></circle><path d="M15 8h2"></path><path d="M15 12h2"></path><path d="M7 16c.8-1.5 2-2.2 3.3-2.2S12.8 14.5 13.6 16"></path></svg>,
     MapPin: () => <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>,
     Trash: () => <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>,
     Eye: () => <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>,
@@ -470,6 +473,7 @@ export default function Home() {
     const [staffProfileFeedback, setStaffProfileFeedback] = useState("");
     const [staffProfileRejectReason, setStaffProfileRejectReason] = useState("");
     const [staffProfileEditOpen, setStaffProfileEditOpen] = useState(false);
+    const [staffProfileMobileTab, setStaffProfileMobileTab] = useState("identity");
 
     // Shared Secure JWT Authorization Request Fetcher
     const getAuthHeaders = useCallback(async () => {
@@ -507,6 +511,12 @@ export default function Home() {
 
     const canEditSelectedStaffProfile = Boolean(currentUser && selectedStaffMember && currentUser.uid === selectedStaffMember.uid);
     const canAdminDirectEditSelectedStaffProfile = Boolean(currentUser && selectedStaffMember && canManagePeopleProfiles);
+    const isViewingOwnCleanerProfile = Boolean(
+        currentUser &&
+        selectedStaffMember &&
+        currentUser.uid === selectedStaffMember.uid &&
+        STAFF_SELF_SERVICE_ROLES.includes(normalizeRole(selectedStaffMember.role))
+    );
 
     const activeStaffProfileDraft = useMemo(() => {
         if (!selectedStaffMember) return null;
@@ -532,6 +542,44 @@ export default function Home() {
     const selectedStaffBlockedDates = useMemo(() => {
         return (selectedStaffAvailability.blockedDates || []).slice(0, 6);
     }, [selectedStaffAvailability]);
+
+    const selectedStaffIdentityCards = useMemo(() => ([
+        {
+            key: "phone",
+            label: "Phone Number",
+            value: activeStaffProfileDraft?.personal?.phone || "Not submitted",
+            icon: Icons.Phone()
+        },
+        {
+            key: "email",
+            label: "Email Address",
+            value: selectedStaffMember?.email || "Not submitted",
+            icon: Icons.Mail()
+        }
+    ]), [activeStaffProfileDraft, selectedStaffMember]);
+
+    const selectedStaffEmploymentCards = useMemo(() => ([
+        {
+            key: "worker-type",
+            label: "Worker Type",
+            value: activeStaffProfileDraft?.employment?.workerType || getRoleLabel(selectedStaffMember?.role)
+        },
+        {
+            key: "start-date",
+            label: "Start Date",
+            value: selectedStaffMember?.createdAt ? selectedStaffMember.createdAt.split("T")[0] : "Pending"
+        },
+        {
+            key: "work-status",
+            label: "Work Eligibility",
+            value: activeStaffProfileDraft?.eligibility?.workStatus || "Pending review"
+        },
+        {
+            key: "background-check",
+            label: "Police Clearance",
+            value: activeStaffProfileDraft?.compliance?.backgroundCheckStatus || "Pending"
+        }
+    ]), [activeStaffProfileDraft, selectedStaffMember]);
 
     // Live pricing rates loader from Serverless API settings/pricing
     useEffect(() => {
@@ -2585,6 +2633,252 @@ export default function Home() {
 
                                 {selectedStaffMember && activeStaffProfileDraft && (
                                     <section className="people-profile-canvas">
+                                        <section className={`people-mobile-profile-shell ${isViewingOwnCleanerProfile ? "people-mobile-profile-shell-self" : ""}`}>
+                                            <div className="people-mobile-profile-top">
+                                                <div className="people-mobile-profile-avatar-wrap">
+                                                    <div className="people-mobile-profile-avatar">
+                                                        {(selectedStaffMember.name || selectedStaffMember.email || "FS").split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)}
+                                                    </div>
+                                                    <span className="people-mobile-profile-presence"></span>
+                                                </div>
+                                                <h3>{selectedStaffMember.name}</h3>
+                                                <div className="people-mobile-profile-status">
+                                                    <span></span>
+                                                    Active
+                                                </div>
+                                            </div>
+
+                                            <div className="people-mobile-profile-stats">
+                                                <div>
+                                                    <strong>4.9</strong>
+                                                    <span>Rating</span>
+                                                </div>
+                                                <div>
+                                                    <strong>{selectedStaffCompletedJobs.length}</strong>
+                                                    <span>Jobs</span>
+                                                </div>
+                                                <div>
+                                                    <strong>98%</strong>
+                                                    <span>On-Time</span>
+                                                </div>
+                                            </div>
+
+                                            {staffProfileFeedback && (
+                                                <div className="people-profile-message people-mobile-profile-message">
+                                                    {staffProfileFeedback}
+                                                </div>
+                                            )}
+
+                                            {canManagePeopleProfiles && selectedStaffMember.staffProfileRequest?.requestedProfile && (
+                                                <div className="people-review-panel people-mobile-review-panel">
+                                                    <div>
+                                                        <p className="ops-eyebrow">Approval Queue</p>
+                                                        <h4>Pending Staff Profile Request</h4>
+                                                        <p>
+                                                            Submitted by {selectedStaffMember.staffProfileRequest.submittedByName} on {selectedStaffMember.staffProfileRequest.submittedAt?.split("T")[0]}.
+                                                        </p>
+                                                    </div>
+                                                    <textarea
+                                                        placeholder="Optional rejection reason for branch admin feedback"
+                                                        value={staffProfileRejectReason}
+                                                        onChange={e => setStaffProfileRejectReason(e.target.value)}
+                                                    />
+                                                    <div className="people-review-actions">
+                                                        <button type="button" className="team-primary-action" onClick={() => handleReviewStaffProfileRequest("approve")} disabled={staffProfileSaving}>
+                                                            Approve Changes
+                                                        </button>
+                                                        <button type="button" className="team-secondary-action" onClick={() => handleReviewStaffProfileRequest("reject")} disabled={staffProfileSaving}>
+                                                            Reject Changes
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <nav className="people-mobile-profile-tabs">
+                                                <button type="button" className={staffProfileMobileTab === "identity" ? "active" : ""} onClick={() => setStaffProfileMobileTab("identity")}>Identity</button>
+                                                <button type="button" className={staffProfileMobileTab === "employment" ? "active" : ""} onClick={() => setStaffProfileMobileTab("employment")}>Employment</button>
+                                                <button type="button" className={staffProfileMobileTab === "availability" ? "active" : ""} onClick={() => setStaffProfileMobileTab("availability")}>Availability</button>
+                                            </nav>
+
+                                            <div className="people-mobile-profile-content">
+                                                {staffProfileMobileTab === "identity" && !staffProfileEditOpen && (
+                                                    <div className="people-mobile-section-stack">
+                                                        <section className="people-mobile-card-group">
+                                                            <label>Contact Information</label>
+                                                            <div className="people-mobile-info-stack">
+                                                                {selectedStaffIdentityCards.map(card => (
+                                                                    <article key={card.key} className="people-mobile-info-card">
+                                                                        <div className="people-mobile-info-icon">{card.icon}</div>
+                                                                        <div>
+                                                                            <span>{card.label}</span>
+                                                                            <strong>{card.value}</strong>
+                                                                        </div>
+                                                                    </article>
+                                                                ))}
+                                                            </div>
+                                                        </section>
+                                                        <section className="people-mobile-card-group">
+                                                            <label>Emergency Contact</label>
+                                                            <article className="people-mobile-emergency-card">
+                                                                <div>
+                                                                    <strong>{activeStaffProfileDraft.emergency.contactName || "Not submitted"}</strong>
+                                                                    <span>{activeStaffProfileDraft.emergency.relationship || "Relationship pending"}</span>
+                                                                    <p>{activeStaffProfileDraft.emergency.phone || "Phone pending"}</p>
+                                                                </div>
+                                                                <div className="people-mobile-info-icon">{Icons.Contact()}</div>
+                                                            </article>
+                                                        </section>
+                                                    </div>
+                                                )}
+
+                                                {staffProfileMobileTab === "employment" && !staffProfileEditOpen && (
+                                                    <div className="people-mobile-section-stack">
+                                                        <section className="people-mobile-card-group">
+                                                            <label>Employment</label>
+                                                            <div className="people-mobile-mini-grid">
+                                                                {selectedStaffEmploymentCards.map(card => (
+                                                                    <article key={card.key} className="people-mobile-mini-card">
+                                                                        <span>{card.label}</span>
+                                                                        <strong>{card.value}</strong>
+                                                                    </article>
+                                                                ))}
+                                                            </div>
+                                                        </section>
+                                                        <section className="people-mobile-card-group">
+                                                            <label>Internal Notes</label>
+                                                            <article className="people-mobile-note-card">
+                                                                {activeStaffProfileDraft.employment.availabilityNotes || "Staff profile notes will appear here after branch admin approval."}
+                                                            </article>
+                                                        </section>
+                                                    </div>
+                                                )}
+
+                                                {staffProfileMobileTab === "availability" && !staffProfileEditOpen && (
+                                                    <div className="people-mobile-section-stack">
+                                                        <section className="people-mobile-availability-hero">
+                                                            <div>
+                                                                <strong>Weekly Schedule</strong>
+                                                                <span>Live scheduling data from Firestore</span>
+                                                            </div>
+                                                            <span>Max {selectedStaffAvailability.maxJobsPerDay} Jobs/Day</span>
+                                                        </section>
+                                                        <section className="people-mobile-availability-card">
+                                                            <div className="people-mobile-availability-week">
+                                                                {selectedStaffAvailability.weekdays.map((day, index) => (
+                                                                    <div key={`${day.label}-${index}`} className="people-mobile-availability-day">
+                                                                        <span>{day.label}</span>
+                                                                        <div className={`people-mobile-day-pill ${day.status !== "A" ? "passive" : ""}`}>{day.status}</div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                            <div className="people-mobile-availability-shifts">
+                                                                {selectedStaffAvailability.shifts.map(shift => (
+                                                                    <div key={shift.label} className={`people-mobile-shift-row ${shift.active ? "" : "muted"}`}>
+                                                                        <div>
+                                                                            <span className="people-mobile-shift-dot"></span>
+                                                                            <p>{shift.label}</p>
+                                                                        </div>
+                                                                        <strong>{shift.active ? "Active" : "Unavailable"}</strong>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                            <div className="people-mobile-blocked-wrap">
+                                                                <label>Upcoming Blocked Dates</label>
+                                                                <div className="people-blocked-dates people-mobile-blocked-dates">
+                                                                    {selectedStaffBlockedDates.length > 0 ? selectedStaffBlockedDates.map(date => (
+                                                                        <span key={date}>{date}</span>
+                                                                    )) : <span>No blocked dates</span>}
+                                                                </div>
+                                                            </div>
+                                                        </section>
+                                                    </div>
+                                                )}
+
+                                                {staffProfileEditOpen && (
+                                                    <section className="people-mobile-editor">
+                                                        {staffProfileMobileTab === "identity" && (
+                                                            <div className="people-mobile-editor-section">
+                                                                <label className="span-2"><span>Legal name</span><input value={activeStaffProfileDraft.personal.legalName} onChange={e => updateStaffDraftField("personal", "legalName", e.target.value)} /></label>
+                                                                <label><span>Preferred name</span><input value={activeStaffProfileDraft.personal.preferredName} onChange={e => updateStaffDraftField("personal", "preferredName", e.target.value)} /></label>
+                                                                <label><span>Phone</span><input value={activeStaffProfileDraft.personal.phone} onChange={e => updateStaffDraftField("personal", "phone", e.target.value)} /></label>
+                                                                <label className="span-2"><span>Emergency contact</span><input value={activeStaffProfileDraft.emergency.contactName} onChange={e => updateStaffDraftField("emergency", "contactName", e.target.value)} /></label>
+                                                                <label><span>Relationship</span><input value={activeStaffProfileDraft.emergency.relationship} onChange={e => updateStaffDraftField("emergency", "relationship", e.target.value)} /></label>
+                                                                <label><span>Emergency phone</span><input value={activeStaffProfileDraft.emergency.phone} onChange={e => updateStaffDraftField("emergency", "phone", e.target.value)} /></label>
+                                                            </div>
+                                                        )}
+
+                                                        {staffProfileMobileTab === "employment" && (
+                                                            <div className="people-mobile-editor-section">
+                                                                <label><span>Worker type</span><input value={activeStaffProfileDraft.employment.workerType} onChange={e => updateStaffDraftField("employment", "workerType", e.target.value)} /></label>
+                                                                <label><span>Years experience</span><input value={activeStaffProfileDraft.employment.yearsExperience} onChange={e => updateStaffDraftField("employment", "yearsExperience", e.target.value)} /></label>
+                                                                <label><span>Work status</span><input value={activeStaffProfileDraft.eligibility.workStatus} onChange={e => updateStaffDraftField("eligibility", "workStatus", e.target.value)} /></label>
+                                                                <label><span>Background check</span><input value={activeStaffProfileDraft.compliance.backgroundCheckStatus} onChange={e => updateStaffDraftField("compliance", "backgroundCheckStatus", e.target.value)} /></label>
+                                                                <label className="span-2"><span>Availability notes</span><textarea value={activeStaffProfileDraft.employment.availabilityNotes} onChange={e => updateStaffDraftField("employment", "availabilityNotes", e.target.value)} /></label>
+                                                            </div>
+                                                        )}
+
+                                                        {staffProfileMobileTab === "availability" && (
+                                                            <div className="people-mobile-editor-section">
+                                                                <div className="people-mobile-weekday-editor">
+                                                                    {activeStaffProfileDraft.availability.weekdays.map((day, index) => (
+                                                                        <label key={`${day.label}-${index}`} className="people-mobile-day-toggle">
+                                                                            <span>{day.label}</span>
+                                                                            <input
+                                                                                type="checkbox"
+                                                                                checked={day.enabled}
+                                                                                onChange={e => {
+                                                                                    const nextWeekdays = activeStaffProfileDraft.availability.weekdays.map((entry, entryIndex) =>
+                                                                                        entryIndex === index ? { ...entry, enabled: e.target.checked } : entry
+                                                                                    );
+                                                                                    updateStaffDraftField("availability", "weekdays", nextWeekdays);
+                                                                                }}
+                                                                            />
+                                                                        </label>
+                                                                    ))}
+                                                                </div>
+                                                                <label className="people-checkbox"><input type="checkbox" checked={activeStaffProfileDraft.availability.shifts.morning} onChange={e => updateStaffDraftField("availability", "shifts", { ...activeStaffProfileDraft.availability.shifts, morning: e.target.checked })} /><span>Morning shift</span></label>
+                                                                <label className="people-checkbox"><input type="checkbox" checked={activeStaffProfileDraft.availability.shifts.afternoon} onChange={e => updateStaffDraftField("availability", "shifts", { ...activeStaffProfileDraft.availability.shifts, afternoon: e.target.checked })} /><span>Afternoon shift</span></label>
+                                                                <label className="people-checkbox"><input type="checkbox" checked={activeStaffProfileDraft.availability.shifts.evening} onChange={e => updateStaffDraftField("availability", "shifts", { ...activeStaffProfileDraft.availability.shifts, evening: e.target.checked })} /><span>Evening shift</span></label>
+                                                                <label><span>Max jobs per day</span><input type="number" value={activeStaffProfileDraft.availability.maxJobsPerDay} onChange={e => updateStaffDraftField("availability", "maxJobsPerDay", parseInt(e.target.value || "0", 10))} /></label>
+                                                                <label className="span-2"><span>Blocked dates (comma separated YYYY-MM-DD)</span><input value={(activeStaffProfileDraft.availability.blockedDates || []).join(", ")} onChange={e => updateStaffDraftField("availability", "blockedDates", e.target.value.split(",").map(value => value.trim()).filter(Boolean))} /></label>
+                                                            </div>
+                                                        )}
+
+                                                        <div className="people-mobile-editor-actions">
+                                                            <button type="button" className="team-secondary-action" onClick={() => setStaffProfileEditOpen(false)} disabled={staffProfileSaving}>
+                                                                Cancel
+                                                            </button>
+                                                            {canAdminDirectEditSelectedStaffProfile ? (
+                                                                <button type="button" className="team-primary-action" onClick={handleSaveStaffProfileDirect} disabled={staffProfileSaving}>
+                                                                    {staffProfileSaving ? "Saving..." : "Save Directly"}
+                                                                </button>
+                                                            ) : (
+                                                                <button type="button" className="team-primary-action" onClick={handleSubmitStaffProfile} disabled={staffProfileSaving}>
+                                                                    {staffProfileSaving ? "Submitting..." : "Submit"}
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </section>
+                                                )}
+                                            </div>
+
+                                            {(canEditSelectedStaffProfile || canAdminDirectEditSelectedStaffProfile) && (
+                                                <button
+                                                    type="button"
+                                                    className="people-mobile-fab"
+                                                    onClick={() => {
+                                                        setStaffProfileDraftOwnerUid(selectedStaffMember.uid);
+                                                        setStaffProfileDraft(normalizeStaffProfile(selectedStaffMember.staffProfileRequest?.requestedProfile || selectedStaffMember.staffProfile));
+                                                        setStaffProfileFeedback("");
+                                                        setStaffProfileEditOpen(true);
+                                                    }}
+                                                >
+                                                    {Icons.Edit()}
+                                                </button>
+                                            )}
+                                        </section>
+
+                                        <div className="people-profile-desktop-shell">
                                         <div className="people-profile-breadcrumb">
                                             <button type="button" onClick={() => setSelectedStaffUid(selectedStaffMember.uid)}>
                                                 Staff Management
@@ -2898,6 +3192,7 @@ export default function Home() {
                                                 )}
                                             </div>
                                         )}
+                                        </div>
                                     </section>
                                 )}
                             </div>
