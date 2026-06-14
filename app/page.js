@@ -28,6 +28,11 @@ import {
     getBranchById,
     getBranchScopeForUser
 } from "../lib/branches";
+import {
+    normalizeStaffMember,
+    normalizeStaffProfile,
+    STAFF_SELF_SERVICE_ROLES
+} from "../lib/staffProfiles";
 
 const V2SettingsManager = dynamic(() => import("./components/V2SettingsManager"), {
     ssr: false,
@@ -325,14 +330,16 @@ export default function Home() {
     const [signupRole, setSignupRole] = useState("customer");
     const roleDefinition = currentUser ? ROLE_DEFINITIONS[currentUser.role] || ROLE_DEFINITIONS["super-admin"] : null;
     const roleLabel = currentUser ? getRoleLabel(currentUser.role) : "";
+    const canSelfManagePeopleProfile = currentUser ? STAFF_SELF_SERVICE_ROLES.includes(normalizeRole(currentUser.role)) : false;
     const canViewDepartment = useCallback((departmentId) => {
         if (!currentUser) return false;
         return roleHasDepartment(currentUser.role, departmentId);
     }, [currentUser]);
-    const canViewPeople = canViewDepartment("people");
+    const canViewPeople = canViewDepartment("people") || canSelfManagePeopleProfile;
     const canViewOperations = canViewDepartment("operations");
     const canViewAdministration = canViewDepartment("administration");
     const canManagePermissions = canManageSystem(currentUser);
+    const canManagePeopleProfiles = currentUser ? ["super-admin", "branch-admin"].includes(normalizeRole(currentUser.role)) : false;
     const needsCrewAssignment = false;
     const branchScope = currentUser ? getBranchScopeForUser({ ...currentUser, activeBranchId: selectedBranchId }) : null;
     const activeBranch = getBranchById(branchScope?.activeBranchId || selectedBranchId || DEFAULT_BRANCH_ID);
@@ -455,6 +462,12 @@ export default function Home() {
     const [profileLoading, setProfileLoading] = useState(false);
     const [securityForm, setSecurityForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
     const [securityLoading, setSecurityLoading] = useState(false);
+    const [selectedStaffUid, setSelectedStaffUid] = useState("");
+    const [staffProfileDraft, setStaffProfileDraft] = useState(null);
+    const [staffProfileDraftOwnerUid, setStaffProfileDraftOwnerUid] = useState("");
+    const [staffProfileSaving, setStaffProfileSaving] = useState(false);
+    const [staffProfileFeedback, setStaffProfileFeedback] = useState("");
+    const [staffProfileRejectReason, setStaffProfileRejectReason] = useState("");
 
     // Shared Secure JWT Authorization Request Fetcher
     const getAuthHeaders = useCallback(async () => {
@@ -474,6 +487,29 @@ export default function Home() {
             return () => clearTimeout(timer);
         }
     }, [currentUser]);
+
+    const peopleRoster = useMemo(() => {
+        if (!currentUser) return [];
+        if (canManagePeopleProfiles) {
+            return fieldStaff.map(member => normalizeStaffMember(member));
+        }
+        return [normalizeStaffMember(currentUser)];
+    }, [currentUser, fieldStaff, canManagePeopleProfiles]);
+
+    const activeSelectedStaffUid = selectedStaffUid || peopleRoster[0]?.uid || "";
+
+    const selectedStaffMember = useMemo(() => {
+        if (!peopleRoster.length) return null;
+        return peopleRoster.find(member => member.uid === activeSelectedStaffUid) || peopleRoster[0];
+    }, [peopleRoster, activeSelectedStaffUid]);
+
+    const activeStaffProfileDraft = useMemo(() => {
+        if (!selectedStaffMember) return null;
+        if (staffProfileDraftOwnerUid === selectedStaffMember.uid && staffProfileDraft) {
+            return staffProfileDraft;
+        }
+        return normalizeStaffProfile(selectedStaffMember.staffProfile);
+    }, [selectedStaffMember, staffProfileDraftOwnerUid, staffProfileDraft]);
 
     // Live pricing rates loader from Serverless API settings/pricing
     useEffect(() => {
@@ -606,13 +642,15 @@ export default function Home() {
             }
 
             // 2. Fetch approved field staff for person-based job assignment
-            const fieldStaffRes = await fetch("/api/users?type=field-staff", { headers });
-            if (fieldStaffRes.ok) {
-                const data = await fieldStaffRes.json();
-                setFieldStaff(data);
-                setTeamLeaders(data.filter(member => ["cleaner", "supervisor"].includes(member.role)));
-            } else {
-                console.error("Field staff sync failed", fieldStaffRes.status, await fieldStaffRes.text());
+            if (isBranchManager) {
+                const fieldStaffRes = await fetch("/api/users?type=field-staff", { headers });
+                if (fieldStaffRes.ok) {
+                    const data = await fieldStaffRes.json();
+                    setFieldStaff(data);
+                    setTeamLeaders(data.filter(member => ["cleaner", "supervisor"].includes(member.role)));
+                } else {
+                    console.error("Field staff sync failed", fieldStaffRes.status, await fieldStaffRes.text());
+                }
             }
 
             // 3. Fetch edit requests scoped by role
@@ -1162,6 +1200,79 @@ export default function Home() {
             alert("V2 Dynamic Catalog saved successfully in database!");
         } catch (err) {
             alert("Failed to save V2 catalog: " + err.message);
+        }
+    };
+
+    const updateStaffDraftField = useCallback((section, field, value) => {
+        setStaffProfileDraft(prev => {
+            const base = prev || normalizeStaffProfile(selectedStaffMember?.staffProfile);
+            if (!base) return prev;
+            if (section === "notes") {
+                return { ...base, notes: value };
+            }
+            return {
+                ...base,
+                [section]: {
+                    ...(base[section] || {}),
+                    [field]: value
+                }
+            };
+        });
+        setStaffProfileDraftOwnerUid(selectedStaffMember?.uid || "");
+    }, [selectedStaffMember]);
+
+    const handleSubmitStaffProfile = async () => {
+        if (!selectedStaffMember || !activeStaffProfileDraft) return;
+        setStaffProfileSaving(true);
+        setStaffProfileFeedback("");
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch("/api/users", {
+                method: "PUT",
+                headers,
+                body: JSON.stringify({
+                    updateSelfStaffProfile: true,
+                    staffProfile: activeStaffProfileDraft
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Failed to submit staff profile.");
+            setCurrentUser(data.user);
+            setStaffProfileDraftOwnerUid(data.user.uid);
+            setStaffProfileDraft(normalizeStaffProfile(data.user.staffProfile));
+            setStaffProfileFeedback(data.message || "Profile saved.");
+            syncDatabaseData(data.user);
+        } catch (err) {
+            setStaffProfileFeedback(err.message || "Failed to submit staff profile.");
+        } finally {
+            setStaffProfileSaving(false);
+        }
+    };
+
+    const handleReviewStaffProfileRequest = async (action) => {
+        if (!selectedStaffMember?.uid) return;
+        setStaffProfileSaving(true);
+        setStaffProfileFeedback("");
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch("/api/users", {
+                method: "PUT",
+                headers,
+                body: JSON.stringify({
+                    reviewStaffProfileRequest: true,
+                    targetUid: selectedStaffMember.uid,
+                    action,
+                    rejectionReason: staffProfileRejectReason
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Failed to review staff profile request.");
+            setStaffProfileFeedback(data.message || "Staff profile updated.");
+            syncDatabaseData(currentUser);
+        } catch (err) {
+            setStaffProfileFeedback(err.message || "Failed to review staff profile request.");
+        } finally {
+            setStaffProfileSaving(false);
         }
     };
 
@@ -2351,63 +2462,240 @@ export default function Home() {
                     <div className="animate-fade flex flex-col gap-6">
                         <div className="ops-control-header">
                             <div>
-                                <p className="ops-eyebrow">Person-based scheduling</p>
-                                <h3 className="ops-title">Field Staff Assignments</h3>
+                                <p className="ops-eyebrow">People Management</p>
+                                <h3 className="ops-title">Field Staff Profiles</h3>
                                 <p className="ops-copy">
-                                    Jobs are assigned to individual cleaners, supervisors, employees, and subcontractors. Crew availability is no longer used for booking.
+                                    Open a staff profile to review branch status, required documents, eligibility, and approval requests. Staff can submit updates from their own login for branch admin approval.
                                 </p>
                             </div>
-                            <span className="ops-chip">{fieldStaff.length} Approved Staff</span>
+                            <span className="ops-chip">{peopleRoster.length} Visible Staff</span>
                         </div>
-                        {fieldStaff.length === 0 ? (
+                        {peopleRoster.length === 0 ? (
                             <div className="empty-state p-12 text-center text-slate-400 bg-white border border-slate-200 rounded-2xl shadow-md">
                                 <svg viewBox="0 0 24 24" width="48" height="48" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-4 text-slate-300"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
                                 <h4 className="font-extrabold text-slate-700 text-sm mb-1">No approved field staff yet</h4>
                                 <p className="text-xs text-slate-400 max-w-[280px] mx-auto">Register and approve cleaners, supervisors, employees, or subcontractors to assign them to jobs.</p>
                             </div>
                         ) : (
-                            <div className="teams-grid">
-                                {fieldStaff.map(member => {
-                                    const assignedJobs = bookings.filter(b => b.assignedStaffIds?.includes(member.uid) && b.status !== "Cancelled");
-                                    const completedCount = assignedJobs.filter(b => b.status === "Completed").length;
-                                    const initials = (member.name || member.email || "FS").split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2) || "FS";
-                                    return (
-                                        <div key={member.uid} className="team-card">
-                                            <div className="team-card-header">
-                                                <div className="team-card-title-group">
-                                                    <div className="team-avatar-square team-sparkle-bg">
-                                                        {initials}
+                            <div className="people-management-shell">
+                                <div className="teams-grid">
+                                    {peopleRoster.map(member => {
+                                        const assignedJobs = bookings.filter(b => b.assignedStaffIds?.includes(member.uid) && b.status !== "Cancelled");
+                                        const completedCount = assignedJobs.filter(b => b.status === "Completed").length;
+                                        const initials = (member.name || member.email || "FS").split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2) || "FS";
+                                        const requestPending = member.staffProfileRequest?.requestedProfile;
+                                        return (
+                                            <button
+                                                key={member.uid}
+                                                type="button"
+                                                onClick={() => {
+                                                    setSelectedStaffUid(member.uid);
+                                                    setStaffProfileDraftOwnerUid(member.uid);
+                                                    setStaffProfileDraft(normalizeStaffProfile(member.staffProfile));
+                                                    setStaffProfileFeedback("");
+                                                    setStaffProfileRejectReason("");
+                                                }}
+                                                className={`team-card team-card-button ${selectedStaffMember?.uid === member.uid ? "team-card-active" : ""}`}
+                                            >
+                                                <div className="team-card-header">
+                                                    <div className="team-card-title-group">
+                                                        <div className="team-avatar-square team-sparkle-bg">
+                                                            {initials}
+                                                        </div>
+                                                        <div className="team-card-info">
+                                                            <h4>{member.name}</h4>
+                                                            <span>
+                                                                {getRoleLabel(member.role)} · {member.branchName || "Ottawa"}
+                                                            </span>
+                                                        </div>
                                                     </div>
-                                                    <div className="team-card-info">
-                                                        <h4>{member.name}</h4>
-                                                        <span>
-                                                            {getRoleLabel(member.role)} · {member.branchName || "Ottawa"}
-                                                        </span>
+                                                    {requestPending && <span className="ops-chip ops-chip-green">Needs Review</span>}
+                                                </div>
+                                                <div className="team-card-body">
+                                                    <p className="text-xs text-slate-400 mb-4 italic">{member.email}</p>
+                                                    <div className="team-members-container">
+                                                        <h5 className="team-section-title">Profile Status</h5>
+                                                        <div className="flex flex-col gap-2 text-xs text-slate-600">
+                                                            <div><strong>Account:</strong> {member.status}</div>
+                                                            <div><strong>Profile:</strong> {member.staffProfileMeta?.status || "incomplete"}</div>
+                                                            <div><strong>Branch:</strong> {member.branchName || "Ottawa"}</div>
+                                                        </div>
                                                     </div>
+                                                    <div className="team-jobs-today-container mt-4 pt-3 border-t border-slate-100">
+                                                        <div className="flex justify-between items-center text-xs font-bold text-slate-500">
+                                                            <span>Assigned jobs: <strong>{assignedJobs.length}</strong></span>
+                                                            <span>Completed: <strong>{completedCount}</strong></span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
+                                {selectedStaffMember && activeStaffProfileDraft && (
+                                    <section className="people-profile-canvas">
+                                        <div className="people-profile-breadcrumb">
+                                            <button type="button" onClick={() => setSelectedStaffUid(selectedStaffMember.uid)}>
+                                                People Management
+                                            </button>
+                                            <span>/</span>
+                                            <strong>{selectedStaffMember.name}</strong>
+                                        </div>
+
+                                        <div className="people-profile-hero">
+                                            <div className="people-profile-hero-main">
+                                                <div className="people-profile-avatar">
+                                                    {(selectedStaffMember.name || selectedStaffMember.email || "FS").split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)}
+                                                </div>
+                                                <div className="people-profile-headings">
+                                                    <h3>{selectedStaffMember.name}</h3>
+                                                    <p>{getRoleLabel(selectedStaffMember.role)} · {selectedStaffMember.branchName || "Ottawa"}</p>
+                                                    <span>{selectedStaffMember.email}</span>
                                                 </div>
                                             </div>
-                                            <div className="team-card-body">
-                                                <p className="text-xs text-slate-400 mb-4 italic">{member.email}</p>
-
-                                                <div className="team-members-container">
-                                                    <h5 className="team-section-title">Assignment Profile</h5>
-                                                    <div className="flex flex-col gap-2 text-xs text-slate-600">
-                                                        <div><strong>Status:</strong> {member.status}</div>
-                                                        <div><strong>Role:</strong> {getRoleLabel(member.role)}</div>
-                                                        <div><strong>Branch:</strong> {member.branchName || "Ottawa"}</div>
-                                                    </div>
-                                                </div>
-
-                                                <div className="team-jobs-today-container mt-4 pt-3 border-t border-slate-100">
-                                                    <div className="flex justify-between items-center text-xs font-bold text-slate-500">
-                                                        <span>Assigned jobs: <strong>{assignedJobs.length}</strong></span>
-                                                        <span>Completed: <strong>{completedCount}</strong></span>
-                                                    </div>
-                                                </div>
+                                            <div className="people-profile-hero-actions">
+                                                <span className="people-status-pill">{selectedStaffMember.staffProfileMeta?.status || "incomplete"}</span>
+                                                <span className="people-status-subtext">Account: {selectedStaffMember.status}</span>
                                             </div>
                                         </div>
-                                    );
-                                })}
+
+                                        <div className="people-profile-stat-grid">
+                                            <div className="people-profile-stat-card">
+                                                <p>Assigned Jobs</p>
+                                                <strong>{bookings.filter(b => b.assignedStaffIds?.includes(selectedStaffMember.uid) && b.status !== "Cancelled").length}</strong>
+                                            </div>
+                                            <div className="people-profile-stat-card">
+                                                <p>Completed Jobs</p>
+                                                <strong>{bookings.filter(b => b.assignedStaffIds?.includes(selectedStaffMember.uid) && b.status === "Completed").length}</strong>
+                                            </div>
+                                            <div className="people-profile-stat-card">
+                                                <p>Last Approval</p>
+                                                <strong>{selectedStaffMember.staffProfileMeta?.approvedAt ? selectedStaffMember.staffProfileMeta.approvedAt.split("T")[0] : "Pending"}</strong>
+                                            </div>
+                                            <div className="people-profile-stat-card">
+                                                <p>Eligibility Window</p>
+                                                <strong>{selectedStaffMember.staffProfileMeta?.lastEligibilityUpdateAt ? "48h cooldown" : "Open"}</strong>
+                                            </div>
+                                        </div>
+
+                                        {staffProfileFeedback && (
+                                            <div className="people-profile-message">
+                                                {staffProfileFeedback}
+                                            </div>
+                                        )}
+
+                                        {canManagePeopleProfiles && selectedStaffMember.staffProfileRequest?.requestedProfile && (
+                                            <div className="people-review-panel">
+                                                <div>
+                                                    <p className="ops-eyebrow">Approval Queue</p>
+                                                    <h4>Pending Staff Profile Request</h4>
+                                                    <p>
+                                                        Submitted by {selectedStaffMember.staffProfileRequest.submittedByName} on {selectedStaffMember.staffProfileRequest.submittedAt?.split("T")[0]}.
+                                                    </p>
+                                                </div>
+                                                <textarea
+                                                    placeholder="Optional rejection reason for branch admin feedback"
+                                                    value={staffProfileRejectReason}
+                                                    onChange={e => setStaffProfileRejectReason(e.target.value)}
+                                                />
+                                                <div className="people-review-actions">
+                                                    <button type="button" className="team-primary-action" onClick={() => handleReviewStaffProfileRequest("approve")} disabled={staffProfileSaving}>
+                                                        Approve Changes
+                                                    </button>
+                                                    <button type="button" className="team-secondary-action" onClick={() => handleReviewStaffProfileRequest("reject")} disabled={staffProfileSaving}>
+                                                        Reject Changes
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <div className="people-profile-section-grid">
+                                            <article className="people-profile-section">
+                                                <div className="people-profile-section-head">
+                                                    <p className="ops-eyebrow">Identity</p>
+                                                    <h4>Personal Information</h4>
+                                                </div>
+                                                <div className="people-profile-form-grid">
+                                                    <label><span>Legal name</span><input value={activeStaffProfileDraft.personal.legalName} onChange={e => updateStaffDraftField("personal", "legalName", e.target.value)} disabled={canManagePeopleProfiles} /></label>
+                                                    <label><span>Preferred name</span><input value={activeStaffProfileDraft.personal.preferredName} onChange={e => updateStaffDraftField("personal", "preferredName", e.target.value)} disabled={canManagePeopleProfiles} /></label>
+                                                    <label><span>Phone</span><input value={activeStaffProfileDraft.personal.phone} onChange={e => updateStaffDraftField("personal", "phone", e.target.value)} disabled={canManagePeopleProfiles} /></label>
+                                                    <label><span>Date of birth</span><input type="date" value={activeStaffProfileDraft.personal.dateOfBirth} onChange={e => updateStaffDraftField("personal", "dateOfBirth", e.target.value)} disabled={canManagePeopleProfiles} /></label>
+                                                    <label className="span-2"><span>Address</span><input value={activeStaffProfileDraft.personal.address} onChange={e => updateStaffDraftField("personal", "address", e.target.value)} disabled={canManagePeopleProfiles} /></label>
+                                                    <label><span>City</span><input value={activeStaffProfileDraft.personal.city} onChange={e => updateStaffDraftField("personal", "city", e.target.value)} disabled={canManagePeopleProfiles} /></label>
+                                                    <label><span>Postal code</span><input value={activeStaffProfileDraft.personal.postalCode} onChange={e => updateStaffDraftField("personal", "postalCode", e.target.value)} disabled={canManagePeopleProfiles} /></label>
+                                                </div>
+                                            </article>
+
+                                            <article className="people-profile-section">
+                                                <div className="people-profile-section-head">
+                                                    <p className="ops-eyebrow">Support</p>
+                                                    <h4>Emergency Contact</h4>
+                                                </div>
+                                                <div className="people-profile-form-grid">
+                                                    <label><span>Contact name</span><input value={activeStaffProfileDraft.emergency.contactName} onChange={e => updateStaffDraftField("emergency", "contactName", e.target.value)} disabled={canManagePeopleProfiles} /></label>
+                                                    <label><span>Relationship</span><input value={activeStaffProfileDraft.emergency.relationship} onChange={e => updateStaffDraftField("emergency", "relationship", e.target.value)} disabled={canManagePeopleProfiles} /></label>
+                                                    <label className="span-2"><span>Phone</span><input value={activeStaffProfileDraft.emergency.phone} onChange={e => updateStaffDraftField("emergency", "phone", e.target.value)} disabled={canManagePeopleProfiles} /></label>
+                                                </div>
+                                            </article>
+
+                                            <article className="people-profile-section">
+                                                <div className="people-profile-section-head">
+                                                    <p className="ops-eyebrow">Employment</p>
+                                                    <h4>Work Profile</h4>
+                                                </div>
+                                                <div className="people-profile-form-grid">
+                                                    <label><span>Worker type</span><input value={activeStaffProfileDraft.employment.workerType} onChange={e => updateStaffDraftField("employment", "workerType", e.target.value)} disabled={canManagePeopleProfiles} /></label>
+                                                    <label><span>Years experience</span><input value={activeStaffProfileDraft.employment.yearsExperience} onChange={e => updateStaffDraftField("employment", "yearsExperience", e.target.value)} disabled={canManagePeopleProfiles} /></label>
+                                                    <label><span>Languages</span><input value={activeStaffProfileDraft.employment.languages} onChange={e => updateStaffDraftField("employment", "languages", e.target.value)} disabled={canManagePeopleProfiles} /></label>
+                                                    <label><span>T-shirt size</span><input value={activeStaffProfileDraft.employment.tshirtSize} onChange={e => updateStaffDraftField("employment", "tshirtSize", e.target.value)} disabled={canManagePeopleProfiles} /></label>
+                                                    <label className="span-2"><span>Availability notes</span><textarea value={activeStaffProfileDraft.employment.availabilityNotes} onChange={e => updateStaffDraftField("employment", "availabilityNotes", e.target.value)} disabled={canManagePeopleProfiles} /></label>
+                                                </div>
+                                            </article>
+
+                                            <article className="people-profile-section">
+                                                <div className="people-profile-section-head">
+                                                    <p className="ops-eyebrow">Eligibility</p>
+                                                    <h4>Editable Every 48 Hours</h4>
+                                                </div>
+                                                <div className="people-profile-form-grid">
+                                                    <label><span>Work status</span><input value={activeStaffProfileDraft.eligibility.workStatus} onChange={e => updateStaffDraftField("eligibility", "workStatus", e.target.value)} disabled={canManagePeopleProfiles} /></label>
+                                                    <label><span>Permit expiry</span><input type="date" value={activeStaffProfileDraft.eligibility.workPermitExpiry} onChange={e => updateStaffDraftField("eligibility", "workPermitExpiry", e.target.value)} disabled={canManagePeopleProfiles} /></label>
+                                                    <label><span>SIN last 4</span><input value={activeStaffProfileDraft.eligibility.sinLast4} onChange={e => updateStaffDraftField("eligibility", "sinLast4", e.target.value)} disabled={canManagePeopleProfiles} /></label>
+                                                    <label><span>License class</span><input value={activeStaffProfileDraft.eligibility.driversLicenseClass} onChange={e => updateStaffDraftField("eligibility", "driversLicenseClass", e.target.value)} disabled={canManagePeopleProfiles} /></label>
+                                                    <label className="people-checkbox"><input type="checkbox" checked={activeStaffProfileDraft.eligibility.hasDriversLicense} onChange={e => updateStaffDraftField("eligibility", "hasDriversLicense", e.target.checked)} disabled={canManagePeopleProfiles} /><span>Has drivers license</span></label>
+                                                    <label className="people-checkbox"><input type="checkbox" checked={activeStaffProfileDraft.eligibility.hasVehicle} onChange={e => updateStaffDraftField("eligibility", "hasVehicle", e.target.checked)} disabled={canManagePeopleProfiles} /><span>Has vehicle</span></label>
+                                                </div>
+                                            </article>
+
+                                            <article className="people-profile-section">
+                                                <div className="people-profile-section-head">
+                                                    <p className="ops-eyebrow">Compliance</p>
+                                                    <h4>Documents and Approval Locks</h4>
+                                                </div>
+                                                <div className="people-profile-form-grid">
+                                                    <label><span>Background check</span><input value={activeStaffProfileDraft.compliance.backgroundCheckStatus} onChange={e => updateStaffDraftField("compliance", "backgroundCheckStatus", e.target.value)} disabled={canManagePeopleProfiles} /></label>
+                                                    <label><span>Background expiry</span><input type="date" value={activeStaffProfileDraft.compliance.backgroundCheckExpiry} onChange={e => updateStaffDraftField("compliance", "backgroundCheckExpiry", e.target.value)} disabled={canManagePeopleProfiles} /></label>
+                                                    <label><span>Insurance status</span><input value={activeStaffProfileDraft.compliance.insuranceStatus} onChange={e => updateStaffDraftField("compliance", "insuranceStatus", e.target.value)} disabled={canManagePeopleProfiles} /></label>
+                                                    <label><span>Insurance expiry</span><input type="date" value={activeStaffProfileDraft.compliance.insuranceExpiry} onChange={e => updateStaffDraftField("compliance", "insuranceExpiry", e.target.value)} disabled={canManagePeopleProfiles} /></label>
+                                                    <label><span>Training status</span><input value={activeStaffProfileDraft.compliance.trainingStatus} onChange={e => updateStaffDraftField("compliance", "trainingStatus", e.target.value)} disabled={canManagePeopleProfiles} /></label>
+                                                    <label className="people-checkbox"><input type="checkbox" checked={activeStaffProfileDraft.compliance.contractSigned} onChange={e => updateStaffDraftField("compliance", "contractSigned", e.target.checked)} disabled={canManagePeopleProfiles} /><span>Contract signed</span></label>
+                                                </div>
+                                            </article>
+                                        </div>
+
+                                        {!canManagePeopleProfiles && (
+                                            <div className="people-profile-footer">
+                                                <p>
+                                                    Most profile changes are locked after branch admin approval. Eligibility can be edited by cleaners every 48 hours and is saved separately when eligible.
+                                                </p>
+                                                <button type="button" className="team-primary-action" onClick={handleSubmitStaffProfile} disabled={staffProfileSaving}>
+                                                    {staffProfileSaving ? "Submitting..." : "Submit Profile Update"}
+                                                </button>
+                                            </div>
+                                        )}
+                                    </section>
+                                )}
                             </div>
                         )}
                     </div>

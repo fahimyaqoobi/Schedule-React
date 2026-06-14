@@ -2,6 +2,14 @@ import { NextResponse } from "next/server";
 import { adminDb, adminAuth } from "../../../lib/firebase-admin";
 import { ROLE_DEFINITIONS, canManageBranch, canManageSystem, normalizeRole } from "../../../lib/permissions";
 import { createDefaultBranchUserFields } from "../../../lib/branches";
+import {
+    canSelfEditEligibility,
+    getChangedStaffProfileSections,
+    isEligibilityOnlyChange,
+    normalizeStaffMember,
+    normalizeStaffProfile,
+    normalizeStaffProfileMeta
+} from "../../../lib/staffProfiles";
 
 async function authenticateRequest(request) {
     const authHeader = request.headers.get("Authorization");
@@ -51,7 +59,7 @@ export async function GET(request) {
         const type = searchParams.get("type");
         
         if (type === "me") {
-            return NextResponse.json(user, { status: 200 });
+            return NextResponse.json(normalizeStaffMember(user), { status: 200 });
         }
         
         if (type === "field-staff") {
@@ -64,7 +72,7 @@ export async function GET(request) {
                 const data = doc.data();
                 const role = normalizeRole(data.role);
                 if (["cleaner", "supervisor", "employee", "subcontractor"].includes(role)) {
-                    list.push(data);
+                    list.push(normalizeStaffMember(data));
                 }
             });
             return NextResponse.json(list, { status: 200 });
@@ -119,7 +127,7 @@ export async function GET(request) {
             const data = doc.data();
             const role = normalizeRole(data.role);
             if (!roleFilter || roleFilter.includes(data.role) || roleFilter.includes(role)) {
-                list.push(data);
+                list.push(normalizeStaffMember(data));
             }
         });
         
@@ -195,7 +203,128 @@ export async function PUT(request) {
             await userRef.update({ name: body.name });
             
             const docSnap = await userRef.get();
-            return NextResponse.json({ message: "Profile updated successfully", user: docSnap.data() }, { status: 200 });
+            return NextResponse.json({ message: "Profile updated successfully", user: normalizeStaffMember(docSnap.data()) }, { status: 200 });
+        }
+
+        if (body.updateSelfStaffProfile) {
+            const userRef = adminDb.collection("users").doc(user.uid);
+            const docSnap = await userRef.get();
+            if (!docSnap.exists) {
+                return NextResponse.json({ error: "User profile not found" }, { status: 404 });
+            }
+
+            const currentData = normalizeStaffMember(docSnap.data());
+            const nextProfile = normalizeStaffProfile(body.staffProfile);
+            const changedSections = getChangedStaffProfileSections(currentData.staffProfile, nextProfile);
+
+            if (changedSections.length === 0) {
+                return NextResponse.json({ error: "No profile changes were detected." }, { status: 400 });
+            }
+
+            const nowIso = new Date().toISOString();
+            const currentMeta = normalizeStaffProfileMeta(currentData.staffProfileMeta);
+
+            if (isEligibilityOnlyChange(changedSections) && currentMeta.status === "approved") {
+                if (!canSelfEditEligibility(currentMeta)) {
+                    return NextResponse.json({ error: "Eligibility can only be edited once every 48 hours after approval." }, { status: 400 });
+                }
+
+                const nextData = {
+                    ...currentData,
+                    staffProfile: {
+                        ...currentData.staffProfile,
+                        eligibility: nextProfile.eligibility
+                    },
+                    staffProfileMeta: {
+                        ...currentMeta,
+                        lastEligibilityUpdateAt: nowIso,
+                        rejectionReason: ""
+                    },
+                    updatedAt: nowIso
+                };
+
+                await userRef.set(nextData);
+                return NextResponse.json({ message: "Eligibility updated successfully.", user: normalizeStaffMember(nextData) }, { status: 200 });
+            }
+
+            const nextData = {
+                ...currentData,
+                staffProfileRequest: {
+                    requestedProfile: nextProfile,
+                    changedSections,
+                    submittedAt: nowIso,
+                    submittedByUid: user.uid,
+                    submittedByName: currentData.name || currentData.email || "Staff member"
+                },
+                staffProfileMeta: {
+                    ...currentMeta,
+                    status: "pending_admin_review",
+                    lastSubmittedAt: nowIso,
+                    rejectionReason: ""
+                },
+                updatedAt: nowIso
+            };
+
+            await userRef.set(nextData);
+            return NextResponse.json({ message: "Profile update submitted for branch admin approval.", user: normalizeStaffMember(nextData) }, { status: 200 });
+        }
+
+        if (body.reviewStaffProfileRequest) {
+            if (!canManageBranch(user)) {
+                return NextResponse.json({ error: "Forbidden: Only branch administrators can review staff profile requests." }, { status: 403 });
+            }
+
+            const { targetUid, action, rejectionReason } = body;
+            if (!targetUid || !action) {
+                return NextResponse.json({ error: "Missing required review fields." }, { status: 400 });
+            }
+
+            const userRef = adminDb.collection("users").doc(targetUid);
+            const docSnap = await userRef.get();
+            if (!docSnap.exists) {
+                return NextResponse.json({ error: "User profile not found" }, { status: 404 });
+            }
+
+            const targetData = normalizeStaffMember(docSnap.data());
+            if (!targetData.staffProfileRequest?.requestedProfile) {
+                return NextResponse.json({ error: "There is no pending staff profile request for this user." }, { status: 400 });
+            }
+
+            const nowIso = new Date().toISOString();
+            let nextData;
+
+            if (action === "approve") {
+                nextData = {
+                    ...targetData,
+                    staffProfile: normalizeStaffProfile(targetData.staffProfileRequest.requestedProfile),
+                    staffProfileRequest: null,
+                    staffProfileMeta: {
+                        ...normalizeStaffProfileMeta(targetData.staffProfileMeta),
+                        status: "approved",
+                        approvedAt: nowIso,
+                        lastAdminReviewAt: nowIso,
+                        rejectionReason: ""
+                    },
+                    updatedAt: nowIso
+                };
+            } else if (action === "reject") {
+                nextData = {
+                    ...targetData,
+                    staffProfileRequest: null,
+                    staffProfileMeta: {
+                        ...normalizeStaffProfileMeta(targetData.staffProfileMeta),
+                        status: targetData.staffProfileMeta?.approvedAt ? "approved" : "incomplete",
+                        lastAdminReviewAt: nowIso,
+                        rejectionReason: rejectionReason || "Branch admin rejected the submitted profile changes."
+                    },
+                    updatedAt: nowIso
+                };
+            } else {
+                return NextResponse.json({ error: "Invalid review action." }, { status: 400 });
+            }
+
+            await userRef.set(nextData);
+            return NextResponse.json({ message: `Staff profile request ${action}d successfully.`, user: normalizeStaffMember(nextData) }, { status: 200 });
         }
         
         if (!canManageSystem(user)) {
