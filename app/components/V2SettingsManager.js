@@ -203,7 +203,7 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
             </div>
 
             <div className="catalog-studio-layout bg-slate-50/70 p-6">
-                <aside className="rounded-brand-lg border border-brand-mist bg-white p-5 shadow-sm">
+                <section className="rounded-brand-lg border border-brand-mist bg-white p-5 shadow-sm">
                     <div className="mb-5 flex items-center justify-between">
                         <h4 className="font-heading text-sm font-black uppercase tracking-wider text-brand-slate">Services</h4>
                         <span className="rounded-full bg-brand-mist/55 px-2.5 py-1 text-[10px] font-bold text-brand-slate">
@@ -238,254 +238,250 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
                     >
                         + Add Service
                     </button>
-                </aside>
+                </section>
 
-                <div className="flex min-w-0 flex-col gap-6">
-                    <div className="rounded-brand-lg border border-brand-mist bg-white p-7 shadow-sm">
-                        <div className="catalog-studio-service-header mb-6 gap-5">
-                            <div className="min-w-0">
-                                <p className="font-heading text-[11px] font-bold uppercase tracking-wider text-brand-sky">Selected Service</p>
-                                <h4 className="mt-2 break-words font-heading text-[2rem] font-black leading-tight text-brand-slate">{activeCategory.name}</h4>
+                <section className="rounded-brand-lg border border-brand-mist bg-white p-7 shadow-sm">
+                    <div className="catalog-studio-service-header mb-6 gap-5">
+                        <div className="min-w-0">
+                            <p className="font-heading text-[11px] font-bold uppercase tracking-wider text-brand-sky">Selected Service</p>
+                            <h4 className="mt-2 break-words font-heading text-[2rem] font-black leading-tight text-brand-slate">{activeCategory.name}</h4>
+                        </div>
+                        <div className="flex flex-wrap items-center justify-end gap-3">
+                            <span className="rounded-full bg-brand-action/10 px-4 py-2 font-heading text-xs font-bold uppercase text-brand-action">
+                                {activeCategory.pricingModel.replaceAll("_", " ")}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={deleteService}
+                                disabled={catalog.categories.length <= 1}
+                                className={`${dangerButtonClass} disabled:cursor-not-allowed disabled:opacity-50`}
+                            >
+                                Delete Service
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="space-y-6">
+                        <div>
+                            <label className="mb-2.5 block font-heading text-xs font-bold uppercase tracking-wide text-brand-slate">Service Name</label>
+                            <input
+                                type="text"
+                                value={activeCategory.name}
+                                onChange={e => updateCategoryField("name", e.target.value)}
+                                className={fieldClass}
+                            />
+                        </div>
+
+                        <div>
+                            <label className="mb-2.5 block font-heading text-xs font-bold uppercase tracking-wide text-brand-slate">Pricing Model</label>
+                            <select
+                                value={activeCategory.pricingModel}
+                                onChange={e => updateCategoryField("pricingModel", e.target.value)}
+                                className={fieldClass}
+                            >
+                                <option value="flat_rate">Flat Rate</option>
+                                <option value="size_based">Size-Based Tiers</option>
+                                <option value="flat_plus_unit">Base Rate + Per Unit</option>
+                                <option value="flat_plus_sqft">Base Rate + Per SqFt</option>
+                            </select>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-5">
+                            <div>
+                                <label className="mb-2.5 block font-heading text-xs font-bold uppercase tracking-wide text-brand-slate">Base Rate</label>
+                                <div className="relative">
+                                    <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 font-heading text-xs font-black text-slate-400">$</span>
+                                    <input
+                                        type="number"
+                                        value={activeCategory.baseRate}
+                                        onChange={e => updateCategoryField("baseRate", parseFloat(e.target.value))}
+                                        className={`${fieldClass} catalog-studio-field-currency`}
+                                    />
+                                </div>
                             </div>
-                            <div className="flex flex-wrap items-center justify-end gap-3">
-                                <span className="rounded-full bg-brand-action/10 px-4 py-2 font-heading text-xs font-bold uppercase text-brand-action">
-                                    {activeCategory.pricingModel.replaceAll("_", " ")}
-                                </span>
-                                <button
-                                    type="button"
-                                    onClick={deleteService}
-                                    disabled={catalog.categories.length <= 1}
-                                    className={`${dangerButtonClass} disabled:cursor-not-allowed disabled:opacity-50`}
-                                >
-                                    Delete Service
-                                </button>
+                            <div>
+                                <label className="mb-2.5 block font-heading text-xs font-bold uppercase tracking-wide text-brand-slate">Duration</label>
+                                <div className="relative">
+                                    <input
+                                        type="number"
+                                        step="0.5"
+                                        value={activeCategory.durationHrs || 0}
+                                        onChange={e => updateCategoryField("durationHrs", parseFloat(e.target.value))}
+                                        className={`${fieldClass} catalog-studio-field-unit`}
+                                    />
+                                    <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 font-heading text-xs font-black text-slate-400">hrs</span>
+                                </div>
                             </div>
                         </div>
 
-                        <div className="space-y-6">
-                            <div>
-                                <label className="mb-2.5 block font-heading text-xs font-bold uppercase tracking-wide text-brand-slate">Service Name</label>
-                                <input
-                                    type="text"
-                                    value={activeCategory.name}
-                                    onChange={e => updateCategoryField("name", e.target.value)}
-                                    className={fieldClass}
-                                />
-                            </div>
-
-                            <div>
-                                <label className="mb-2.5 block font-heading text-xs font-bold uppercase tracking-wide text-brand-slate">Pricing Model</label>
-                                <select
-                                    value={activeCategory.pricingModel}
-                                    onChange={e => updateCategoryField("pricingModel", e.target.value)}
-                                    className={fieldClass}
-                                >
-                                    <option value="flat_rate">Flat Rate</option>
-                                    <option value="size_based">Size-Based Tiers</option>
-                                    <option value="flat_plus_unit">Base Rate + Per Unit</option>
-                                    <option value="flat_plus_sqft">Base Rate + Per SqFt</option>
-                                </select>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-5">
+                        {(activeCategory.pricingModel === "flat_plus_unit" || activeCategory.pricingModel === "flat_plus_sqft") && (
+                            <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="mb-2.5 block font-heading text-xs font-bold uppercase tracking-wide text-brand-slate">Base Rate</label>
+                                    <label className="mb-2 block font-heading text-xs font-bold uppercase tracking-wide text-brand-slate">Unit Label</label>
+                                    <input
+                                        type="text"
+                                        value={activeCategory.unitName || ""}
+                                        onChange={e => updateCategoryField("unitName", e.target.value)}
+                                        className={fieldClass}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="mb-2 block font-heading text-xs font-bold uppercase tracking-wide text-brand-slate">Unit Price</label>
                                     <div className="relative">
                                         <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 font-heading text-xs font-black text-slate-400">$</span>
                                         <input
                                             type="number"
-                                            value={activeCategory.baseRate}
-                                            onChange={e => updateCategoryField("baseRate", parseFloat(e.target.value))}
+                                            value={activeCategory.unitPrice || 0}
+                                            onChange={e => updateCategoryField("unitPrice", parseFloat(e.target.value) || 0)}
                                             className={`${fieldClass} catalog-studio-field-currency`}
                                         />
                                     </div>
                                 </div>
-                                <div>
-                                    <label className="mb-2.5 block font-heading text-xs font-bold uppercase tracking-wide text-brand-slate">Duration</label>
-                                    <div className="relative">
-                                        <input
-                                            type="number"
-                                            step="0.5"
-                                            value={activeCategory.durationHrs || 0}
-                                            onChange={e => updateCategoryField("durationHrs", parseFloat(e.target.value))}
-                                            className={`${fieldClass} catalog-studio-field-unit`}
-                                        />
-                                        <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 font-heading text-xs font-black text-slate-400">hrs</span>
-                                    </div>
-                                </div>
                             </div>
-
-                            {(activeCategory.pricingModel === "flat_plus_unit" || activeCategory.pricingModel === "flat_plus_sqft") && (
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="mb-2 block font-heading text-xs font-bold uppercase tracking-wide text-brand-slate">Unit Label</label>
-                                        <input
-                                            type="text"
-                                            value={activeCategory.unitName || ""}
-                                            onChange={e => updateCategoryField("unitName", e.target.value)}
-                                            className={fieldClass}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="mb-2 block font-heading text-xs font-bold uppercase tracking-wide text-brand-slate">Unit Price</label>
-                                        <div className="relative">
-                                            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 font-heading text-xs font-black text-slate-400">$</span>
-                                            <input
-                                                type="number"
-                                                value={activeCategory.unitPrice || 0}
-                                                onChange={e => updateCategoryField("unitPrice", parseFloat(e.target.value) || 0)}
-                                                className={`${fieldClass} catalog-studio-field-currency`}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
+                        )}
                     </div>
+                </section>
 
-                    {activeCategory.pricingModel === "size_based" && (
-                        <div className="rounded-brand-lg border border-brand-mist bg-white p-6 shadow-sm">
-                            <div className="mb-5 flex items-center justify-between gap-4">
-                                <h4 className="font-heading text-sm font-black uppercase tracking-wider text-brand-slate">Size Tiers</h4>
-                                <button type="button" onClick={addSizeTier} className={secondaryButtonClass}>
-                                    + Add Tier
-                                </button>
-                            </div>
-                            <div className="max-h-[420px] overflow-y-auto pt-1">
-                                {(activeCategory.sizes || []).map(size => (
-                                    <details key={size.id} className="catalog-studio-collapsible" open>
-                                        <summary className="catalog-studio-collapsible-summary">
-                                            <span className="catalog-studio-collapsible-title">{size.name || "Untitled Tier"}</span>
-                                            <span className="catalog-studio-collapsible-meta">
-                                                ${parseFloat(size.price || 0).toFixed(2)} • {parseFloat(size.durationHrs || 0).toFixed(1)} hrs
-                                            </span>
-                                        </summary>
-                                        <div className="catalog-studio-collapsible-body">
-                                            <div className="catalog-studio-collapsible-grid">
-                                                <div className={fieldGroupClass}>
-                                                    <label className="catalog-studio-mini-label">Tier Name</label>
-                                                    <input
-                                                        type="text"
-                                                        value={size.name}
-                                                        onChange={e => updateSize(size.id, "name", e.target.value)}
-                                                        className={fieldClass}
-                                                    />
-                                                </div>
-                                                <div className={fieldGroupClass}>
-                                                    <label className="catalog-studio-mini-label">Price</label>
-                                                    <input
-                                                        type="number"
-                                                        value={size.price}
-                                                        onChange={e => updateSize(size.id, "price", parseFloat(e.target.value))}
-                                                        className={fieldClass}
-                                                    />
-                                                </div>
-                                                <div className={fieldGroupClass}>
-                                                    <label className="catalog-studio-mini-label">Hours</label>
-                                                    <input
-                                                        type="number"
-                                                        step="0.5"
-                                                        value={size.durationHrs}
-                                                        onChange={e => updateSize(size.id, "durationHrs", parseFloat(e.target.value) || 0)}
-                                                        className={fieldClass}
-                                                    />
-                                                </div>
-                                            </div>
-                                            <div className="catalog-studio-collapsible-actions">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => deleteSizeTier(size.id)}
-                                                    className={dangerButtonClass}
-                                                >
-                                                    Delete Tier
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </details>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                <div className="min-w-0">
-                    <div className="flex h-full flex-col rounded-brand-lg border border-brand-mist bg-white shadow-sm">
-                        <div className="flex items-center justify-between gap-4 border-b border-brand-mist px-6 py-5">
-                            <div>
-                                <p className="font-heading text-[11px] font-bold uppercase tracking-wider text-brand-sky">Rules</p>
-                                <h4 className="font-heading text-2xl font-black text-brand-slate">Service-Specific Add-ons</h4>
-                            </div>
-                            <button type="button" onClick={addAddon} className={secondaryButtonClass}>
-                                + Add Add-on
+                {activeCategory.pricingModel === "size_based" && (
+                    <section className="rounded-brand-lg border border-brand-mist bg-white p-6 shadow-sm">
+                        <div className="mb-5 flex items-center justify-between gap-4">
+                            <h4 className="font-heading text-sm font-black uppercase tracking-wider text-brand-slate">Size Tiers</h4>
+                            <button type="button" onClick={addSizeTier} className={secondaryButtonClass}>
+                                + Add Tier
                             </button>
                         </div>
-
-                        <div className="flex-1 overflow-y-auto px-6 py-4">
-                            {(activeCategory.addons || []).length === 0 ? (
-                                <div className="flex h-40 items-center justify-center rounded-brand-sm border border-dashed border-brand-mist text-sm font-semibold text-slate-400">
-                                    No add-ons configured for this service.
-                                </div>
-                            ) : (
-                                (activeCategory.addons || []).map(addon => (
-                                    <details key={addon.id} className="catalog-studio-collapsible" open>
-                                        <summary className="catalog-studio-collapsible-summary">
-                                            <span className="catalog-studio-collapsible-title">{addon.name || "Untitled Add-on"}</span>
-                                            <span className="catalog-studio-collapsible-meta">
-                                                ${parseFloat(addon.price || 0).toFixed(2)} • {addon.qtySelector ? "Qty selector on" : "Single add-on"}
-                                            </span>
-                                        </summary>
-                                        <div className="catalog-studio-collapsible-body">
-                                            <div className="catalog-studio-collapsible-grid">
-                                                <div className={fieldGroupClass}>
-                                                    <label className="catalog-studio-mini-label">Add-on Name</label>
-                                                    <input
-                                                        type="text"
-                                                        value={addon.name}
-                                                        onChange={e => updateAddon(addon.id, "name", e.target.value)}
-                                                        className={fieldClass}
-                                                    />
-                                                </div>
-                                                <div className={fieldGroupClass}>
-                                                    <label className="catalog-studio-mini-label">Price</label>
-                                                    <div className="relative">
-                                                        <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 font-heading text-xs font-black text-slate-400">$</span>
-                                                        <input
-                                                            type="number"
-                                                            value={addon.price}
-                                                            onChange={e => updateAddon(addon.id, "price", parseFloat(e.target.value))}
-                                                            className={`${fieldClass} catalog-studio-field-currency`}
-                                                        />
-                                                    </div>
-                                                </div>
-                                                <div className={fieldGroupClass}>
-                                                    <label className="catalog-studio-mini-label">Quantity Setting</label>
-                                                    <label className="flex h-11 cursor-pointer items-center gap-2 rounded-brand-sm border border-brand-mist/90 bg-white px-4">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={addon.qtySelector}
-                                                            onChange={e => updateAddon(addon.id, "qtySelector", e.target.checked)}
-                                                            className="h-4 w-4 rounded-brand-sm border-brand-mist accent-brand-action"
-                                                        />
-                                                        <span className="font-heading text-[10px] font-bold uppercase text-slate-500">Qty selector</span>
-                                                    </label>
-                                                </div>
+                        <div className="max-h-[420px] overflow-y-auto pt-1">
+                            {(activeCategory.sizes || []).map(size => (
+                                <details key={size.id} className="catalog-studio-collapsible" open>
+                                    <summary className="catalog-studio-collapsible-summary">
+                                        <span className="catalog-studio-collapsible-title">{size.name || "Untitled Tier"}</span>
+                                        <span className="catalog-studio-collapsible-meta">
+                                            ${parseFloat(size.price || 0).toFixed(2)} • {parseFloat(size.durationHrs || 0).toFixed(1)} hrs
+                                        </span>
+                                    </summary>
+                                    <div className="catalog-studio-collapsible-body">
+                                        <div className="catalog-studio-collapsible-grid">
+                                            <div className={fieldGroupClass}>
+                                                <label className="catalog-studio-mini-label">Tier Name</label>
+                                                <input
+                                                    type="text"
+                                                    value={size.name}
+                                                    onChange={e => updateSize(size.id, "name", e.target.value)}
+                                                    className={fieldClass}
+                                                />
                                             </div>
-                                            <div className="catalog-studio-collapsible-actions">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => deleteAddon(addon.id)}
-                                                    className={dangerButtonClass}
-                                                >
-                                                    Delete Add-on
-                                                </button>
+                                            <div className={fieldGroupClass}>
+                                                <label className="catalog-studio-mini-label">Price</label>
+                                                <input
+                                                    type="number"
+                                                    value={size.price}
+                                                    onChange={e => updateSize(size.id, "price", parseFloat(e.target.value))}
+                                                    className={fieldClass}
+                                                />
+                                            </div>
+                                            <div className={fieldGroupClass}>
+                                                <label className="catalog-studio-mini-label">Hours</label>
+                                                <input
+                                                    type="number"
+                                                    step="0.5"
+                                                    value={size.durationHrs}
+                                                    onChange={e => updateSize(size.id, "durationHrs", parseFloat(e.target.value) || 0)}
+                                                    className={fieldClass}
+                                                />
                                             </div>
                                         </div>
-                                    </details>
-                                ))
-                            )}
+                                        <div className="catalog-studio-collapsible-actions">
+                                            <button
+                                                type="button"
+                                                onClick={() => deleteSizeTier(size.id)}
+                                                className={dangerButtonClass}
+                                            >
+                                                Delete Tier
+                                            </button>
+                                        </div>
+                                    </div>
+                                </details>
+                            ))}
                         </div>
+                    </section>
+                )}
+
+                <section className="flex h-full flex-col rounded-brand-lg border border-brand-mist bg-white shadow-sm">
+                    <div className="flex items-center justify-between gap-4 border-b border-brand-mist px-6 py-5">
+                        <div>
+                            <p className="font-heading text-[11px] font-bold uppercase tracking-wider text-brand-sky">Rules</p>
+                            <h4 className="font-heading text-2xl font-black text-brand-slate">Service-Specific Add-ons</h4>
+                        </div>
+                        <button type="button" onClick={addAddon} className={secondaryButtonClass}>
+                            + Add Add-on
+                        </button>
                     </div>
-                </div>
+
+                    <div className="flex-1 overflow-y-auto px-6 py-4">
+                        {(activeCategory.addons || []).length === 0 ? (
+                            <div className="flex h-40 items-center justify-center rounded-brand-sm border border-dashed border-brand-mist text-sm font-semibold text-slate-400">
+                                No add-ons configured for this service.
+                            </div>
+                        ) : (
+                            (activeCategory.addons || []).map(addon => (
+                                <details key={addon.id} className="catalog-studio-collapsible" open>
+                                    <summary className="catalog-studio-collapsible-summary">
+                                        <span className="catalog-studio-collapsible-title">{addon.name || "Untitled Add-on"}</span>
+                                        <span className="catalog-studio-collapsible-meta">
+                                            ${parseFloat(addon.price || 0).toFixed(2)} • {addon.qtySelector ? "Qty selector on" : "Single add-on"}
+                                        </span>
+                                    </summary>
+                                    <div className="catalog-studio-collapsible-body">
+                                        <div className="catalog-studio-collapsible-grid">
+                                            <div className={fieldGroupClass}>
+                                                <label className="catalog-studio-mini-label">Add-on Name</label>
+                                                <input
+                                                    type="text"
+                                                    value={addon.name}
+                                                    onChange={e => updateAddon(addon.id, "name", e.target.value)}
+                                                    className={fieldClass}
+                                                />
+                                            </div>
+                                            <div className={fieldGroupClass}>
+                                                <label className="catalog-studio-mini-label">Price</label>
+                                                <div className="relative">
+                                                    <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 font-heading text-xs font-black text-slate-400">$</span>
+                                                    <input
+                                                        type="number"
+                                                        value={addon.price}
+                                                        onChange={e => updateAddon(addon.id, "price", parseFloat(e.target.value))}
+                                                        className={`${fieldClass} catalog-studio-field-currency`}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className={fieldGroupClass}>
+                                                <label className="catalog-studio-mini-label">Quantity Setting</label>
+                                                <label className="flex h-11 cursor-pointer items-center gap-2 rounded-brand-sm border border-brand-mist/90 bg-white px-4">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={addon.qtySelector}
+                                                        onChange={e => updateAddon(addon.id, "qtySelector", e.target.checked)}
+                                                        className="h-4 w-4 rounded-brand-sm border-brand-mist accent-brand-action"
+                                                    />
+                                                    <span className="font-heading text-[10px] font-bold uppercase text-slate-500">Qty selector</span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div className="catalog-studio-collapsible-actions">
+                                            <button
+                                                type="button"
+                                                onClick={() => deleteAddon(addon.id)}
+                                                className={dangerButtonClass}
+                                            >
+                                                Delete Add-on
+                                            </button>
+                                        </div>
+                                    </div>
+                                </details>
+                            ))
+                        )}
+                    </div>
+                </section>
             </div>
         </section>
     );

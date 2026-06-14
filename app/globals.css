@@ -1674,8 +1674,8 @@ label {
 }
 
 .catalog-studio-layout {
-    display: grid;
-    grid-template-columns: 280px minmax(430px, 0.95fr) minmax(560px, 1.15fr);
+    display: flex;
+    flex-direction: column;
     gap: 24px;
     min-height: 760px;
 }
@@ -1826,32 +1826,14 @@ label {
     grid-template-columns: minmax(240px, 1.7fr) minmax(120px, 0.7fr) minmax(160px, 0.95fr) 108px;
 }
 
-@media (max-width: 1680px) {
-    .catalog-studio-layout {
-        grid-template-columns: 260px minmax(400px, 0.95fr) minmax(500px, 1.1fr);
-    }
-
-    .catalog-studio-addon-row {
-        grid-template-columns: minmax(220px, 1.55fr) minmax(110px, 0.65fr) minmax(150px, 0.9fr) 100px;
-    }
-}
-
 @media (max-width: 1440px) {
     .catalog-studio-topbar {
         grid-template-columns: minmax(0, 1fr);
         justify-items: start;
     }
 
-    .catalog-studio-layout {
-        grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
-    }
-
     .catalog-studio-service-header {
         flex-direction: column;
-    }
-
-    .catalog-studio-layout > :nth-child(3) {
-        grid-column: 1 / -1;
     }
 }
 
@@ -1866,12 +1848,7 @@ label {
     }
 
     .catalog-studio-layout {
-        grid-template-columns: minmax(0, 1fr);
         padding: 20px;
-    }
-
-    .catalog-studio-layout > :nth-child(3) {
-        grid-column: auto;
     }
 
     .catalog-studio-service-header {
