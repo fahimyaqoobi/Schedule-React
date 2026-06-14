@@ -2581,6 +2581,15 @@ label {
     color: var(--text-secondary);
 }
 
+.people-day-tile-wrap small,
+.people-mobile-availability-day small {
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
 .people-day-tile {
     width: 48px;
     height: 48px;
@@ -3344,6 +3353,7 @@ label {
 }
 
 .people-mobile-day-toggle {
+    display: grid;
     border: 1px solid #cbd5e1;
     border-radius: 16px;
     background: #ffffff;
@@ -3355,6 +3365,10 @@ label {
 .people-mobile-day-toggle input {
     width: 18px;
     height: 18px;
+}
+
+.people-mobile-day-toggle-shifts {
+    gap: 8px;
 }
 
 .people-mobile-editor-actions {
@@ -3411,6 +3425,18 @@ label {
     font-size: 14px;
     font-weight: 800;
     color: var(--text-primary);
+}
+
+.people-availability-toggle-day {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.people-availability-shift-toggles {
+    display: grid;
+    gap: 8px;
+    width: 100%;
 }
 
 .people-editor-actions {
