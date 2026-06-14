@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import dynamic from "next/dynamic";
-import Image from "next/image";
 import {
     signOut,
     onAuthStateChanged,
@@ -485,6 +484,7 @@ export default function Home() {
     const [profileName, setProfileName] = useState("");
     const [profileLoading, setProfileLoading] = useState(false);
     const [profilePhotoUploading, setProfilePhotoUploading] = useState(false);
+    const [profilePhotoStatus, setProfilePhotoStatus] = useState("");
     const [securityForm, setSecurityForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
     const [securityLoading, setSecurityLoading] = useState(false);
     const [selectedStaffUid, setSelectedStaffUid] = useState("");
@@ -1266,6 +1266,7 @@ export default function Home() {
     const handleProfilePhotoCapture = async (file) => {
         if (!file || !currentUser) return;
         setProfilePhotoUploading(true);
+        setProfilePhotoStatus("");
         try {
             const storageRef = ref(storage, `staff-profile-photos/${currentUser.uid}/${Date.now()}-${file.name || "camera-photo.jpg"}`);
             await uploadBytes(storageRef, file, { contentType: file.type || "image/jpeg" });
@@ -1284,9 +1285,12 @@ export default function Home() {
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "Failed to save profile photo.");
             setCurrentUser(data.user);
+            setSelectedStaffUid(data.user.uid);
             syncDatabaseData(data.user);
+            setProfilePhotoStatus("Profile photo uploaded successfully.");
             setStaffProfileFeedback("Profile photo updated successfully.");
         } catch (err) {
+            setProfilePhotoStatus(err.message || "Failed to upload profile photo.");
             setStaffProfileFeedback(err.message || "Failed to upload profile photo.");
         } finally {
             setProfilePhotoUploading(false);
@@ -2054,7 +2058,7 @@ export default function Home() {
                         <div className="flex items-center gap-2.5">
                             <div className={`user-avatar text-white font-bold ${currentUser.photoURL ? "user-avatar-photo" : ""}`}>
                                 {currentUser.photoURL ? (
-                                    <Image src={currentUser.photoURL} alt={currentUser.name} fill sizes="40px" className="avatar-image" unoptimized />
+                                    <img src={currentUser.photoURL} alt={currentUser.name} className="avatar-image" />
                                 ) : getInitials(currentUser.name)}
                             </div>
                             <div className="user-details flex flex-col">
@@ -2644,7 +2648,7 @@ export default function Home() {
                                                         <div className="team-card-title-group">
                                                         <div className="team-avatar-square team-sparkle-bg">
                                                                 {member.photoURL ? (
-                                                                    <Image src={member.photoURL} alt={member.name || member.email} fill sizes="68px" className="avatar-image" unoptimized />
+                                                                    <img src={member.photoURL} alt={member.name || member.email} className="avatar-image" />
                                                                 ) : initials}
                                                             </div>
                                                             <div className="team-card-info">
@@ -2686,7 +2690,7 @@ export default function Home() {
                                                 <div className="people-mobile-profile-avatar-wrap">
                                                     <div className={`people-mobile-profile-avatar ${selectedStaffMember.photoURL ? "people-mobile-profile-avatar-photo" : ""}`}>
                                                         {selectedStaffMember.photoURL ? (
-                                                            <Image src={selectedStaffMember.photoURL} alt={selectedStaffMember.name || selectedStaffMember.email} fill sizes="110px" className="avatar-image" unoptimized />
+                                                            <img src={selectedStaffMember.photoURL} alt={selectedStaffMember.name || selectedStaffMember.email} className="avatar-image" />
                                                         ) : getInitials(selectedStaffMember.name || selectedStaffMember.email || "FS")}
                                                     </div>
                                                     <span className="people-mobile-profile-presence"></span>
@@ -2964,7 +2968,7 @@ export default function Home() {
                                                 <div className="people-profile-photo-card">
                                                     <div className={`people-profile-photo ${selectedStaffMember.photoURL ? "people-profile-photo-image" : ""}`}>
                                                         {selectedStaffMember.photoURL ? (
-                                                            <Image src={selectedStaffMember.photoURL} alt={selectedStaffMember.name || selectedStaffMember.email} fill sizes="140px" className="avatar-image" unoptimized />
+                                                            <img src={selectedStaffMember.photoURL} alt={selectedStaffMember.name || selectedStaffMember.email} className="avatar-image" />
                                                         ) : getInitials(selectedStaffMember.name || selectedStaffMember.email || "FS")}
                                                     </div>
                                                     <span className="people-profile-active-badge">Active</span>
@@ -3453,7 +3457,7 @@ export default function Home() {
                                     <div className="settings-avatar-group">
                                         <div className={`settings-avatar ${currentUser.photoURL ? "settings-avatar-photo" : ""}`}>
                                             {currentUser.photoURL ? (
-                                                <Image src={currentUser.photoURL} alt={currentUser.name} fill sizes="64px" className="avatar-image" unoptimized />
+                                                <img src={currentUser.photoURL} alt={currentUser.name} className="avatar-image" />
                                             ) : getInitials(currentUser.name)}
                                         </div>
                                         <div>
@@ -3471,6 +3475,11 @@ export default function Home() {
                                         />
                                         {profilePhotoUploading ? "Uploading Photo..." : "Take Or Upload Profile Photo"}
                                     </label>
+                                    {profilePhotoStatus && (
+                                        <div className="people-profile-message">
+                                            {profilePhotoStatus}
+                                        </div>
+                                    )}
                                     <div className="form-group">
                                         <label>Display Name</label>
                                         <input
