@@ -56,7 +56,7 @@ async function authenticateRequest(request) {
         await userRef.update(syncPatch);
         Object.assign(userData, syncPatch);
     }
-    if (userData.status !== "approved") {
+    if (userData.status === "disabled") {
         throw new Error("User account is pending approval or disabled");
     }
     return userData;

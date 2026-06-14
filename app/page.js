@@ -4,20 +4,19 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import {
-    signInWithEmailAndPassword,
     signOut,
     onAuthStateChanged,
     updateProfile,
     updatePassword,
     reauthenticateWithCredential,
-    EmailAuthProvider
+    EmailAuthProvider,
+    signInWithCustomToken
 } from "firebase/auth";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { auth, storage } from "../lib/firebase";
 import {
     DEPARTMENTS,
     ROLE_DEFINITIONS,
-    ROLE_OPTIONS,
     canManageSystem,
     getRoleLabel,
     normalizeRole,
@@ -348,24 +347,24 @@ export default function Home() {
 
     // Auth Forms state
     const [authMode, setAuthMode] = useState("login"); // "login" | "signup"
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
     const [name, setName] = useState("");
-    const [signupTeam, setSignupTeam] = useState("");
-    const [signupRole, setSignupRole] = useState("customer");
+    const [authPhone, setAuthPhone] = useState("");
+    const [authCode, setAuthCode] = useState("");
+    const [authCodeSent, setAuthCodeSent] = useState(false);
+    const [authSubmitting, setAuthSubmitting] = useState(false);
     const roleDefinition = currentUser ? ROLE_DEFINITIONS[currentUser.role] || ROLE_DEFINITIONS["super-admin"] : null;
     const roleLabel = currentUser ? getRoleLabel(currentUser.role) : "";
     const canSelfManagePeopleProfile = currentUser ? STAFF_SELF_SERVICE_ROLES.includes(normalizeRole(currentUser.role)) : false;
+    const isPendingCleanerOnboarding = currentUser ? canSelfManagePeopleProfile && currentUser.status === "pending_approval" : false;
     const canViewDepartment = useCallback((departmentId) => {
         if (!currentUser) return false;
         return roleHasDepartment(currentUser.role, departmentId);
     }, [currentUser]);
-    const canViewPeople = canViewDepartment("people") || canSelfManagePeopleProfile;
-    const canViewOperations = canViewDepartment("operations");
-    const canViewAdministration = canViewDepartment("administration");
+    const canViewPeople = isPendingCleanerOnboarding ? true : canViewDepartment("people") || canSelfManagePeopleProfile;
+    const canViewOperations = isPendingCleanerOnboarding ? false : canViewDepartment("operations");
+    const canViewAdministration = isPendingCleanerOnboarding ? false : canViewDepartment("administration");
     const canManagePermissions = canManageSystem(currentUser);
     const canManagePeopleProfiles = currentUser ? ["super-admin", "branch-admin"].includes(normalizeRole(currentUser.role)) : false;
-    const needsCrewAssignment = false;
     const branchScope = currentUser ? getBranchScopeForUser({ ...currentUser, activeBranchId: selectedBranchId }) : null;
     const activeBranch = getBranchById(branchScope?.activeBranchId || selectedBranchId || DEFAULT_BRANCH_ID);
 
@@ -514,6 +513,23 @@ export default function Home() {
             }, 0);
             return () => clearTimeout(timer);
         }
+    }, [currentUser]);
+
+    useEffect(() => {
+        if (!currentUser) return;
+        if (!STAFF_SELF_SERVICE_ROLES.includes(normalizeRole(currentUser.role))) return;
+        const timer = setTimeout(() => {
+            setActiveTab("teams");
+            setSelectedStaffUid(currentUser.uid);
+            setStaffProfileDraftOwnerUid(currentUser.uid);
+            setStaffProfileDraft(normalizeStaffProfile(currentUser.staffProfile));
+            if (currentUser.status === "pending_approval") {
+                setStaffProfileEditOpen(true);
+                setStaffProfileMobileTab("identity");
+                setStaffProfileFeedback("Complete your cleaner profile and submit it for branch admin approval.");
+            }
+        }, 0);
+        return () => clearTimeout(timer);
     }, [currentUser]);
 
     const peopleRoster = useMemo(() => {
@@ -812,6 +828,10 @@ export default function Home() {
                     if (userData) {
                         setCurrentUser(userData);
                         setSelectedBranchId(userData.branchId || userData.branchIds?.[0] || DEFAULT_BRANCH_ID);
+                        if (STAFF_SELF_SERVICE_ROLES.includes(normalizeRole(userData.role))) {
+                            setActiveTab("teams");
+                            setSelectedStaffUid(userData.uid);
+                        }
                         if (userData.status === "approved") {
                             syncDatabaseData(userData);
                         }
@@ -836,71 +856,67 @@ export default function Home() {
     // ----------------------------------------------------
     // Client Side Authentication Actions
     // ----------------------------------------------------
-    const handleLogin = async (e) => {
+    const handleSendPhoneCode = async (e) => {
         e.preventDefault();
-        if (!email || !password) return alert("Please fill in email and password fields.");
-        setLoading(true);
+        if (!authPhone) return alert("Please enter your phone number.");
+        if (authMode === "signup" && !name.trim()) return alert("Please enter your full name.");
+        setAuthSubmitting(true);
         try {
-            await signInWithEmailAndPassword(auth, email, password);
+            const res = await fetch("/api/auth/phone/send-code", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    phone: authPhone,
+                    mode: authMode,
+                    name
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Failed to send code.");
+            setAuthCodeSent(true);
         } catch (err) {
-            console.error(err);
-            let msg = err.message;
-            if (err.code === "auth/configuration-not-found") {
-                msg = "Email/Password provider is disabled in Firebase! Go to Build -> Authentication -> Sign-in Method, enable Email/Password, and save.";
-            }
-            alert(`Login Failed: ${msg}`);
-            setLoading(false);
+            alert(`Verification Failed: ${err.message}`);
+        } finally {
+            setAuthSubmitting(false);
         }
     };
 
-    const handleSignup = async (e) => {
+    const handlePhoneVerify = async (e) => {
         e.preventDefault();
-        if (!name || !email || !password) return alert("Please fill out all signup fields.");
-        if (password.length < 6) return alert("Password must be at least 6 characters.");
+        if (!authPhone || !authCode) return alert("Please enter your phone number and verification code.");
         setLoading(true);
 
         try {
-            const { createUserWithEmailAndPassword } = await import("firebase/auth");
-            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-            const user = userCredential.user;
-            await updateProfile(user, { displayName: name });
-
-            // Write securely via Vercel serverless API! Completely hides write payload permissions
-            const res = await fetch("/api/auth/register", {
+            const res = await fetch("/api/auth/phone/verify-code", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ uid: user.uid, name, email, teamId: signupTeam, requestedRole: signupRole })
+                body: JSON.stringify({
+                    phone: authPhone,
+                    code: authCode,
+                    mode: authMode,
+                    name
+                })
             });
 
-            if (res.ok) {
-                const regData = await res.json();
-                alert(`Account Registered Successfully!\n\nYour operational cleaner profile is ${regData.user.status === "approved" ? "approved Admin" : "Pending Admin Approval"}.`);
-
-                if (regData.user.status === "approved") {
-                    setCurrentUser(regData.user);
-                    syncDatabaseData(regData.user);
-                } else {
-                    await signOut(auth);
-                    setEmail("");
-                    setPassword("");
-                    setName("");
-                    setAuthMode("login");
-                }
-            } else {
-                const errData = await res.json();
-                throw new Error(errData.error || "Firestore write failed");
-            }
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Phone verification failed.");
+            await signInWithCustomToken(auth, data.customToken);
         } catch (err) {
-            console.error("Signup failed", err);
-            alert(`Registration Failed: ${err.message}`);
+            console.error("Phone auth failed", err);
+            alert(`Authentication Failed: ${err.message}`);
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
 
     const handleSignout = async () => {
         setLoading(true);
         await signOut(auth);
         setActiveTab("dashboard");
+        setAuthPhone("");
+        setAuthCode("");
+        setAuthCodeSent(false);
+        setName("");
     };
 
     // ----------------------------------------------------
@@ -1902,62 +1918,52 @@ export default function Home() {
 
                         {authMode === "login" ? (
                             <>
-                                <h2 className="auth-card-heading">Welcome back 👋</h2>
-                                <p className="auth-card-sub">Sign in to access the SmarTouch Clean scheduling portal.</p>
-                                <form onSubmit={handleLogin}>
+                                <h2 className="auth-card-heading">Welcome back</h2>
+                                <p className="auth-card-sub">Sign in with your phone number and SMS verification code.</p>
+                                <form onSubmit={authCodeSent ? handlePhoneVerify : handleSendPhoneCode}>
                                     <div className="auth-field">
-                                        <label>Email Address</label>
-                                        <input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="cleaner@smartouchclean.com" />
+                                        <label>Phone Number</label>
+                                        <input type="tel" value={authPhone} onChange={e => setAuthPhone(e.target.value)} required placeholder="+1 613 555 0100" />
                                     </div>
-                                    <div className="auth-field">
-                                        <label>Password</label>
-                                        <input type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="••••••••" />
-                                    </div>
-                                    <button type="submit" className="auth-submit-btn">Sign In to Dashboard</button>
+                                    {authCodeSent && (
+                                        <div className="auth-field">
+                                            <label>Verification Code</label>
+                                            <input type="text" value={authCode} onChange={e => setAuthCode(e.target.value)} required placeholder="6-digit code" />
+                                        </div>
+                                    )}
+                                    <button type="submit" className="auth-submit-btn" disabled={authSubmitting}>
+                                        {authCodeSent ? "Verify And Sign In" : "Send Verification Code"}
+                                    </button>
                                 </form>
                                 <p className="auth-switch-text">
-                                    New crew member? <span onClick={() => setAuthMode("signup")} className="auth-switch-link">Create an account</span>
+                                    New cleaner? <span onClick={() => { setAuthMode("signup"); setAuthCodeSent(false); setAuthCode(""); }} className="auth-switch-link">Create an account</span>
                                 </p>
                             </>
                         ) : (
                             <>
-                                <h2 className="auth-card-heading">Join the crew ✦</h2>
-                                <p className="auth-card-sub">Register your account — an admin will activate it once reviewed.</p>
-                                <form onSubmit={handleSignup}>
+                                <h2 className="auth-card-heading">Join the crew</h2>
+                                <p className="auth-card-sub">Register with your phone number. After verification you will go straight to your cleaner profile.</p>
+                                <form onSubmit={authCodeSent ? handlePhoneVerify : handleSendPhoneCode}>
                                     <div className="auth-field">
                                         <label>Full Name</label>
                                         <input type="text" value={name} onChange={e => setName(e.target.value)} required placeholder="Jane Jenkins" />
                                     </div>
                                     <div className="auth-field">
-                                        <label>Email Address</label>
-                                        <input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="cleaner@smartouchclean.com" />
+                                        <label>Phone Number</label>
+                                        <input type="tel" value={authPhone} onChange={e => setAuthPhone(e.target.value)} required placeholder="+1 613 555 0100" />
                                     </div>
-                                    <div className="auth-field">
-                                        <label>Password</label>
-                                        <input type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="Min 6 characters" />
-                                    </div>
-                                    <div className="auth-field">
-                                        <label>Account Type</label>
-                                        <select value={signupRole} onChange={e => setSignupRole(e.target.value)}>
-                                            {ROLE_OPTIONS
-                                                .filter(role => !["super-admin", "branch-admin"].includes(role.id))
-                                                .map(role => (
-                                                    <option key={role.id} value={role.id}>{role.label}</option>
-                                                ))}
-                                        </select>
-                                    </div>
-                                    {needsCrewAssignment && (
+                                    {authCodeSent && (
                                         <div className="auth-field">
-                                            <label>Assigned Crew / Team</label>
-                                            <select value={signupTeam} onChange={e => setSignupTeam(e.target.value)}>
-                                                {teams.length === 0 ? <option value="">No Crews Available Yet</option> : teams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
-                                            </select>
+                                            <label>Verification Code</label>
+                                            <input type="text" value={authCode} onChange={e => setAuthCode(e.target.value)} required placeholder="6-digit code" />
                                         </div>
                                     )}
-                                    <button type="submit" className="auth-submit-btn">Create Account</button>
+                                    <button type="submit" className="auth-submit-btn" disabled={authSubmitting}>
+                                        {authCodeSent ? "Verify And Continue" : "Send Verification Code"}
+                                    </button>
                                 </form>
                                 <p className="auth-switch-text">
-                                    Already registered? <span onClick={() => setAuthMode("login")} className="auth-switch-link">Sign In</span>
+                                    Already registered? <span onClick={() => { setAuthMode("login"); setAuthCodeSent(false); setAuthCode(""); }} className="auth-switch-link">Sign In</span>
                                 </p>
                             </>
                         )}
@@ -1970,32 +1976,6 @@ export default function Home() {
     // ----------------------------------------------------
     // "Awaiting Activation" Pending approval blocked screen
     // ----------------------------------------------------
-    if (currentUser.status === "pending_approval") {
-        return (
-            <div className="auth-fullscreen auth-pending-screen">
-                <div className="auth-pending-card animate-pop">
-                    <img src="/logo.png" alt="SmarTouch Clean" className="auth-pending-logo" />
-                    <div className="auth-pending-alert">
-                        {Icons.Alert()}
-                    </div>
-                    <h2 className="auth-pending-title">Awaiting Activation</h2>
-                    <p className="auth-pending-copy">
-                        Welcome to <strong>SmarTouch Clean</strong>! Your account has been registered and is <strong>Pending Admin Approval</strong>.
-                    </p>
-                    <p className="auth-pending-note">
-                        Please contact management or wait for an administrator to review and activate your crew role.
-                    </p>
-                    <div className="auth-pending-actions">
-                        <button type="button" onClick={handleSignout} className="btn btn-secondary w-full justify-center gap-2">
-                            {Icons.Logout()}
-                            <span>Sign Out</span>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
     // ----------------------------------------------------
     // Authorized approved Application dashboard
     // ----------------------------------------------------
@@ -2008,14 +1988,18 @@ export default function Home() {
                 </div>
 
                 <nav className="nav-links">
-                    <button onClick={() => setActiveTab("dashboard")} className={`nav-item ${activeTab === "dashboard" ? "active" : ""}`}>
-                        {Icons.Dashboard()}
-                        <span>Dashboard</span>
-                    </button>
-                    <button onClick={() => setActiveTab("bookings")} className={`nav-item ${activeTab === "bookings" ? "active" : ""}`}>
-                        {Icons.Bookings()}
-                        <span>Bookings</span>
-                    </button>
+                    {!isPendingCleanerOnboarding && (
+                        <button onClick={() => setActiveTab("dashboard")} className={`nav-item ${activeTab === "dashboard" ? "active" : ""}`}>
+                            {Icons.Dashboard()}
+                            <span>Dashboard</span>
+                        </button>
+                    )}
+                    {!isPendingCleanerOnboarding && (
+                        <button onClick={() => setActiveTab("bookings")} className={`nav-item ${activeTab === "bookings" ? "active" : ""}`}>
+                            {Icons.Bookings()}
+                            <span>Bookings</span>
+                        </button>
+                    )}
                     {canViewOperations && (
                         <button onClick={() => setActiveTab("calendar")} className={`nav-item ${activeTab === "calendar" ? "active" : ""}`}>
                             {Icons.Calendar()}
@@ -2057,10 +2041,12 @@ export default function Home() {
                             <span>Permissions</span>
                         </button>
                     )}
-                    <button onClick={() => setActiveTab("settings")} className={`nav-item ${activeTab === "settings" ? "active" : ""}`}>
-                        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-                        <span>Settings</span>
-                    </button>
+                    {!isPendingCleanerOnboarding && (
+                        <button onClick={() => setActiveTab("settings")} className={`nav-item ${activeTab === "settings" ? "active" : ""}`}>
+                            <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                            <span>Settings</span>
+                        </button>
+                    )}
                 </nav>
 
                 <div className="sidebar-footer">
@@ -3568,14 +3554,18 @@ export default function Home() {
 
             {/* High Fidelity iOS Fixed Bottom Navigation Bar on Mobile Viewports */}
             <div className="mobile-nav-bar">
-                <button onClick={() => setActiveTab("dashboard")} className={`mobile-nav-item ${activeTab === "dashboard" ? "active" : ""}`}>
-                    {Icons.Dashboard()}
-                    <span>Dashboard</span>
-                </button>
-                <button onClick={() => setActiveTab("bookings")} className={`mobile-nav-item ${activeTab === "bookings" ? "active" : ""}`}>
-                    {Icons.Bookings()}
-                    <span>Bookings</span>
-                </button>
+                {!isPendingCleanerOnboarding && (
+                    <button onClick={() => setActiveTab("dashboard")} className={`mobile-nav-item ${activeTab === "dashboard" ? "active" : ""}`}>
+                        {Icons.Dashboard()}
+                        <span>Dashboard</span>
+                    </button>
+                )}
+                {!isPendingCleanerOnboarding && (
+                    <button onClick={() => setActiveTab("bookings")} className={`mobile-nav-item ${activeTab === "bookings" ? "active" : ""}`}>
+                        {Icons.Bookings()}
+                        <span>Bookings</span>
+                    </button>
+                )}
                 {canViewOperations && (
                     <button onClick={() => setActiveTab("calendar")} className={`mobile-nav-item ${activeTab === "calendar" ? "active" : ""}`}>
                         {Icons.Calendar()}
@@ -3611,10 +3601,12 @@ export default function Home() {
                         <span>Permissions</span>
                     </button>
                 )}
-                <button onClick={() => setActiveTab("settings")} className={`mobile-nav-item ${activeTab === "settings" ? "active" : ""}`}>
-                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-                    <span>Settings</span>
-                </button>
+                {!isPendingCleanerOnboarding && (
+                    <button onClick={() => setActiveTab("settings")} className={`mobile-nav-item ${activeTab === "settings" ? "active" : ""}`}>
+                        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                        <span>Settings</span>
+                    </button>
+                )}
             </div>
 
             {serviceConfigOpen && configCategory && (() => {
