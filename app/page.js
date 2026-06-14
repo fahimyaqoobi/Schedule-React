@@ -2876,13 +2876,19 @@ export default function Home() {
 
                                                         {staffProfileMobileTab === "availability" && (
                                                             <div className="people-mobile-editor-section">
-                                                                <div className="people-mobile-weekday-editor">
+                                                                <div className="people-mobile-weekday-matrix">
+                                                                    <div className="people-mobile-weekday-matrix-head">
+                                                                        <span>Day</span>
+                                                                        <span>Morning</span>
+                                                                        <span>Afternoon</span>
+                                                                        <span>Evening</span>
+                                                                    </div>
                                                                     {activeStaffProfileDraft.availability.weekdays.map((day, index) => (
-                                                                        <div key={`${day.label}-${index}`} className="people-mobile-day-toggle people-mobile-day-toggle-shifts">
-                                                                            <span>{day.label}</span>
-                                                                            <label className="people-checkbox"><input type="checkbox" checked={Boolean(day.shifts?.morning)} onChange={e => updateStaffDraftField("availability", "weekdays", updateAvailabilityDayShift(activeStaffProfileDraft.availability.weekdays, index, "morning", e.target.checked))} /><span>M</span></label>
-                                                                            <label className="people-checkbox"><input type="checkbox" checked={Boolean(day.shifts?.afternoon)} onChange={e => updateStaffDraftField("availability", "weekdays", updateAvailabilityDayShift(activeStaffProfileDraft.availability.weekdays, index, "afternoon", e.target.checked))} /><span>A</span></label>
-                                                                            <label className="people-checkbox"><input type="checkbox" checked={Boolean(day.shifts?.evening)} onChange={e => updateStaffDraftField("availability", "weekdays", updateAvailabilityDayShift(activeStaffProfileDraft.availability.weekdays, index, "evening", e.target.checked))} /><span>E</span></label>
+                                                                        <div key={`${day.label}-${index}`} className="people-mobile-weekday-row">
+                                                                            <strong>{day.label}</strong>
+                                                                            <label className="people-matrix-check"><input type="checkbox" checked={Boolean(day.shifts?.morning)} onChange={e => updateStaffDraftField("availability", "weekdays", updateAvailabilityDayShift(activeStaffProfileDraft.availability.weekdays, index, "morning", e.target.checked))} /></label>
+                                                                            <label className="people-matrix-check"><input type="checkbox" checked={Boolean(day.shifts?.afternoon)} onChange={e => updateStaffDraftField("availability", "weekdays", updateAvailabilityDayShift(activeStaffProfileDraft.availability.weekdays, index, "afternoon", e.target.checked))} /></label>
+                                                                            <label className="people-matrix-check"><input type="checkbox" checked={Boolean(day.shifts?.evening)} onChange={e => updateStaffDraftField("availability", "weekdays", updateAvailabilityDayShift(activeStaffProfileDraft.availability.weekdays, index, "evening", e.target.checked))} /></label>
                                                                         </div>
                                                                     ))}
                                                                 </div>
@@ -3165,16 +3171,22 @@ export default function Home() {
                                                             <h4>Availability</h4>
                                                         </div>
                                                         <div className="people-availability-edit-grid">
-                                                            {activeStaffProfileDraft.availability.weekdays.map((day, index) => (
-                                                                <div key={`${day.label}-${index}`} className="people-availability-toggle people-availability-toggle-day">
-                                                                    <span>{day.label}</span>
-                                                                    <div className="people-availability-shift-toggles">
-                                                                        <label className="people-checkbox"><input type="checkbox" checked={Boolean(day.shifts?.morning)} onChange={e => updateStaffDraftField("availability", "weekdays", updateAvailabilityDayShift(activeStaffProfileDraft.availability.weekdays, index, "morning", e.target.checked))} /><span>Morning</span></label>
-                                                                        <label className="people-checkbox"><input type="checkbox" checked={Boolean(day.shifts?.afternoon)} onChange={e => updateStaffDraftField("availability", "weekdays", updateAvailabilityDayShift(activeStaffProfileDraft.availability.weekdays, index, "afternoon", e.target.checked))} /><span>Afternoon</span></label>
-                                                                        <label className="people-checkbox"><input type="checkbox" checked={Boolean(day.shifts?.evening)} onChange={e => updateStaffDraftField("availability", "weekdays", updateAvailabilityDayShift(activeStaffProfileDraft.availability.weekdays, index, "evening", e.target.checked))} /><span>Evening</span></label>
-                                                                    </div>
+                                                            <div className="people-availability-matrix">
+                                                                <div className="people-availability-matrix-head">
+                                                                    <span>Day</span>
+                                                                    <span>Morning</span>
+                                                                    <span>Afternoon</span>
+                                                                    <span>Evening</span>
                                                                 </div>
-                                                            ))}
+                                                                {activeStaffProfileDraft.availability.weekdays.map((day, index) => (
+                                                                    <div key={`${day.label}-${index}`} className="people-availability-matrix-row">
+                                                                        <strong>{day.label}</strong>
+                                                                        <label className="people-matrix-check"><input type="checkbox" checked={Boolean(day.shifts?.morning)} onChange={e => updateStaffDraftField("availability", "weekdays", updateAvailabilityDayShift(activeStaffProfileDraft.availability.weekdays, index, "morning", e.target.checked))} /></label>
+                                                                        <label className="people-matrix-check"><input type="checkbox" checked={Boolean(day.shifts?.afternoon)} onChange={e => updateStaffDraftField("availability", "weekdays", updateAvailabilityDayShift(activeStaffProfileDraft.availability.weekdays, index, "afternoon", e.target.checked))} /></label>
+                                                                        <label className="people-matrix-check"><input type="checkbox" checked={Boolean(day.shifts?.evening)} onChange={e => updateStaffDraftField("availability", "weekdays", updateAvailabilityDayShift(activeStaffProfileDraft.availability.weekdays, index, "evening", e.target.checked))} /></label>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
                                                             <label><span>Max jobs per day</span><input type="number" value={activeStaffProfileDraft.availability.maxJobsPerDay} onChange={e => updateStaffDraftField("availability", "maxJobsPerDay", parseInt(e.target.value || "0", 10))} /></label>
                                                             <label className="span-2"><span>Blocked dates (comma separated YYYY-MM-DD)</span><input value={(activeStaffProfileDraft.availability.blockedDates || []).join(", ")} onChange={e => updateStaffDraftField("availability", "blockedDates", e.target.value.split(",").map(value => value.trim()).filter(Boolean))} /></label>
                                                         </div>

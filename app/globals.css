@@ -3370,30 +3370,66 @@ label {
     grid-column: 1 / -1;
 }
 
-.people-mobile-weekday-editor {
+.people-mobile-weekday-matrix,
+.people-availability-matrix {
     grid-column: 1 / -1;
     display: grid;
-    grid-template-columns: repeat(7, minmax(0, 1fr));
     gap: 8px;
 }
 
-.people-mobile-day-toggle {
+.people-mobile-weekday-matrix-head,
+.people-mobile-weekday-row,
+.people-availability-matrix-head,
+.people-availability-matrix-row {
     display: grid;
-    border: 1px solid #cbd5e1;
-    border-radius: 16px;
-    background: #ffffff;
-    padding: 12px 8px;
-    justify-items: center;
+    grid-template-columns: minmax(48px, 72px) repeat(3, minmax(72px, 1fr));
+    gap: 8px;
+    align-items: center;
+}
+
+.people-mobile-weekday-matrix-head span,
+.people-availability-matrix-head span {
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
     text-align: center;
 }
 
-.people-mobile-day-toggle input {
-    width: 18px;
-    height: 18px;
+.people-mobile-weekday-matrix-head span:first-child,
+.people-availability-matrix-head span:first-child {
+    text-align: left;
 }
 
-.people-mobile-day-toggle-shifts {
-    gap: 8px;
+.people-mobile-weekday-row,
+.people-availability-matrix-row {
+    border: 1px solid #cbd5e1;
+    border-radius: 16px;
+    background: #ffffff;
+    padding: 12px;
+}
+
+.people-mobile-weekday-row strong,
+.people-availability-matrix-row strong {
+    color: #111827;
+    font-size: 14px;
+    font-weight: 900;
+}
+
+.people-matrix-check {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    border: 1px solid #cbd5e1;
+    border-radius: 14px;
+    background: #f8fafc;
+}
+
+.people-matrix-check input {
+    width: 18px;
+    height: 18px;
 }
 
 .people-mobile-editor-actions {
@@ -3436,33 +3472,6 @@ label {
     gap: 12px;
 }
 
-.people-availability-toggle {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    border: 1px solid #cbd5e1;
-    border-radius: 14px;
-    padding: 12px 14px;
-    background: #fff;
-}
-
-.people-availability-toggle span {
-    font-size: 14px;
-    font-weight: 800;
-    color: var(--text-primary);
-}
-
-.people-availability-toggle-day {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.people-availability-shift-toggles {
-    display: grid;
-    gap: 8px;
-    width: 100%;
-}
 
 .people-editor-actions {
     display: flex;
