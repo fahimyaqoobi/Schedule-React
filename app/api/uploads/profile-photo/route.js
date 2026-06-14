@@ -15,6 +15,23 @@ function sanitizeFileName(name = "photo.jpg") {
     return String(name).replace(/[^a-zA-Z0-9._-]/g, "-");
 }
 
+function buildBucketCandidates() {
+    const projectId = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "schedule-system-stc";
+    const rawConfigured = process.env.FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "";
+    const candidates = new Set();
+
+    if (rawConfigured) {
+        candidates.add(rawConfigured);
+        if (rawConfigured.endsWith(".firebasestorage.app")) {
+            candidates.add(`${projectId}.appspot.com`);
+        }
+    }
+
+    candidates.add(`${projectId}.appspot.com`);
+    candidates.add(`${projectId}.firebasestorage.app`);
+    return Array.from(candidates).filter(Boolean);
+}
+
 export async function POST(request) {
     try {
         const decodedToken = await authenticateRequest(request);
@@ -28,21 +45,38 @@ export async function POST(request) {
         const arrayBuffer = await file.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
         const safeFileName = `${file.lastModified || Date.now()}-${sanitizeFileName(file.name || "photo.jpg")}`;
-        const bucket = adminStorage.bucket();
         const objectPath = `staff-profile-photos/${decodedToken.uid}/${safeFileName}`;
-        const bucketFile = bucket.file(objectPath);
+        const bucketCandidates = buildBucketCandidates();
+        let signedUrl = "";
+        let lastError = null;
 
-        await bucketFile.save(buffer, {
-            metadata: {
-                contentType: file.type || "image/jpeg",
-                cacheControl: "public,max-age=31536000"
+        for (const bucketName of bucketCandidates) {
+            try {
+                const bucket = adminStorage.bucket(bucketName);
+                const bucketFile = bucket.file(objectPath);
+
+                await bucketFile.save(buffer, {
+                    metadata: {
+                        contentType: file.type || "image/jpeg",
+                        cacheControl: "public,max-age=31536000"
+                    }
+                });
+
+                const [url] = await bucketFile.getSignedUrl({
+                    action: "read",
+                    expires: "03-01-2500"
+                });
+                signedUrl = url;
+                lastError = null;
+                break;
+            } catch (error) {
+                lastError = error;
             }
-        });
+        }
 
-        const [signedUrl] = await bucketFile.getSignedUrl({
-            action: "read",
-            expires: "03-01-2500"
-        });
+        if (!signedUrl) {
+            throw lastError || new Error("No Firebase Storage bucket could accept the upload.");
+        }
 
         return NextResponse.json({
             message: "Profile photo uploaded successfully.",
