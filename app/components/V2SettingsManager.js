@@ -169,12 +169,12 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
     return (
         <section className="catalog-studio-shell mt-10 overflow-hidden rounded-brand-lg border border-brand-mist bg-white shadow-sparkle">
             <div className="catalog-studio-topbar border-b border-brand-mist bg-white px-8 py-7">
-                <div className="min-w-0">
-                    <p className="font-heading text-xs font-bold uppercase tracking-wider text-brand-sky">Desktop Catalog Studio</p>
-                    <h3 className="mt-1 font-heading text-3xl font-black uppercase leading-none text-brand-slate">
+                <div className="catalog-studio-heading-block min-w-0">
+                    <p className="catalog-studio-eyebrow">Desktop Catalog Studio</p>
+                    <h3 className="catalog-studio-hero-title">
                         V2 Dynamic Service Manager
                     </h3>
-                    <p className="mt-3 max-w-3xl text-base font-semibold leading-6 text-slate-500">
+                    <p className="catalog-studio-hero-copy max-w-3xl">
                         A wide-format control surface for pricing models, service tiers, and add-on rules.
                     </p>
                 </div>
@@ -241,10 +241,10 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
                 </section>
 
                 <section className="rounded-brand-lg border border-brand-mist bg-white p-7 shadow-sm">
-                    <div className="catalog-studio-service-header mb-6 gap-5">
+                    <div className="catalog-studio-service-header catalog-studio-section-heading mb-6 gap-5">
                         <div className="min-w-0">
-                            <p className="font-heading text-[11px] font-bold uppercase tracking-wider text-brand-sky">Selected Service</p>
-                            <h4 className="mt-2 break-words font-heading text-[2rem] font-black leading-tight text-brand-slate">{activeCategory.name}</h4>
+                            <p className="catalog-studio-eyebrow">Selected Service</p>
+                            <h4 className="catalog-studio-section-title break-words">{activeCategory.name}</h4>
                         </div>
                         <div className="flex flex-wrap items-center justify-end gap-3">
                             <span className="rounded-full bg-brand-action/10 px-4 py-2 font-heading text-xs font-bold uppercase text-brand-action">
@@ -407,10 +407,10 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
                 )}
 
                 <section className="flex h-full flex-col rounded-brand-lg border border-brand-mist bg-white shadow-sm">
-                    <div className="flex items-center justify-between gap-4 border-b border-brand-mist px-6 py-5">
+                    <div className="catalog-studio-section-heading flex items-center justify-between gap-4 border-b border-brand-mist px-6 py-5">
                         <div>
-                            <p className="font-heading text-[11px] font-bold uppercase tracking-wider text-brand-sky">Rules</p>
-                            <h4 className="font-heading text-2xl font-black text-brand-slate">Service-Specific Add-ons</h4>
+                            <p className="catalog-studio-eyebrow">Rules</p>
+                            <h4 className="catalog-studio-section-title">Service-Specific Add-ons</h4>
                         </div>
                         <button type="button" onClick={addAddon} className={secondaryButtonClass}>
                             + Add Add-on
