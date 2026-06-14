@@ -11,8 +11,7 @@ import {
     EmailAuthProvider,
     signInWithCustomToken
 } from "firebase/auth";
-import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
-import { auth, storage } from "../lib/firebase";
+import { auth } from "../lib/firebase";
 import {
     DEPARTMENTS,
     ROLE_DEFINITIONS,
@@ -1082,8 +1081,9 @@ export default function Home() {
 
     const selectStaffAddressSuggestion = (prediction) => {
         applyPlaceSelection(prediction.place_id, (parsed) => {
+            setStaffProfileDraftOwnerUid(selectedStaffMember?.uid || "");
             setStaffProfileDraft(prev => {
-                const base = prev || normalizeStaffProfile(selectedStaffMember?.staffProfile);
+                const base = prev || normalizeStaffProfile(selectedStaffMember?.staffProfileRequest?.requestedProfile || selectedStaffMember?.staffProfile);
                 return {
                     ...base,
                     personal: {
@@ -1456,11 +1456,20 @@ export default function Home() {
         setStaffDocumentUploading(true);
         setStaffProfileFeedback("");
         try {
-            const safeFileKey = `${file.lastModified || 0}-${(file.name || "document").replace(/\s+/g, "-")}`;
-            const storageRef = ref(storage, `staff-documents/${selectedStaffMember.uid}/${safeFileKey}`);
-            await uploadBytes(storageRef, file, { contentType: file.type || "application/octet-stream" });
-            const url = await getDownloadURL(storageRef);
-            updateStaffDraftField("eligibility", fieldKey, buildDocumentMeta(file, url));
+            const headers = await getAuthHeaders();
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("kind", fieldKey);
+            const res = await fetch("/api/uploads/staff-document", {
+                method: "POST",
+                headers: {
+                    Authorization: headers.Authorization
+                },
+                body: formData
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Failed to upload document.");
+            updateStaffDraftField("eligibility", fieldKey, buildDocumentMeta(file, data.url));
             setStaffProfileFeedback(`${successLabel} uploaded and attached to this profile.`);
         } catch (err) {
             setStaffProfileFeedback(err.message || "Failed to upload document.");
