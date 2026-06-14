@@ -1725,6 +1725,80 @@ label {
     color: #fff;
 }
 
+.catalog-studio-collapsible {
+    border: 1px solid #dbeafe;
+    border-radius: var(--radius-sm);
+    background: #fff;
+    margin-bottom: 12px;
+    overflow: hidden;
+}
+
+.catalog-studio-collapsible:last-child {
+    margin-bottom: 0;
+}
+
+.catalog-studio-collapsible-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 18px;
+    cursor: pointer;
+    list-style: none;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+
+.catalog-studio-collapsible-summary::-webkit-details-marker {
+    display: none;
+}
+
+.catalog-studio-collapsible-title {
+    min-width: 0;
+    font-family: inherit;
+    font-size: 16px;
+    font-weight: 800;
+    line-height: 1.4;
+    color: var(--text-primary);
+}
+
+.catalog-studio-collapsible-meta {
+    flex-shrink: 0;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.catalog-studio-collapsible-body {
+    border-top: 1px solid #e2e8f0;
+    padding: 18px;
+    background: #fcfdff;
+}
+
+.catalog-studio-collapsible-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.8fr) minmax(140px, 0.8fr) minmax(160px, 1fr);
+    gap: 16px;
+    align-items: end;
+}
+
+.catalog-studio-collapsible-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 16px;
+}
+
+.catalog-studio-mini-label {
+    display: block;
+    font-family: inherit;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #64748b;
+}
+
 .catalog-studio-grid-head {
     display: grid;
     align-items: center;
@@ -1822,6 +1896,23 @@ label {
 
     .catalog-studio-button-danger {
         width: 100%;
+    }
+
+    .catalog-studio-collapsible-summary {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .catalog-studio-collapsible-meta {
+        flex-shrink: 1;
+    }
+
+    .catalog-studio-collapsible-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .catalog-studio-collapsible-actions {
+        justify-content: stretch;
     }
 }
 

@@ -5,6 +5,7 @@ import React, { useState } from "react";
 const fieldClass = "catalog-studio-field";
 const secondaryButtonClass = "catalog-studio-button catalog-studio-button-secondary";
 const dangerButtonClass = "catalog-studio-button catalog-studio-button-danger";
+const fieldGroupClass = "space-y-2";
 
 export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
     const [activeTab, setActiveTab] = useState(catalog.categories[0]?.id || "");
@@ -350,42 +351,57 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
                                     + Add Tier
                                 </button>
                             </div>
-                            <div className="catalog-studio-grid-head catalog-studio-tier-row border-b border-brand-mist pb-3">
-                                <span>Tier Name</span>
-                                <span>Price</span>
-                                <span>Hours</span>
-                                <span className="text-right">Action</span>
-                            </div>
-                            <div className="max-h-[360px] overflow-y-auto pt-4">
+                            <div className="max-h-[420px] overflow-y-auto pt-1">
                                 {(activeCategory.sizes || []).map(size => (
-                                    <div key={size.id} className="catalog-studio-grid-row catalog-studio-tier-row">
-                                        <input
-                                            type="text"
-                                            value={size.name}
-                                            onChange={e => updateSize(size.id, "name", e.target.value)}
-                                            className={fieldClass}
-                                        />
-                                        <input
-                                            type="number"
-                                            value={size.price}
-                                            onChange={e => updateSize(size.id, "price", parseFloat(e.target.value))}
-                                            className={fieldClass}
-                                        />
-                                        <input
-                                            type="number"
-                                            step="0.5"
-                                            value={size.durationHrs}
-                                            onChange={e => updateSize(size.id, "durationHrs", parseFloat(e.target.value) || 0)}
-                                            className={fieldClass}
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => deleteSizeTier(size.id)}
-                                            className={dangerButtonClass}
-                                        >
-                                            Delete
-                                        </button>
-                                    </div>
+                                    <details key={size.id} className="catalog-studio-collapsible" open>
+                                        <summary className="catalog-studio-collapsible-summary">
+                                            <span className="catalog-studio-collapsible-title">{size.name || "Untitled Tier"}</span>
+                                            <span className="catalog-studio-collapsible-meta">
+                                                ${parseFloat(size.price || 0).toFixed(2)} • {parseFloat(size.durationHrs || 0).toFixed(1)} hrs
+                                            </span>
+                                        </summary>
+                                        <div className="catalog-studio-collapsible-body">
+                                            <div className="catalog-studio-collapsible-grid">
+                                                <div className={fieldGroupClass}>
+                                                    <label className="catalog-studio-mini-label">Tier Name</label>
+                                                    <input
+                                                        type="text"
+                                                        value={size.name}
+                                                        onChange={e => updateSize(size.id, "name", e.target.value)}
+                                                        className={fieldClass}
+                                                    />
+                                                </div>
+                                                <div className={fieldGroupClass}>
+                                                    <label className="catalog-studio-mini-label">Price</label>
+                                                    <input
+                                                        type="number"
+                                                        value={size.price}
+                                                        onChange={e => updateSize(size.id, "price", parseFloat(e.target.value))}
+                                                        className={fieldClass}
+                                                    />
+                                                </div>
+                                                <div className={fieldGroupClass}>
+                                                    <label className="catalog-studio-mini-label">Hours</label>
+                                                    <input
+                                                        type="number"
+                                                        step="0.5"
+                                                        value={size.durationHrs}
+                                                        onChange={e => updateSize(size.id, "durationHrs", parseFloat(e.target.value) || 0)}
+                                                        className={fieldClass}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="catalog-studio-collapsible-actions">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => deleteSizeTier(size.id)}
+                                                    className={dangerButtonClass}
+                                                >
+                                                    Delete Tier
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </details>
                                 ))}
                             </div>
                         </div>
@@ -404,13 +420,6 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
                             </button>
                         </div>
 
-                        <div className="catalog-studio-grid-head catalog-studio-addon-row border-b border-brand-mist bg-slate-50/70 px-6 py-3">
-                            <span>Add-on Name</span>
-                            <span>Price</span>
-                            <span>Quantity</span>
-                            <span className="text-right">Action</span>
-                        </div>
-
                         <div className="flex-1 overflow-y-auto px-6 py-4">
                             {(activeCategory.addons || []).length === 0 ? (
                                 <div className="flex h-40 items-center justify-center rounded-brand-sm border border-dashed border-brand-mist text-sm font-semibold text-slate-400">
@@ -418,39 +427,60 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
                                 </div>
                             ) : (
                                 (activeCategory.addons || []).map(addon => (
-                                    <div key={addon.id} className="catalog-studio-grid-row catalog-studio-addon-row border-b border-slate-100 last:border-b-0">
-                                        <input
-                                            type="text"
-                                            value={addon.name}
-                                            onChange={e => updateAddon(addon.id, "name", e.target.value)}
-                                            className={fieldClass}
-                                        />
-                                        <div className="relative">
-                                            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 font-heading text-xs font-black text-slate-400">$</span>
-                                            <input
-                                                type="number"
-                                                value={addon.price}
-                                                onChange={e => updateAddon(addon.id, "price", parseFloat(e.target.value))}
-                                                className={`${fieldClass} catalog-studio-field-currency`}
-                                            />
+                                    <details key={addon.id} className="catalog-studio-collapsible" open>
+                                        <summary className="catalog-studio-collapsible-summary">
+                                            <span className="catalog-studio-collapsible-title">{addon.name || "Untitled Add-on"}</span>
+                                            <span className="catalog-studio-collapsible-meta">
+                                                ${parseFloat(addon.price || 0).toFixed(2)} • {addon.qtySelector ? "Qty selector on" : "Single add-on"}
+                                            </span>
+                                        </summary>
+                                        <div className="catalog-studio-collapsible-body">
+                                            <div className="catalog-studio-collapsible-grid">
+                                                <div className={fieldGroupClass}>
+                                                    <label className="catalog-studio-mini-label">Add-on Name</label>
+                                                    <input
+                                                        type="text"
+                                                        value={addon.name}
+                                                        onChange={e => updateAddon(addon.id, "name", e.target.value)}
+                                                        className={fieldClass}
+                                                    />
+                                                </div>
+                                                <div className={fieldGroupClass}>
+                                                    <label className="catalog-studio-mini-label">Price</label>
+                                                    <div className="relative">
+                                                        <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 font-heading text-xs font-black text-slate-400">$</span>
+                                                        <input
+                                                            type="number"
+                                                            value={addon.price}
+                                                            onChange={e => updateAddon(addon.id, "price", parseFloat(e.target.value))}
+                                                            className={`${fieldClass} catalog-studio-field-currency`}
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <div className={fieldGroupClass}>
+                                                    <label className="catalog-studio-mini-label">Quantity Setting</label>
+                                                    <label className="flex h-11 cursor-pointer items-center gap-2 rounded-brand-sm border border-brand-mist/90 bg-white px-4">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={addon.qtySelector}
+                                                            onChange={e => updateAddon(addon.id, "qtySelector", e.target.checked)}
+                                                            className="h-4 w-4 rounded-brand-sm border-brand-mist accent-brand-action"
+                                                        />
+                                                        <span className="font-heading text-[10px] font-bold uppercase text-slate-500">Qty selector</span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            <div className="catalog-studio-collapsible-actions">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => deleteAddon(addon.id)}
+                                                    className={dangerButtonClass}
+                                                >
+                                                    Delete Add-on
+                                                </button>
+                                            </div>
                                         </div>
-                                        <label className="flex h-11 cursor-pointer items-center gap-2 rounded-brand-sm border border-brand-mist/90 bg-white px-4">
-                                            <input
-                                                type="checkbox"
-                                                checked={addon.qtySelector}
-                                                onChange={e => updateAddon(addon.id, "qtySelector", e.target.checked)}
-                                                className="h-4 w-4 rounded-brand-sm border-brand-mist accent-brand-action"
-                                            />
-                                            <span className="font-heading text-[10px] font-bold uppercase text-slate-500">Qty selector</span>
-                                        </label>
-                                        <button
-                                            type="button"
-                                            onClick={() => deleteAddon(addon.id)}
-                                            className={dangerButtonClass}
-                                        >
-                                            Delete
-                                        </button>
-                                    </div>
+                                    </details>
                                 ))
                             )}
                         </div>
