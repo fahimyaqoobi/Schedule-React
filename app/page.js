@@ -107,6 +107,31 @@ function buildDocumentMeta(file, url) {
     };
 }
 
+function parseGooglePlaceDetails(place) {
+    const components = place?.address_components || [];
+    const getComponent = (type, useShort = false) => {
+        const match = components.find(component => component.types?.includes(type));
+        return match ? (useShort ? match.short_name : match.long_name) : "";
+    };
+
+    const streetNumber = getComponent("street_number");
+    const route = getComponent("route");
+    const city = getComponent("locality") || getComponent("postal_town") || getComponent("administrative_area_level_2");
+    const province = getComponent("administrative_area_level_1", true) || "ON";
+    const postalCode = getComponent("postal_code");
+    const country = getComponent("country") || "Canada";
+    const address1 = [streetNumber, route].filter(Boolean).join(" ").trim() || place?.formatted_address?.split(",")[0] || "";
+
+    return {
+        address1,
+        city,
+        state: province,
+        postalCode,
+        country,
+        formattedAddress: place?.formatted_address || address1
+    };
+}
+
 const DEFAULT_PRICES = {
     services: {
         // House Cleaning — size-based tiers
@@ -379,7 +404,11 @@ export default function Home() {
     const [addressQuery, setAddressQuery] = useState("");
     const [addressSuggestions, setAddressSuggestions] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
+    const [googlePlacesReady, setGooglePlacesReady] = useState(false);
+    const [staffAddressSuggestions, setStaffAddressSuggestions] = useState([]);
+    const [showStaffAddressSuggestions, setShowStaffAddressSuggestions] = useState(false);
     const autocompleteRef = useRef(null);
+    const staffAutocompleteRef = useRef(null);
     const serviceCatalogRef = useRef(null);
 
     // Bookings Filters
@@ -523,6 +552,34 @@ export default function Home() {
             return () => clearTimeout(timer);
         }
     }, [currentUser]);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return undefined;
+        if (window.google?.maps?.places) {
+            const readyTimer = setTimeout(() => setGooglePlacesReady(true), 0);
+            return () => clearTimeout(readyTimer);
+        }
+
+        const markReady = () => {
+            setTimeout(() => setGooglePlacesReady(true), 0);
+            return undefined;
+        };
+
+        const existing = document.querySelector('script[data-google-places="true"]');
+        if (existing) {
+            existing.addEventListener("load", markReady, { once: true });
+            return undefined;
+        }
+
+        const script = document.createElement("script");
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places`;
+        script.async = true;
+        script.defer = true;
+        script.dataset.googlePlaces = "true";
+        script.onload = markReady;
+        document.body.appendChild(script);
+        return undefined;
+    }, []);
 
     useEffect(() => {
         if (!currentUser) return;
@@ -928,56 +985,85 @@ export default function Home() {
         setName("");
     };
 
-    // ----------------------------------------------------
-    // OpenStreetMap Autocomplete restricted to Ontario, Canada
-    // ----------------------------------------------------
+    const loadGooglePredictions = (input, setter) => {
+        if (!googlePlacesReady || !window.google?.maps?.places || input.trim().length < 3) {
+            setter([]);
+            return;
+        }
+        const service = new window.google.maps.places.AutocompleteService();
+        service.getPlacePredictions({
+            input,
+            componentRestrictions: { country: "ca" },
+            types: ["address"]
+        }, (predictions, status) => {
+            if (status !== window.google.maps.places.PlacesServiceStatus.OK || !predictions) {
+                setter([]);
+                return;
+            }
+            setter(predictions);
+        });
+    };
+
     const handleAddressChange = async (e) => {
         const value = e.target.value;
         setAddressQuery(value);
         setBookingForm(prev => ({ ...prev, address1: value }));
-
-        if (value.trim().length < 4) {
-            setAddressSuggestions([]);
-            return;
-        }
-
-        try {
-            // Ontario Canada query bounds
-            const queryUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(value)}&countrycodes=ca&state=ontario&format=json&addressdetails=1&limit=5`;
-            const res = await fetch(queryUrl, {
-                headers: { "Accept-Language": "en-US,en;q=0.9" }
-            });
-            if (res.ok) {
-                const suggestions = await res.json();
-                setAddressSuggestions(suggestions);
-                setShowSuggestions(true);
-            }
-        } catch (err) {
-            console.warn("OSM autocomplete fetch interrupted", err);
-        }
+        setShowSuggestions(true);
+        loadGooglePredictions(value, setAddressSuggestions);
     };
 
-    const selectSuggestion = (place) => {
-        const addr = place.address || {};
-        const houseNum = addr.house_number || "";
-        const road = addr.road || addr.pedestrian || addr.suburb || "";
-        const formattedStreet = `${houseNum} ${road}`.trim();
+    const applyPlaceSelection = (placeId, onApply) => {
+        if (!googlePlacesReady || !window.google?.maps?.places) return;
+        const service = new window.google.maps.places.PlacesService(document.createElement("div"));
+        service.getDetails({
+            placeId,
+            fields: ["address_components", "formatted_address"]
+        }, (place, status) => {
+            if (status !== window.google.maps.places.PlacesServiceStatus.OK || !place) return;
+            onApply(parseGooglePlaceDetails(place));
+        });
+    };
 
-        const postal = addr.postcode || "";
-        const city = addr.city || addr.town || addr.village || addr.municipality || "";
+    const selectSuggestion = (prediction) => {
+        applyPlaceSelection(prediction.place_id, (parsed) => {
+            setBookingForm(prev => ({
+                ...prev,
+                address1: parsed.address1,
+                city: parsed.city,
+                state: parsed.state || "ON",
+                postalCode: parsed.postalCode,
+                country: parsed.country || "Canada"
+            }));
+            setAddressQuery(parsed.address1);
+            setAddressSuggestions([]);
+            setShowSuggestions(false);
+        });
+    };
 
-        setBookingForm(prev => ({
-            ...prev,
-            address1: formattedStreet || place.display_name.split(",")[0],
-            city: city,
-            state: "Ontario",
-            postalCode: postal,
-            country: "Canada"
-        }));
+    const handleStaffAddressChange = (value) => {
+        updateStaffDraftField("personal", "address", value);
+        setShowStaffAddressSuggestions(true);
+        loadGooglePredictions(value, setStaffAddressSuggestions);
+    };
 
-        setAddressQuery(formattedStreet || place.display_name.split(",")[0]);
-        setAddressSuggestions([]);
-        setShowSuggestions(false);
+    const selectStaffAddressSuggestion = (prediction) => {
+        applyPlaceSelection(prediction.place_id, (parsed) => {
+            setStaffProfileDraft(prev => {
+                const base = prev || normalizeStaffProfile(selectedStaffMember?.staffProfile);
+                return {
+                    ...base,
+                    personal: {
+                        ...base.personal,
+                        address: parsed.address1,
+                        city: parsed.city,
+                        province: parsed.state || "ON",
+                        postalCode: parsed.postalCode
+                    }
+                };
+            });
+            setStaffAddressSuggestions([]);
+            setShowStaffAddressSuggestions(false);
+        });
     };
 
     // Close autocomplete when clicking outside
@@ -985,6 +1071,9 @@ export default function Home() {
         const handleClickOutside = (e) => {
             if (autocompleteRef.current && !autocompleteRef.current.contains(e.target)) {
                 setShowSuggestions(false);
+            }
+            if (staffAutocompleteRef.current && !staffAutocompleteRef.current.contains(e.target)) {
+                setShowStaffAddressSuggestions(false);
             }
         };
         document.addEventListener("mousedown", handleClickOutside);
@@ -2898,6 +2987,19 @@ export default function Home() {
                                                                 <label className="span-2"><span>Legal name</span><input value={activeStaffProfileDraft.personal.legalName} onChange={e => updateStaffDraftField("personal", "legalName", e.target.value)} /></label>
                                                                 <label><span>Preferred name</span><input value={activeStaffProfileDraft.personal.preferredName} onChange={e => updateStaffDraftField("personal", "preferredName", e.target.value)} /></label>
                                                                 <label><span>Phone</span><input value={activeStaffProfileDraft.personal.phone} onChange={e => updateStaffDraftField("personal", "phone", e.target.value)} /></label>
+                                                                <label className="span-2 people-address-field" ref={staffAutocompleteRef}><span>Address</span><input value={activeStaffProfileDraft.personal.address} onChange={e => handleStaffAddressChange(e.target.value)} />
+                                                                    {showStaffAddressSuggestions && staffAddressSuggestions.length > 0 && (
+                                                                        <div className="places-suggestion-list">
+                                                                            {staffAddressSuggestions.map(suggestion => (
+                                                                                <button key={suggestion.place_id} type="button" className="places-suggestion-item" onClick={() => selectStaffAddressSuggestion(suggestion)}>
+                                                                                    {suggestion.description}
+                                                                                </button>
+                                                                            ))}
+                                                                        </div>
+                                                                    )}
+                                                                </label>
+                                                                <label><span>City</span><input value={activeStaffProfileDraft.personal.city} onChange={e => updateStaffDraftField("personal", "city", e.target.value)} /></label>
+                                                                <label><span>Postal code</span><input value={activeStaffProfileDraft.personal.postalCode} onChange={e => updateStaffDraftField("personal", "postalCode", e.target.value)} /></label>
                                                                 <label className="span-2"><span>Emergency contact</span><input value={activeStaffProfileDraft.emergency.contactName} onChange={e => updateStaffDraftField("emergency", "contactName", e.target.value)} /></label>
                                                                 <label><span>Relationship</span><input value={activeStaffProfileDraft.emergency.relationship} onChange={e => updateStaffDraftField("emergency", "relationship", e.target.value)} /></label>
                                                                 <label><span>Emergency phone</span><input value={activeStaffProfileDraft.emergency.phone} onChange={e => updateStaffDraftField("emergency", "phone", e.target.value)} /></label>
@@ -3198,7 +3300,17 @@ export default function Home() {
                                                             <label><span>Preferred name</span><input value={activeStaffProfileDraft.personal.preferredName} onChange={e => updateStaffDraftField("personal", "preferredName", e.target.value)} /></label>
                                                             <label><span>Phone</span><input value={activeStaffProfileDraft.personal.phone} onChange={e => updateStaffDraftField("personal", "phone", e.target.value)} /></label>
                                                             <label><span>Date of birth</span><input type="date" value={activeStaffProfileDraft.personal.dateOfBirth} onChange={e => updateStaffDraftField("personal", "dateOfBirth", e.target.value)} /></label>
-                                                            <label className="span-2"><span>Address</span><input value={activeStaffProfileDraft.personal.address} onChange={e => updateStaffDraftField("personal", "address", e.target.value)} /></label>
+                                                            <label className="span-2 people-address-field" ref={staffAutocompleteRef}><span>Address</span><input value={activeStaffProfileDraft.personal.address} onChange={e => handleStaffAddressChange(e.target.value)} />
+                                                                {showStaffAddressSuggestions && staffAddressSuggestions.length > 0 && (
+                                                                    <div className="places-suggestion-list">
+                                                                        {staffAddressSuggestions.map(suggestion => (
+                                                                            <button key={suggestion.place_id} type="button" className="places-suggestion-item" onClick={() => selectStaffAddressSuggestion(suggestion)}>
+                                                                                {suggestion.description}
+                                                                            </button>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+                                                            </label>
                                                             <label><span>City</span><input value={activeStaffProfileDraft.personal.city} onChange={e => updateStaffDraftField("personal", "city", e.target.value)} /></label>
                                                             <label><span>Postal code</span><input value={activeStaffProfileDraft.personal.postalCode} onChange={e => updateStaffDraftField("personal", "postalCode", e.target.value)} /></label>
                                                         </div>
@@ -4189,9 +4301,18 @@ export default function Home() {
                                         </div>
                                     </div>
 
-                                    <div className="form-group flex flex-col gap-1">
+                                    <div className="form-group flex flex-col gap-1 places-field" ref={autocompleteRef}>
                                         <label className="font-bold text-slate-700">Service Street Address</label>
-                                        <input type="text" value={bookingForm.address1} onChange={e => setBookingForm(prev => ({ ...prev, address1: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
+                                        <input type="text" value={bookingForm.address1} onChange={handleAddressChange} required className="border border-slate-200 rounded-lg p-2" />
+                                        {showSuggestions && addressSuggestions.length > 0 && (
+                                            <div className="places-suggestion-list">
+                                                {addressSuggestions.map(suggestion => (
+                                                    <button key={suggestion.place_id} type="button" className="places-suggestion-item" onClick={() => selectSuggestion(suggestion)}>
+                                                        {suggestion.description}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

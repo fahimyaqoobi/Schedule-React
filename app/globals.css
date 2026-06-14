@@ -3001,6 +3001,43 @@ label {
     font-weight: 800;
 }
 
+.places-field,
+.people-address-field {
+    position: relative;
+}
+
+.places-suggestion-list {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    z-index: 30;
+    display: grid;
+    gap: 6px;
+    border: 1px solid #cbd5e1;
+    border-radius: 14px;
+    background: #ffffff;
+    box-shadow: 0 18px 34px rgba(15, 23, 42, 0.12);
+    padding: 8px;
+    max-height: 220px;
+    overflow: auto;
+}
+
+.places-suggestion-item {
+    border: none;
+    border-radius: 10px;
+    background: #ffffff;
+    color: #111827;
+    padding: 10px 12px;
+    text-align: left;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.places-suggestion-item:hover {
+    background: #eff6ff;
+}
+
 .people-mobile-profile-stats {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
