@@ -22,6 +22,13 @@ function getDurationMinutes(startedAt, endedAt) {
     return Math.max(0, Math.round((new Date(endedAt).getTime() - new Date(startedAt).getTime()) / 60000));
 }
 
+function toIsoOrFallback(value, fallback = "") {
+    if (!value) return fallback;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return fallback;
+    return date.toISOString();
+}
+
 async function authenticateRequest(request) {
     const authHeader = request.headers.get("Authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -185,7 +192,7 @@ export async function PUT(request) {
     try {
         const user = await authenticateRequest(request);
         const body = await request.json();
-        const { action, entryId, currentLocation } = body;
+        const { action, entryId, currentLocation, startedAt, endedAt, unpaidBreakMinutes } = body;
 
         if (action === "checkout") {
             if (!entryId || !currentLocation?.lat || !currentLocation?.lng) {
@@ -253,9 +260,28 @@ export async function PUT(request) {
             if (!userCanAccessBranch(user, entry.branchId || DEFAULT_BRANCH_ID)) {
                 return NextResponse.json({ error: "You cannot review this branch entry." }, { status: 403 });
             }
+            const reviewedStartedAt = action === "approve" ? toIsoOrFallback(startedAt, entry.startedAt) : entry.startedAt;
+            const reviewedEndedAt = action === "approve" ? toIsoOrFallback(endedAt, entry.endedAt) : entry.endedAt;
+            const normalizedBreak = action === "approve" ? Math.max(0, Number(unpaidBreakMinutes ?? entry.unpaidBreakMinutes ?? 0)) : Number(entry.unpaidBreakMinutes || 0);
+            const adjustedDurationMinutes = action === "approve"
+                ? Math.max(0, getDurationMinutes(reviewedStartedAt, reviewedEndedAt) - normalizedBreak)
+                : entry.durationMinutes;
+            const adjustedPayrollBreakdown = action === "approve"
+                ? calculatePayrollBreakdown(adjustedDurationMinutes, {
+                    hourlyRate: entry.payRate || DEFAULT_PAY_RATE,
+                    overtimeRate: entry.overtimeRate,
+                    overtimeAfterHours: entry.overtimeAfterHours
+                })
+                : entry.payrollBreakdown;
             const updatedEntry = {
                 ...entry,
                 status: action === "approve" ? "approved" : "rejected",
+                startedAt: reviewedStartedAt,
+                endedAt: reviewedEndedAt,
+                unpaidBreakMinutes: normalizedBreak,
+                durationMinutes: adjustedDurationMinutes,
+                grossPayEstimate: action === "approve" ? adjustedPayrollBreakdown.grossPay : 0,
+                payrollBreakdown: adjustedPayrollBreakdown,
                 reviewedAt: new Date().toISOString(),
                 reviewedBy: user.email || user.uid,
                 updatedAt: new Date().toISOString()

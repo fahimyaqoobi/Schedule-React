@@ -74,7 +74,7 @@ export async function POST(request) {
             return NextResponse.json({ error: "Forbidden: Only Administrators can resolve cleaner modification requests." }, { status: 403 });
         }
         
-        const { requestId, action } = await request.json();
+        const { requestId, action, finalStatus, paymentStatus } = await request.json();
         
         if (!requestId || !action) {
             return NextResponse.json({ error: "Missing required fields: requestId, action" }, { status: 400 });
@@ -95,6 +95,8 @@ export async function POST(request) {
             const bookingId = reqData.bookingId;
             const updatedBooking = {
                 ...reqData.requestedData,
+                status: finalStatus || reqData.requestedData?.status || reqData.originalData?.status || "Confirmed",
+                paymentStatus: paymentStatus || reqData.requestedData?.paymentStatus || reqData.originalData?.paymentStatus || "unpaid",
                 updatedAt: new Date().toISOString(),
                 approvedBy: user.email
             };

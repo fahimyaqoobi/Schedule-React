@@ -666,6 +666,8 @@ export default function Home() {
     const [jobsNow, setJobsNow] = useState(0);
     const [cleanerJobTab, setCleanerJobTab] = useState("overview");
     const [cleanerJobDrafts, setCleanerJobDrafts] = useState({});
+    const [editRequestResolutions, setEditRequestResolutions] = useState({});
+    const [timeEntryEditDrafts, setTimeEntryEditDrafts] = useState({});
 
     // Shared Secure JWT Authorization Request Fetcher
     const getAuthHeaders = useCallback(async () => {
@@ -805,13 +807,15 @@ export default function Home() {
     const cleanerPayPeriod = useMemo(() => getCleanerPayPeriodSummary(jobsNow ? new Date(jobsNow) : new Date()), [jobsNow]);
 
     const recentOwnTimeEntries = useMemo(() => {
-        return ownTimeEntries.filter(entry => entry.status !== "active").slice(0, 6);
+        return ownTimeEntries.filter(entry => entry.status !== "active" && entry.status !== "rejected").slice(0, 6);
     }, [ownTimeEntries]);
 
     const weeklyTimeSummary = useMemo(() => {
         const entries = ownTimeEntries.filter(entry => {
             const started = new Date(entry.startedAt || entry.createdAt || 0).getTime();
-            return started >= cleanerPayPeriod.periodStart.getTime() && started <= cleanerPayPeriod.cutoffDate.getTime();
+            return started >= cleanerPayPeriod.periodStart.getTime()
+                && started <= cleanerPayPeriod.cutoffDate.getTime()
+                && entry.status !== "rejected";
         });
         const totalMinutes = entries.reduce((sum, entry) => sum + Number(entry.durationMinutes || 0), 0);
         const grossPay = entries.reduce((sum, entry) => sum + Number(entry.grossPayEstimate || 0), 0);
@@ -1505,7 +1509,15 @@ export default function Home() {
             const payload = isCleanerBookingEditor
                 ? {
                     id: bookingForm.id,
-                    status: bookingForm.status
+                    status: bookingForm.status,
+                    cleanerChecklist: {
+                        tasks: (activeCleanerJobDraft?.tasks || []).map(task => ({
+                            id: task.id,
+                            label: task.label,
+                            beforePhotos: (task.beforePhotos || []).map(photo => photo.name),
+                            afterPhotos: (task.afterPhotos || []).map(photo => photo.name)
+                        }))
+                    }
                 }
                 : {
                     ...bookingForm,
@@ -1910,8 +1922,7 @@ export default function Home() {
     const updateCleanerJobPhotos = useCallback((bookingId, taskId, phase, files) => {
         const photoList = Array.from(files || []).map((file, index) => ({
             id: `${taskId}-${phase}-${Date.now()}-${index}`,
-            name: file.name || `${phase} photo`,
-            previewUrl: URL.createObjectURL(file)
+            name: file.name || `${phase} photo`
         }));
 
         setCleanerJobDrafts(prev => {
@@ -2082,20 +2093,32 @@ export default function Home() {
         setTimeEntrySaving(true);
         try {
             const headers = await getAuthHeaders();
+            const editDraft = timeEntryEditDrafts[entryId];
             const res = await fetch("/api/time-entries", {
                 method: "PUT",
                 headers,
-                body: JSON.stringify({ entryId, action })
+                body: JSON.stringify({
+                    entryId,
+                    action,
+                    startedAt: editDraft?.startedAt,
+                    endedAt: editDraft?.endedAt,
+                    unpaidBreakMinutes: editDraft?.unpaidBreakMinutes
+                })
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "Failed to review time entry.");
+            setTimeEntryEditDrafts(prev => {
+                const next = { ...prev };
+                delete next[entryId];
+                return next;
+            });
             syncDatabaseData(currentUser);
         } catch (error) {
             alert(error.message || "Failed to review time entry.");
         } finally {
             setTimeEntrySaving(false);
         }
-    }, [currentUser, getAuthHeaders, syncDatabaseData]);
+    }, [currentUser, getAuthHeaders, syncDatabaseData, timeEntryEditDrafts]);
 
     // ----------------------------------------------------
     // Admin Review Merges (Approvals / Rejections)
@@ -2103,14 +2126,25 @@ export default function Home() {
     const handleResolveEdit = async (requestId, action) => {
         try {
             const headers = await getAuthHeaders();
+            const resolution = editRequestResolutions[requestId] || {};
             const res = await fetch("/api/edit-requests", {
                 method: "POST",
                 headers,
-                body: JSON.stringify({ requestId, action })
+                body: JSON.stringify({
+                    requestId,
+                    action,
+                    finalStatus: resolution.finalStatus,
+                    paymentStatus: resolution.paymentStatus
+                })
             });
 
             if (res.ok) {
                 alert(`Edit request ${action === "approve" ? "approved & merged" : "rejected"} successfully!`);
+                setEditRequestResolutions(prev => {
+                    const next = { ...prev };
+                    delete next[requestId];
+                    return next;
+                });
                 syncDatabaseData(currentUser);
             } else {
                 const err = await res.json();
@@ -3422,6 +3456,55 @@ export default function Home() {
                                                         <button type="button" onClick={() => handleReviewTimeEntry(entry.id, "approve")} disabled={timeEntrySaving}>Approve</button>
                                                         <button type="button" className="team-secondary-action" onClick={() => handleReviewTimeEntry(entry.id, "reject")} disabled={timeEntrySaving}>Reject</button>
                                                     </div>
+                                                    <div className="md:col-span-7 grid grid-cols-1 md:grid-cols-3 gap-3 mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                                                        <label className="flex flex-col gap-1 text-xs text-slate-700">
+                                                            <strong>Start Time</strong>
+                                                            <input
+                                                                type="datetime-local"
+                                                                value={timeEntryEditDrafts[entry.id]?.startedAt || (entry.startedAt ? new Date(entry.startedAt).toISOString().slice(0, 16) : "")}
+                                                                onChange={e => setTimeEntryEditDrafts(prev => ({
+                                                                    ...prev,
+                                                                    [entry.id]: {
+                                                                        ...(prev[entry.id] || {}),
+                                                                        startedAt: e.target.value
+                                                                    }
+                                                                }))}
+                                                                className="border border-slate-200 rounded-lg p-2"
+                                                            />
+                                                        </label>
+                                                        <label className="flex flex-col gap-1 text-xs text-slate-700">
+                                                            <strong>Finish Time</strong>
+                                                            <input
+                                                                type="datetime-local"
+                                                                value={timeEntryEditDrafts[entry.id]?.endedAt || (entry.endedAt ? new Date(entry.endedAt).toISOString().slice(0, 16) : "")}
+                                                                onChange={e => setTimeEntryEditDrafts(prev => ({
+                                                                    ...prev,
+                                                                    [entry.id]: {
+                                                                        ...(prev[entry.id] || {}),
+                                                                        endedAt: e.target.value
+                                                                    }
+                                                                }))}
+                                                                className="border border-slate-200 rounded-lg p-2"
+                                                            />
+                                                        </label>
+                                                        <label className="flex flex-col gap-1 text-xs text-slate-700">
+                                                            <strong>Unpaid Break (mins)</strong>
+                                                            <input
+                                                                type="number"
+                                                                min="0"
+                                                                step="1"
+                                                                value={timeEntryEditDrafts[entry.id]?.unpaidBreakMinutes ?? entry.unpaidBreakMinutes ?? 0}
+                                                                onChange={e => setTimeEntryEditDrafts(prev => ({
+                                                                    ...prev,
+                                                                    [entry.id]: {
+                                                                        ...(prev[entry.id] || {}),
+                                                                        unpaidBreakMinutes: parseInt(e.target.value || "0", 10)
+                                                                    }
+                                                                }))}
+                                                                className="border border-slate-200 rounded-lg p-2"
+                                                            />
+                                                        </label>
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
@@ -3493,7 +3576,7 @@ export default function Home() {
                         ) : (
                             <div className="people-management-shell">
                                 {!isViewingOwnCleanerProfile && (
-                                    <div className="teams-grid">
+                                    <div className="grid grid-cols-4 gap-3 md:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10">
                                         {peopleRoster.map(member => {
                                             const assignedJobs = bookings.filter(b => b.assignedStaffIds?.includes(member.uid) && b.status !== "Cancelled");
                                             const completedCount = assignedJobs.filter(b => b.status === "Completed").length;
@@ -3511,39 +3594,24 @@ export default function Home() {
                                                         setStaffProfileRejectReason("");
                                                         setStaffProfileEditOpen(false);
                                                     }}
-                                                    className={`team-card team-card-button ${selectedStaffMember?.uid === member.uid ? "team-card-active" : ""}`}
+                                                    className={`rounded-[28px] border p-3 text-left shadow-sm transition ${selectedStaffMember?.uid === member.uid ? "border-blue-500 bg-blue-50 shadow-md" : "border-slate-200 bg-white hover:border-slate-300"}`}
                                                 >
-                                                    <div className="team-card-header">
-                                                        <div className="team-card-title-group">
-                                                        <div className="team-avatar-square team-sparkle-bg">
-                                                                {member.photoURL ? (
-                                                                    <img src={member.photoURL} alt={member.name || member.email} className="avatar-image" />
-                                                                ) : initials}
-                                                            </div>
-                                                            <div className="team-card-info">
-                                                                <h4>{member.name}</h4>
-                                                                <span>
-                                                                    {getRoleLabel(member.role)} · {member.branchName || "Ottawa"}
-                                                                </span>
-                                                            </div>
+                                                    <div className="flex flex-col items-center gap-2">
+                                                        <div className={`relative h-16 w-16 overflow-hidden rounded-full border-4 ${selectedStaffMember?.uid === member.uid ? "border-blue-500" : "border-slate-100"} bg-blue-600 text-white flex items-center justify-center text-lg font-extrabold`}>
+                                                            {member.photoURL ? (
+                                                                <img src={member.photoURL} alt={member.name || member.email} className="h-full w-full object-cover" />
+                                                            ) : initials}
+                                                            <span className={`absolute bottom-0 right-0 h-4 w-4 rounded-full border-2 border-white ${member.status === "approved" ? "bg-emerald-500" : "bg-amber-400"}`}></span>
                                                         </div>
-                                                        {requestPending && <span className="ops-chip ops-chip-green">Needs Review</span>}
-                                                    </div>
-                                                    <div className="team-card-body">
-                                                        <p className="text-xs text-slate-400 mb-4 italic">{member.email}</p>
-                                                        <div className="team-members-container">
-                                                            <h5 className="team-section-title">Profile Status</h5>
-                                                            <div className="flex flex-col gap-2 text-xs text-slate-600">
-                                                                <div><strong>Account:</strong> {member.status}</div>
-                                                                <div><strong>Profile:</strong> {member.staffProfileMeta?.status || "incomplete"}</div>
-                                                                <div><strong>Branch:</strong> {member.branchName || "Ottawa"}</div>
-                                                            </div>
+                                                        <div className="flex flex-wrap justify-center gap-1">
+                                                            <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${member.staffProfileMeta?.status === "approved" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>P</span>
+                                                            <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${assignedJobs.length > 0 ? "bg-blue-50 text-blue-700" : "bg-slate-100 text-slate-600"}`}>J{assignedJobs.length}</span>
+                                                            <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${completedCount > 0 ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>C{completedCount}</span>
+                                                            {requestPending && <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold text-amber-700">R</span>}
                                                         </div>
-                                                        <div className="team-jobs-today-container mt-4 pt-3 border-t border-slate-100">
-                                                            <div className="flex justify-between items-center text-xs font-bold text-slate-500">
-                                                                <span>Assigned jobs: <strong>{assignedJobs.length}</strong></span>
-                                                                <span>Completed: <strong>{completedCount}</strong></span>
-                                                            </div>
+                                                        <div className="text-center">
+                                                            <h4 className="line-clamp-2 text-xs font-bold text-slate-800">{member.name}</h4>
+                                                            <span className="text-[10px] text-slate-500">{getRoleLabel(member.role)}</span>
                                                         </div>
                                                     </div>
                                                 </button>
@@ -4441,6 +4509,10 @@ export default function Home() {
                             editRequests.filter(r => r.status === "Pending").map(req => {
                                 const orig = req.originalData || {};
                                 const reqd = req.requestedData || {};
+                                const resolution = editRequestResolutions[req.id] || {
+                                    finalStatus: reqd.status || orig.status || "Confirmed",
+                                    paymentStatus: reqd.paymentStatus || orig.paymentStatus || "unpaid"
+                                };
                                 return (
                                     <div key={req.id} className="panel-card border-l-4 border-amber-500 p-6 flex flex-col gap-4 bg-white shadow rounded-2xl">
                                         <div className="flex justify-between items-start border-b border-slate-100 pb-3">
@@ -4474,6 +4546,7 @@ export default function Home() {
                                                     <div><strong>Schedule Date:</strong> {orig.date} • {orig.time}</div>
                                                     <div><strong>Assigned Team:</strong> {orig.team}</div>
                                                     <div><strong>Status:</strong> <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${orig.status === 'Completed' ? 'bg-green-100 text-green-700' : orig.status === 'Cancelled' ? 'bg-red-100 text-red-700' : orig.status === 'Confirmed' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>{orig.status || 'Pending'}</span></div>
+                                                    <div><strong>Payment:</strong> {orig.paymentStatus || "unpaid"}</div>
                                                 </div>
                                             </div>
                                             {/* Requested updates */}
@@ -4494,8 +4567,70 @@ export default function Home() {
                                                     <div><strong>Schedule Date:</strong> <span className={(orig.date !== reqd.date || orig.time !== reqd.time) ? "diff-highlight font-bold" : ""}>{reqd.date} • {reqd.time}</span></div>
                                                     <div><strong>Assigned Team:</strong> <span className={orig.team !== reqd.team ? "diff-highlight font-bold" : ""}>{reqd.team}</span></div>
                                                     <div><strong>Status:</strong> <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${orig.status !== reqd.status ? 'diff-highlight' : ''} ${reqd.status === 'Completed' ? 'bg-green-100 text-green-700' : reqd.status === 'Cancelled' ? 'bg-red-100 text-red-700' : reqd.status === 'Confirmed' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>{reqd.status || 'Pending'}</span></div>
+                                                    <div><strong>Payment:</strong> <span className={orig.paymentStatus !== reqd.paymentStatus ? "diff-highlight font-bold" : ""}>{reqd.paymentStatus || "unpaid"}</span></div>
                                                 </div>
                                             </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="comparison-column bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                                <div className="comparison-title text-[9px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200 pb-1 mb-2">Admin Final Decision</div>
+                                                <div className="flex flex-col gap-3 text-xs text-slate-700">
+                                                    <label className="flex flex-col gap-1">
+                                                        <strong>Final Job Status</strong>
+                                                        <select
+                                                            value={resolution.finalStatus}
+                                                            onChange={e => setEditRequestResolutions(prev => ({
+                                                                ...prev,
+                                                                [req.id]: {
+                                                                    ...resolution,
+                                                                    finalStatus: e.target.value
+                                                                }
+                                                            }))}
+                                                            className="border border-slate-200 rounded-lg p-2"
+                                                        >
+                                                            <option value="Pending">Pending</option>
+                                                            <option value="Confirmed">Confirmed</option>
+                                                            <option value="Completed">Completed</option>
+                                                            <option value="Cancelled">Cancelled</option>
+                                                        </select>
+                                                    </label>
+                                                    <label className="flex flex-col gap-1">
+                                                        <strong>Payment Status</strong>
+                                                        <select
+                                                            value={resolution.paymentStatus}
+                                                            onChange={e => setEditRequestResolutions(prev => ({
+                                                                ...prev,
+                                                                [req.id]: {
+                                                                    ...resolution,
+                                                                    paymentStatus: e.target.value
+                                                                }
+                                                            }))}
+                                                            className="border border-slate-200 rounded-lg p-2"
+                                                        >
+                                                            <option value="unpaid">Unpaid</option>
+                                                            <option value="paid">Paid</option>
+                                                        </select>
+                                                    </label>
+                                                    <p className="text-[11px] text-slate-500">Payment is admin-only and does not have to match the operational job status.</p>
+                                                </div>
+                                            </div>
+
+                                            {reqd.cleanerChecklist?.tasks?.length > 0 && (
+                                                <div className="comparison-column bg-amber-50 bg-opacity-30 border border-amber-200 p-4 rounded-xl">
+                                                    <div className="comparison-title text-[9px] font-bold text-amber-700 uppercase tracking-widest border-b border-amber-200 pb-1 mb-2">Cleaner Completion Review</div>
+                                                    <div className="flex flex-col gap-2 text-xs text-slate-700">
+                                                        {reqd.cleanerChecklist.tasks.map(task => (
+                                                            <div key={task.id} className="rounded-xl border border-amber-200 bg-white p-3">
+                                                                <strong>{task.label}</strong>
+                                                                <div className="mt-2"><strong>Before photos:</strong> {(task.beforePhotos || []).length ? task.beforePhotos.join(", ") : "None submitted"}</div>
+                                                                <div><strong>After photos:</strong> {(task.afterPhotos || []).length ? task.afterPhotos.join(", ") : "None submitted"}</div>
+                                                            </div>
+                                                        ))}
+                                                        <p className="text-[11px] text-slate-500">Photo files are not persistently reviewable across accounts yet until storage-backed uploads are completed.</p>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 );
@@ -5081,6 +5216,12 @@ export default function Home() {
                                             <span className="detail-label">Duration</span>
                                             <span className="detail-value">{b.duration} hours</span>
                                         </div>
+                                        {!isCleanerSelfServiceView && (
+                                            <div className="detail-row">
+                                                <span className="detail-label">Payment Status</span>
+                                                <span className="detail-value">{b.paymentStatus || "unpaid"}</span>
+                                            </div>
+                                        )}
                                         {!isCleanerSelfServiceView && (
                                             <div className="detail-row">
                                                 <span className="detail-label">Assigned Staff</span>

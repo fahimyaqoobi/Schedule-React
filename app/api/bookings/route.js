@@ -150,6 +150,7 @@ export async function POST(request) {
             subtotal,
             tax,
             price: total,
+            paymentStatus: bookingData.paymentStatus || "unpaid",
             duration: parseFloat(bookingData.duration || 2),
             createdAt: new Date().toISOString(),
             createdBy: user.email
@@ -194,6 +195,7 @@ export async function PUT(request) {
                 ...originalData,
                 ...bookingData,
                 price: parseFloat(bookingData.price ?? originalData.price),
+                paymentStatus: bookingData.paymentStatus ?? originalData.paymentStatus ?? "unpaid",
                 duration: parseFloat(bookingData.duration ?? originalData.duration),
                 updatedAt: new Date().toISOString(),
                 updatedBy: user.email
@@ -215,6 +217,7 @@ export async function PUT(request) {
                     ...originalData,
                     ...bookingData,
                     price: parseFloat(bookingData.price ?? originalData.price),
+                    paymentStatus: bookingData.paymentStatus ?? originalData.paymentStatus ?? "unpaid",
                     duration: parseFloat(bookingData.duration ?? originalData.duration)
                 }
             };
