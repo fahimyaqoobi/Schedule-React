@@ -444,6 +444,7 @@ export default function Home() {
     const canManagePermissions = canManageSystem(currentUser);
     const canManagePeopleProfiles = currentUser ? ["super-admin", "branch-admin"].includes(normalizeRole(currentUser.role)) : false;
     const isCleanerSelfServiceView = Boolean(canSelfManagePeopleProfile && !canManagePeopleProfiles && !isPendingCleanerOnboarding);
+    const showBookingContactFields = !isCleanerSelfServiceView;
     const branchScope = currentUser ? getBranchScopeForUser({ ...currentUser, activeBranchId: selectedBranchId }) : null;
     const activeBranch = getBranchById(branchScope?.activeBranchId || selectedBranchId || DEFAULT_BRANCH_ID);
 
@@ -3534,8 +3535,12 @@ export default function Home() {
                                                             <div className="people-mobile-editor-section">
                                                                 <label className="span-2"><span>Legal name</span><input value={activeStaffProfileDraft.personal.legalName} onChange={e => updateStaffDraftField("personal", "legalName", e.target.value)} /></label>
                                                                 <label><span>Preferred name</span><input value={activeStaffProfileDraft.personal.preferredName} onChange={e => updateStaffDraftField("personal", "preferredName", e.target.value)} /></label>
-                                                                <label><span>Email</span><input type="email" value={activeStaffProfileDraft.personal.email || selectedStaffMember.email || ""} onChange={e => updateStaffDraftField("personal", "email", e.target.value)} /></label>
-                                                                <label><span>Phone</span><input value={activeStaffProfileDraft.personal.phone} onChange={e => updateStaffDraftField("personal", "phone", e.target.value)} /></label>
+                                                                {canAdminDirectEditSelectedStaffProfile && (
+                                                                    <label><span>Email</span><input type="email" value={activeStaffProfileDraft.personal.email || selectedStaffMember.email || ""} onChange={e => updateStaffDraftField("personal", "email", e.target.value)} /></label>
+                                                                )}
+                                                                {canAdminDirectEditSelectedStaffProfile && (
+                                                                    <label><span>Phone</span><input value={activeStaffProfileDraft.personal.phone} onChange={e => updateStaffDraftField("personal", "phone", e.target.value)} /></label>
+                                                                )}
                                                                 <label className="span-2 people-address-field" ref={staffAutocompleteRef}><span>Address</span><input value={activeStaffProfileDraft.personal.address} onChange={e => handleStaffAddressChange(e.target.value)} />
                                                                     {showStaffAddressSuggestions && staffAddressSuggestions.length > 0 && (
                                                                         <div className="places-suggestion-list">
@@ -3893,8 +3898,12 @@ export default function Home() {
                                                         <div className="people-profile-form-grid people-profile-form-grid-wide">
                                                             <label><span>Legal name</span><input value={activeStaffProfileDraft.personal.legalName} onChange={e => updateStaffDraftField("personal", "legalName", e.target.value)} /></label>
                                                             <label><span>Preferred name</span><input value={activeStaffProfileDraft.personal.preferredName} onChange={e => updateStaffDraftField("personal", "preferredName", e.target.value)} /></label>
-                                                            <label><span>Email</span><input type="email" value={activeStaffProfileDraft.personal.email || selectedStaffMember.email || ""} onChange={e => updateStaffDraftField("personal", "email", e.target.value)} /></label>
-                                                            <label><span>Phone</span><input value={activeStaffProfileDraft.personal.phone} onChange={e => updateStaffDraftField("personal", "phone", e.target.value)} /></label>
+                                                            {canAdminDirectEditSelectedStaffProfile && (
+                                                                <label><span>Email</span><input type="email" value={activeStaffProfileDraft.personal.email || selectedStaffMember.email || ""} onChange={e => updateStaffDraftField("personal", "email", e.target.value)} /></label>
+                                                            )}
+                                                            {canAdminDirectEditSelectedStaffProfile && (
+                                                                <label><span>Phone</span><input value={activeStaffProfileDraft.personal.phone} onChange={e => updateStaffDraftField("personal", "phone", e.target.value)} /></label>
+                                                            )}
                                                             <label><span>Date of birth</span><input type="date" value={activeStaffProfileDraft.personal.dateOfBirth} onChange={e => updateStaffDraftField("personal", "dateOfBirth", e.target.value)} /></label>
                                                             <label className="span-2 people-address-field" ref={staffAutocompleteRef}><span>Address</span><input value={activeStaffProfileDraft.personal.address} onChange={e => handleStaffAddressChange(e.target.value)} />
                                                                 {showStaffAddressSuggestions && staffAddressSuggestions.length > 0 && (
@@ -5011,14 +5020,18 @@ export default function Home() {
                                             <label className="font-bold text-slate-700">Client Last Name</label>
                                             <input type="text" value={bookingForm.lastName} onChange={e => setBookingForm(prev => ({ ...prev, lastName: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
                                         </div>
-                                        <div className="form-group flex flex-col gap-1">
-                                            <label className="font-bold text-slate-700">Client Phone</label>
-                                            <input type="text" value={bookingForm.phone} onChange={e => setBookingForm(prev => ({ ...prev, phone: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
-                                        </div>
-                                        <div className="form-group flex flex-col gap-1">
-                                            <label className="font-bold text-slate-700">Client Email</label>
-                                            <input type="email" value={bookingForm.email} onChange={e => setBookingForm(prev => ({ ...prev, email: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
-                                        </div>
+                                        {showBookingContactFields && (
+                                            <div className="form-group flex flex-col gap-1">
+                                                <label className="font-bold text-slate-700">Client Phone</label>
+                                                <input type="text" value={bookingForm.phone} onChange={e => setBookingForm(prev => ({ ...prev, phone: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
+                                            </div>
+                                        )}
+                                        {showBookingContactFields && (
+                                            <div className="form-group flex flex-col gap-1">
+                                                <label className="font-bold text-slate-700">Client Email</label>
+                                                <input type="email" value={bookingForm.email} onChange={e => setBookingForm(prev => ({ ...prev, email: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div className="form-group flex flex-col gap-1 places-field" ref={autocompleteRef}>
