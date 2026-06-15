@@ -2912,9 +2912,144 @@ label {
     gap: 8px;
 }
 
+.hr-hub-shell {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.hr-hub-hero {
+    display: flex;
+    justify-content: space-between;
+    gap: 24px;
+    align-items: flex-start;
+    background: #fff;
+    border: 1px solid #dbe3ef;
+    border-radius: 28px;
+    padding: 28px;
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.05);
+}
+
+.hr-hub-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.hr-hub-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 18px;
+}
+
+.hr-hub-metric-card,
+.hr-hub-panel {
+    background: #fff;
+    border: 1px solid #dbe3ef;
+    border-radius: 24px;
+    padding: 24px;
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.05);
+}
+
+.hr-hub-metric-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.hr-hub-metric-card span,
+.hr-hub-list-item span,
+.hr-hub-compliance-list span {
+    font-size: 13px;
+    color: #64748b;
+}
+
+.hr-hub-metric-card strong {
+    font-size: 36px;
+    line-height: 1;
+    font-weight: 900;
+    color: #00327d;
+}
+
+.hr-hub-metric-card em {
+    font-style: normal;
+    color: #0f766e;
+    font-weight: 700;
+}
+
+.hr-hub-metric-alert {
+    background: #fff1f2;
+    border-color: #fecdd3;
+}
+
+.hr-hub-metric-alert strong,
+.hr-hub-metric-alert em {
+    color: #b91c1c;
+}
+
+.hr-hub-grid {
+    display: grid;
+    grid-template-columns: 1.1fr 1.1fr;
+    gap: 20px;
+}
+
+.hr-hub-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 18px;
+}
+
+.hr-hub-list-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: center;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    padding: 16px 18px;
+}
+
+.hr-hub-list-item strong,
+.hr-hub-compliance-list strong {
+    color: #0f172a;
+    font-weight: 800;
+}
+
+.hr-hub-list-item em {
+    font-style: normal;
+    font-weight: 800;
+    color: #0f766e;
+}
+
+.hr-hub-panel-alert {
+    background: #fff8f1;
+    border-color: #fed7aa;
+}
+
+.hr-hub-compliance-list {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+    margin-top: 18px;
+}
+
+.hr-hub-compliance-list div {
+    background: rgba(255,255,255,0.75);
+    border: 1px solid #fde68a;
+    border-radius: 18px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
 @media (max-width: 1024px) {
     .admin-payroll-grid,
-    .admin-payroll-summary {
+    .admin-payroll-summary,
+    .hr-hub-metrics,
+    .hr-hub-grid,
+    .hr-hub-compliance-list {
         grid-template-columns: 1fr;
     }
 }
@@ -2939,6 +3074,11 @@ label {
 
     .cleaner-shift-button {
         width: 240px;
+    }
+
+    .hr-hub-hero {
+        flex-direction: column;
+        padding: 22px;
     }
 }
 

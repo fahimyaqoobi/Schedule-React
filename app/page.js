@@ -2487,7 +2487,7 @@ export default function Home() {
                     {canViewAdministration && (
                         <button onClick={() => setActiveTab("departments")} className={`nav-item ${activeTab === "departments" ? "active" : ""}`}>
                             {Icons.Departments()}
-                            <span>Departments</span>
+                            <span>HR Hub</span>
                         </button>
                     )}
                     {canViewAdministration && (
@@ -2556,7 +2556,7 @@ export default function Home() {
                                         activeTab === "jobs" ? (isCleanerSelfServiceView ? "Jobs & Time" : "Time Cards") :
                                             activeTab === "payroll" ? "Payroll & Time Hub" :
                                         activeTab === "teams" ? "Field Staff Assignments" :
-                                            activeTab === "departments" ? "Departments Hub" :
+                                            activeTab === "departments" ? "HR Management Hub" :
                                             activeTab === "edit-requests" ? "Modification Requests Inbox" :
                                                 activeTab === "catalog" ? "Catalog Studio" :
                                                     activeTab === "permissions" ? "Permissions & Roles" : "Account Settings"}
@@ -4041,38 +4041,118 @@ export default function Home() {
 
                 {activeTab === "departments" && canViewAdministration && (
                     <div className="animate-fade flex flex-col gap-6">
-                        <div className="ops-control-header">
-                            <div>
-                                <p className="ops-eyebrow">SmarTouch Clean v1.000 foundation</p>
-                                <h3 className="ops-title">Departments Hub</h3>
-                                <p className="ops-copy">
-                                    Use this as the old system&apos;s upgrade map: every department is branch-aware and permission-ready.
-                                </p>
+                        <div className="hr-hub-shell">
+                            <div className="hr-hub-hero">
+                                <div>
+                                    <p className="ops-eyebrow">People Management</p>
+                                    <h3 className="ops-title">HR Management Hub</h3>
+                                    <p className="ops-copy">
+                                        Recruitment, onboarding, staff directory, and compliance for the current branch.
+                                    </p>
+                                </div>
+                                <div className="hr-hub-actions">
+                                    <button type="button" className="team-secondary-action">Post New Job</button>
+                                    <button type="button" className="team-primary-action" onClick={() => setActiveTab("teams")}>Open Staff Profiles</button>
+                                </div>
                             </div>
-                            <span className="ops-chip">Ottawa Branch</span>
-                        </div>
 
-                        <div className="department-grid">
-                            {DEPARTMENTS.map(department => {
-                                const unlocked = roleHasDepartment(currentUser.role, department.id);
-                                return (
-                                    <article key={department.id} className={`department-card ${unlocked ? "department-card-active" : ""}`}>
-                                        <div className="department-card-top">
-                                            <div className="department-icon">{Icons.Departments()}</div>
-                                            <span className={`ops-chip ${unlocked ? "ops-chip-green" : ""}`}>
-                                                {unlocked ? "Enabled" : "Locked"}
-                                            </span>
-                                        </div>
-                                        <h4>{department.name}</h4>
-                                        <p>{department.description}</p>
-                                        <div className="department-modules">
-                                            {department.modules.map(module => (
-                                                <span key={module}>{module}</span>
-                                            ))}
-                                        </div>
-                                    </article>
-                                );
-                            })}
+                            <div className="hr-hub-metrics">
+                                <article className="hr-hub-metric-card">
+                                    <span>Open Roles</span>
+                                    <strong>{Math.max(3, pendingUsers.length)}</strong>
+                                    <em>Recruitment active</em>
+                                </article>
+                                <article className="hr-hub-metric-card">
+                                    <span>New Applications</span>
+                                    <strong>{pendingUsers.length}</strong>
+                                    <em>Needs review</em>
+                                </article>
+                                <article className="hr-hub-metric-card">
+                                    <span>Total Employees</span>
+                                    <strong>{fieldStaff.filter(member => member.status === "approved").length}</strong>
+                                    <em>Approved staff</em>
+                                </article>
+                                <article className="hr-hub-metric-card hr-hub-metric-alert">
+                                    <span>Pending Documents</span>
+                                    <strong>{fieldStaff.filter(member => !member.staffProfile?.eligibility?.documentUpload?.url || !member.staffProfile?.eligibility?.photoIdUpload?.url).length}</strong>
+                                    <em>Compliance required</em>
+                                </article>
+                            </div>
+
+                            <div className="hr-hub-grid">
+                                <section className="hr-hub-panel">
+                                    <div className="cleaner-section-head">
+                                        <h4>Recruitment Pipeline</h4>
+                                        <span>View All</span>
+                                    </div>
+                                    <div className="hr-hub-list">
+                                        {pendingUsers.length === 0 ? (
+                                            <div className="admin-cart-empty">No pending recruitment records right now.</div>
+                                        ) : pendingUsers.slice(0, 4).map(user => (
+                                            <article key={user.uid} className="hr-hub-list-item">
+                                                <div>
+                                                    <strong>{user.name}</strong>
+                                                    <span>{getRoleLabel(user.role)} · {user.branchName || activeBranch.name}</span>
+                                                </div>
+                                                <em>{user.status === "pending_approval" ? "Awaiting approval" : "Ready"}</em>
+                                            </article>
+                                        ))}
+                                    </div>
+                                </section>
+
+                                <section className="hr-hub-panel">
+                                    <div className="cleaner-section-head">
+                                        <h4>Onboarding Tasks</h4>
+                                        <span>{fieldStaff.length}</span>
+                                    </div>
+                                    <div className="hr-hub-list">
+                                        {fieldStaff.slice(0, 4).map(member => {
+                                            const missingPermit = !member.staffProfile?.eligibility?.documentUpload?.url;
+                                            const missingPhotoId = !member.staffProfile?.eligibility?.photoIdUpload?.url;
+                                            return (
+                                                <article key={member.uid} className="hr-hub-list-item">
+                                                    <div>
+                                                        <strong>{member.name}</strong>
+                                                        <span>{missingPermit || missingPhotoId ? "Documents pending" : "Onboarding complete"}</span>
+                                                    </div>
+                                                    <em>{missingPermit || missingPhotoId ? "Action Required" : "Ready"}</em>
+                                                </article>
+                                            );
+                                        })}
+                                    </div>
+                                </section>
+
+                                <section className="hr-hub-panel">
+                                    <div className="cleaner-section-head">
+                                        <h4>Staff Directory</h4>
+                                        <span>{fieldStaff.length}</span>
+                                    </div>
+                                    <div className="hr-hub-list">
+                                        {fieldStaff.slice(0, 5).map(member => (
+                                            <article key={member.uid} className="hr-hub-list-item">
+                                                <div>
+                                                    <strong>{member.name}</strong>
+                                                    <span>{getRoleLabel(member.role)} · {member.branchName || activeBranch.name}</span>
+                                                </div>
+                                                <em>{member.status}</em>
+                                            </article>
+                                        ))}
+                                    </div>
+                                </section>
+
+                                <section className="hr-hub-panel hr-hub-panel-alert">
+                                    <div className="cleaner-section-head">
+                                        <h4>Compliance</h4>
+                                        <span>Attention</span>
+                                    </div>
+                                    <p>Track photo ID, work permit, background check, and insurance readiness before cleaners go fully active.</p>
+                                    <div className="hr-hub-compliance-list">
+                                        <div><strong>{fieldStaff.filter(member => !member.staffProfile?.eligibility?.photoIdUpload?.url).length}</strong><span>Missing photo ID</span></div>
+                                        <div><strong>{fieldStaff.filter(member => !member.staffProfile?.eligibility?.documentUpload?.url).length}</strong><span>Missing work permit</span></div>
+                                        <div><strong>{fieldStaff.filter(member => !member.staffProfile?.compliance?.backgroundCheckStatus).length}</strong><span>Background checks pending</span></div>
+                                    </div>
+                                </section>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -4410,7 +4490,7 @@ export default function Home() {
                 {canViewAdministration && (
                     <button onClick={() => setActiveTab("departments")} className={`mobile-nav-item ${activeTab === "departments" ? "active" : ""}`}>
                         {Icons.Departments()}
-                        <span>Departments</span>
+                        <span>HR Hub</span>
                     </button>
                 )}
                 {canManagePermissions && (
