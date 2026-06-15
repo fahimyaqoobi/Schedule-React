@@ -53,6 +53,10 @@ export async function POST(request) {
         for (const bucketName of bucketCandidates) {
             try {
                 const bucket = adminStorage.bucket(bucketName);
+                const [exists] = await bucket.exists();
+                if (!exists) {
+                    throw new Error(`Firebase Storage bucket '${bucketName}' does not exist.`);
+                }
                 const bucketFile = bucket.file(objectPath);
 
                 await bucketFile.save(buffer, {
@@ -75,7 +79,7 @@ export async function POST(request) {
         }
 
         if (!signedUrl) {
-            throw lastError || new Error("No Firebase Storage bucket could accept the upload.");
+            throw lastError || new Error("No Firebase Storage bucket is available. Create Firebase Storage for this project first.");
         }
 
         return NextResponse.json({
@@ -84,6 +88,6 @@ export async function POST(request) {
         }, { status: 200 });
     } catch (error) {
         console.error("Profile photo upload error:", error);
-        return NextResponse.json({ error: error.message || "Failed to upload profile photo." }, { status: 500 });
+        return NextResponse.json({ error: error.message || "Failed to upload profile photo. Firebase Storage may not be configured for this project." }, { status: 500 });
     }
 }
