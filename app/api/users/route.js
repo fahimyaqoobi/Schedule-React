@@ -78,12 +78,14 @@ export async function GET(request) {
             if (!canManageBranch(user)) {
                 return NextResponse.json({ error: "Forbidden: Only branch managers can view field staff." }, { status: 403 });
             }
-            const snapshot = await adminDb.collection("users").where("status", "==", "approved").get();
+            const includePending = searchParams.get("includePending") === "1";
+            const snapshot = await adminDb.collection("users").get();
             const list = [];
             snapshot.forEach(doc => {
                 const data = doc.data();
                 const role = normalizeRole(data.role);
-                if (["cleaner", "supervisor", "employee", "subcontractor"].includes(role)) {
+                const statusAllowed = includePending ? ["approved", "pending_approval"].includes(data.status) : data.status === "approved";
+                if (statusAllowed && ["cleaner", "supervisor", "employee", "subcontractor"].includes(role)) {
                     list.push(normalizeStaffMember(data));
                 }
             });

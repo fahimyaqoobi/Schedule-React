@@ -33,6 +33,7 @@ import {
     normalizeStaffProfile,
     STAFF_SELF_SERVICE_ROLES
 } from "../lib/staffProfiles";
+import { calculatePayrollBreakdown } from "../lib/payroll";
 
 const V2SettingsManager = dynamic(() => import("./components/V2SettingsManager"), {
     ssr: false,
@@ -643,7 +644,7 @@ export default function Home() {
             setActiveTab(currentUser.status === "pending_approval" ? "teams" : "jobs");
             setSelectedStaffUid(currentUser.uid);
             setStaffProfileDraftOwnerUid(currentUser.uid);
-            setStaffProfileDraft(normalizeStaffProfile(currentUser.staffProfile));
+            setStaffProfileDraft(normalizeStaffProfile(currentUser.staffProfileRequest?.requestedProfile || currentUser.staffProfile));
             if (currentUser.status === "pending_approval") {
                 setStaffProfileEditOpen(true);
                 setStaffProfileMobileTab("identity");
@@ -762,6 +763,19 @@ export default function Home() {
         };
     }, [jobsNow, timeEntries]);
 
+    const payrollApprovedRows = useMemo(() => {
+        return timeEntries
+            .filter(entry => entry.status === "approved")
+            .map(entry => ({
+                ...entry,
+                payrollBreakdown: entry.payrollBreakdown || calculatePayrollBreakdown(entry.durationMinutes || 0, {
+                    hourlyRate: entry.payRate,
+                    overtimeRate: entry.overtimeRate,
+                    overtimeAfterHours: entry.overtimeAfterHours
+                })
+            }));
+    }, [timeEntries]);
+
     const selectedStaffAvailability = useMemo(() => {
         return buildAvailabilitySnapshot(activeStaffProfileDraft?.availability);
     }, [activeStaffProfileDraft]);
@@ -790,6 +804,11 @@ export default function Home() {
             key: "worker-type",
             label: "Worker Type",
             value: activeStaffProfileDraft?.employment?.workerType || getRoleLabel(selectedStaffMember?.role)
+        },
+        {
+            key: "hourly-rate",
+            label: "Hourly Rate",
+            value: `$${Number(activeStaffProfileDraft?.employment?.hourlyRate || 20).toFixed(2)}`
         },
         {
             key: "start-date",
@@ -958,7 +977,7 @@ export default function Home() {
 
             // 2. Fetch approved field staff for person-based job assignment
             if (isBranchManager) {
-                const fieldStaffRes = await fetch("/api/users?type=field-staff", { headers });
+                const fieldStaffRes = await fetch(`/api/users?type=field-staff${canManagePeopleProfiles ? "&includePending=1" : ""}`, { headers });
                 if (fieldStaffRes.ok) {
                     const data = await fieldStaffRes.json();
                     setFieldStaff(data);
@@ -993,7 +1012,7 @@ export default function Home() {
         } catch (e) {
             console.error("Data syncing failed", e);
         }
-    }, [getAuthHeaders, selectedBranchId]);
+    }, [canManagePeopleProfiles, getAuthHeaders, selectedBranchId]);
 
     // Keep data fresh by syncing when user changes or tab switches
     useEffect(() => {
@@ -3211,6 +3230,36 @@ export default function Home() {
                                             ))}
                                         </div>
                                     </section>
+                                    <section className="admin-payroll-queue">
+                                        <div className="cleaner-section-head">
+                                            <h4>Approved Payroll Ledger</h4>
+                                            <span>{payrollApprovedRows.length} entries</span>
+                                        </div>
+                                        <div className="admin-payroll-table">
+                                            <div className="admin-payroll-table-head">
+                                                <span>Staff</span>
+                                                <span>Date</span>
+                                                <span>Regular</span>
+                                                <span>Overtime</span>
+                                                <span>Rate</span>
+                                                <span>Gross</span>
+                                                <span>Status</span>
+                                            </div>
+                                            {payrollApprovedRows.length === 0 ? (
+                                                <div className="admin-cart-empty">No approved payroll entries yet.</div>
+                                            ) : payrollApprovedRows.map(entry => (
+                                                <div key={entry.id} className="admin-payroll-row">
+                                                    <span>{entry.cleanerName}</span>
+                                                    <span>{entry.bookingDate || entry.startedAt?.split("T")[0]}</span>
+                                                    <span>{entry.payrollBreakdown?.regularHours || 0}h</span>
+                                                    <span>{entry.payrollBreakdown?.overtimeHours || 0}h</span>
+                                                    <span>${Number(entry.payRate || 20).toFixed(2)}</span>
+                                                    <span>${Number(entry.grossPayEstimate || 0).toFixed(2)}</span>
+                                                    <span>{entry.status}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </section>
                                 </div>
                                 <aside className="admin-payroll-side">
                                     <div className="admin-payroll-alert-card">
@@ -3510,6 +3559,10 @@ export default function Home() {
                                                             <div className="people-mobile-editor-section">
                                                                 {canAdminDirectEditSelectedStaffProfile && <label><span>Worker type</span><input value={activeStaffProfileDraft.employment.workerType} onChange={e => updateStaffDraftField("employment", "workerType", e.target.value)} /></label>}
                                                                 {canAdminDirectEditSelectedStaffProfile && <label><span>Years experience</span><input value={activeStaffProfileDraft.employment.yearsExperience} onChange={e => updateStaffDraftField("employment", "yearsExperience", e.target.value)} /></label>}
+                                                                {canAdminDirectEditSelectedStaffProfile && <label><span>Hourly rate</span><input type="number" min="0" step="0.01" value={activeStaffProfileDraft.employment.hourlyRate || 20} onChange={e => updateStaffDraftField("employment", "hourlyRate", parseFloat(e.target.value || "0"))} /></label>}
+                                                                {canAdminDirectEditSelectedStaffProfile && <label><span>Overtime rate</span><input type="number" min="0" step="0.01" value={activeStaffProfileDraft.employment.overtimeRate || 30} onChange={e => updateStaffDraftField("employment", "overtimeRate", parseFloat(e.target.value || "0"))} /></label>}
+                                                                {canAdminDirectEditSelectedStaffProfile && <label><span>Overtime after hrs/week</span><input type="number" min="0" step="1" value={activeStaffProfileDraft.employment.overtimeAfterHours || 44} onChange={e => updateStaffDraftField("employment", "overtimeAfterHours", parseFloat(e.target.value || "0"))} /></label>}
+                                                                {canAdminDirectEditSelectedStaffProfile && <label><span>Payroll status</span><input value={activeStaffProfileDraft.employment.payrollStatus || "active"} onChange={e => updateStaffDraftField("employment", "payrollStatus", e.target.value)} /></label>}
                                                                 <label className="span-2 people-file-upload-field">
                                                                     <span>Photo ID Upload</span>
                                                                     <input type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.webp" onChange={e => handleStaffDocumentUpload(e.target.files?.[0], "photoIdUpload", "Photo ID")} disabled={staffDocumentUploading} />
@@ -3773,6 +3826,10 @@ export default function Home() {
                                                 </div>
                                                 <div className="people-profile-read-list">
                                                     <div><span>Worker Type</span><strong>{activeStaffProfileDraft.employment.workerType || getRoleLabel(selectedStaffMember.role)}</strong></div>
+                                                    <div><span>Hourly Rate</span><strong>${Number(activeStaffProfileDraft.employment.hourlyRate || 20).toFixed(2)}/hr</strong></div>
+                                                    <div><span>Overtime Rate</span><strong>${Number(activeStaffProfileDraft.employment.overtimeRate || 30).toFixed(2)}/hr</strong></div>
+                                                    <div><span>Overtime After</span><strong>{Number(activeStaffProfileDraft.employment.overtimeAfterHours || 44)} hrs/week</strong></div>
+                                                    <div><span>Payroll Status</span><strong>{activeStaffProfileDraft.employment.payrollStatus || "active"}</strong></div>
                                                     <div>
                                                         <span>Work Permit Document</span>
                                                         {activeStaffProfileDraft.eligibility.documentUpload?.url ? (
@@ -3909,6 +3966,10 @@ export default function Home() {
                                                     {canAdminDirectEditSelectedStaffProfile && <label><span>Worker type</span><input value={activeStaffProfileDraft.employment.workerType} onChange={e => updateStaffDraftField("employment", "workerType", e.target.value)} /></label>}
                                                     {canAdminDirectEditSelectedStaffProfile && <label><span>Years experience</span><input value={activeStaffProfileDraft.employment.yearsExperience} onChange={e => updateStaffDraftField("employment", "yearsExperience", e.target.value)} /></label>}
                                                     {canAdminDirectEditSelectedStaffProfile && <label><span>Languages</span><input value={activeStaffProfileDraft.employment.languages} onChange={e => updateStaffDraftField("employment", "languages", e.target.value)} /></label>}
+                                                    {canAdminDirectEditSelectedStaffProfile && <label><span>Hourly rate</span><input type="number" min="0" step="0.01" value={activeStaffProfileDraft.employment.hourlyRate || 20} onChange={e => updateStaffDraftField("employment", "hourlyRate", parseFloat(e.target.value || "0"))} /></label>}
+                                                    {canAdminDirectEditSelectedStaffProfile && <label><span>Overtime rate</span><input type="number" min="0" step="0.01" value={activeStaffProfileDraft.employment.overtimeRate || 30} onChange={e => updateStaffDraftField("employment", "overtimeRate", parseFloat(e.target.value || "0"))} /></label>}
+                                                    {canAdminDirectEditSelectedStaffProfile && <label><span>Overtime after hrs/week</span><input type="number" min="0" step="1" value={activeStaffProfileDraft.employment.overtimeAfterHours || 44} onChange={e => updateStaffDraftField("employment", "overtimeAfterHours", parseFloat(e.target.value || "0"))} /></label>}
+                                                    {canAdminDirectEditSelectedStaffProfile && <label><span>Payroll status</span><input value={activeStaffProfileDraft.employment.payrollStatus || "active"} onChange={e => updateStaffDraftField("employment", "payrollStatus", e.target.value)} /></label>}
                                                     <label><span>T-shirt size</span><input value={activeStaffProfileDraft.employment.tshirtSize} onChange={e => updateStaffDraftField("employment", "tshirtSize", e.target.value)} /></label>
                                                     <label className="span-2"><span>Availability notes</span><textarea value={activeStaffProfileDraft.employment.availabilityNotes} onChange={e => updateStaffDraftField("employment", "availabilityNotes", e.target.value)} /></label>
                                                     <label className="span-2 people-file-upload-field">

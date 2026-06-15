@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { adminAuth, adminDb } from "../../../lib/firebase-admin";
 import { canManageBranch, normalizeRole } from "../../../lib/permissions";
 import { DEFAULT_BRANCH_ID, getBranchScopeForUser, userCanAccessBranch } from "../../../lib/branches";
+import { calculatePayrollBreakdown, DEFAULT_PAY_RATE, normalizePayrollSettings } from "../../../lib/payroll";
 
 const GEO_RADIUS_METERS = 100;
-const DEFAULT_PAY_RATE = 24;
 
 function haversineMeters(pointA, pointB) {
     const toRadians = (value) => (value * Math.PI) / 180;
@@ -131,7 +131,7 @@ export async function POST(request) {
 
         const nowIso = new Date().toISOString();
         const id = `te-${Date.now()}`;
-        const rate = Number(user.staffProfile?.employment?.hourlyRate || DEFAULT_PAY_RATE);
+        const payroll = normalizePayrollSettings(user.staffProfile?.employment || {});
         const entry = {
             id,
             bookingId: booking.id,
@@ -146,7 +146,10 @@ export async function POST(request) {
             bookingDate: booking.date || "",
             scheduledTime: booking.time || "",
             bookingPrice: Number(booking.price || 0),
-            payRate: rate,
+            payRate: payroll.hourlyRate,
+            overtimeRate: payroll.overtimeRate,
+            overtimeAfterHours: payroll.overtimeAfterHours,
+            payrollStatus: payroll.payrollStatus,
             status: "active",
             startedAt: nowIso,
             endedAt: "",
@@ -209,13 +212,18 @@ export async function PUT(request) {
             }
             const endedAt = new Date().toISOString();
             const durationMinutes = getDurationMinutes(entry.startedAt, endedAt);
-            const grossPayEstimate = Number(((durationMinutes / 60) * Number(entry.payRate || DEFAULT_PAY_RATE)).toFixed(2));
+            const payrollBreakdown = calculatePayrollBreakdown(durationMinutes, {
+                hourlyRate: entry.payRate || DEFAULT_PAY_RATE,
+                overtimeRate: entry.overtimeRate,
+                overtimeAfterHours: entry.overtimeAfterHours
+            });
             const updatedEntry = {
                 ...entry,
                 status: "pending_approval",
                 endedAt,
                 durationMinutes,
-                grossPayEstimate,
+                grossPayEstimate: payrollBreakdown.grossPay,
+                payrollBreakdown,
                 endDistanceMeters: Math.round(distanceMeters),
                 endLocation: {
                     lat: Number(currentLocation.lat),
