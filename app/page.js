@@ -148,6 +148,20 @@ function getBookingCustomerFirstName(booking = {}) {
     return booking.firstName || String(booking.clientName || "Client").split(" ")[0] || "Client";
 }
 
+function getGoogleMapsDirectionsUrl(booking = {}) {
+    const destination = [
+        booking.address1,
+        booking.address2,
+        booking.city,
+        booking.state,
+        booking.postalCode,
+        booking.country
+    ].filter(Boolean).join(", ");
+
+    if (!destination) return "https://www.google.com/maps";
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(destination)}`;
+}
+
 function parseGooglePlaceDetails(place) {
     const components = place?.address_components || [];
     const getComponent = (type, useShort = false) => {
@@ -445,6 +459,7 @@ export default function Home() {
     const canManagePeopleProfiles = currentUser ? ["super-admin", "branch-admin"].includes(normalizeRole(currentUser.role)) : false;
     const isCleanerSelfServiceView = Boolean(canSelfManagePeopleProfile && !canManagePeopleProfiles && !isPendingCleanerOnboarding);
     const showBookingContactFields = !isCleanerSelfServiceView;
+    const isCleanerBookingEditor = isCleanerSelfServiceView;
     const branchScope = currentUser ? getBranchScopeForUser({ ...currentUser, activeBranchId: selectedBranchId }) : null;
     const activeBranch = getBranchById(branchScope?.activeBranchId || selectedBranchId || DEFAULT_BRANCH_ID);
 
@@ -1417,12 +1432,17 @@ export default function Home() {
         const durationNum = parseFloat(bookingForm.duration || 2);
         try {
             const headers = await getAuthHeaders();
-            const payload = {
-                ...bookingForm,
-                clientName: `${bookingForm.firstName} ${bookingForm.lastName}`.trim(),
-                price: parseFloat(bookingForm.price || 0),
-                duration: durationNum
-            };
+            const payload = isCleanerBookingEditor
+                ? {
+                    id: bookingForm.id,
+                    status: bookingForm.status
+                }
+                : {
+                    ...bookingForm,
+                    clientName: `${bookingForm.firstName} ${bookingForm.lastName}`.trim(),
+                    price: parseFloat(bookingForm.price || 0),
+                    duration: durationNum
+                };
 
             const res = await fetch("/api/bookings", {
                 method: "PUT",
@@ -4811,24 +4831,25 @@ export default function Home() {
                             {/* Body */}
                             <div className="modal-body modal-body-scroll">
 
-                                {/* Client Info */}
-                                <div className="detail-card">
-                                    <div className="detail-card-title">👤 Client Information</div>
-                                    <div className="detail-card-grid">
-                                        <div className="detail-row">
-                                            <span className="detail-label">Full Name</span>
-                                            <span className="detail-value bold">{b.clientName || `${b.firstName || ''} ${b.lastName || ''}`.trim()}</span>
-                                        </div>
-                                        <div className="detail-row">
-                                            <span className="detail-label">Phone</span>
-                                            <span className="detail-value">{b.phone || '—'}</span>
-                                        </div>
-                                        <div className="detail-row full-width">
-                                            <span className="detail-label">Email</span>
-                                            <span className="detail-value">{b.email || '—'}</span>
+                                {!isCleanerSelfServiceView && (
+                                    <div className="detail-card">
+                                        <div className="detail-card-title">👤 Client Information</div>
+                                        <div className="detail-card-grid">
+                                            <div className="detail-row">
+                                                <span className="detail-label">Full Name</span>
+                                                <span className="detail-value bold">{b.clientName || `${b.firstName || ''} ${b.lastName || ''}`.trim()}</span>
+                                            </div>
+                                            <div className="detail-row">
+                                                <span className="detail-label">Phone</span>
+                                                <span className="detail-value">{b.phone || '—'}</span>
+                                            </div>
+                                            <div className="detail-row full-width">
+                                                <span className="detail-label">Email</span>
+                                                <span className="detail-value">{b.email || '—'}</span>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
+                                )}
 
                                 {/* Address */}
                                 <div className="detail-card">
@@ -4885,17 +4906,19 @@ export default function Home() {
                                             <span className="detail-label">Duration</span>
                                             <span className="detail-value">{b.duration} hours</span>
                                         </div>
-                                        <div className="detail-row">
-                                            <span className="detail-label">Assigned Staff</span>
-                                            <span className="detail-value">
-                                                <span className="assigned-staff-list assigned-staff-list-inline">
-                                                    {(b.assignedStaff || []).map(member => (
-                                                        <span key={member.uid || member.email}>{member.name}</span>
-                                                    ))}
-                                                    {!b.assignedStaff?.length && <span>{b.team || "Unassigned"}</span>}
+                                        {!isCleanerSelfServiceView && (
+                                            <div className="detail-row">
+                                                <span className="detail-label">Assigned Staff</span>
+                                                <span className="detail-value">
+                                                    <span className="assigned-staff-list assigned-staff-list-inline">
+                                                        {(b.assignedStaff || []).map(member => (
+                                                            <span key={member.uid || member.email}>{member.name}</span>
+                                                        ))}
+                                                        {!b.assignedStaff?.length && <span>{b.team || "Unassigned"}</span>}
+                                                    </span>
                                                 </span>
-                                            </span>
-                                        </div>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 
@@ -4919,32 +4942,33 @@ export default function Home() {
                                     </div>
                                 )}
 
-                                {/* Pricing */}
-                                <div className="detail-card">
-                                    <div className="detail-card-title">💰 Pricing</div>
-                                    <div className="detail-pricing-list">
-                                        <div className="detail-row">
-                                            <span className="detail-label">Total Price (incl. HST)</span>
-                                            <span className="detail-value detail-price-total bold">${price.toFixed(2)}</span>
-                                        </div>
-                                        {discount > 0 && (
+                                {!isCleanerSelfServiceView && (
+                                    <div className="detail-card">
+                                        <div className="detail-card-title">💰 Pricing</div>
+                                        <div className="detail-pricing-list">
                                             <div className="detail-row">
-                                                <span className="detail-label">Special Discount</span>
-                                                <span className="detail-value detail-discount-value">-${discount.toFixed(2)}</span>
+                                                <span className="detail-label">Total Price (incl. HST)</span>
+                                                <span className="detail-value detail-price-total bold">${price.toFixed(2)}</span>
                                             </div>
-                                        )}
-                                        {b.frequency && b.frequency !== 'One-Time' && (() => {
-                                            const freqConfig = pricingRates.frequencies[b.frequency];
-                                            const pct = freqConfig ? Math.round((freqConfig.discount > 1 ? freqConfig.discount / 100 : freqConfig.discount) * 100) : 0;
-                                            return pct > 0 ? (
+                                            {discount > 0 && (
                                                 <div className="detail-row">
-                                                    <span className="detail-label">Frequency Discount</span>
-                                                    <span className="frequency-discount-pill">{b.frequency} — {pct}% off</span>
+                                                    <span className="detail-label">Special Discount</span>
+                                                    <span className="detail-value detail-discount-value">-${discount.toFixed(2)}</span>
                                                 </div>
-                                            ) : null;
-                                        })()}
+                                            )}
+                                            {b.frequency && b.frequency !== 'One-Time' && (() => {
+                                                const freqConfig = pricingRates.frequencies[b.frequency];
+                                                const pct = freqConfig ? Math.round((freqConfig.discount > 1 ? freqConfig.discount / 100 : freqConfig.discount) * 100) : 0;
+                                                return pct > 0 ? (
+                                                    <div className="detail-row">
+                                                        <span className="detail-label">Frequency Discount</span>
+                                                        <span className="frequency-discount-pill">{b.frequency} — {pct}% off</span>
+                                                    </div>
+                                                ) : null;
+                                            })()}
+                                        </div>
                                     </div>
-                                </div>
+                                )}
 
                                 {/* Operations */}
                                 <div className="detail-card">
@@ -4986,7 +5010,7 @@ export default function Home() {
                             {/* Footer */}
                             <div className="modal-footer">
                                 <button onClick={() => setDetailsModalOpen(false)} className="btn btn-secondary btn-sm">Close</button>
-                                <button onClick={() => { setDetailsModalOpen(false); openEditBookingModal(selectedBooking); }} className="btn btn-primary btn-sm">Edit Dispatch</button>
+                                <button onClick={() => { setDetailsModalOpen(false); openEditBookingModal(selectedBooking); }} className="btn btn-primary btn-sm">{isCleanerSelfServiceView ? "Update Status" : "Edit Dispatch"}</button>
                             </div>
                         </div>
                     </div>
@@ -5001,7 +5025,7 @@ export default function Home() {
                     <div className="modal-content modal-content-booking animate-pop">
                             <div className="modal-header modal-header-brand">
                                 <h3 className="modal-title-inverse">
-                                    Edit Dispatch Reservation
+                                    {isCleanerBookingEditor ? "Update Assigned Job" : "Edit Dispatch Reservation"}
                                 </h3>
                                 <button onClick={() => setBookingModalOpen(false)} className="modal-close-btn" aria-label="Close">
                                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="1" y1="1" x2="13" y2="13" /><line x1="13" y1="1" x2="1" y2="13" /></svg>
@@ -5009,137 +5033,246 @@ export default function Home() {
                             </div>
                             <form onSubmit={handleBookingSubmit} className="modal-form-scroll">
                                 <div className="modal-body flex flex-col gap-4 text-xs p-6">
+                                    {isCleanerBookingEditor ? (
+                                        <>
+                                            <div className="detail-card">
+                                                <div className="detail-card-title">🧹 Assigned Service</div>
+                                                <div className="detail-card-grid">
+                                                    <div className="detail-row">
+                                                        <span className="detail-label">Service</span>
+                                                        <span className="detail-value detail-value-brand bold">{bookingForm.service}</span>
+                                                    </div>
+                                                    <div className="detail-row">
+                                                        <span className="detail-label">Customer</span>
+                                                        <span className="detail-value bold">{bookingForm.firstName || "Client"}</span>
+                                                    </div>
+                                                    <div className="detail-row">
+                                                        <span className="detail-label">Date</span>
+                                                        <span className="detail-value bold">{bookingForm.date}</span>
+                                                    </div>
+                                                    <div className="detail-row">
+                                                        <span className="detail-label">Time Window</span>
+                                                        <span className="detail-value">{formatTimeWindow(bookingForm.time, bookingForm.duration)}</span>
+                                                    </div>
+                                                    <div className="detail-row">
+                                                        <span className="detail-label">Estimated Hours</span>
+                                                        <span className="detail-value">{bookingForm.duration} hours</span>
+                                                    </div>
+                                                    <div className="detail-row">
+                                                        <span className="detail-label">Bathrooms</span>
+                                                        <span className="detail-value">{bookingForm.bathrooms || "—"}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
 
-                                    {/* 2-Column Administrative Fields */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div className="form-group flex flex-col gap-1">
-                                            <label className="font-bold text-slate-700">Client First Name</label>
-                                            <input type="text" value={bookingForm.firstName} onChange={e => setBookingForm(prev => ({ ...prev, firstName: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
-                                        </div>
-                                        <div className="form-group flex flex-col gap-1">
-                                            <label className="font-bold text-slate-700">Client Last Name</label>
-                                            <input type="text" value={bookingForm.lastName} onChange={e => setBookingForm(prev => ({ ...prev, lastName: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
-                                        </div>
-                                        {showBookingContactFields && (
+                                            <div className="detail-card">
+                                                <div className="detail-card-title">📍 Job Location</div>
+                                                <div className="detail-card-grid">
+                                                    <div className="detail-row full-width">
+                                                        <span className="detail-label">Address</span>
+                                                        <span className="detail-value">{formatAddress(bookingForm)}</span>
+                                                    </div>
+                                                    <div className="detail-row full-width">
+                                                        <a
+                                                            href={getGoogleMapsDirectionsUrl(bookingForm)}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            className="btn btn-secondary btn-sm w-fit"
+                                                        >
+                                                            Open in Google Maps
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {Object.entries(bookingForm.extras || {}).some(([, qty]) => qty) && (
+                                                <div className="detail-card">
+                                                    <div className="detail-card-title">✨ Add-ons</div>
+                                                    <div className="detail-extras-list">
+                                                        {Object.entries(bookingForm.extras || {}).map(([key, qty]) => {
+                                                            if (!qty) return null;
+                                                            const extra = pricingRates.extras[key];
+                                                            if (!extra) return null;
+                                                            const qtyVal = typeof qty === "boolean" ? 1 : qty;
+                                                            return (
+                                                                <div key={key} className="detail-extra-row">
+                                                                    <span className="detail-extra-name">• {extra.name}{qtyVal > 1 ? ` × ${qtyVal}` : ""}</span>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <div className="detail-card">
+                                                <div className="detail-card-title">🏠 Site Instructions</div>
+                                                <div className="detail-card-grid">
+                                                    <div className="detail-row">
+                                                        <span className="detail-label">Access</span>
+                                                        <span className="detail-value">{bookingForm.accessMode || "—"}</span>
+                                                    </div>
+                                                    <div className="detail-row">
+                                                        <span className="detail-label">Parking</span>
+                                                        <span className="detail-value">{bookingForm.freeParking ? "Free parking" : "Street or paid parking"}</span>
+                                                    </div>
+                                                    {bookingForm.accessDetails && (
+                                                        <div className="detail-row full-width">
+                                                            <span className="detail-label">Access Notes</span>
+                                                            <span className="detail-value whitespace-pre-wrap">{bookingForm.accessDetails}</span>
+                                                        </div>
+                                                    )}
+                                                    {bookingForm.specialNotes && (
+                                                        <div className="detail-row full-width">
+                                                            <span className="detail-label">Work Notes</span>
+                                                            <span className="detail-value whitespace-pre-wrap">{bookingForm.specialNotes}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
                                             <div className="form-group flex flex-col gap-1">
-                                                <label className="font-bold text-slate-700">Client Phone</label>
-                                                <input type="text" value={bookingForm.phone} onChange={e => setBookingForm(prev => ({ ...prev, phone: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
+                                                <label className="font-bold text-slate-700">Job Status</label>
+                                                <select value={bookingForm.status} onChange={e => setBookingForm(prev => ({ ...prev, status: e.target.value }))} required className="border border-slate-200 rounded-lg p-2">
+                                                    <option value="Pending">Pending</option>
+                                                    <option value="Confirmed">Confirmed</option>
+                                                    <option value="Completed">Completed</option>
+                                                    <option value="Cancelled">Cancelled</option>
+                                                </select>
                                             </div>
-                                        )}
-                                        {showBookingContactFields && (
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div className="form-group flex flex-col gap-1">
+                                                    <label className="font-bold text-slate-700">Client First Name</label>
+                                                    <input type="text" value={bookingForm.firstName} onChange={e => setBookingForm(prev => ({ ...prev, firstName: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
+                                                </div>
+                                                <div className="form-group flex flex-col gap-1">
+                                                    <label className="font-bold text-slate-700">Client Last Name</label>
+                                                    <input type="text" value={bookingForm.lastName} onChange={e => setBookingForm(prev => ({ ...prev, lastName: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
+                                                </div>
+                                                {showBookingContactFields && (
+                                                    <div className="form-group flex flex-col gap-1">
+                                                        <label className="font-bold text-slate-700">Client Phone</label>
+                                                        <input type="text" value={bookingForm.phone} onChange={e => setBookingForm(prev => ({ ...prev, phone: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
+                                                    </div>
+                                                )}
+                                                {showBookingContactFields && (
+                                                    <div className="form-group flex flex-col gap-1">
+                                                        <label className="font-bold text-slate-700">Client Email</label>
+                                                        <input type="email" value={bookingForm.email} onChange={e => setBookingForm(prev => ({ ...prev, email: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="form-group flex flex-col gap-1 places-field" ref={autocompleteRef}>
+                                                <label className="font-bold text-slate-700">Service Street Address</label>
+                                                <input type="text" value={bookingForm.address1} onChange={handleAddressChange} required className="border border-slate-200 rounded-lg p-2" />
+                                                {showSuggestions && addressSuggestions.length > 0 && (
+                                                    <div className="places-suggestion-list">
+                                                        {addressSuggestions.map(suggestion => (
+                                                            <button key={suggestion.place_id} type="button" className="places-suggestion-item" onClick={() => selectSuggestion(suggestion)}>
+                                                                {suggestion.description}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                <div className="form-group flex flex-col gap-1">
+                                                    <label className="font-bold text-slate-700">City</label>
+                                                    <input type="text" value={bookingForm.city} onChange={e => setBookingForm(prev => ({ ...prev, city: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
+                                                </div>
+                                                <div className="form-group flex flex-col gap-1">
+                                                    <label className="font-bold text-slate-700">Postal Code</label>
+                                                    <input type="text" value={bookingForm.postalCode} onChange={e => setBookingForm(prev => ({ ...prev, postalCode: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
+                                                </div>
+                                                <div className="form-group flex flex-col gap-1">
+                                                    <label className="font-bold text-slate-700">Service Category</label>
+                                                    <input type="text" value={bookingForm.service} onChange={e => setBookingForm(prev => ({ ...prev, service: e.target.value }))} required className="border border-slate-200 rounded-lg p-2 bg-slate-50 cursor-not-allowed" disabled />
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                <div className="form-group flex flex-col gap-1">
+                                                    <label className="font-bold text-slate-700">Scheduled Date</label>
+                                                    <input type="date" value={bookingForm.date} onChange={e => setBookingForm(prev => ({ ...prev, date: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
+                                                </div>
+                                                <div className="form-group flex flex-col gap-1">
+                                                    <label className="font-bold text-slate-700">Scheduled Time</label>
+                                                    <input type="text" value={bookingForm.time} onChange={e => setBookingForm(prev => ({ ...prev, time: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
+                                                </div>
+                                                <div className="form-group flex flex-col gap-1">
+                                                    <label className="font-bold text-slate-700">Estimated Hours</label>
+                                                    <input type="number" step="0.5" value={bookingForm.duration} onChange={e => setBookingForm(prev => ({ ...prev, duration: parseFloat(e.target.value) }))} required className="border border-slate-200 rounded-lg p-2" />
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                <div className="form-group flex flex-col gap-1 md:col-span-3">
+                                                    <label className="font-bold text-slate-700">Assigned Field Staff</label>
+                                                    <div className="admin-staff-picker">
+                                                        {fieldStaff.length === 0 ? (
+                                                            <p>No approved field staff found yet.</p>
+                                                        ) : fieldStaff.map(member => {
+                                                            const assignedIds = bookingForm.assignedStaffIds || [];
+                                                            const checked = assignedIds.includes(member.uid);
+                                                            return (
+                                                                <label key={member.uid} className={checked ? "active" : ""}>
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={checked}
+                                                                        onChange={e => setBookingForm(prev => {
+                                                                            const current = prev.assignedStaffIds || [];
+                                                                            const nextIds = e.target.checked
+                                                                                ? [...current, member.uid]
+                                                                                : current.filter(uid => uid !== member.uid);
+                                                                            const nextStaff = fieldStaff
+                                                                                .filter(person => nextIds.includes(person.uid))
+                                                                                .map(person => ({
+                                                                                    uid: person.uid,
+                                                                                    name: person.name,
+                                                                                    email: person.email,
+                                                                                    role: person.role,
+                                                                                    branchId: person.branchId || activeBranch.id
+                                                                                }));
+                                                                            return {
+                                                                                ...prev,
+                                                                                team: "",
+                                                                                assignedStaffIds: nextIds,
+                                                                                assignedStaff: nextStaff
+                                                                            };
+                                                                        })}
+                                                                    />
+                                                                    <strong>{member.name}</strong>
+                                                                    <small>{getRoleLabel(member.role)} · {member.branchName || "Ottawa"}</small>
+                                                                </label>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                                <div className="form-group flex flex-col gap-1">
+                                                    <label className="font-bold text-slate-700">Dispatch Status</label>
+                                                    <select value={bookingForm.status} onChange={e => setBookingForm(prev => ({ ...prev, status: e.target.value }))} required className="border border-slate-200 rounded-lg p-2">
+                                                        <option value="Pending">Pending</option>
+                                                        <option value="Confirmed">Confirmed</option>
+                                                        <option value="Completed">Completed</option>
+                                                        <option value="Cancelled">Cancelled</option>
+                                                    </select>
+                                                </div>
+                                                <div className="form-group flex flex-col gap-1">
+                                                    <label className="font-bold text-slate-700">Override Total Price ($)</label>
+                                                    <input type="number" step="0.01" value={bookingForm.price} onChange={e => setBookingForm(prev => ({ ...prev, price: parseFloat(e.target.value) }))} required className="border border-slate-200 rounded-lg p-2" />
+                                                </div>
+                                            </div>
+
                                             <div className="form-group flex flex-col gap-1">
-                                                <label className="font-bold text-slate-700">Client Email</label>
-                                                <input type="email" value={bookingForm.email} onChange={e => setBookingForm(prev => ({ ...prev, email: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
+                                                <label className="font-bold text-slate-700">Special Instructions / Dispatch Notes</label>
+                                                <textarea rows={2} value={bookingForm.specialNotes} onChange={e => setBookingForm(prev => ({ ...prev, specialNotes: e.target.value }))} className="border border-slate-200 rounded-lg p-2 resize-none" />
                                             </div>
-                                        )}
-                                    </div>
-
-                                    <div className="form-group flex flex-col gap-1 places-field" ref={autocompleteRef}>
-                                        <label className="font-bold text-slate-700">Service Street Address</label>
-                                        <input type="text" value={bookingForm.address1} onChange={handleAddressChange} required className="border border-slate-200 rounded-lg p-2" />
-                                        {showSuggestions && addressSuggestions.length > 0 && (
-                                            <div className="places-suggestion-list">
-                                                {addressSuggestions.map(suggestion => (
-                                                    <button key={suggestion.place_id} type="button" className="places-suggestion-item" onClick={() => selectSuggestion(suggestion)}>
-                                                        {suggestion.description}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div className="form-group flex flex-col gap-1">
-                                            <label className="font-bold text-slate-700">City</label>
-                                            <input type="text" value={bookingForm.city} onChange={e => setBookingForm(prev => ({ ...prev, city: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
-                                        </div>
-                                        <div className="form-group flex flex-col gap-1">
-                                            <label className="font-bold text-slate-700">Postal Code</label>
-                                            <input type="text" value={bookingForm.postalCode} onChange={e => setBookingForm(prev => ({ ...prev, postalCode: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
-                                        </div>
-                                        <div className="form-group flex flex-col gap-1">
-                                            <label className="font-bold text-slate-700">Service Category</label>
-                                            <input type="text" value={bookingForm.service} onChange={e => setBookingForm(prev => ({ ...prev, service: e.target.value }))} required className="border border-slate-200 rounded-lg p-2 bg-slate-50 cursor-not-allowed" disabled />
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div className="form-group flex flex-col gap-1">
-                                            <label className="font-bold text-slate-700">Scheduled Date</label>
-                                            <input type="date" value={bookingForm.date} onChange={e => setBookingForm(prev => ({ ...prev, date: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
-                                        </div>
-                                        <div className="form-group flex flex-col gap-1">
-                                            <label className="font-bold text-slate-700">Scheduled Time</label>
-                                            <input type="text" value={bookingForm.time} onChange={e => setBookingForm(prev => ({ ...prev, time: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
-                                        </div>
-                                        <div className="form-group flex flex-col gap-1">
-                                            <label className="font-bold text-slate-700">Estimated Hours</label>
-                                            <input type="number" step="0.5" value={bookingForm.duration} onChange={e => setBookingForm(prev => ({ ...prev, duration: parseFloat(e.target.value) }))} required className="border border-slate-200 rounded-lg p-2" />
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div className="form-group flex flex-col gap-1 md:col-span-3">
-                                            <label className="font-bold text-slate-700">Assigned Field Staff</label>
-                                            <div className="admin-staff-picker">
-                                                {fieldStaff.length === 0 ? (
-                                                    <p>No approved field staff found yet.</p>
-                                                ) : fieldStaff.map(member => {
-                                                    const assignedIds = bookingForm.assignedStaffIds || [];
-                                                    const checked = assignedIds.includes(member.uid);
-                                                    return (
-                                                        <label key={member.uid} className={checked ? "active" : ""}>
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={checked}
-                                                                onChange={e => setBookingForm(prev => {
-                                                                    const current = prev.assignedStaffIds || [];
-                                                                    const nextIds = e.target.checked
-                                                                        ? [...current, member.uid]
-                                                                        : current.filter(uid => uid !== member.uid);
-                                                                    const nextStaff = fieldStaff
-                                                                        .filter(person => nextIds.includes(person.uid))
-                                                                        .map(person => ({
-                                                                            uid: person.uid,
-                                                                            name: person.name,
-                                                                            email: person.email,
-                                                                            role: person.role,
-                                                                            branchId: person.branchId || activeBranch.id
-                                                                        }));
-                                                                    return {
-                                                                        ...prev,
-                                                                        team: "",
-                                                                        assignedStaffIds: nextIds,
-                                                                        assignedStaff: nextStaff
-                                                                    };
-                                                                })}
-                                                            />
-                                                            <strong>{member.name}</strong>
-                                                            <small>{getRoleLabel(member.role)} · {member.branchName || "Ottawa"}</small>
-                                                        </label>
-                                                    );
-                                                })}
-                                            </div>
-                                        </div>
-                                        <div className="form-group flex flex-col gap-1">
-                                            <label className="font-bold text-slate-700">Dispatch Status</label>
-                                            <select value={bookingForm.status} onChange={e => setBookingForm(prev => ({ ...prev, status: e.target.value }))} required className="border border-slate-200 rounded-lg p-2">
-                                                <option value="Pending">Pending</option>
-                                                <option value="Confirmed">Confirmed</option>
-                                                <option value="Completed">Completed</option>
-                                                <option value="Cancelled">Cancelled</option>
-                                            </select>
-                                        </div>
-                                        <div className="form-group flex flex-col gap-1">
-                                            <label className="font-bold text-slate-700">Override Total Price ($)</label>
-                                            <input type="number" step="0.01" value={bookingForm.price} onChange={e => setBookingForm(prev => ({ ...prev, price: parseFloat(e.target.value) }))} required className="border border-slate-200 rounded-lg p-2" />
-                                        </div>
-                                    </div>
-
-                                    <div className="form-group flex flex-col gap-1">
-                                        <label className="font-bold text-slate-700">Special Instructions / Dispatch Notes</label>
-                                        <textarea rows={2} value={bookingForm.specialNotes} onChange={e => setBookingForm(prev => ({ ...prev, specialNotes: e.target.value }))} className="border border-slate-200 rounded-lg p-2 resize-none" />
-                                    </div>
+                                        </>
+                                    )}
 
                                 </div>
                                 <div className="modal-footer flex justify-end gap-3 p-4 border-t border-slate-100">
@@ -5147,7 +5280,7 @@ export default function Home() {
                                         Cancel
                                     </button>
                                     <button type="submit" className="btn btn-primary btn-sm rounded-lg text-white font-bold">
-                                        Save Changes
+                                        {isCleanerBookingEditor ? "Submit Status Update" : "Save Changes"}
                                     </button>
                                 </div>
                             </form>
