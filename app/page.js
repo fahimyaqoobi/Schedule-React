@@ -39,6 +39,7 @@ import {
     getBookingDocumentLabel as getBookingDocumentType,
     getBookingDocumentNumber
 } from "../lib/bookingDocuments";
+import { DEFAULT_PROMOTIONS, ensurePromotionList } from "../lib/promotions";
 
 const V2SettingsManager = dynamic(() => import("./components/V2SettingsManager"), {
     ssr: false,
@@ -473,9 +474,7 @@ const INITIAL_V2_CATALOG = {
         { id: 'nextDayBooking', name: 'Next Day Booking Fee', price: 52.50, qtySelector: false },
         { id: 'sameDayCancellation', name: 'Same Day Cancellation Fee', price: 55.30, qtySelector: false }
     ],
-    promotions: [
-        { id: 'promo_next30', name: 'Next Service $30 Off', type: 'fixed', value: 30, triggersOn: 'immediate_booking' }
-    ]
+    promotions: DEFAULT_PROMOTIONS
 };
 
 
@@ -587,6 +586,8 @@ export default function Home() {
 
     // --- V2 Dynamic Catalog State ---
     const [v2Catalog, setV2Catalog] = useState(INITIAL_V2_CATALOG);
+    const [promotionRules, setPromotionRules] = useState(DEFAULT_PROMOTIONS);
+    const [promotionSaving, setPromotionSaving] = useState(false);
 
     // Form inputs for scheduling modal
     const [bookingForm, setBookingForm] = useState({
@@ -995,6 +996,9 @@ export default function Home() {
                     if (data && Object.keys(data).length > 0) {
                         if (data.v2_catalog) {
                             setV2Catalog(data.v2_catalog);
+                        }
+                        if (data.promotions) {
+                            setPromotionRules(ensurePromotionList(data.promotions));
                         }
                         setPricingRates(prev => {
                             const mergedServices = { ...DEFAULT_PRICES.services, ...data.services };
@@ -2005,6 +2009,27 @@ export default function Home() {
             alert("V2 Dynamic Catalog saved successfully in database!");
         } catch (err) {
             alert("Failed to save V2 catalog: " + err.message);
+        }
+    };
+
+    const handleSavePromotions = async () => {
+        setPromotionSaving(true);
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch("/api/settings", {
+                method: "POST",
+                headers,
+                body: JSON.stringify({ v2_catalog: v2Catalog, promotions: promotionRules })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(data.error || "Failed to save promotions.");
+            }
+            alert("Promotions saved successfully.");
+        } catch (error) {
+            alert(`Promotion save failed: ${error.message}`);
+        } finally {
+            setPromotionSaving(false);
         }
     };
 

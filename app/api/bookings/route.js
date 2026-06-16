@@ -9,6 +9,7 @@ import {
     userCanAccessBranch,
     buildBranchRecordFields
 } from "../../../lib/branches";
+import { generateReferralCode } from "../../../lib/promotions";
 
 const BOOKING_STATUS_FLOW = ["Lead", "Follow Up", "Pending", "Confirmed", "Completed", "Cancelled"];
 const PAYMENT_STATUS_FLOW = ["unpaid", "paid", "redo"];
@@ -177,6 +178,7 @@ export async function POST(request) {
                 ? parseFloat(bookingData.tax || 0)
                 : subtotal * matchedBranch.taxRate;
         const total = paymentStatus === "redo" ? 0 : parseFloat(bookingData.price || subtotal + tax);
+        const customerPortalPhone = bookingData.customerPortalPhone || bookingData.phone || "";
         const newBooking = {
             ...bookingData,
             ...buildBranchRecordFields(matchedBranch, user),
@@ -193,6 +195,8 @@ export async function POST(request) {
             documentStage: ["Lead", "Follow Up", "Pending"].includes(bookingStatus) ? "estimate" : "booking",
             estimateNumber: ["Lead", "Follow Up", "Pending"].includes(bookingStatus) ? orderNumber : "",
             invoiceNumber: "",
+            customerPortalPhone,
+            referralCode: bookingData.referralCode || generateReferralCode(customerPortalPhone, orderNumber, bookingData.clientName),
             duration: parseFloat(bookingData.duration || 2),
             createdAt: new Date().toISOString(),
             createdBy: user.email,
@@ -254,6 +258,12 @@ export async function PUT(request) {
             const updatedBooking = {
                 ...originalData,
                 ...bookingData,
+                customerPortalPhone: bookingData.customerPortalPhone ?? bookingData.phone ?? originalData.customerPortalPhone ?? originalData.phone ?? "",
+                referralCode: bookingData.referralCode || originalData.referralCode || generateReferralCode(
+                    bookingData.customerPortalPhone ?? bookingData.phone ?? originalData.customerPortalPhone ?? originalData.phone ?? "",
+                    bookingData.invoiceNumber || bookingData.estimateNumber || bookingData.orderNumber || originalData.invoiceNumber || originalData.estimateNumber || originalData.orderNumber,
+                    bookingData.clientName || originalData.clientName
+                ),
                 price: nextPrice,
                 status: nextStatus,
                 paymentStatus: nextPaymentStatus,

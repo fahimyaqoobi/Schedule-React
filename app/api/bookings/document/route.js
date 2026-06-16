@@ -9,6 +9,7 @@ import {
     getBookingDocumentLabel,
     getBookingDocumentNumber
 } from "../../../../lib/bookingDocuments";
+import { buildCustomerPortalUrl } from "../../../../lib/promotions";
 
 function appendAuditLog(existingLog = [], event = {}) {
     return [
@@ -58,7 +59,7 @@ function normalizeTransportError(error) {
 
 async function loadLogoBuffer(origin) {
     try {
-        const response = await fetch(`${origin}/logo.png`);
+        const response = await fetch(`${origin}/logo-full.png`);
         if (!response.ok) return null;
         const arrayBuffer = await response.arrayBuffer();
         return Buffer.from(arrayBuffer);
@@ -67,28 +68,74 @@ async function loadLogoBuffer(origin) {
     }
 }
 
+async function loadBookingForDocument(request, bookingId) {
+    const user = await authenticateRequest(request);
+    const role = normalizeRole(user.role);
+    if (!canManageBranch(user) && role !== "customer") {
+        return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+    }
+
+    if (!bookingId) {
+        return { error: NextResponse.json({ error: "Missing booking ID" }, { status: 400 }) };
+    }
+
+    const bookingDoc = await adminDb.collection("bookings").doc(bookingId).get();
+    if (!bookingDoc.exists) {
+        return { error: NextResponse.json({ error: "Booking not found" }, { status: 404 }) };
+    }
+
+    const booking = bookingDoc.data();
+    if (!userCanAccessBranch(user, booking.branchId || DEFAULT_BRANCH_ID) && role !== "customer") {
+        return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+    }
+
+    return { user, role, booking };
+}
+
+export async function GET(request) {
+    try {
+        const { searchParams } = new URL(request.url);
+        const bookingId = searchParams.get("bookingId");
+        const disposition = searchParams.get("disposition") === "inline" ? "inline" : "attachment";
+        const loaded = await loadBookingForDocument(request, bookingId);
+        if (loaded.error) return loaded.error;
+
+        const { booking } = loaded;
+        const origin = request.headers.get("origin") || request.nextUrl.origin;
+        const companySnapshot = {
+            ...(booking.companySnapshot || {}),
+            logoUrl: `${origin}/logo-full.png`
+        };
+        const customerPortalUrl = buildCustomerPortalUrl(origin, {
+            ...booking,
+            phone: booking.customerPortalPhone || booking.phone
+        });
+        const logoBuffer = await loadLogoBuffer(origin);
+        const pdfBuffer = await buildBookingDocumentPdf(
+            { ...booking, companySnapshot, customerPortalUrl },
+            { logoBuffer }
+        );
+
+        return new NextResponse(pdfBuffer, {
+            status: 200,
+            headers: {
+                "Content-Type": "application/pdf",
+                "Content-Disposition": `${disposition}; filename=\"${getBookingDocumentNumber(booking)}.pdf\"`,
+                "Cache-Control": "no-store"
+            }
+        });
+    } catch (error) {
+        console.error("GET Booking Document Error:", error);
+        return NextResponse.json({ error: error.message || "Failed to generate document." }, { status: 500 });
+    }
+}
+
 export async function POST(request) {
     try {
-        const user = await authenticateRequest(request);
-        const role = normalizeRole(user.role);
-        if (!canManageBranch(user) && role !== "customer") {
-            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-        }
-
         const { bookingId } = await request.json();
-        if (!bookingId) {
-            return NextResponse.json({ error: "Missing booking ID" }, { status: 400 });
-        }
-
-        const bookingDoc = await adminDb.collection("bookings").doc(bookingId).get();
-        if (!bookingDoc.exists) {
-            return NextResponse.json({ error: "Booking not found" }, { status: 404 });
-        }
-
-        const booking = bookingDoc.data();
-        if (!userCanAccessBranch(user, booking.branchId || DEFAULT_BRANCH_ID) && role !== "customer") {
-            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-        }
+        const loaded = await loadBookingForDocument(request, bookingId);
+        if (loaded.error) return loaded.error;
+        const { user, booking } = loaded;
 
         if (!booking.email) {
             return NextResponse.json({ error: "Client email is missing on this booking." }, { status: 400 });
@@ -114,17 +161,21 @@ export async function POST(request) {
         const origin = request.headers.get("origin") || request.nextUrl.origin;
         const companySnapshot = {
             ...(booking.companySnapshot || {}),
-            logoUrl: `${origin}/logo.png`
+            logoUrl: `${origin}/logo-full.png`
         };
+        const customerPortalUrl = buildCustomerPortalUrl(origin, {
+            ...booking,
+            phone: booking.customerPortalPhone || booking.phone
+        });
         const logoBuffer = await loadLogoBuffer(origin);
-        const pdfBuffer = await buildBookingDocumentPdf({ ...booking, companySnapshot }, { logoBuffer });
+        const pdfBuffer = await buildBookingDocumentPdf({ ...booking, companySnapshot, customerPortalUrl }, { logoBuffer });
         const fileName = `${documentNumber}.pdf`;
 
         await transporter.sendMail({
             from: mail.from,
             to: booking.email,
             subject: `${documentLabel} ${documentNumber} from SmarTouch Clean`,
-            html: buildBookingEmailHtml({ ...booking, companySnapshot }),
+            html: buildBookingEmailHtml({ ...booking, companySnapshot, customerPortalUrl }),
             attachments: [
                 {
                     filename: fileName,
