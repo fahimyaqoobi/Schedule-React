@@ -5616,11 +5616,27 @@ select option:disabled {
     background: #f8f9fa;
 }
 
+.admin-checkout-stepper {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    padding: 0 0 4px;
+}
+
 .admin-checkout-grid {
+    grid-column: 1;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 14px;
     align-content: start;
+    min-width: 0;
+}
+
+.admin-checkout-grid.review-mode {
+    grid-column: 1 / -1;
+    display: block;
 }
 
 .admin-checkout-grid label {
@@ -5745,6 +5761,18 @@ select option:disabled {
     gap: 10px;
 }
 
+.admin-schedule-hint {
+    margin: 0;
+    border: 1px solid #dbe7ff;
+    border-radius: 10px;
+    background: #f8fbff;
+    padding: 10px 12px;
+    color: #33517f;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.45;
+}
+
 .admin-time-slot-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
@@ -5807,6 +5835,7 @@ select option:disabled {
 }
 
 .admin-checkout-summary {
+    grid-column: 2;
     position: sticky;
     top: 0;
     display: grid;
@@ -5818,6 +5847,10 @@ select option:disabled {
     border-radius: 12px;
     background: #ffffff;
     padding: 16px;
+}
+
+.admin-checkout-summary.review-hidden {
+    display: none;
 }
 
 .admin-checkout-summary div {
@@ -5864,6 +5897,123 @@ select option:disabled {
     gap: 12px;
     border-top: 1px solid #e1e3e4;
     padding-top: 16px;
+}
+
+.admin-checkout-review-sheet {
+    display: grid;
+    gap: 18px;
+}
+
+.admin-checkout-review-top {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+    gap: 18px;
+}
+
+.admin-checkout-review-card {
+    display: grid;
+    gap: 8px;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    background: #ffffff;
+    padding: 18px;
+}
+
+.admin-checkout-review-card strong {
+    color: #0f172a;
+    font-size: 15px;
+    font-weight: 900;
+}
+
+.admin-checkout-review-card p {
+    margin: 0;
+    color: #475569;
+    font-size: 13px;
+    line-height: 1.55;
+}
+
+.admin-checkout-review-lines {
+    display: grid;
+    gap: 12px;
+    border: 1px solid #dbe7ff;
+    border-radius: 18px;
+    background: #ffffff;
+    padding: 18px;
+}
+
+.admin-checkout-review-line {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto;
+    gap: 14px;
+    align-items: start;
+    border-bottom: 1px solid #eef2f7;
+    padding-bottom: 12px;
+}
+
+.admin-checkout-review-line:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+}
+
+.admin-checkout-review-line strong {
+    color: #0f172a;
+    font-size: 15px;
+    font-weight: 900;
+}
+
+.admin-checkout-review-line span,
+.admin-checkout-review-line p {
+    margin: 0;
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.admin-checkout-review-line em {
+    color: #00327d;
+    font-size: 16px;
+    font-style: normal;
+    font-weight: 900;
+    white-space: nowrap;
+}
+
+.admin-checkout-review-totals {
+    margin-left: auto;
+    width: min(100%, 360px);
+    display: grid;
+    gap: 10px;
+    border: 1px solid #bfd7ff;
+    border-radius: 18px;
+    background: #f7fbff;
+    padding: 18px;
+}
+
+.admin-checkout-review-totals-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    color: #33517f;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.admin-checkout-review-totals-row strong {
+    color: #0f172a;
+    font-size: 15px;
+}
+
+.admin-checkout-review-totals-row.total {
+    border-top: 1px solid #dbe7ff;
+    padding-top: 12px;
+    color: #00327d;
+    font-size: 16px;
+    font-weight: 900;
+}
+
+.admin-checkout-review-totals-row.total strong {
+    color: #00327d;
+    font-size: 22px;
 }
 
 @media (max-width: 1180px) {
@@ -6119,6 +6269,15 @@ select option:disabled {
     .service-addon-row,
     .admin-checkout-grid {
         grid-template-columns: 1fr;
+    }
+
+    .admin-checkout-review-top,
+    .admin-checkout-review-line {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-checkout-review-totals {
+        width: 100%;
     }
 
     .service-config-footer,

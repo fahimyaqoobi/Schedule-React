@@ -46,7 +46,7 @@ function normalizeTransportError(error) {
     const code = String(error?.responseCode || error?.code || "");
     const message = String(error?.message || "Failed to send document.");
     if (code === "535" || message.includes("535") || /invalid login|authentication credentials invalid/i.test(message)) {
-            return "SMTP login failed. Check the `sales@smartouchclean.com` mailbox password in `.env.local`, and confirm SMTP is enabled for that IONOS mailbox.";
+            return "SMTP login failed. Check the deployed SMTP settings for `sales@smartouchclean.com` in Vercel Environment Variables, confirm the IONOS mailbox password is correct, and redeploy after any env change.";
     }
     return message;
 }
@@ -80,7 +80,7 @@ export async function POST(request) {
 
         const mail = getMailConfig();
         if (!mail.host || !mail.user || !mail.pass) {
-            return NextResponse.json({ error: "SMTP email settings are not configured in .env.local." }, { status: 500 });
+            return NextResponse.json({ error: "SMTP email settings are missing from the server environment." }, { status: 500 });
         }
 
         const transporter = nodemailer.createTransport({

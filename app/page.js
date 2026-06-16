@@ -639,6 +639,7 @@ export default function Home() {
     const [configAddons, setConfigAddons] = useState({});
     const [adminCheckoutOpen, setAdminCheckoutOpen] = useState(false);
     const [adminCheckoutStep, setAdminCheckoutStep] = useState(0);
+    const [adminScheduleHint, setAdminScheduleHint] = useState("");
     const [adminCheckoutForm, setAdminCheckoutForm] = useState({
         firstName: "",
         lastName: "",
@@ -1524,14 +1525,19 @@ export default function Home() {
             }
         }
 
+        const overlapBufferMinutes = 30;
         const overlapping = assignedThatDay.find((booking) => {
             const targetStart = timeStrToMinutes(booking.time);
             const targetEnd = targetStart + Math.round(parseFloat(booking.duration || 2) * 60);
-            return Math.max(startMin, targetStart) < Math.min(endMin, targetEnd);
+            return (startMin < targetEnd + overlapBufferMinutes) && (endMin + overlapBufferMinutes > targetStart);
         });
 
         if (overlapping) {
-            return { available: false, reason: `Busy: ${overlapping.time}`, tone: "busy" };
+            return {
+                available: false,
+                reason: `Busy with ${overlapping.service || "another job"} at ${overlapping.time} for ${overlapping.duration || 0}h`,
+                tone: "busy"
+            };
         }
 
         return { available: true, reason: "Open", tone: "available" };
@@ -2534,7 +2540,7 @@ export default function Home() {
     }, [currentUser]);
 
     const saveAdminCartBooking = useCallback(async (event) => {
-        event.preventDefault();
+        if (event?.preventDefault) event.preventDefault();
         if (adminServiceCart.length === 0) {
             alert("Add at least one configured service before checkout.");
             return;
@@ -2629,6 +2635,16 @@ export default function Home() {
             alert(`Checkout failed: ${err.message}`);
         }
     }, [activeBranch, adminCartTotals, adminCheckoutForm, adminServiceCart, currentUser, fieldStaff, getAuthHeaders, syncDatabaseData]);
+
+    const handleAdminCheckoutNext = useCallback(() => {
+        if (!validateAdminCheckoutStep(adminCheckoutStep, adminCheckoutForm)) {
+            alert(adminCheckoutStep === 0
+                ? "Complete the customer contact and address details first."
+                : "Complete the schedule and status details first.");
+            return;
+        }
+        setAdminCheckoutStep(prev => Math.min(2, prev + 1));
+    }, [adminCheckoutForm, adminCheckoutStep]);
 
     // ----------------------------------------------------
     // Filtered & Sorted Booking Data computations
@@ -5423,15 +5439,15 @@ export default function Home() {
                                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="1" y1="1" x2="13" y2="13" /><line x1="13" y1="1" x2="1" y2="13" /></svg>
                             </button>
                         </div>
-                        <form onSubmit={saveAdminCartBooking} className="admin-checkout-form">
-                            <div className="flex items-center gap-2 px-6 pt-4">
+                        <form onSubmit={(event) => event.preventDefault()} className="admin-checkout-form">
+                            <div className="admin-checkout-stepper">
                                 {["Customer", "Schedule", "Review"].map((label, index) => (
                                     <div key={label} className={`rounded-full px-3 py-1 text-xs font-bold ${adminCheckoutStep === index ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500"}`}>
                                         {index + 1}. {label}
                                     </div>
                                 ))}
                             </div>
-                            <div className="admin-checkout-grid">
+                            <div className={`admin-checkout-grid ${adminCheckoutStep === 2 ? "review-mode" : ""}`}>
                                 {adminCheckoutStep === 0 && (
                                     <>
                                         <label>
@@ -5514,7 +5530,12 @@ export default function Home() {
                                                     adminStaffAvailabilityCards.map(({ member, status }) => {
                                                         const checked = adminCheckoutForm.assignedStaffIds.includes(member.uid);
                                                         return (
-                                                            <label key={member.uid} className={`${checked ? "active" : ""} ${!status.available && adminCheckoutForm.date ? "unavailable" : ""}`}>
+                                                            <label
+                                                                key={member.uid}
+                                                                className={`${checked ? "active" : ""} ${!status.available && adminCheckoutForm.date ? "unavailable" : ""}`}
+                                                                onMouseEnter={() => setAdminScheduleHint(status.reason)}
+                                                                onMouseLeave={() => setAdminScheduleHint("")}
+                                                            >
                                                                 <input
                                                                     type="checkbox"
                                                                     checked={checked}
@@ -5539,14 +5560,20 @@ export default function Home() {
                                         </div>
                                         <div className="span-2 admin-time-slot-field">
                                             <span>Cleaner Schedule Window (7:00 AM - 7:00 PM)</span>
+                                            <p className="admin-schedule-hint">{adminScheduleHint || "Pick an open 30-minute start time. Each booking also keeps a 30-minute buffer before the next job."}</p>
                                             <div className="admin-time-slot-grid">
                                                 {adminSlotStates.map((slot) => (
                                                     <button
                                                         key={slot.time}
                                                         type="button"
                                                         className={`admin-time-slot ${adminCheckoutForm.time === slot.time ? "selected" : ""} ${slot.available ? "available" : slot.tone === "busy" ? "busy" : slot.tone === "blocked" ? "blocked" : "pending"}`}
-                                                        disabled={!slot.available}
-                                                        onClick={() => setAdminCheckoutForm(prev => ({ ...prev, time: slot.time }))}
+                                                        aria-disabled={!slot.available}
+                                                        onMouseEnter={() => setAdminScheduleHint(slot.reason)}
+                                                        onMouseLeave={() => setAdminScheduleHint("")}
+                                                        onClick={() => {
+                                                            if (!slot.available) return;
+                                                            setAdminCheckoutForm(prev => ({ ...prev, time: slot.time }));
+                                                        }}
                                                         title={slot.reason}
                                                     >
                                                         <strong>{slot.time}</strong>
@@ -5587,8 +5614,9 @@ export default function Home() {
                                             </div>
                                             <img src="/logo.png" alt="SmarTouch Clean" className="h-12 w-auto" />
                                         </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 text-sm text-slate-700">
-                                            <div>
+                                        <div className="admin-checkout-review-sheet mt-4">
+                                            <div className="admin-checkout-review-top">
+                                            <div className="admin-checkout-review-card">
                                                 <strong>Client</strong>
                                                 <p>{adminCheckoutForm.firstName} {adminCheckoutForm.lastName}</p>
                                                 <p>{adminCheckoutForm.phone}</p>
@@ -5596,7 +5624,7 @@ export default function Home() {
                                                 <p>{adminCheckoutForm.address1}{adminCheckoutForm.address2 ? `, ${adminCheckoutForm.address2}` : ""}</p>
                                                 <p>{adminCheckoutForm.city}, {adminCheckoutForm.state} {adminCheckoutForm.postalCode}</p>
                                             </div>
-                                            <div>
+                                            <div className="admin-checkout-review-card">
                                                 <strong>Booking</strong>
                                                 <p>Document: {getBookingDocumentLabel(adminCheckoutForm.bookingStatus)}</p>
                                                 <p>Status: {adminCheckoutForm.bookingStatus}</p>
@@ -5605,29 +5633,31 @@ export default function Home() {
                                                 <p>Time: {adminCheckoutForm.time}</p>
                                                 <p>Assigned: {adminCheckoutForm.assignedStaffIds.length ? fieldStaff.filter(member => adminCheckoutForm.assignedStaffIds.includes(member.uid)).map(member => member.name).join(", ") : "Unassigned"}</p>
                                             </div>
-                                        </div>
-                                        <div className="mt-4 rounded-2xl border border-slate-100">
+                                            </div>
+                                        <div className="admin-checkout-review-lines">
                                             {adminServiceCart.map(item => (
-                                                <div key={item.cartId} className="flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-3 last:border-0">
+                                                <div key={item.cartId} className="admin-checkout-review-line">
                                                     <div>
-                                                        <strong className="block">{item.name}</strong>
-                                                        <span className="text-xs text-slate-500">{item.optionName}{item.bathroomKey ? ` • ${item.bathroomKey}` : ""}</span>
-                                                        {item.addons?.length > 0 && <p className="text-xs text-slate-500 mt-1">{item.addons.map(addon => `${addon.name}${addon.qty > 1 ? ` x${addon.qty}` : ""}`).join(", ")}</p>}
+                                                        <strong>{item.name}</strong>
+                                                        {item.addons?.length > 0 && <p>{item.addons.map(addon => `${addon.name}${addon.qty > 1 ? ` x${addon.qty}` : ""}`).join(", ")}</p>}
                                                     </div>
-                                                    <strong>${item.price.toFixed(2)}</strong>
+                                                    <div>
+                                                        <span>{item.optionName}{item.bathroomKey ? ` • ${item.bathroomKey}` : ""}</span>
+                                                    </div>
+                                                    <em>${item.price.toFixed(2)}</em>
                                                 </div>
                                             ))}
                                         </div>
-                                        <div className="mt-4 grid grid-cols-1 gap-2 rounded-2xl border border-blue-100 bg-blue-50/60 p-4 text-sm text-slate-700">
-                                            <div className="flex items-center justify-between gap-3">
+                                        <div className="admin-checkout-review-totals">
+                                            <div className="admin-checkout-review-totals-row">
                                                 <span>Subtotal</span>
                                                 <strong>${adminCartTotals.subtotal.toFixed(2)}</strong>
                                             </div>
-                                            <div className="flex items-center justify-between gap-3">
+                                            <div className="admin-checkout-review-totals-row">
                                                 <span>{activeBranch.taxLabel}</span>
                                                 <strong>${adminCartTotals.tax.toFixed(2)}</strong>
                                             </div>
-                                            <div className="flex items-center justify-between gap-3">
+                                            <div className="admin-checkout-review-totals-row">
                                                 <span>Discounts</span>
                                                 <strong>
                                                     -$
@@ -5638,9 +5668,9 @@ export default function Home() {
                                                     ).toFixed(2)}
                                                 </strong>
                                             </div>
-                                            <div className="flex items-center justify-between gap-3 border-t border-blue-100 pt-2 text-base">
-                                                <span className="font-bold text-slate-900">Estimated Total</span>
-                                                <strong className="text-blue-700">
+                                            <div className="admin-checkout-review-totals-row total">
+                                                <span>Estimated Total</span>
+                                                <strong>
                                                     $
                                                     {Math.max(
                                                         0,
@@ -5653,10 +5683,11 @@ export default function Home() {
                                                 </strong>
                                             </div>
                                         </div>
+                                        </div>
                                     </div>
                                 )}
                             </div>
-                            <aside className="admin-checkout-summary">
+                            <aside className={`admin-checkout-summary ${adminCheckoutStep === 2 ? "review-hidden" : ""}`}>
                                 {adminServiceCart.map(item => (
                                     <div key={item.cartId}>
                                         <strong>{item.name}</strong>
@@ -5677,21 +5708,13 @@ export default function Home() {
                                 {adminCheckoutStep < 2 ? (
                                     <button
                                         type="button"
-                                        onClick={() => {
-                                            if (!validateAdminCheckoutStep(adminCheckoutStep, adminCheckoutForm)) {
-                                                alert(adminCheckoutStep === 0
-                                                    ? "Complete the customer contact and address details first."
-                                                    : "Complete the schedule and status details first.");
-                                                return;
-                                            }
-                                            setAdminCheckoutStep(prev => Math.min(2, prev + 1));
-                                        }}
+                                        onClick={handleAdminCheckoutNext}
                                         className="btn btn-primary btn-sm"
                                     >
                                         Next Step
                                     </button>
                                 ) : (
-                                    <button type="submit" className="btn btn-primary btn-sm">
+                                    <button type="button" onClick={saveAdminCartBooking} className="btn btn-primary btn-sm">
                                         Create {getBookingDocumentLabel(adminCheckoutForm.bookingStatus)}
                                     </button>
                                 )}
