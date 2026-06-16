@@ -1712,8 +1712,12 @@ export default function Home() {
             alert("Please allow popups to open the document preview.");
             return null;
         }
+        const companySnapshot = {
+            ...(booking.companySnapshot || {}),
+            logoUrl: `${window.location.origin}/logo.png`
+        };
         popup.document.open();
-        popup.document.write(buildBookingDocumentHtml(booking));
+        popup.document.write(buildBookingDocumentHtml({ ...booking, companySnapshot }));
         popup.document.close();
         return popup;
     }, []);

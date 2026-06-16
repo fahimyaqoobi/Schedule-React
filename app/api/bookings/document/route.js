@@ -42,6 +42,15 @@ function getMailConfig() {
     return { host, port, secure, user, pass, from };
 }
 
+function normalizeTransportError(error) {
+    const code = String(error?.responseCode || error?.code || "");
+    const message = String(error?.message || "Failed to send document.");
+    if (code === "535" || message.includes("535") || /invalid login|authentication credentials invalid/i.test(message)) {
+        return "SMTP login failed. The email username/password or app password in .env.local is invalid. If this is Gmail, use the full mailbox address as `SMTP_USER` and a Google app password as `SMTP_PASS`.";
+    }
+    return message;
+}
+
 export async function POST(request) {
     try {
         const user = await authenticateRequest(request);
@@ -86,11 +95,16 @@ export async function POST(request) {
 
         const documentLabel = getBookingDocumentLabel(booking);
         const documentNumber = getBookingDocumentNumber(booking);
+        const origin = request.headers.get("origin") || request.nextUrl.origin;
+        const companySnapshot = {
+            ...(booking.companySnapshot || {}),
+            logoUrl: `${origin}/logo.png`
+        };
         await transporter.sendMail({
             from: mail.from,
             to: booking.email,
             subject: `${documentLabel} ${documentNumber} from SmarTouch Clean`,
-            html: buildBookingDocumentHtml(booking)
+            html: buildBookingDocumentHtml({ ...booking, companySnapshot })
         });
 
         await adminDb.collection("bookings").doc(bookingId).set({
@@ -109,6 +123,6 @@ export async function POST(request) {
         return NextResponse.json({ message: `${documentLabel} sent to ${booking.email}.` });
     } catch (error) {
         console.error("POST Booking Document Error:", error);
-        return NextResponse.json({ error: error.message || "Failed to send document." }, { status: 500 });
+        return NextResponse.json({ error: normalizeTransportError(error) }, { status: 500 });
     }
 }
