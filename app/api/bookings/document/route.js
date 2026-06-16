@@ -3,7 +3,12 @@ import nodemailer from "nodemailer";
 import { adminAuth, adminDb } from "../../../../lib/firebase-admin";
 import { canManageBranch, normalizeRole } from "../../../../lib/permissions";
 import { DEFAULT_BRANCH_ID, userCanAccessBranch } from "../../../../lib/branches";
-import { buildBookingDocumentHtml, getBookingDocumentLabel, getBookingDocumentNumber } from "../../../../lib/bookingDocuments";
+import { buildBookingDocumentPdf } from "../../../../lib/bookingDocumentPdf";
+import {
+    buildBookingEmailHtml,
+    getBookingDocumentLabel,
+    getBookingDocumentNumber
+} from "../../../../lib/bookingDocuments";
 
 function appendAuditLog(existingLog = [], event = {}) {
     return [
@@ -49,6 +54,17 @@ function normalizeTransportError(error) {
             return "SMTP login failed. Check the deployed SMTP settings for `sales@smartouchclean.com` in Vercel Environment Variables, confirm the IONOS mailbox password is correct, and redeploy after any env change.";
     }
     return message;
+}
+
+async function loadLogoBuffer(origin) {
+    try {
+        const response = await fetch(`${origin}/logo.png`);
+        if (!response.ok) return null;
+        const arrayBuffer = await response.arrayBuffer();
+        return Buffer.from(arrayBuffer);
+    } catch (_error) {
+        return null;
+    }
 }
 
 export async function POST(request) {
@@ -100,11 +116,22 @@ export async function POST(request) {
             ...(booking.companySnapshot || {}),
             logoUrl: `${origin}/logo.png`
         };
+        const logoBuffer = await loadLogoBuffer(origin);
+        const pdfBuffer = await buildBookingDocumentPdf({ ...booking, companySnapshot }, { logoBuffer });
+        const fileName = `${documentNumber}.pdf`;
+
         await transporter.sendMail({
             from: mail.from,
             to: booking.email,
             subject: `${documentLabel} ${documentNumber} from SmarTouch Clean`,
-            html: buildBookingDocumentHtml({ ...booking, companySnapshot })
+            html: buildBookingEmailHtml({ ...booking, companySnapshot }),
+            attachments: [
+                {
+                    filename: fileName,
+                    content: pdfBuffer,
+                    contentType: "application/pdf"
+                }
+            ]
         });
 
         await adminDb.collection("bookings").doc(bookingId).set({
