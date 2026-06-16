@@ -34,6 +34,11 @@ import {
     STAFF_SELF_SERVICE_ROLES
 } from "../lib/staffProfiles";
 import { calculatePayrollBreakdown } from "../lib/payroll";
+import {
+    buildBookingDocumentHtml,
+    getBookingDocumentLabel as getBookingDocumentType,
+    getBookingDocumentNumber
+} from "../lib/bookingDocuments";
 
 const V2SettingsManager = dynamic(() => import("./components/V2SettingsManager"), {
     ssr: false,
@@ -171,7 +176,7 @@ function getCleanerPayPeriodSummary(now = new Date()) {
 }
 
 function getBookingDocumentLabel(status = "Pending") {
-    return ["Lead", "Follow Up", "Pending"].includes(status) ? "Estimate" : "Booking";
+    return getBookingDocumentType({ status });
 }
 
 function validateAdminCheckoutStep(step, form = {}) {
@@ -1456,6 +1461,82 @@ export default function Home() {
         return `${timeStr} - ${minutesToTimeStr(endMin)}`;
     };
 
+    const getWeekdayIndexForSchedule = (dateStr) => {
+        if (!dateStr) return 0;
+        const date = new Date(`${dateStr}T00:00:00`);
+        const day = date.getDay();
+        return day === 0 ? 6 : day - 1;
+    };
+
+    const isShiftEnabledForMinutes = (shifts = {}, minute = 0) => {
+        if (minute < 12 * 60) return Boolean(shifts.morning);
+        if (minute < 17 * 60) return Boolean(shifts.afternoon);
+        return Boolean(shifts.evening);
+    };
+
+    const getCleanerAvailabilityStatus = useCallback((member, bookingDate, bookingTime, bookingDuration = 2, excludeBookingId = null) => {
+        if (!member) {
+            return { available: false, reason: "No cleaner selected", tone: "blocked" };
+        }
+
+        if (!bookingDate) {
+            return { available: false, reason: "Pick a date first", tone: "pending" };
+        }
+
+        const profile = normalizeStaffProfile(member.staffProfileRequest?.requestedProfile || member.staffProfile);
+        const availability = profile.availability || {};
+        const blockedDates = new Set(availability.blockedDates || []);
+        if (blockedDates.has(bookingDate)) {
+            return { available: false, reason: "Blocked date", tone: "blocked" };
+        }
+
+        const weekday = availability.weekdays?.[getWeekdayIndexForSchedule(bookingDate)];
+        if (!weekday?.enabled) {
+            return { available: false, reason: "Off day", tone: "blocked" };
+        }
+
+        const assignedThatDay = bookings.filter((booking) =>
+            booking.id !== excludeBookingId &&
+            booking.status !== "Cancelled" &&
+            booking.date === bookingDate &&
+            booking.assignedStaffIds?.includes(member.uid)
+        );
+
+        const maxJobsPerDay = parseInt(availability.maxJobsPerDay || 0, 10);
+        if (maxJobsPerDay > 0 && assignedThatDay.length >= maxJobsPerDay) {
+            return { available: false, reason: "Max jobs reached", tone: "busy" };
+        }
+
+        if (!bookingTime) {
+            return { available: true, reason: assignedThatDay.length ? `${assignedThatDay.length} job(s) already booked` : "Available", tone: assignedThatDay.length ? "busy" : "available" };
+        }
+
+        const startMin = timeStrToMinutes(bookingTime);
+        const endMin = startMin + Math.round(parseFloat(bookingDuration || 2) * 60);
+
+        if (startMin < 7 * 60 || endMin > 19 * 60) {
+            return { available: false, reason: "Outside booking hours", tone: "blocked" };
+        }
+
+        for (let probe = startMin; probe < endMin; probe += 30) {
+            if (!isShiftEnabledForMinutes(weekday.shifts || {}, probe)) {
+                return { available: false, reason: "Outside shift availability", tone: "blocked" };
+            }
+        }
+
+        const overlapping = assignedThatDay.find((booking) => {
+            const targetStart = timeStrToMinutes(booking.time);
+            const targetEnd = targetStart + Math.round(parseFloat(booking.duration || 2) * 60);
+            return Math.max(startMin, targetStart) < Math.min(endMin, targetEnd);
+        });
+
+        if (overlapping) {
+            return { available: false, reason: `Busy: ${overlapping.time}`, tone: "busy" };
+        }
+
+        return { available: true, reason: "Open", tone: "available" };
+    }, [bookings]);
+
     // Overlap Checker: checks if team has another clean on selected date/time window
     const checkScheduleCollisions = (bookingDate, bookingTime, bookingDuration, bookingTeam, excludeId = null) => {
         const startMin = timeStrToMinutes(bookingTime);
@@ -1623,6 +1704,70 @@ export default function Home() {
             alert(`Error: ${err.message}`);
         }
     };
+
+    const openBookingDocumentWindow = useCallback((booking) => {
+        if (typeof window === "undefined" || !booking) return null;
+        const popup = window.open("", "_blank", "width=1024,height=900");
+        if (!popup) {
+            alert("Please allow popups to open the document preview.");
+            return null;
+        }
+        popup.document.open();
+        popup.document.write(buildBookingDocumentHtml(booking));
+        popup.document.close();
+        return popup;
+    }, []);
+
+    const handleDownloadBookingDocument = useCallback((booking) => {
+        const popup = openBookingDocumentWindow(booking);
+        if (!popup) return;
+        popup.focus();
+        popup.print();
+    }, [openBookingDocumentWindow]);
+
+    const handleGenerateInvoice = useCallback(async (booking) => {
+        if (!booking?.id) return;
+        try {
+            const headers = await getAuthHeaders();
+            const payload = {
+                ...booking,
+                id: booking.id,
+                status: booking.status || "Completed",
+                paymentStatus: booking.paymentStatus || "unpaid",
+                documentStage: "invoice",
+                invoiceNumber: booking.invoiceNumber || booking.orderNumber || "",
+                estimateNumber: booking.estimateNumber || booking.orderNumber || ""
+            };
+            const res = await fetch("/api/bookings", {
+                method: "PUT",
+                headers,
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || "Failed to generate invoice.");
+            alert("Invoice generated successfully.");
+            syncDatabaseData(currentUser);
+        } catch (error) {
+            alert(`Invoice generation failed: ${error.message}`);
+        }
+    }, [currentUser, getAuthHeaders, syncDatabaseData]);
+
+    const handleSendBookingDocument = useCallback(async (booking) => {
+        if (!booking?.id) return;
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch("/api/bookings/document", {
+                method: "POST",
+                headers,
+                body: JSON.stringify({ bookingId: booking.id })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || "Failed to send document.");
+            alert(data.message || "Document sent to client.");
+        } catch (error) {
+            alert(`Document send failed: ${error.message}`);
+        }
+    }, [getAuthHeaders]);
 
     // ----------------------------------------------------
     // Admin Crew Creation Actions
@@ -2674,6 +2819,83 @@ export default function Home() {
         }
         return slots;
     }, []);
+
+    const buildCombinedSlotStatus = useCallback((selectedIds = [], bookingDate, bookingDuration = 2, excludeBookingId = null) => {
+        return timeSlots.map((slotTime) => {
+            if (!bookingDate) {
+                return { time: slotTime, available: false, reason: "Pick a date first", tone: "pending" };
+            }
+
+            if (!selectedIds.length) {
+                return { time: slotTime, available: false, reason: "Select cleaner first", tone: "pending" };
+            }
+
+            const statuses = selectedIds.map((uid) => {
+                const member = fieldStaff.find((candidate) => candidate.uid === uid);
+                return getCleanerAvailabilityStatus(member, bookingDate, slotTime, bookingDuration, excludeBookingId);
+            });
+
+            const blocked = statuses.find((entry) => !entry.available);
+            return blocked
+                ? { time: slotTime, available: false, reason: blocked.reason, tone: blocked.tone }
+                : { time: slotTime, available: true, reason: "Open", tone: "available" };
+        });
+    }, [fieldStaff, getCleanerAvailabilityStatus, timeSlots]);
+
+    const getCleanerDayAvailability = useCallback((member, bookingDate, bookingDuration = 2, excludeBookingId = null) => {
+        if (!bookingDate) {
+            return { available: false, reason: "Pick a date first", tone: "pending" };
+        }
+        const firstOpenSlot = timeSlots.find((slotTime) =>
+            getCleanerAvailabilityStatus(member, bookingDate, slotTime, bookingDuration, excludeBookingId).available
+        );
+        if (firstOpenSlot) {
+            return { available: true, reason: `Open from ${firstOpenSlot}`, tone: "available" };
+        }
+        return getCleanerAvailabilityStatus(member, bookingDate, "09:00 AM", bookingDuration, excludeBookingId);
+    }, [getCleanerAvailabilityStatus, timeSlots]);
+
+    const adminCheckoutDuration = useMemo(() => adminCartTotals.duration || 2, [adminCartTotals.duration]);
+
+    const adminStaffAvailabilityCards = useMemo(() => {
+        return fieldStaff.map((member) => ({
+            member,
+            status: getCleanerDayAvailability(
+                member,
+                adminCheckoutForm.date,
+                adminCheckoutDuration
+            )
+        }));
+    }, [adminCheckoutDuration, adminCheckoutForm.date, fieldStaff, getCleanerDayAvailability]);
+
+    const adminSlotStates = useMemo(() => {
+        return buildCombinedSlotStatus(
+            adminCheckoutForm.assignedStaffIds || [],
+            adminCheckoutForm.date,
+            adminCheckoutDuration
+        );
+    }, [adminCheckoutDuration, adminCheckoutForm.assignedStaffIds, adminCheckoutForm.date, buildCombinedSlotStatus]);
+
+    const bookingStaffAvailabilityCards = useMemo(() => {
+        return fieldStaff.map((member) => ({
+            member,
+            status: getCleanerDayAvailability(
+                member,
+                bookingForm.date,
+                bookingForm.duration,
+                bookingForm.id || null
+            )
+        }));
+    }, [bookingForm.date, bookingForm.duration, bookingForm.id, fieldStaff, getCleanerDayAvailability]);
+
+    const bookingSlotStates = useMemo(() => {
+        return buildCombinedSlotStatus(
+            bookingForm.assignedStaffIds || [],
+            bookingForm.date,
+            bookingForm.duration,
+            bookingForm.id || null
+        );
+    }, [bookingForm.assignedStaffIds, bookingForm.date, bookingForm.duration, bookingForm.id, buildCombinedSlotStatus]);
 
     // Full address formatter
     const formatAddress = (b) => {
@@ -5260,7 +5482,7 @@ export default function Home() {
                                         </label>
                                         <label>
                                             <span>Time</span>
-                                            <input required value={adminCheckoutForm.time} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, time: e.target.value }))} />
+                                            <input value={adminCheckoutForm.time} readOnly className="bg-slate-50" />
                                         </label>
                                         <label>
                                             <span>Booking Status</span>
@@ -5285,13 +5507,14 @@ export default function Home() {
                                                 {fieldStaff.length === 0 ? (
                                                     <p>No approved cleaners, supervisors, employees, or subcontractors found yet.</p>
                                                 ) : (
-                                                    fieldStaff.map(member => {
+                                                    adminStaffAvailabilityCards.map(({ member, status }) => {
                                                         const checked = adminCheckoutForm.assignedStaffIds.includes(member.uid);
                                                         return (
-                                                            <label key={member.uid} className={checked ? "active" : ""}>
+                                                            <label key={member.uid} className={`${checked ? "active" : ""} ${!status.available && adminCheckoutForm.date ? "unavailable" : ""}`}>
                                                                 <input
                                                                     type="checkbox"
                                                                     checked={checked}
+                                                                    disabled={!status.available && !checked && Boolean(adminCheckoutForm.date)}
                                                                     onChange={e => setAdminCheckoutForm(prev => {
                                                                         const current = prev.assignedStaffIds || [];
                                                                         return {
@@ -5303,11 +5526,29 @@ export default function Home() {
                                                                     })}
                                                                 />
                                                                 <strong>{member.name}</strong>
-                                                                <small>{getRoleLabel(member.role)} · {member.branchName || "Ottawa"}</small>
+                                                                <small>{getRoleLabel(member.role)} · {member.branchName || "Ottawa"} · {status.reason}</small>
                                                             </label>
                                                         );
                                                     })
                                                 )}
+                                            </div>
+                                        </div>
+                                        <div className="span-2 admin-time-slot-field">
+                                            <span>Cleaner Schedule Window (7:00 AM - 7:00 PM)</span>
+                                            <div className="admin-time-slot-grid">
+                                                {adminSlotStates.map((slot) => (
+                                                    <button
+                                                        key={slot.time}
+                                                        type="button"
+                                                        className={`admin-time-slot ${adminCheckoutForm.time === slot.time ? "selected" : ""} ${slot.available ? "available" : slot.tone === "busy" ? "busy" : slot.tone === "blocked" ? "blocked" : "pending"}`}
+                                                        disabled={!slot.available}
+                                                        onClick={() => setAdminCheckoutForm(prev => ({ ...prev, time: slot.time }))}
+                                                        title={slot.reason}
+                                                    >
+                                                        <strong>{slot.time}</strong>
+                                                        <small>{slot.reason}</small>
+                                                    </button>
+                                                ))}
                                             </div>
                                         </div>
                                         <label>
@@ -5470,10 +5711,10 @@ export default function Home() {
                             <div className="modal-header modal-header-brand modal-header-compact">
                                 <div className="modal-title-stack">
                                     <h3 className="modal-title-inverse">
-                                        Dispatch Details
+                                        {isCleanerSelfServiceView ? "Job Details" : `${getBookingDocumentType(b)} Preview`}
                                     </h3>
                                     <p className="modal-subtitle-inverse">
-                                        {b.date} · {b.time} · {b.duration}h
+                                        {getBookingDocumentNumber(b)} · {b.date} · {b.time} · {b.duration}h
                                     </p>
                                 </div>
                                 <div className="modal-header-actions">
@@ -5703,7 +5944,16 @@ export default function Home() {
                             {/* Footer */}
                             <div className="modal-footer">
                                 <button onClick={() => setDetailsModalOpen(false)} className="btn btn-secondary btn-sm">Close</button>
-                                <button onClick={() => { setDetailsModalOpen(false); isCleanerSelfServiceView ? handleOpenCleanerJob(selectedBooking) : openEditBookingModal(selectedBooking); }} className="btn btn-primary btn-sm">{isCleanerSelfServiceView ? "Open Job" : "Edit Dispatch"}</button>
+                                {!isCleanerSelfServiceView && (
+                                    <>
+                                        {b.status === "Completed" && !b.invoiceNumber && (
+                                            <button onClick={() => handleGenerateInvoice(b)} className="btn btn-secondary btn-sm">Generate Invoice</button>
+                                        )}
+                                        <button onClick={() => handleDownloadBookingDocument(b)} className="btn btn-secondary btn-sm">Download PDF</button>
+                                        <button onClick={() => handleSendBookingDocument(b)} className="btn btn-secondary btn-sm">Send To Client</button>
+                                    </>
+                                )}
+                                <button onClick={() => { setDetailsModalOpen(false); isCleanerSelfServiceView ? handleOpenCleanerJob(selectedBooking) : openEditBookingModal(selectedBooking); }} className="btn btn-primary btn-sm">{isCleanerSelfServiceView ? "Open Job" : `Edit ${getBookingDocumentType(selectedBooking)}`}</button>
                             </div>
                         </div>
                     </div>
@@ -5718,7 +5968,7 @@ export default function Home() {
                     <div className="modal-content modal-content-booking animate-pop">
                             <div className="modal-header modal-header-brand">
                                 <h3 className="modal-title-inverse">
-                                    {isCleanerBookingEditor ? "Update Assigned Job" : "Edit Dispatch Reservation"}
+                                    {isCleanerBookingEditor ? "Update Assigned Job" : `Edit ${getBookingDocumentType(bookingForm)}`}
                                 </h3>
                                 <button onClick={() => setBookingModalOpen(false)} className="modal-close-btn" aria-label="Close">
                                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="1" y1="1" x2="13" y2="13" /><line x1="13" y1="1" x2="1" y2="13" /></svg>
@@ -5932,7 +6182,7 @@ export default function Home() {
                                                 </div>
                                                 <div className="form-group flex flex-col gap-1">
                                                     <label className="font-bold text-slate-700">Scheduled Time</label>
-                                                    <input type="text" value={bookingForm.time} onChange={e => setBookingForm(prev => ({ ...prev, time: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
+                                                    <input type="text" value={bookingForm.time} readOnly required className="border border-slate-200 rounded-lg p-2 bg-slate-50" />
                                                 </div>
                                                 <div className="form-group flex flex-col gap-1">
                                                     <label className="font-bold text-slate-700">Estimated Hours</label>
@@ -5946,14 +6196,15 @@ export default function Home() {
                                                     <div className="admin-staff-picker">
                                                         {fieldStaff.length === 0 ? (
                                                             <p>No approved field staff found yet.</p>
-                                                        ) : fieldStaff.map(member => {
+                                                        ) : bookingStaffAvailabilityCards.map(({ member, status }) => {
                                                             const assignedIds = bookingForm.assignedStaffIds || [];
                                                             const checked = assignedIds.includes(member.uid);
                                                             return (
-                                                                <label key={member.uid} className={checked ? "active" : ""}>
+                                                                <label key={member.uid} className={`${checked ? "active" : ""} ${!status.available && bookingForm.date ? "unavailable" : ""}`}>
                                                                     <input
                                                                         type="checkbox"
                                                                         checked={checked}
+                                                                        disabled={!status.available && !checked && Boolean(bookingForm.date)}
                                                                         onChange={e => setBookingForm(prev => {
                                                                             const current = prev.assignedStaffIds || [];
                                                                             const nextIds = e.target.checked
@@ -5977,10 +6228,28 @@ export default function Home() {
                                                                         })}
                                                                     />
                                                                     <strong>{member.name}</strong>
-                                                                    <small>{getRoleLabel(member.role)} · {member.branchName || "Ottawa"}</small>
+                                                                    <small>{getRoleLabel(member.role)} · {member.branchName || "Ottawa"} · {status.reason}</small>
                                                                 </label>
                                                             );
                                                         })}
+                                                    </div>
+                                                </div>
+                                                <div className="form-group flex flex-col gap-1 md:col-span-3">
+                                                    <label className="font-bold text-slate-700">Cleaner Schedule Window (7:00 AM - 7:00 PM)</label>
+                                                    <div className="admin-time-slot-grid">
+                                                        {bookingSlotStates.map((slot) => (
+                                                            <button
+                                                                key={slot.time}
+                                                                type="button"
+                                                                className={`admin-time-slot ${bookingForm.time === slot.time ? "selected" : ""} ${slot.available ? "available" : slot.tone === "busy" ? "busy" : slot.tone === "blocked" ? "blocked" : "pending"}`}
+                                                                disabled={!slot.available}
+                                                                onClick={() => setBookingForm(prev => ({ ...prev, time: slot.time }))}
+                                                                title={slot.reason}
+                                                            >
+                                                                <strong>{slot.time}</strong>
+                                                                <small>{slot.reason}</small>
+                                                            </button>
+                                                        ))}
                                                     </div>
                                                 </div>
                                                 <div className="form-group flex flex-col gap-1">

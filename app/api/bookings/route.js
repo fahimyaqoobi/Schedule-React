@@ -242,7 +242,12 @@ export async function PUT(request) {
         if (canManageBranch(user)) {
             const nextStatus = normalizeBookingStatus(bookingData.status ?? originalData.status ?? "Lead");
             const nextPaymentStatus = normalizePaymentStatus(bookingData.paymentStatus ?? originalData.paymentStatus ?? "unpaid");
-            const nextDocumentStage = ["Lead", "Follow Up", "Pending"].includes(nextStatus) ? "estimate" : "booking";
+            const requestedDocumentStage = String(bookingData.documentStage || "").toLowerCase();
+            const nextDocumentStage = requestedDocumentStage === "invoice"
+                ? "invoice"
+                : ["Lead", "Follow Up", "Pending"].includes(nextStatus)
+                    ? "estimate"
+                    : "booking";
             const nextPrice = nextPaymentStatus === "redo"
                 ? 0
                 : parseFloat(bookingData.price ?? originalData.price);
@@ -258,13 +263,16 @@ export async function PUT(request) {
                 estimateNumber: nextDocumentStage === "estimate"
                     ? (originalData.estimateNumber || originalData.orderNumber || "")
                     : (originalData.estimateNumber || ""),
+                invoiceNumber: nextDocumentStage === "invoice"
+                    ? (bookingData.invoiceNumber || originalData.invoiceNumber || originalData.orderNumber || "")
+                    : (originalData.invoiceNumber || ""),
                 duration: parseFloat(bookingData.duration ?? originalData.duration),
                 updatedAt: new Date().toISOString(),
                 updatedBy: user.email,
                 auditLog: appendBookingAuditLog(originalData.auditLog, {
                     type: "updated",
                     by: user.email || user.uid,
-                    summary: `Booking updated to ${nextStatus}`,
+                    summary: `${nextDocumentStage === "invoice" ? "Invoice generated" : `Booking updated to ${nextStatus}`}`,
                     status: nextStatus,
                     paymentStatus: nextPaymentStatus
                 })
