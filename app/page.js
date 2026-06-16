@@ -3972,7 +3972,15 @@ export default function Home() {
 
                                                         {staffProfileMobileTab === "employment" && (
                                                             <div className="people-mobile-editor-section">
-                                                                {canAdminDirectEditSelectedStaffProfile && <label><span>Worker type</span><input value={activeStaffProfileDraft.employment.workerType} onChange={e => updateStaffDraftField("employment", "workerType", e.target.value)} /></label>}
+                                                                {canAdminDirectEditSelectedStaffProfile && (
+                                                                    <label>
+                                                                        <span>Worker type</span>
+                                                                        <select value={activeStaffProfileDraft.employment.workerType || "employee"} onChange={e => updateStaffDraftField("employment", "workerType", e.target.value)}>
+                                                                            <option value="employee">Employee</option>
+                                                                            <option value="subcontractor">Subcontractor</option>
+                                                                        </select>
+                                                                    </label>
+                                                                )}
                                                                 {canAdminDirectEditSelectedStaffProfile && <label><span>Years experience</span><input value={activeStaffProfileDraft.employment.yearsExperience} onChange={e => updateStaffDraftField("employment", "yearsExperience", e.target.value)} /></label>}
                                                                 {canAdminDirectEditSelectedStaffProfile && <label><span>Hourly rate</span><input type="number" min="0" step="0.01" value={activeStaffProfileDraft.employment.hourlyRate || 20} onChange={e => updateStaffDraftField("employment", "hourlyRate", parseFloat(e.target.value || "0"))} /></label>}
                                                                 {canAdminDirectEditSelectedStaffProfile && <label><span>Overtime rate</span><input type="number" min="0" step="0.01" value={activeStaffProfileDraft.employment.overtimeRate || 30} onChange={e => updateStaffDraftField("employment", "overtimeRate", parseFloat(e.target.value || "0"))} /></label>}
@@ -4382,7 +4390,15 @@ export default function Home() {
                                                     </section>
                                                 </div>
                                                 <div className="people-profile-form-grid people-profile-form-grid-wide">
-                                                    {canAdminDirectEditSelectedStaffProfile && <label><span>Worker type</span><input value={activeStaffProfileDraft.employment.workerType} onChange={e => updateStaffDraftField("employment", "workerType", e.target.value)} /></label>}
+                                                    {canAdminDirectEditSelectedStaffProfile && (
+                                                        <label>
+                                                            <span>Worker type</span>
+                                                            <select value={activeStaffProfileDraft.employment.workerType || "employee"} onChange={e => updateStaffDraftField("employment", "workerType", e.target.value)}>
+                                                                <option value="employee">Employee</option>
+                                                                <option value="subcontractor">Subcontractor</option>
+                                                            </select>
+                                                        </label>
+                                                    )}
                                                     {canAdminDirectEditSelectedStaffProfile && <label><span>Years experience</span><input value={activeStaffProfileDraft.employment.yearsExperience} onChange={e => updateStaffDraftField("employment", "yearsExperience", e.target.value)} /></label>}
                                                     {canAdminDirectEditSelectedStaffProfile && <label><span>Languages</span><input value={activeStaffProfileDraft.employment.languages} onChange={e => updateStaffDraftField("employment", "languages", e.target.value)} /></label>}
                                                     {canAdminDirectEditSelectedStaffProfile && <label><span>Hourly rate</span><input type="number" min="0" step="0.01" value={activeStaffProfileDraft.employment.hourlyRate || 20} onChange={e => updateStaffDraftField("employment", "hourlyRate", parseFloat(e.target.value || "0"))} /></label>}
