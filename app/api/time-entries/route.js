@@ -103,11 +103,80 @@ export async function POST(request) {
     try {
         const user = await authenticateRequest(request);
         const role = normalizeRole(user.role);
+        const body = await request.json();
+        if (body.action === "admin_create_manual") {
+            if (!canManageBranch(user)) {
+                return NextResponse.json({ error: "Only admins can create manual time cards." }, { status: 403 });
+            }
+            const { cleanerUid, bookingId, startedAt, endedAt, unpaidBreakMinutes } = body;
+            if (!cleanerUid || !startedAt || !endedAt) {
+                return NextResponse.json({ error: "Cleaner, start time, and finish time are required." }, { status: 400 });
+            }
+            const cleanerDoc = await adminDb.collection("users").doc(cleanerUid).get();
+            if (!cleanerDoc.exists) {
+                return NextResponse.json({ error: "Employee not found." }, { status: 404 });
+            }
+            const cleaner = cleanerDoc.data();
+            const workerType = String(cleaner.staffProfile?.employment?.workerType || "").toLowerCase();
+            if (workerType === "subcontractor") {
+                return NextResponse.json({ error: "Manual time cards are currently limited to employees." }, { status: 400 });
+            }
+            if (!userCanAccessBranch(user, cleaner.branchId || DEFAULT_BRANCH_ID)) {
+                return NextResponse.json({ error: "You cannot create time cards for this branch." }, { status: 403 });
+            }
+            const payroll = normalizePayrollSettings(cleaner.staffProfile?.employment || {});
+            const startIso = toIsoOrFallback(startedAt);
+            const endIso = toIsoOrFallback(endedAt);
+            const breakMinutes = Math.max(0, Number(unpaidBreakMinutes || 0));
+            const durationMinutes = Math.max(0, getDurationMinutes(startIso, endIso) - breakMinutes);
+            const payrollBreakdown = calculatePayrollBreakdown(durationMinutes, payroll);
+            const id = `te-${Date.now()}`;
+            const booking = bookingId ? await adminDb.collection("bookings").doc(bookingId).get() : null;
+            const bookingData = booking?.exists ? booking.data() : {};
+            const entry = {
+                id,
+                bookingId: bookingId || "",
+                branchId: bookingData.branchId || cleaner.branchId || DEFAULT_BRANCH_ID,
+                branchName: bookingData.branchName || cleaner.branchName || "Ottawa",
+                cleanerUid,
+                cleanerName: cleaner.name || cleaner.email || "Employee",
+                cleanerRole: normalizeRole(cleaner.role),
+                serviceName: bookingData.service || "Manual payroll entry",
+                customerFirstName: bookingData.firstName || "",
+                locationLabel: [bookingData.address1, bookingData.city].filter(Boolean).join(", "),
+                bookingDate: bookingData.date || startIso.split("T")[0],
+                scheduledTime: bookingData.time || "",
+                bookingPrice: Number(bookingData.price || 0),
+                payRate: payroll.hourlyRate,
+                overtimeRate: payroll.overtimeRate,
+                overtimeAfterHours: payroll.overtimeAfterHours,
+                payrollStatus: payroll.payrollStatus,
+                status: "approved",
+                startedAt: startIso,
+                endedAt: endIso,
+                unpaidBreakMinutes: breakMinutes,
+                durationMinutes,
+                grossPayEstimate: payrollBreakdown.grossPay,
+                payrollBreakdown,
+                geofenceRadiusMeters: GEO_RADIUS_METERS,
+                startLocation: null,
+                siteLocation: bookingData.location || null,
+                startDistanceMeters: null,
+                endLocation: null,
+                endDistanceMeters: null,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                reviewedAt: new Date().toISOString(),
+                reviewedBy: user.email || user.uid,
+                source: "admin_manual"
+            };
+            await adminDb.collection("timeEntries").doc(id).set(entry);
+            return NextResponse.json({ message: "Manual time card added.", entry }, { status: 200 });
+        }
+
         if (!["cleaner", "subcontractor", "supervisor", "employee"].includes(role)) {
             return NextResponse.json({ error: "Only field staff can clock into jobs." }, { status: 403 });
         }
-
-        const body = await request.json();
         const { bookingId, currentLocation, jobLocation } = body;
         if (!bookingId || !currentLocation?.lat || !currentLocation?.lng) {
             return NextResponse.json({ error: "Booking and current geolocation are required." }, { status: 400 });

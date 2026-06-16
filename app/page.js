@@ -668,6 +668,13 @@ export default function Home() {
     const [cleanerJobDrafts, setCleanerJobDrafts] = useState({});
     const [editRequestResolutions, setEditRequestResolutions] = useState({});
     const [timeEntryEditDrafts, setTimeEntryEditDrafts] = useState({});
+    const [manualTimeEntryForm, setManualTimeEntryForm] = useState({
+        cleanerUid: "",
+        bookingId: "",
+        startedAt: "",
+        endedAt: "",
+        unpaidBreakMinutes: 0
+    });
 
     // Shared Secure JWT Authorization Request Fetcher
     const getAuthHeaders = useCallback(async () => {
@@ -853,6 +860,26 @@ export default function Home() {
                 })
             }));
     }, [timeEntries]);
+
+    const payrollRejectedRows = useMemo(() => {
+        return timeEntries
+            .filter(entry => entry.status === "rejected")
+            .map(entry => ({
+                ...entry,
+                payrollBreakdown: entry.payrollBreakdown || calculatePayrollBreakdown(entry.durationMinutes || 0, {
+                    hourlyRate: entry.payRate,
+                    overtimeRate: entry.overtimeRate,
+                    overtimeAfterHours: entry.overtimeAfterHours
+                })
+            }));
+    }, [timeEntries]);
+
+    const employeePayrollRoster = useMemo(() => {
+        return fieldStaff.filter(member => {
+            const workerType = String(member.staffProfile?.employment?.workerType || "").toLowerCase();
+            return workerType !== "subcontractor";
+        });
+    }, [fieldStaff]);
 
     const activeCleanerJobDraft = useMemo(() => {
         if (!bookingForm?.id) return null;
@@ -2119,6 +2146,43 @@ export default function Home() {
             setTimeEntrySaving(false);
         }
     }, [currentUser, getAuthHeaders, syncDatabaseData, timeEntryEditDrafts]);
+
+    const handleCreateManualTimeEntry = useCallback(async () => {
+        if (!manualTimeEntryForm.cleanerUid || !manualTimeEntryForm.startedAt || !manualTimeEntryForm.endedAt) {
+            alert("Cleaner, start time, and finish time are required.");
+            return;
+        }
+        setTimeEntrySaving(true);
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch("/api/time-entries", {
+                method: "POST",
+                headers,
+                body: JSON.stringify({
+                    action: "admin_create_manual",
+                    cleanerUid: manualTimeEntryForm.cleanerUid,
+                    bookingId: manualTimeEntryForm.bookingId || "",
+                    startedAt: manualTimeEntryForm.startedAt,
+                    endedAt: manualTimeEntryForm.endedAt,
+                    unpaidBreakMinutes: manualTimeEntryForm.unpaidBreakMinutes || 0
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Failed to create manual time card.");
+            setManualTimeEntryForm({
+                cleanerUid: "",
+                bookingId: "",
+                startedAt: "",
+                endedAt: "",
+                unpaidBreakMinutes: 0
+            });
+            syncDatabaseData(currentUser);
+        } catch (error) {
+            alert(error.message || "Failed to create manual time card.");
+        } finally {
+            setTimeEntrySaving(false);
+        }
+    }, [currentUser, getAuthHeaders, manualTimeEntryForm, syncDatabaseData]);
 
     // ----------------------------------------------------
     // Admin Review Merges (Approvals / Rejections)
@@ -3511,6 +3575,42 @@ export default function Home() {
                                     </section>
                                     <section className="admin-payroll-queue">
                                         <div className="cleaner-section-head">
+                                            <h4>Manual Time Card</h4>
+                                            <span>Employees only</span>
+                                        </div>
+                                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 grid grid-cols-1 md:grid-cols-5 gap-3">
+                                            <label className="flex flex-col gap-1 text-xs text-slate-700">
+                                                <strong>Employee</strong>
+                                                <select value={manualTimeEntryForm.cleanerUid} onChange={e => setManualTimeEntryForm(prev => ({ ...prev, cleanerUid: e.target.value }))} className="border border-slate-200 rounded-lg p-2">
+                                                    <option value="">Select employee</option>
+                                                    {employeePayrollRoster.map(member => (
+                                                        <option key={member.uid} value={member.uid}>{member.name}</option>
+                                                    ))}
+                                                </select>
+                                            </label>
+                                            <label className="flex flex-col gap-1 text-xs text-slate-700">
+                                                <strong>Booking Id</strong>
+                                                <input value={manualTimeEntryForm.bookingId} onChange={e => setManualTimeEntryForm(prev => ({ ...prev, bookingId: e.target.value }))} className="border border-slate-200 rounded-lg p-2" placeholder="Optional" />
+                                            </label>
+                                            <label className="flex flex-col gap-1 text-xs text-slate-700">
+                                                <strong>Start Time</strong>
+                                                <input type="datetime-local" value={manualTimeEntryForm.startedAt} onChange={e => setManualTimeEntryForm(prev => ({ ...prev, startedAt: e.target.value }))} className="border border-slate-200 rounded-lg p-2" />
+                                            </label>
+                                            <label className="flex flex-col gap-1 text-xs text-slate-700">
+                                                <strong>Finish Time</strong>
+                                                <input type="datetime-local" value={manualTimeEntryForm.endedAt} onChange={e => setManualTimeEntryForm(prev => ({ ...prev, endedAt: e.target.value }))} className="border border-slate-200 rounded-lg p-2" />
+                                            </label>
+                                            <label className="flex flex-col gap-1 text-xs text-slate-700">
+                                                <strong>Unpaid Break (mins)</strong>
+                                                <input type="number" min="0" step="1" value={manualTimeEntryForm.unpaidBreakMinutes} onChange={e => setManualTimeEntryForm(prev => ({ ...prev, unpaidBreakMinutes: parseInt(e.target.value || "0", 10) }))} className="border border-slate-200 rounded-lg p-2" />
+                                            </label>
+                                        </div>
+                                        <div className="mt-3 flex justify-end">
+                                            <button type="button" className="team-primary-action" onClick={handleCreateManualTimeEntry} disabled={timeEntrySaving}>Add Manual Hours</button>
+                                        </div>
+                                    </section>
+                                    <section className="admin-payroll-queue">
+                                        <div className="cleaner-section-head">
                                             <h4>Approved Payroll Ledger</h4>
                                             <span>{payrollApprovedRows.length} entries</span>
                                         </div>
@@ -3535,6 +3635,53 @@ export default function Home() {
                                                     <span>${Number(entry.payRate || 20).toFixed(2)}</span>
                                                     <span>${Number(entry.grossPayEstimate || 0).toFixed(2)}</span>
                                                     <span>{entry.status}</span>
+                                                    <div className="admin-payroll-row-actions">
+                                                        <button type="button" onClick={() => handleReviewTimeEntry(entry.id, "approve")} disabled={timeEntrySaving}>Update</button>
+                                                    </div>
+                                                    <div className="md:col-span-7 grid grid-cols-1 md:grid-cols-3 gap-3 mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                                                        <label className="flex flex-col gap-1 text-xs text-slate-700">
+                                                            <strong>Start Time</strong>
+                                                            <input type="datetime-local" value={timeEntryEditDrafts[entry.id]?.startedAt || (entry.startedAt ? new Date(entry.startedAt).toISOString().slice(0, 16) : "")} onChange={e => setTimeEntryEditDrafts(prev => ({ ...prev, [entry.id]: { ...(prev[entry.id] || {}), startedAt: e.target.value } }))} className="border border-slate-200 rounded-lg p-2" />
+                                                        </label>
+                                                        <label className="flex flex-col gap-1 text-xs text-slate-700">
+                                                            <strong>Finish Time</strong>
+                                                            <input type="datetime-local" value={timeEntryEditDrafts[entry.id]?.endedAt || (entry.endedAt ? new Date(entry.endedAt).toISOString().slice(0, 16) : "")} onChange={e => setTimeEntryEditDrafts(prev => ({ ...prev, [entry.id]: { ...(prev[entry.id] || {}), endedAt: e.target.value } }))} className="border border-slate-200 rounded-lg p-2" />
+                                                        </label>
+                                                        <label className="flex flex-col gap-1 text-xs text-slate-700">
+                                                            <strong>Unpaid Break (mins)</strong>
+                                                            <input type="number" min="0" step="1" value={timeEntryEditDrafts[entry.id]?.unpaidBreakMinutes ?? entry.unpaidBreakMinutes ?? 0} onChange={e => setTimeEntryEditDrafts(prev => ({ ...prev, [entry.id]: { ...(prev[entry.id] || {}), unpaidBreakMinutes: parseInt(e.target.value || "0", 10) } }))} className="border border-slate-200 rounded-lg p-2" />
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </section>
+                                    <section className="admin-payroll-queue">
+                                        <div className="cleaner-section-head">
+                                            <h4>Rejected Time Card Log</h4>
+                                            <span>{payrollRejectedRows.length} rejected</span>
+                                        </div>
+                                        <div className="admin-payroll-table">
+                                            <div className="admin-payroll-table-head">
+                                                <span>Staff</span>
+                                                <span>Date</span>
+                                                <span>Service</span>
+                                                <span>Hours</span>
+                                                <span>Gross</span>
+                                                <span>Status</span>
+                                                <span>Reviewed</span>
+                                            </div>
+                                            {payrollRejectedRows.length === 0 ? (
+                                                <div className="admin-cart-empty">No rejected time cards yet.</div>
+                                            ) : payrollRejectedRows.map(entry => (
+                                                <div key={entry.id} className="admin-payroll-row">
+                                                    <span>{entry.cleanerName}</span>
+                                                    <span>{entry.bookingDate || entry.startedAt?.split("T")[0]}</span>
+                                                    <span>{entry.serviceName}</span>
+                                                    <span>{formatDurationMinutes(entry.durationMinutes || 0)}</span>
+                                                    <span>${Number(entry.grossPayEstimate || 0).toFixed(2)}</span>
+                                                    <span>{entry.status}</span>
+                                                    <span>{entry.reviewedAt ? entry.reviewedAt.split("T")[0] : "n/a"}</span>
                                                 </div>
                                             ))}
                                         </div>
