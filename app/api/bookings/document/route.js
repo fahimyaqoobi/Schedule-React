@@ -38,7 +38,7 @@ function getMailConfig() {
     const secure = String(process.env.SMTP_SECURE || process.env.MAIL_SECURE || process.env.EMAIL_SECURE || "false") === "true" || port === 465;
     const user = process.env.SMTP_USER || process.env.MAIL_USER || process.env.EMAIL_USER || "";
     const pass = process.env.SMTP_PASS || process.env.MAIL_PASS || process.env.EMAIL_PASS || "";
-    const from = process.env.SMTP_FROM || process.env.MAIL_FROM || process.env.EMAIL_FROM || user || "info@smartouchclean.com";
+    const from = process.env.SMTP_FROM || process.env.MAIL_FROM || process.env.EMAIL_FROM || user || "sales@smartouchclean.com";
     return { host, port, secure, user, pass, from };
 }
 
@@ -46,7 +46,7 @@ function normalizeTransportError(error) {
     const code = String(error?.responseCode || error?.code || "");
     const message = String(error?.message || "Failed to send document.");
     if (code === "535" || message.includes("535") || /invalid login|authentication credentials invalid/i.test(message)) {
-        return "SMTP login failed. The email username/password or app password in .env.local is invalid. If this is Gmail, use the full mailbox address as `SMTP_USER` and a Google app password as `SMTP_PASS`.";
+            return "SMTP login failed. Check the `sales@smartouchclean.com` mailbox password in `.env.local`, and confirm SMTP is enabled for that IONOS mailbox.";
     }
     return message;
 }
