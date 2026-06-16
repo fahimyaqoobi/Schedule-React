@@ -10,6 +10,36 @@ import {
     buildBranchRecordFields
 } from "../../../lib/branches";
 
+const BOOKING_STATUS_FLOW = ["Lead", "Follow Up", "Pending", "Confirmed", "Completed", "Cancelled"];
+const PAYMENT_STATUS_FLOW = ["unpaid", "paid", "redo"];
+
+function normalizeBookingStatus(status = "Lead") {
+    return BOOKING_STATUS_FLOW.includes(status) ? status : "Lead";
+}
+
+function normalizePaymentStatus(status = "unpaid") {
+    return PAYMENT_STATUS_FLOW.includes(status) ? status : "unpaid";
+}
+
+async function generateBookingOrderNumber() {
+    const year = new Date().getFullYear();
+    const prefix = `STC-${year}-`;
+    const snapshot = await adminDb.collection("bookings").get();
+    const existing = snapshot.size + 1;
+    return `${prefix}${String(existing).padStart(4, "0")}`;
+}
+
+function appendBookingAuditLog(existingLog = [], event = {}) {
+    return [
+        ...(Array.isArray(existingLog) ? existingLog : []),
+        {
+            id: `log-${Date.now()}`,
+            at: new Date().toISOString(),
+            ...event
+        }
+    ];
+}
+
 // Shared Secure JWT and Role verification helper
 async function authenticateRequest(request) {
     const authHeader = request.headers.get("Authorization");
@@ -137,23 +167,42 @@ export async function POST(request) {
         }
         
         const id = bookingData.id || `bk-${Date.now()}`;
+        const orderNumber = bookingData.orderNumber || await generateBookingOrderNumber();
+        const bookingStatus = normalizeBookingStatus(bookingData.status || "Lead");
+        const paymentStatus = normalizePaymentStatus(bookingData.paymentStatus || "unpaid");
         const subtotal = parseFloat(bookingData.subtotal || bookingData.price || 0);
-        const tax = bookingData.tax !== undefined ? parseFloat(bookingData.tax || 0) : subtotal * matchedBranch.taxRate;
-        const total = parseFloat(bookingData.price || subtotal + tax);
+        const tax = paymentStatus === "redo"
+            ? 0
+            : bookingData.tax !== undefined
+                ? parseFloat(bookingData.tax || 0)
+                : subtotal * matchedBranch.taxRate;
+        const total = paymentStatus === "redo" ? 0 : parseFloat(bookingData.price || subtotal + tax);
         const newBooking = {
             ...bookingData,
             ...buildBranchRecordFields(matchedBranch, user),
             id,
+            orderNumber,
             team: "",
             assignedStaff: Array.isArray(bookingData.assignedStaff) ? bookingData.assignedStaff : [],
             assignedStaffIds: Array.isArray(bookingData.assignedStaffIds) ? bookingData.assignedStaffIds : [],
             subtotal,
             tax,
             price: total,
-            paymentStatus: bookingData.paymentStatus || "unpaid",
+            status: bookingStatus,
+            paymentStatus,
+            documentStage: ["Lead", "Follow Up", "Pending"].includes(bookingStatus) ? "estimate" : "booking",
+            estimateNumber: ["Lead", "Follow Up", "Pending"].includes(bookingStatus) ? orderNumber : "",
+            invoiceNumber: "",
             duration: parseFloat(bookingData.duration || 2),
             createdAt: new Date().toISOString(),
-            createdBy: user.email
+            createdBy: user.email,
+            auditLog: appendBookingAuditLog([], {
+                type: "created",
+                by: user.email || user.uid,
+                summary: `Booking created as ${bookingStatus}`,
+                status: bookingStatus,
+                paymentStatus
+            })
         };
         
         await adminDb.collection("bookings").doc(id).set(newBooking);
@@ -191,20 +240,42 @@ export async function PUT(request) {
         }
         
         if (canManageBranch(user)) {
+            const nextStatus = normalizeBookingStatus(bookingData.status ?? originalData.status ?? "Lead");
+            const nextPaymentStatus = normalizePaymentStatus(bookingData.paymentStatus ?? originalData.paymentStatus ?? "unpaid");
+            const nextDocumentStage = ["Lead", "Follow Up", "Pending"].includes(nextStatus) ? "estimate" : "booking";
+            const nextPrice = nextPaymentStatus === "redo"
+                ? 0
+                : parseFloat(bookingData.price ?? originalData.price);
             const updatedBooking = {
                 ...originalData,
                 ...bookingData,
-                price: parseFloat(bookingData.price ?? originalData.price),
-                paymentStatus: bookingData.paymentStatus ?? originalData.paymentStatus ?? "unpaid",
+                price: nextPrice,
+                status: nextStatus,
+                paymentStatus: nextPaymentStatus,
+                tax: nextPaymentStatus === "redo" ? 0 : parseFloat(bookingData.tax ?? originalData.tax ?? 0),
+                subtotal: nextPaymentStatus === "redo" ? 0 : parseFloat(bookingData.subtotal ?? originalData.subtotal ?? nextPrice),
+                documentStage: nextDocumentStage,
+                estimateNumber: nextDocumentStage === "estimate"
+                    ? (originalData.estimateNumber || originalData.orderNumber || "")
+                    : (originalData.estimateNumber || ""),
                 duration: parseFloat(bookingData.duration ?? originalData.duration),
                 updatedAt: new Date().toISOString(),
-                updatedBy: user.email
+                updatedBy: user.email,
+                auditLog: appendBookingAuditLog(originalData.auditLog, {
+                    type: "updated",
+                    by: user.email || user.uid,
+                    summary: `Booking updated to ${nextStatus}`,
+                    status: nextStatus,
+                    paymentStatus: nextPaymentStatus
+                })
             };
             await bookingRef.set(updatedBooking);
             return NextResponse.json({ message: "Booking updated directly by Admin", booking: updatedBooking }, { status: 200 });
         } else {
             // Team Leader updates: Write to review table 'editRequests' for Admin approval
             const reqId = `req-${Date.now()}`;
+            const requestedStatus = normalizeBookingStatus(bookingData.status ?? originalData.status ?? "Lead");
+            const requestedPaymentStatus = normalizePaymentStatus(bookingData.paymentStatus ?? originalData.paymentStatus ?? "unpaid");
             const editRequest = {
                 id: reqId,
                 bookingId: bookingData.id,
@@ -216,8 +287,12 @@ export async function PUT(request) {
                 requestedData: {
                     ...originalData,
                     ...bookingData,
-                    price: parseFloat(bookingData.price ?? originalData.price),
-                    paymentStatus: bookingData.paymentStatus ?? originalData.paymentStatus ?? "unpaid",
+                    price: requestedPaymentStatus === "redo" ? 0 : parseFloat(bookingData.price ?? originalData.price),
+                    subtotal: requestedPaymentStatus === "redo" ? 0 : parseFloat(bookingData.subtotal ?? originalData.subtotal ?? bookingData.price ?? originalData.price),
+                    tax: requestedPaymentStatus === "redo" ? 0 : parseFloat(bookingData.tax ?? originalData.tax ?? 0),
+                    status: requestedStatus,
+                    paymentStatus: requestedPaymentStatus,
+                    documentStage: ["Lead", "Follow Up", "Pending"].includes(requestedStatus) ? "estimate" : "booking",
                     duration: parseFloat(bookingData.duration ?? originalData.duration)
                 }
             };

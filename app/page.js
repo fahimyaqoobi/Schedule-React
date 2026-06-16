@@ -170,6 +170,30 @@ function getCleanerPayPeriodSummary(now = new Date()) {
     };
 }
 
+function getBookingDocumentLabel(status = "Pending") {
+    return ["Lead", "Follow Up", "Pending"].includes(status) ? "Estimate" : "Booking";
+}
+
+function validateAdminCheckoutStep(step, form = {}) {
+    if (step === 0) {
+        return Boolean(
+            form.firstName?.trim() &&
+            form.lastName?.trim() &&
+            form.phone?.trim() &&
+            form.email?.trim() &&
+            form.address1?.trim() &&
+            form.city?.trim() &&
+            form.postalCode?.trim()
+        );
+    }
+
+    if (step === 1) {
+        return Boolean(form.date && form.time && form.bookingStatus && form.paymentStatus);
+    }
+
+    return true;
+}
+
 function getBookingLocationLabel(booking = {}) {
     return [booking.address1, booking.city].filter(Boolean).join(", ");
 }
@@ -593,6 +617,7 @@ export default function Home() {
         assignedStaff: [],
         assignedStaffIds: [],
         status: "Pending",
+        paymentStatus: "unpaid",
         serviceDescription: "",
         accessDescription: ""
     });
@@ -608,6 +633,7 @@ export default function Home() {
     const [configBathroomKey, setConfigBathroomKey] = useState("1 Bathroom");
     const [configAddons, setConfigAddons] = useState({});
     const [adminCheckoutOpen, setAdminCheckoutOpen] = useState(false);
+    const [adminCheckoutStep, setAdminCheckoutStep] = useState(0);
     const [adminCheckoutForm, setAdminCheckoutForm] = useState({
         firstName: "",
         lastName: "",
@@ -623,6 +649,9 @@ export default function Home() {
         date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' }),
         time: "09:00 AM",
         assignedStaffIds: [],
+        bookingStatus: "Pending",
+        paymentStatus: "unpaid",
+        customerLoggedIn: false,
         promoCode: "",
         giftCardCode: "",
         discountAmount: 0,
@@ -1514,6 +1543,7 @@ export default function Home() {
             assignedStaff: b.assignedStaff || [],
             assignedStaffIds: b.assignedStaffIds || [],
             status: b.status,
+            paymentStatus: b.paymentStatus || "unpaid",
             serviceDescription: b.serviceDescription || "",
             accessDescription: b.accessDescription || ""
         });
@@ -2341,8 +2371,18 @@ export default function Home() {
     }, [activeBranch.taxRate, adminServiceCart]);
 
     const checkoutAdminCart = useCallback(() => {
+        const isCustomerUser = normalizeRole(currentUser?.role) === "customer";
+        setAdminCheckoutForm(prev => ({
+            ...prev,
+            firstName: isCustomerUser ? (currentUser?.name?.split(" ")[0] || prev.firstName) : prev.firstName,
+            lastName: isCustomerUser ? (currentUser?.name?.split(" ").slice(1).join(" ") || prev.lastName) : prev.lastName,
+            phone: isCustomerUser ? (currentUser?.phone || prev.phone) : prev.phone,
+            email: isCustomerUser ? (currentUser?.email || prev.email) : prev.email,
+            customerLoggedIn: isCustomerUser
+        }));
+        setAdminCheckoutStep(isCustomerUser ? 1 : 0);
         setAdminCheckoutOpen(true);
-    }, []);
+    }, [currentUser]);
 
     const saveAdminCartBooking = useCallback(async (event) => {
         event.preventDefault();
@@ -2397,7 +2437,8 @@ export default function Home() {
                 team: "",
                 assignedStaff,
                 assignedStaffIds: assignedStaff.map(member => member.uid),
-                status: "Pending",
+                status: adminCheckoutForm.bookingStatus || "Pending",
+                paymentStatus: adminCheckoutForm.paymentStatus || "unpaid",
                 service: adminServiceCart.map(item => item.name).join(" + "),
                 bathrooms: "N/A",
                 frequency: "One-Time",
@@ -2409,7 +2450,17 @@ export default function Home() {
                 promoCode: adminCheckoutForm.promoCode,
                 giftCardCode: adminCheckoutForm.giftCardCode,
                 specialNotes: adminCheckoutForm.notes,
-                cartItems: adminServiceCart
+                cartItems: adminServiceCart,
+                customerType: adminCheckoutForm.customerLoggedIn ? "customer-account" : "guest",
+                companySnapshot: {
+                    logoUrl: "/logo.png",
+                    companyName: "SmarTouch Clean",
+                    branchName: matchedBranch.name,
+                    branchPhone: matchedBranch.phone,
+                    branchEmail: matchedBranch.email,
+                    taxLabel: matchedBranch.taxLabel,
+                    taxRate: matchedBranch.taxRate
+                }
             };
             const res = await fetch("/api/bookings", {
                 method: "POST",
@@ -2421,9 +2472,10 @@ export default function Home() {
                 throw new Error(errorData.error || "Failed to create cart booking.");
             }
             setAdminCheckoutOpen(false);
+            setAdminCheckoutStep(0);
             setAdminServiceCart([]);
             syncDatabaseData(currentUser);
-            alert("Service cart booking created successfully.");
+            alert(`${getBookingDocumentLabel(adminCheckoutForm.bookingStatus)} created successfully.`);
         } catch (err) {
             alert(`Checkout failed: ${err.message}`);
         }
@@ -5141,112 +5193,223 @@ export default function Home() {
                                 <h3 className="modal-title-inverse">Admin Checkout</h3>
                                 <p className="modal-subtitle-inverse">{adminServiceCart.length} configured service{adminServiceCart.length === 1 ? "" : "s"}</p>
                             </div>
-                            <button onClick={() => setAdminCheckoutOpen(false)} className="modal-close-btn" aria-label="Close">
+                            <button onClick={() => { setAdminCheckoutOpen(false); setAdminCheckoutStep(0); }} className="modal-close-btn" aria-label="Close">
                                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="1" y1="1" x2="13" y2="13" /><line x1="13" y1="1" x2="1" y2="13" /></svg>
                             </button>
                         </div>
                         <form onSubmit={saveAdminCartBooking} className="admin-checkout-form">
+                            <div className="flex items-center gap-2 px-6 pt-4">
+                                {["Customer", "Schedule", "Review"].map((label, index) => (
+                                    <div key={label} className={`rounded-full px-3 py-1 text-xs font-bold ${adminCheckoutStep === index ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500"}`}>
+                                        {index + 1}. {label}
+                                    </div>
+                                ))}
+                            </div>
                             <div className="admin-checkout-grid">
-                                <label>
-                                    <span>First Name</span>
-                                    <input required value={adminCheckoutForm.firstName} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, firstName: e.target.value }))} />
-                                </label>
-                                <label>
-                                    <span>Last Name</span>
-                                    <input required value={adminCheckoutForm.lastName} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, lastName: e.target.value }))} />
-                                </label>
-                                <label>
-                                    <span>Phone</span>
-                                    <input required value={adminCheckoutForm.phone} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, phone: e.target.value }))} />
-                                </label>
-                                <label>
-                                    <span>Email</span>
-                                    <input type="email" required value={adminCheckoutForm.email} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, email: e.target.value }))} />
-                                </label>
-                                <label className="span-2 places-field" ref={adminAutocompleteRef}>
-                                    <span>Street Address</span>
-                                    <input required value={adminCheckoutForm.address1} onChange={e => handleAdminAddressChange(e.target.value)} />
-                                    {showAdminAddressSuggestions && adminAddressSuggestions.length > 0 && (
-                                        <div className="places-suggestion-list">
-                                            {adminAddressSuggestions.map(suggestion => (
-                                                <button key={suggestion.place_id} type="button" className="places-suggestion-item" onClick={() => selectAdminAddressSuggestion(suggestion)}>
-                                                    {suggestion.description}
-                                                </button>
+                                {adminCheckoutStep === 0 && (
+                                    <>
+                                        <label>
+                                            <span>First Name</span>
+                                            <input required value={adminCheckoutForm.firstName} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, firstName: e.target.value }))} />
+                                        </label>
+                                        <label>
+                                            <span>Last Name</span>
+                                            <input required value={adminCheckoutForm.lastName} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, lastName: e.target.value }))} />
+                                        </label>
+                                        <label>
+                                            <span>Phone</span>
+                                            <input required value={adminCheckoutForm.phone} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, phone: e.target.value }))} />
+                                        </label>
+                                        <label>
+                                            <span>Email</span>
+                                            <input type="email" required value={adminCheckoutForm.email} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, email: e.target.value }))} />
+                                        </label>
+                                        <label className="span-2 places-field" ref={adminAutocompleteRef}>
+                                            <span>Street Address</span>
+                                            <input required value={adminCheckoutForm.address1} onChange={e => handleAdminAddressChange(e.target.value)} />
+                                            {showAdminAddressSuggestions && adminAddressSuggestions.length > 0 && (
+                                                <div className="places-suggestion-list">
+                                                    {adminAddressSuggestions.map(suggestion => (
+                                                        <button key={suggestion.place_id} type="button" className="places-suggestion-item" onClick={() => selectAdminAddressSuggestion(suggestion)}>
+                                                            {suggestion.description}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </label>
+                                        <label>
+                                            <span>Unit / Apt</span>
+                                            <input value={adminCheckoutForm.address2} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, address2: e.target.value }))} />
+                                        </label>
+                                        <label>
+                                            <span>City</span>
+                                            <input required value={adminCheckoutForm.city} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, city: e.target.value }))} />
+                                        </label>
+                                        <label>
+                                            <span>Postal Code</span>
+                                            <input required value={adminCheckoutForm.postalCode} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, postalCode: e.target.value }))} />
+                                        </label>
+                                    </>
+                                )}
+
+                                {adminCheckoutStep === 1 && (
+                                    <>
+                                        <label>
+                                            <span>Date</span>
+                                            <input type="date" required value={adminCheckoutForm.date} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, date: e.target.value }))} />
+                                        </label>
+                                        <label>
+                                            <span>Time</span>
+                                            <input required value={adminCheckoutForm.time} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, time: e.target.value }))} />
+                                        </label>
+                                        <label>
+                                            <span>Booking Status</span>
+                                            <select value={adminCheckoutForm.bookingStatus} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, bookingStatus: e.target.value }))}>
+                                                <option value="Lead">Lead</option>
+                                                <option value="Follow Up">Follow Up</option>
+                                                <option value="Pending">Pending</option>
+                                                <option value="Confirmed">Confirmed</option>
+                                            </select>
+                                        </label>
+                                        <label>
+                                            <span>Payment Status</span>
+                                            <select value={adminCheckoutForm.paymentStatus} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, paymentStatus: e.target.value }))}>
+                                                <option value="unpaid">Unpaid</option>
+                                                <option value="paid">Paid</option>
+                                                <option value="redo">Redo</option>
+                                            </select>
+                                        </label>
+                                        <div className="span-2 admin-staff-assignment">
+                                            <span>Assign Field Staff</span>
+                                            <div className="admin-staff-picker">
+                                                {fieldStaff.length === 0 ? (
+                                                    <p>No approved cleaners, supervisors, employees, or subcontractors found yet.</p>
+                                                ) : (
+                                                    fieldStaff.map(member => {
+                                                        const checked = adminCheckoutForm.assignedStaffIds.includes(member.uid);
+                                                        return (
+                                                            <label key={member.uid} className={checked ? "active" : ""}>
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={checked}
+                                                                    onChange={e => setAdminCheckoutForm(prev => {
+                                                                        const current = prev.assignedStaffIds || [];
+                                                                        return {
+                                                                            ...prev,
+                                                                            assignedStaffIds: e.target.checked
+                                                                                ? [...current, member.uid]
+                                                                                : current.filter(uid => uid !== member.uid)
+                                                                        };
+                                                                    })}
+                                                                />
+                                                                <strong>{member.name}</strong>
+                                                                <small>{getRoleLabel(member.role)} · {member.branchName || "Ottawa"}</small>
+                                                            </label>
+                                                        );
+                                                    })
+                                                )}
+                                            </div>
+                                        </div>
+                                        <label>
+                                            <span>Promo Code</span>
+                                            <input value={adminCheckoutForm.promoCode} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, promoCode: e.target.value }))} placeholder="PROMO30" />
+                                        </label>
+                                        <label>
+                                            <span>Gift Card Code</span>
+                                            <input value={adminCheckoutForm.giftCardCode} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, giftCardCode: e.target.value }))} placeholder="GC-12345" />
+                                        </label>
+                                        <label>
+                                            <span>Discount $</span>
+                                            <input type="number" min="0" step="0.01" value={adminCheckoutForm.discountAmount} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, discountAmount: e.target.value }))} />
+                                        </label>
+                                        <label>
+                                            <span>Discount %</span>
+                                            <input type="number" min="0" max="100" step="1" value={adminCheckoutForm.discountPercent} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, discountPercent: e.target.value }))} />
+                                        </label>
+                                        <label className="span-2">
+                                            <span>Admin Notes</span>
+                                            <textarea rows={3} value={adminCheckoutForm.notes} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, notes: e.target.value }))} />
+                                        </label>
+                                    </>
+                                )}
+
+                                {adminCheckoutStep === 2 && (
+                                    <div className="span-2 rounded-3xl border border-slate-200 bg-white p-5">
+                                        <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                                            <div>
+                                                <h4 className="text-lg font-extrabold text-slate-800">{getBookingDocumentLabel(adminCheckoutForm.bookingStatus)} Preview</h4>
+                                                <p className="text-xs text-slate-500">{activeBranch.name} · {activeBranch.email || "info@smartouchclean.com"}</p>
+                                            </div>
+                                            <img src="/logo.png" alt="SmarTouch Clean" className="h-12 w-auto" />
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 text-sm text-slate-700">
+                                            <div>
+                                                <strong>Client</strong>
+                                                <p>{adminCheckoutForm.firstName} {adminCheckoutForm.lastName}</p>
+                                                <p>{adminCheckoutForm.phone}</p>
+                                                <p>{adminCheckoutForm.email}</p>
+                                                <p>{adminCheckoutForm.address1}{adminCheckoutForm.address2 ? `, ${adminCheckoutForm.address2}` : ""}</p>
+                                                <p>{adminCheckoutForm.city}, {adminCheckoutForm.state} {adminCheckoutForm.postalCode}</p>
+                                            </div>
+                                            <div>
+                                                <strong>Booking</strong>
+                                                <p>Document: {getBookingDocumentLabel(adminCheckoutForm.bookingStatus)}</p>
+                                                <p>Status: {adminCheckoutForm.bookingStatus}</p>
+                                                <p>Payment: {adminCheckoutForm.paymentStatus}</p>
+                                                <p>Date: {adminCheckoutForm.date}</p>
+                                                <p>Time: {adminCheckoutForm.time}</p>
+                                                <p>Assigned: {adminCheckoutForm.assignedStaffIds.length ? fieldStaff.filter(member => adminCheckoutForm.assignedStaffIds.includes(member.uid)).map(member => member.name).join(", ") : "Unassigned"}</p>
+                                            </div>
+                                        </div>
+                                        <div className="mt-4 rounded-2xl border border-slate-100">
+                                            {adminServiceCart.map(item => (
+                                                <div key={item.cartId} className="flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-3 last:border-0">
+                                                    <div>
+                                                        <strong className="block">{item.name}</strong>
+                                                        <span className="text-xs text-slate-500">{item.optionName}{item.bathroomKey ? ` • ${item.bathroomKey}` : ""}</span>
+                                                        {item.addons?.length > 0 && <p className="text-xs text-slate-500 mt-1">{item.addons.map(addon => `${addon.name}${addon.qty > 1 ? ` x${addon.qty}` : ""}`).join(", ")}</p>}
+                                                    </div>
+                                                    <strong>${item.price.toFixed(2)}</strong>
+                                                </div>
                                             ))}
                                         </div>
-                                    )}
-                                </label>
-                                <label>
-                                    <span>Unit / Apt</span>
-                                    <input value={adminCheckoutForm.address2} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, address2: e.target.value }))} />
-                                </label>
-                                <label>
-                                    <span>City</span>
-                                    <input required value={adminCheckoutForm.city} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, city: e.target.value }))} />
-                                </label>
-                                <label>
-                                    <span>Postal Code</span>
-                                    <input required value={adminCheckoutForm.postalCode} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, postalCode: e.target.value }))} />
-                                </label>
-                                <label>
-                                    <span>Date</span>
-                                    <input type="date" required value={adminCheckoutForm.date} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, date: e.target.value }))} />
-                                </label>
-                                <label>
-                                    <span>Time</span>
-                                    <input required value={adminCheckoutForm.time} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, time: e.target.value }))} />
-                                </label>
-                                <div className="span-2 admin-staff-assignment">
-                                    <span>Assign Field Staff</span>
-                                    <div className="admin-staff-picker">
-                                        {fieldStaff.length === 0 ? (
-                                            <p>No approved cleaners, supervisors, employees, or subcontractors found yet.</p>
-                                        ) : (
-                                            fieldStaff.map(member => {
-                                                const checked = adminCheckoutForm.assignedStaffIds.includes(member.uid);
-                                                return (
-                                                    <label key={member.uid} className={checked ? "active" : ""}>
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={checked}
-                                                            onChange={e => setAdminCheckoutForm(prev => {
-                                                                const current = prev.assignedStaffIds || [];
-                                                                return {
-                                                                    ...prev,
-                                                                    assignedStaffIds: e.target.checked
-                                                                        ? [...current, member.uid]
-                                                                        : current.filter(uid => uid !== member.uid)
-                                                                };
-                                                            })}
-                                                        />
-                                                        <strong>{member.name}</strong>
-                                                        <small>{getRoleLabel(member.role)} · {member.branchName || "Ottawa"}</small>
-                                                    </label>
-                                                );
-                                            })
-                                        )}
+                                        <div className="mt-4 grid grid-cols-1 gap-2 rounded-2xl border border-blue-100 bg-blue-50/60 p-4 text-sm text-slate-700">
+                                            <div className="flex items-center justify-between gap-3">
+                                                <span>Subtotal</span>
+                                                <strong>${adminCartTotals.subtotal.toFixed(2)}</strong>
+                                            </div>
+                                            <div className="flex items-center justify-between gap-3">
+                                                <span>{activeBranch.taxLabel}</span>
+                                                <strong>${adminCartTotals.tax.toFixed(2)}</strong>
+                                            </div>
+                                            <div className="flex items-center justify-between gap-3">
+                                                <span>Discounts</span>
+                                                <strong>
+                                                    -$
+                                                    {Math.min(
+                                                        adminCartTotals.subtotal,
+                                                        parseFloat(adminCheckoutForm.discountAmount || 0) +
+                                                        (adminCartTotals.subtotal * (parseFloat(adminCheckoutForm.discountPercent || 0) / 100))
+                                                    ).toFixed(2)}
+                                                </strong>
+                                            </div>
+                                            <div className="flex items-center justify-between gap-3 border-t border-blue-100 pt-2 text-base">
+                                                <span className="font-bold text-slate-900">Estimated Total</span>
+                                                <strong className="text-blue-700">
+                                                    $
+                                                    {Math.max(
+                                                        0,
+                                                        adminCartTotals.total - Math.min(
+                                                            adminCartTotals.subtotal,
+                                                            parseFloat(adminCheckoutForm.discountAmount || 0) +
+                                                            (adminCartTotals.subtotal * (parseFloat(adminCheckoutForm.discountPercent || 0) / 100))
+                                                        )
+                                                    ).toFixed(2)}
+                                                </strong>
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
-                                <label>
-                                    <span>Promo Code</span>
-                                    <input value={adminCheckoutForm.promoCode} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, promoCode: e.target.value }))} placeholder="PROMO30" />
-                                </label>
-                                <label>
-                                    <span>Gift Card Code</span>
-                                    <input value={adminCheckoutForm.giftCardCode} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, giftCardCode: e.target.value }))} placeholder="GC-12345" />
-                                </label>
-                                <label>
-                                    <span>Discount $</span>
-                                    <input type="number" min="0" step="0.01" value={adminCheckoutForm.discountAmount} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, discountAmount: e.target.value }))} />
-                                </label>
-                                <label>
-                                    <span>Discount %</span>
-                                    <input type="number" min="0" max="100" step="1" value={adminCheckoutForm.discountPercent} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, discountPercent: e.target.value }))} />
-                                </label>
-                                <label className="span-2">
-                                    <span>Admin Notes</span>
-                                    <textarea rows={3} value={adminCheckoutForm.notes} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, notes: e.target.value }))} />
-                                </label>
+                                )}
                             </div>
                             <aside className="admin-checkout-summary">
                                 {adminServiceCart.map(item => (
@@ -5263,8 +5426,30 @@ export default function Home() {
                                 </div>
                             </aside>
                             <div className="admin-checkout-actions">
-                                <button type="button" onClick={() => setAdminCheckoutOpen(false)} className="btn btn-secondary btn-sm">Back to Cart</button>
-                                <button type="submit" className="btn btn-primary btn-sm">Create Booking</button>
+                                <button type="button" onClick={() => adminCheckoutStep === 0 ? (setAdminCheckoutOpen(false), setAdminCheckoutStep(0)) : setAdminCheckoutStep(prev => Math.max(0, prev - 1))} className="btn btn-secondary btn-sm">
+                                    {adminCheckoutStep === 0 ? "Back to Cart" : "Previous"}
+                                </button>
+                                {adminCheckoutStep < 2 ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (!validateAdminCheckoutStep(adminCheckoutStep, adminCheckoutForm)) {
+                                                alert(adminCheckoutStep === 0
+                                                    ? "Complete the customer contact and address details first."
+                                                    : "Complete the schedule and status details first.");
+                                                return;
+                                            }
+                                            setAdminCheckoutStep(prev => Math.min(2, prev + 1));
+                                        }}
+                                        className="btn btn-primary btn-sm"
+                                    >
+                                        Next Step
+                                    </button>
+                                ) : (
+                                    <button type="submit" className="btn btn-primary btn-sm">
+                                        Create {getBookingDocumentLabel(adminCheckoutForm.bookingStatus)}
+                                    </button>
+                                )}
                             </div>
                         </form>
                     </div>
@@ -5381,6 +5566,18 @@ export default function Home() {
                                         </div>
                                         {!isCleanerSelfServiceView && (
                                             <div className="detail-row">
+                                                <span className="detail-label">Document Type</span>
+                                                <span className="detail-value">{b.documentStage || getBookingDocumentLabel(b.status)}</span>
+                                            </div>
+                                        )}
+                                        {!isCleanerSelfServiceView && (
+                                            <div className="detail-row">
+                                                <span className="detail-label">Order Number</span>
+                                                <span className="detail-value">{b.orderNumber || b.estimateNumber || b.invoiceNumber || "Pending"}</span>
+                                            </div>
+                                        )}
+                                        {!isCleanerSelfServiceView && (
+                                            <div className="detail-row">
                                                 <span className="detail-label">Payment Status</span>
                                                 <span className="detail-value">{b.paymentStatus || "unpaid"}</span>
                                             </div>
@@ -5445,6 +5642,23 @@ export default function Home() {
                                                     </div>
                                                 ) : null;
                                             })()}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {!isCleanerSelfServiceView && Array.isArray(b.auditLog) && b.auditLog.length > 0 && (
+                                    <div className="detail-card">
+                                        <div className="detail-card-title">ℹ️ Booking Activity</div>
+                                        <div className="flex flex-col gap-3">
+                                            {[...b.auditLog].slice(-5).reverse().map((entry, index) => (
+                                                <div key={`${entry.at || "log"}-${index}`} className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                                                    <div className="flex items-center justify-between gap-3">
+                                                        <strong className="text-sm text-slate-800">{entry.summary || entry.type || "Update"}</strong>
+                                                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{entry.status || "logged"}</span>
+                                                    </div>
+                                                    <p className="mt-1 text-xs text-slate-500">{entry.by || "system"} · {entry.at ? new Date(entry.at).toLocaleString() : "No timestamp"}</p>
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
                                 )}
@@ -5772,10 +5986,20 @@ export default function Home() {
                                                 <div className="form-group flex flex-col gap-1">
                                                     <label className="font-bold text-slate-700">Dispatch Status</label>
                                                     <select value={bookingForm.status} onChange={e => setBookingForm(prev => ({ ...prev, status: e.target.value }))} required className="border border-slate-200 rounded-lg p-2">
+                                                        <option value="Lead">Lead</option>
+                                                        <option value="Follow Up">Follow Up</option>
                                                         <option value="Pending">Pending</option>
                                                         <option value="Confirmed">Confirmed</option>
                                                         <option value="Completed">Completed</option>
                                                         <option value="Cancelled">Cancelled</option>
+                                                    </select>
+                                                </div>
+                                                <div className="form-group flex flex-col gap-1">
+                                                    <label className="font-bold text-slate-700">Payment Status</label>
+                                                    <select value={bookingForm.paymentStatus} onChange={e => setBookingForm(prev => ({ ...prev, paymentStatus: e.target.value }))} required className="border border-slate-200 rounded-lg p-2">
+                                                        <option value="unpaid">Unpaid</option>
+                                                        <option value="paid">Paid</option>
+                                                        <option value="redo">Redo</option>
                                                     </select>
                                                 </div>
                                                 <div className="form-group flex flex-col gap-1">
