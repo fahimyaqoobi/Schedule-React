@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 function safe(value = "") {
     return String(value || "").trim();
 }
@@ -67,7 +69,7 @@ export default async function CustomerAccessPage({ searchParams }) {
                         >
                             Call Customer Support
                         </a>
-                        <a
+                        <Link
                             href="/"
                             style={{
                                 display: "inline-flex",
@@ -82,7 +84,7 @@ export default async function CustomerAccessPage({ searchParams }) {
                             }}
                         >
                             Back to Main App
-                        </a>
+                        </Link>
                     </div>
                 </div>
             </div>

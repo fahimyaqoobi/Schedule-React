@@ -1724,20 +1724,40 @@ export default function Home() {
         }
         const companySnapshot = {
             ...(booking.companySnapshot || {}),
-            logoUrl: `${window.location.origin}/logo.png`
+            logoUrl: `${window.location.origin}/logo-full.png`
         };
         popup.document.open();
-        popup.document.write(buildBookingDocumentHtml({ ...booking, companySnapshot }));
+        const customerPortalUrl = `${window.location.origin}/customer-access?phone=${encodeURIComponent(String(booking.customerPortalPhone || booking.phone || "").replace(/\D+/g, ""))}&document=${encodeURIComponent(booking.invoiceNumber || booking.estimateNumber || booking.orderNumber || "")}&bookingId=${encodeURIComponent(booking.id || "")}`;
+        popup.document.write(buildBookingDocumentHtml({ ...booking, companySnapshot, customerPortalUrl }));
         popup.document.close();
         return popup;
     }, []);
 
-    const handleDownloadBookingDocument = useCallback((booking) => {
-        const popup = openBookingDocumentWindow(booking);
-        if (!popup) return;
-        popup.focus();
-        popup.print();
-    }, [openBookingDocumentWindow]);
+    const handleDownloadBookingDocument = useCallback(async (booking) => {
+        if (!booking?.id) return;
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch(`/api/bookings/document?bookingId=${encodeURIComponent(booking.id)}&disposition=attachment`, {
+                method: "GET",
+                headers
+            });
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                throw new Error(data.error || "Failed to generate PDF.");
+            }
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `${getBookingDocumentNumber(booking)}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (error) {
+            alert(`PDF download failed: ${error.message}`);
+        }
+    }, [getAuthHeaders]);
 
     const handleGenerateInvoice = useCallback(async (booking) => {
         if (!booking?.id) return;
@@ -2629,11 +2649,12 @@ export default function Home() {
                 customDiscountAmount: totalDiscount,
                 promoCode: adminCheckoutForm.promoCode,
                 giftCardCode: adminCheckoutForm.giftCardCode,
+                customerPortalPhone: adminCheckoutForm.phone,
                 specialNotes: adminCheckoutForm.notes,
                 cartItems: adminServiceCart,
                 customerType: adminCheckoutForm.customerLoggedIn ? "customer-account" : "guest",
                 companySnapshot: {
-                    logoUrl: "/logo.png",
+                    logoUrl: "/logo-full.png",
                     companyName: "SmarTouch Clean",
                     branchName: matchedBranch.name,
                     branchPhone: matchedBranch.phone,
@@ -3121,6 +3142,12 @@ export default function Home() {
                             <span>Catalog Studio</span>
                         </button>
                     )}
+                    {canViewAdministration && (
+                        <button onClick={() => setActiveTab("promotions")} className={`nav-item ${activeTab === "promotions" ? "active" : ""}`}>
+                            {Icons.Cash()}
+                            <span>Promotions</span>
+                        </button>
+                    )}
                     {canManagePermissions && (
                         <button onClick={() => setActiveTab("permissions")} className={`nav-item ${activeTab === "permissions" ? "active" : ""}`}>
                             {Icons.Shield()}
@@ -3167,7 +3194,8 @@ export default function Home() {
                                             activeTab === "departments" ? "HR Management Hub" :
                                             activeTab === "edit-requests" ? "Modification Requests Inbox" :
                                                 activeTab === "catalog" ? "Catalog Studio" :
-                                                    activeTab === "permissions" ? "Permissions & Roles" : "Account Settings"}
+                                                    activeTab === "promotions" ? "Promotions Manager" :
+                                                        activeTab === "permissions" ? "Permissions & Roles" : "Account Settings"}
                         </h2>
                     </div>
                     <div className="header-right">
@@ -5128,6 +5156,115 @@ export default function Home() {
                             setCatalog={setV2Catalog}
                             onSave={handleSaveV2Catalog}
                         />
+                    </div>
+                )}
+
+                {activeTab === "promotions" && canViewAdministration && (
+                    <div className="animate-fade space-y-6">
+                        <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+                            <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                                <div>
+                                    <p className="text-xs font-bold uppercase tracking-[0.28em] text-sky-700">Promotions</p>
+                                    <h3 className="mt-2 text-3xl font-black text-slate-900">Referral and Discount Control</h3>
+                                    <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-500">
+                                        Manage one-time promos, stackable offers, solo-only discounts, repeat rules, and referral-linked campaigns.
+                                        The referral code shown on estimates now comes from here and is stored on the booking.
+                                    </p>
+                                </div>
+                                <button onClick={handleSavePromotions} className="btn btn-primary btn-sm" disabled={promotionSaving}>
+                                    {promotionSaving ? "Saving..." : "Save Promotions"}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="grid gap-4">
+                            {promotionRules.map((promo, index) => (
+                                <div key={promo.id} className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+                                    <div className="grid gap-4 lg:grid-cols-[1.2fr,0.8fr]">
+                                        <div className="grid gap-4 sm:grid-cols-2">
+                                            <label className="flex flex-col gap-1">
+                                                <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Promo Name</span>
+                                                <input value={promo.name} onChange={e => setPromotionRules(prev => prev.map((item, itemIndex) => itemIndex === index ? { ...item, name: e.target.value } : item))} className="rounded-xl border border-slate-200 px-3 py-2" />
+                                            </label>
+                                            <label className="flex flex-col gap-1">
+                                                <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Promo Code</span>
+                                                <input value={promo.code} onChange={e => setPromotionRules(prev => prev.map((item, itemIndex) => itemIndex === index ? { ...item, code: e.target.value.toUpperCase().replace(/\s+/g, "") } : item))} className="rounded-xl border border-slate-200 px-3 py-2" />
+                                            </label>
+                                            <label className="flex flex-col gap-1">
+                                                <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Type</span>
+                                                <select value={promo.type} onChange={e => setPromotionRules(prev => prev.map((item, itemIndex) => itemIndex === index ? { ...item, type: e.target.value } : item))} className="rounded-xl border border-slate-200 px-3 py-2">
+                                                    <option value="fixed">Fixed Amount</option>
+                                                    <option value="percent">Percent</option>
+                                                    <option value="referral">Referral</option>
+                                                </select>
+                                            </label>
+                                            <label className="flex flex-col gap-1">
+                                                <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Value</span>
+                                                <input type="number" value={promo.value} onChange={e => setPromotionRules(prev => prev.map((item, itemIndex) => itemIndex === index ? { ...item, value: Number(e.target.value || 0) } : item))} className="rounded-xl border border-slate-200 px-3 py-2" />
+                                            </label>
+                                            <label className="sm:col-span-2 flex flex-col gap-1">
+                                                <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Description</span>
+                                                <textarea value={promo.description || ""} onChange={e => setPromotionRules(prev => prev.map((item, itemIndex) => itemIndex === index ? { ...item, description: e.target.value } : item))} className="min-h-[90px] rounded-xl border border-slate-200 px-3 py-2" />
+                                            </label>
+                                        </div>
+
+                                        <div className="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
+                                            <div className="mb-3 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Rules</div>
+                                            <div className="grid gap-2 text-sm text-slate-700">
+                                                {[
+                                                    ["active", "Active"],
+                                                    ["oneTimeOnly", "One time only"],
+                                                    ["stackable", "Can be used with others"],
+                                                    ["soloOnly", "Must be used alone"],
+                                                    ["repeatable", "Repeat use allowed"],
+                                                    ["referralRequired", "Needs referred customer purchase"]
+                                                ].map(([field, label]) => (
+                                                    <label key={field} className="flex items-center gap-3 rounded-xl bg-white px-3 py-2">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={Boolean(promo[field])}
+                                                            onChange={e => setPromotionRules(prev => prev.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: e.target.checked } : item))}
+                                                        />
+                                                        <span>{label}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setPromotionRules(prev => prev.filter((_, itemIndex) => itemIndex !== index))}
+                                                className="btn btn-secondary btn-sm mt-4"
+                                            >
+                                                Remove Promotion
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={() => setPromotionRules(prev => ([
+                                ...prev,
+                                {
+                                    id: `promo_${Date.now()}`,
+                                    code: `PROMO${prev.length + 1}`,
+                                    name: "New Promotion",
+                                    type: "fixed",
+                                    value: 0,
+                                    active: true,
+                                    oneTimeOnly: false,
+                                    stackable: false,
+                                    soloOnly: false,
+                                    repeatable: false,
+                                    referralRequired: false,
+                                    description: ""
+                                }
+                            ]))}
+                            className="btn btn-secondary btn-sm"
+                        >
+                            Add Promotion
+                        </button>
                     </div>
                 )}
 

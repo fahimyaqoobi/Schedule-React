@@ -5371,13 +5371,13 @@ select option:disabled {
 .modal-content-admin-checkout {
     display: flex;
     flex-direction: column;
-    width: min(1440px, 85vw);
-    max-width: min(1440px, 85vw);
-    height: 85vh;
-    max-height: 85vh;
+    width: min(1240px, 96vw);
+    max-width: min(1240px, 96vw);
+    height: min(88vh, 980px);
+    max-height: min(88vh, 980px);
     overflow: hidden;
     overflow-y: hidden;
-    border-radius: 12px;
+    border-radius: 18px;
     background: #ffffff;
 }
 
@@ -5607,7 +5607,7 @@ select option:disabled {
 
 .admin-checkout-form {
     display: grid;
-    grid-template-columns: minmax(420px, 1fr) minmax(320px, 0.42fr);
+    grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.52fr);
     gap: 20px;
     flex: 1 1 auto;
     min-height: 0;
@@ -5632,6 +5632,7 @@ select option:disabled {
     gap: 14px;
     align-content: start;
     min-width: 0;
+    overflow: hidden;
 }
 
 .admin-checkout-grid.review-mode {
@@ -5658,7 +5659,7 @@ select option:disabled {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: 10px;
-    max-height: 220px;
+    max-height: 240px;
     overflow: auto;
     border: 1px solid #c3c6d5;
     border-radius: 10px;
@@ -5775,7 +5776,7 @@ select option:disabled {
 
 .admin-time-slot-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
     gap: 10px;
 }
 
@@ -5847,6 +5848,7 @@ select option:disabled {
     border-radius: 12px;
     background: #ffffff;
     padding: 16px;
+    min-width: 0;
 }
 
 .admin-checkout-summary.review-hidden {
@@ -5930,6 +5932,7 @@ select option:disabled {
     color: #475569;
     font-size: 13px;
     line-height: 1.55;
+    overflow-wrap: anywhere;
 }
 
 .admin-checkout-review-lines {
@@ -5967,6 +5970,7 @@ select option:disabled {
     color: #64748b;
     font-size: 12px;
     line-height: 1.5;
+    overflow-wrap: anywhere;
 }
 
 .admin-checkout-review-line em {
@@ -6034,9 +6038,9 @@ select option:disabled {
 
     .modal-content-service-config,
     .modal-content-admin-checkout {
-        width: min(96vw, 980px);
-        height: 88vh;
-        max-height: 88vh;
+        width: min(96vw, 1040px);
+        height: min(92vh, 1040px);
+        max-height: min(92vh, 1040px);
     }
 
     .service-config-section {
@@ -6046,6 +6050,8 @@ select option:disabled {
     .admin-checkout-summary {
         position: static;
         max-height: none;
+        grid-column: 1 / -1;
+        order: 3;
     }
 
     .admin-cart-panel {
@@ -6158,9 +6164,9 @@ select option:disabled {
     .modal-content-service-config,
     .modal-content-admin-checkout {
         width: 96vw;
-        height: 92vh;
-        max-height: 92vh;
-        border-radius: 12px;
+        height: 94vh;
+        max-height: 94vh;
+        border-radius: 16px;
     }
 
     .modal-content-service-config .modal-header,
@@ -6179,6 +6185,16 @@ select option:disabled {
         gap: 14px;
         overflow: auto;
         padding-bottom: calc(18px + env(safe-area-inset-bottom));
+    }
+
+    .admin-checkout-stepper {
+        gap: 8px;
+    }
+
+    .admin-checkout-stepper > div {
+        flex: 1 1 calc(50% - 8px);
+        min-width: 0;
+        text-align: center;
     }
 
     .admin-checkout-summary {
@@ -6271,9 +6287,22 @@ select option:disabled {
         grid-template-columns: 1fr;
     }
 
+    .admin-checkout-grid label.span-2,
+    .admin-staff-assignment,
+    .admin-time-slot-field {
+        grid-column: 1;
+    }
+
     .admin-checkout-review-top,
     .admin-checkout-review-line {
         grid-template-columns: 1fr;
+    }
+
+    .admin-checkout-review-card,
+    .admin-checkout-review-lines,
+    .admin-checkout-review-totals {
+        padding: 14px;
+        border-radius: 14px;
     }
 
     .admin-checkout-review-totals {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { adminDb, adminAuth } from "../../../lib/firebase-admin";
 import { ROLE_DEFINITIONS, canManageSystem } from "../../../lib/permissions";
+import { ensurePromotionList } from "../../../lib/promotions";
 
 async function authenticateRequest(request) {
     const authHeader = request.headers.get("Authorization");
@@ -47,9 +48,13 @@ export async function GET(request) {
         const user = await authenticateRequest(request);
         const docSnap = await adminDb.collection("settings").doc("pricing").get();
         if (docSnap.exists) {
-            return NextResponse.json(docSnap.data(), { status: 200 });
+            const data = docSnap.data();
+            return NextResponse.json({
+                ...data,
+                promotions: ensurePromotionList(data.promotions)
+            }, { status: 200 });
         } else {
-            return NextResponse.json({}, { status: 200 });
+            return NextResponse.json({ promotions: ensurePromotionList([]) }, { status: 200 });
         }
     } catch (err) {
         console.error("GET Settings Error:", err);
@@ -65,7 +70,10 @@ export async function POST(request) {
         }
         
         const settingsData = await request.json();
-        await adminDb.collection("settings").doc("pricing").set(settingsData);
+        await adminDb.collection("settings").doc("pricing").set({
+            ...settingsData,
+            promotions: settingsData.promotions ? ensurePromotionList(settingsData.promotions) : undefined
+        }, { merge: true });
         return NextResponse.json({ message: "Settings saved successfully", settings: settingsData }, { status: 200 });
     } catch (err) {
         console.error("POST Settings Error:", err);
