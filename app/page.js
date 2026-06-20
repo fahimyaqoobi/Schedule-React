@@ -643,6 +643,7 @@ export default function Home() {
     const [configSizeId, setConfigSizeId] = useState("");
     const [configBathroomKey, setConfigBathroomKey] = useState("1 Bathroom");
     const [configAddons, setConfigAddons] = useState({});
+    const [configEditingCartId, setConfigEditingCartId] = useState("");
     const [adminCheckoutOpen, setAdminCheckoutOpen] = useState(false);
     const [adminCheckoutStep, setAdminCheckoutStep] = useState(0);
     const [adminScheduleHint, setAdminScheduleHint] = useState("");
@@ -2605,8 +2606,33 @@ export default function Home() {
         setConfigSizeId(category.sizes?.[0]?.id || "base");
         setConfigBathroomKey("1 Bathroom");
         setConfigAddons({});
+        setConfigEditingCartId("");
         setServiceConfigOpen(true);
     }, []);
+
+    const editAdminCartItem = useCallback((item) => {
+        const category = (v2Catalog.categories || []).find(candidate => candidate.id === item.categoryId) || {
+            id: item.categoryId,
+            name: item.name,
+            pricingModel: item.pricingModel,
+            baseRate: item.basePrice,
+            durationHrs: item.durationHrs,
+            sizes: item.optionId && item.optionId !== "base"
+                ? [{ id: item.optionId, name: item.optionName, price: item.basePrice, durationHrs: item.durationHrs }]
+                : [],
+            addons: item.addons || []
+        };
+        const addonMap = {};
+        (item.addons || []).forEach(addon => {
+            addonMap[addon.id] = Number(addon.qty || 1);
+        });
+        setConfigCategory(category);
+        setConfigSizeId(item.optionId || category.sizes?.[0]?.id || "base");
+        setConfigBathroomKey(item.bathroomKey || "1 Bathroom");
+        setConfigAddons(addonMap);
+        setConfigEditingCartId(item.cartId);
+        setServiceConfigOpen(true);
+    }, [v2Catalog.categories]);
 
     const setConfigAddonQty = useCallback((addonId, qty) => {
         setConfigAddons(prev => {
@@ -2650,26 +2676,28 @@ export default function Home() {
             total: bathroomPrice
         }] : [];
 
-        setAdminServiceCart(prev => [
-            ...prev,
-            {
-                cartId: `${configCategory.id}-${Date.now()}`,
-                categoryId: configCategory.id,
-                name: configCategory.name,
-                pricingModel: configCategory.pricingModel,
-                optionId: selectedSize?.id || "base",
-                optionName: selectedSize?.name || "Base service",
-                basePrice,
-                bathroomKey: isHouseCleaning ? configBathroomKey : "",
-                bathroomPrice,
-                price: basePrice + bathroomPrice + addonTotal,
-                durationHrs: baseDuration,
-                configuredExtras,
-                addons: selectedAddons
-            }
-        ]);
+        const nextItem = {
+            cartId: configEditingCartId || `${configCategory.id}-${Date.now()}`,
+            categoryId: configCategory.id,
+            name: configCategory.name,
+            pricingModel: configCategory.pricingModel,
+            optionId: selectedSize?.id || "base",
+            optionName: selectedSize?.name || "Base service",
+            basePrice,
+            bathroomKey: isHouseCleaning ? configBathroomKey : "",
+            bathroomPrice,
+            price: basePrice + bathroomPrice + addonTotal,
+            durationHrs: baseDuration,
+            configuredExtras,
+            addons: selectedAddons
+        };
+        setAdminServiceCart(prev => configEditingCartId
+            ? prev.map(item => item.cartId === configEditingCartId ? nextItem : item)
+            : [...prev, nextItem]
+        );
+        setConfigEditingCartId("");
         setServiceConfigOpen(false);
-    }, [configAddons, configBathroomKey, configCategory, configSizeId, getCategoryBasePrice, getCategoryDuration, v2Catalog.bathrooms]);
+    }, [configAddons, configBathroomKey, configCategory, configEditingCartId, configSizeId, getCategoryBasePrice, getCategoryDuration, v2Catalog.bathrooms]);
 
     const removeAdminCartItem = useCallback((cartId) => {
         setAdminServiceCart(prev => prev.filter(item => item.cartId !== cartId));
@@ -3560,24 +3588,59 @@ export default function Home() {
                                                 </div>
                                             ) : (
                                                 <div className="admin-cart-list">
-                                                    {adminServiceCart.map(item => (
-                                                        <div key={item.cartId} className="admin-cart-item">
-                                                            <div>
-                                                                <strong>{item.name}</strong>
-                                                                <span>
-                                                                    {item.optionName}
-                                                                    {item.bathroomKey ? ` • ${item.bathroomKey}` : ""}
-                                                                    {` • ${item.addons?.length || 0} add-ons selected`}
-                                                                </span>
+                                                    {adminServiceCart.map(item => {
+                                                        const basePrice = Number(item.basePrice || 0);
+                                                        const bathroomPrice = Number(item.bathroomPrice || 0);
+                                                        const addons = item.addons || [];
+                                                        return (
+                                                            <div key={item.cartId} className="admin-cart-item">
+                                                                <div>
+                                                                    <strong>{item.name}</strong>
+                                                                    <span>
+                                                                        {item.optionName}
+                                                                        {item.bathroomKey ? ` • ${item.bathroomKey}` : ""}
+                                                                        {` • ${Number(item.durationHrs || 0).toFixed(1)} hrs`}
+                                                                    </span>
+                                                                    <div className="admin-cart-breakdown">
+                                                                        <div>
+                                                                            <span>Base service / tier</span>
+                                                                            <strong>${basePrice.toFixed(2)}</strong>
+                                                                        </div>
+                                                                        {bathroomPrice > 0 && (
+                                                                            <div>
+                                                                                <span>{item.bathroomKey || "Bathroom adjustment"}</span>
+                                                                                <strong>${bathroomPrice.toFixed(2)}</strong>
+                                                                            </div>
+                                                                        )}
+                                                                        {addons.length > 0 ? addons.map(addon => {
+                                                                            const qty = Number(addon.qty || 1);
+                                                                            const addonLineTotal = Number(addon.total ?? Number(addon.price || 0) * qty);
+                                                                            return (
+                                                                                <div key={addon.id}>
+                                                                                    <span>{addon.name}{qty > 1 ? ` x${qty}` : ""}</span>
+                                                                                    <strong>${addonLineTotal.toFixed(2)}</strong>
+                                                                                </div>
+                                                                            );
+                                                                        }) : (
+                                                                            <div>
+                                                                                <span>Add-ons</span>
+                                                                                <strong>$0.00</strong>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                                <div className="admin-cart-price">
+                                                                    <strong>${Number(item.price || 0).toFixed(2)}</strong>
+                                                                    <button onClick={() => editAdminCartItem(item)} type="button" className="admin-cart-edit" aria-label={`Edit ${item.name}`}>
+                                                                        {Icons.Edit()}
+                                                                    </button>
+                                                                    <button onClick={() => removeAdminCartItem(item.cartId)} type="button" aria-label={`Remove ${item.name}`}>
+                                                                        {Icons.Trash()}
+                                                                    </button>
+                                                                </div>
                                                             </div>
-                                                            <div className="admin-cart-price">
-                                                                <strong>${item.price.toFixed(2)}</strong>
-                                                                <button onClick={() => removeAdminCartItem(item.cartId)} type="button" aria-label={`Remove ${item.name}`}>
-                                                                    {Icons.Trash()}
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    ))}
+                                                        );
+                                                    })}
                                                 </div>
                                             )}
                                             <div className="admin-cart-totals">
@@ -5659,10 +5722,10 @@ export default function Home() {
                         <div className="modal-content modal-content-service-config animate-pop">
                             <div className="modal-header modal-header-brand">
                                 <div className="modal-title-stack">
-                                    <h3 className="modal-title-inverse">Configure Service</h3>
+                                    <h3 className="modal-title-inverse">{configEditingCartId ? "Edit Service" : "Configure Service"}</h3>
                                     <p className="modal-subtitle-inverse">{configCategory.name}</p>
                                 </div>
-                                <button onClick={() => setServiceConfigOpen(false)} className="modal-close-btn" aria-label="Close">
+                                <button onClick={() => { setServiceConfigOpen(false); setConfigEditingCartId(""); }} className="modal-close-btn" aria-label="Close">
                                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="1" y1="1" x2="13" y2="13" /><line x1="13" y1="1" x2="1" y2="13" /></svg>
                                 </button>
                             </div>
@@ -5756,7 +5819,7 @@ export default function Home() {
                                     <strong>${(basePrice + bathroomPrice + addonTotal).toFixed(2)}</strong>
                                 </div>
                                 <button onClick={addConfiguredServiceToCart} type="button" className="admin-primary-action">
-                                    Add Configured Service
+                                    {configEditingCartId ? "Update Configured Service" : "Add Configured Service"}
                                 </button>
                             </div>
                         </div>
