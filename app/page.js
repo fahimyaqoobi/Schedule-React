@@ -2836,7 +2836,8 @@ export default function Home() {
                     branchPhone: matchedBranch.phone,
                     branchEmail: matchedBranch.email,
                     taxLabel: matchedBranch.taxLabel,
-                    taxRate: matchedBranch.taxRate
+                    taxRate: matchedBranch.taxRate,
+                    promotions: promotionRules
                 }
             };
             const res = await fetch("/api/bookings", {
@@ -2856,7 +2857,7 @@ export default function Home() {
         } catch (err) {
             alert(`Checkout failed: ${err.message}`);
         }
-    }, [activeBranch, adminCartTotals, adminCheckoutForm, adminServiceCart, currentUser, fieldStaff, getAuthHeaders, syncDatabaseData]);
+    }, [activeBranch, adminCartTotals, adminCheckoutForm, adminServiceCart, currentUser, fieldStaff, getAuthHeaders, promotionRules, syncDatabaseData]);
 
     const handleAdminCheckoutNext = useCallback(() => {
         if (!validateAdminCheckoutStep(adminCheckoutStep, adminCheckoutForm)) {
@@ -3212,7 +3213,7 @@ export default function Home() {
                 {/* RIGHT: Form panel */}
                 <div className="auth-panel">
                     <div className="auth-card-inner">
-                        <img src="/logo.png" alt="SmarTouch Clean" className="auth-card-logo-mobile" />
+                        <img src="/logo-full.png" alt="SmarTouch Clean" className="auth-card-logo-mobile" />
 
                         {authMode === "login" ? (
                             <>
@@ -3282,7 +3283,7 @@ export default function Home() {
             {/* Sidebar Navigation */}
             <aside className="sidebar">
                 <div className="brand-logo">
-                    <img src="/logo.png" alt="SmarTouch Clean" className="brand-logo-img" />
+                    <img src="/logo-full.png" alt="SmarTouch Clean" className="brand-logo-img" />
                 </div>
 
                 <nav className="nav-links">
@@ -5455,7 +5456,8 @@ export default function Home() {
                                                     ["stackable", "Can be used with others"],
                                                     ["soloOnly", "Must be used alone"],
                                                     ["repeatable", "Repeat use allowed"],
-                                                    ["referralRequired", "Needs referred customer purchase"]
+                                                    ["referralRequired", "Needs referred customer purchase"],
+                                                    ["showOnDocuments", "Show on estimates, invoices, and receipts"]
                                                 ].map(([field, label]) => (
                                                     <label key={field} className="flex items-center gap-3 rounded-xl bg-white px-3 py-2">
                                                         <input
@@ -5496,6 +5498,7 @@ export default function Home() {
                                     soloOnly: false,
                                     repeatable: false,
                                     referralRequired: false,
+                                    showOnDocuments: true,
                                     description: ""
                                 }
                             ]))}
@@ -6012,7 +6015,7 @@ export default function Home() {
                                                 <h4 className="text-lg font-extrabold text-slate-800">{getBookingDocumentLabel(adminCheckoutForm.bookingStatus)} Preview</h4>
                                                 <p className="text-xs text-slate-500">{activeBranch.name} · {activeBranch.email || "info@smartouchclean.com"}</p>
                                             </div>
-                                            <img src="/logo.png" alt="SmarTouch Clean" className="h-12 w-auto" />
+                                            <img src="/logo-full.png" alt="SmarTouch Clean" className="h-12 w-auto" />
                                         </div>
                                         <div className="admin-checkout-review-sheet mt-4">
                                             <div className="admin-checkout-review-top">
