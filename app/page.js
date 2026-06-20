@@ -83,6 +83,14 @@ const Icons = {
     Loading: () => <svg className="animate-spin" viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>
 };
 
+const DEPARTMENT_TAB_TARGETS = {
+    operations: "dashboard",
+    people: "teams",
+    sales: "bookings",
+    finance: "payroll",
+    administration: "settings"
+};
+
 // Default static lists in case DB fetches are temporarily blank
 const INITIAL_TEAMS = [
     { id: 'team-sparkle', name: 'Team Sparkle', color: 'sparkle', lead: 'Emma Vance', size: 3, members: 'Emma Vance, Alice Smith, John Doe', description: 'Deep Cleaning & Sanitization experts' },
@@ -3361,7 +3369,7 @@ export default function Home() {
                     {canViewAdministration && (
                         <button onClick={() => setActiveTab("departments")} className={`nav-item ${activeTab === "departments" ? "active" : ""}`}>
                             {Icons.Departments()}
-                            <span>HR Hub</span>
+                            <span>Departments</span>
                         </button>
                     )}
                     {canViewAdministration && (
@@ -3436,7 +3444,7 @@ export default function Home() {
                                         activeTab === "jobs" ? (isCleanerSelfServiceView ? "Jobs" : "Time Cards") :
                                             activeTab === "payroll" ? "Payroll & Time Hub" :
                                         activeTab === "teams" ? (isCleanerSelfServiceView ? "Profile" : "Field Staff Assignments") :
-                                            activeTab === "departments" ? "HR Management Hub" :
+                                            activeTab === "departments" ? "Departments" :
                                             activeTab === "edit-requests" ? "Modification Requests Inbox" :
                                                 activeTab === "catalog" ? "Catalog Studio" :
                                                     activeTab === "promotions" ? "Promotions Manager" :
@@ -5139,11 +5147,64 @@ export default function Home() {
 
                 {activeTab === "departments" && canViewAdministration && (
                     <div className="animate-fade flex flex-col gap-6">
+                        <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+                            <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                                <div>
+                                    <p className="ops-eyebrow">Organization</p>
+                                    <h3 className="ops-title">Departments</h3>
+                                    <p className="ops-copy">View every operating department, its responsibilities, and the modules connected to it.</p>
+                                </div>
+                                <span className="w-fit rounded-full bg-cyan-100 px-4 py-2 text-xs font-black uppercase tracking-wider text-cyan-800">{DEPARTMENTS.length} Departments</span>
+                            </div>
+
+                            <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                                {DEPARTMENTS.map((department, index) => {
+                                    const targetTab = DEPARTMENT_TAB_TARGETS[department.id];
+                                    const hasAccess = canViewDepartment(department.id);
+                                    const accents = [
+                                        "from-blue-600 to-cyan-500",
+                                        "from-emerald-600 to-teal-500",
+                                        "from-amber-500 to-orange-500",
+                                        "from-violet-600 to-indigo-500",
+                                        "from-slate-700 to-slate-500",
+                                        "from-cyan-700 to-blue-600",
+                                        "from-rose-600 to-orange-500"
+                                    ];
+                                    return (
+                                        <article key={department.id} className="overflow-hidden rounded-[22px] border border-slate-200 bg-slate-50">
+                                            <div className={`h-2 bg-gradient-to-r ${accents[index % accents.length]}`}></div>
+                                            <div className="p-5">
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div className="rounded-xl bg-white p-3 text-blue-800 shadow-sm">{Icons.Departments()}</div>
+                                                    <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider ${hasAccess ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-500"}`}>{hasAccess ? "Available" : "Restricted"}</span>
+                                                </div>
+                                                <h4 className="mt-4 text-xl font-black text-slate-900">{department.name}</h4>
+                                                <p className="mt-2 min-h-[60px] text-sm leading-6 text-slate-500">{department.description}</p>
+                                                <div className="mt-4 flex flex-wrap gap-2">
+                                                    {department.modules.map(module => (
+                                                        <span key={module} className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-bold text-slate-600">{module}</span>
+                                                    ))}
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    disabled={!hasAccess || !targetTab}
+                                                    onClick={() => targetTab && setActiveTab(targetTab)}
+                                                    className="btn btn-secondary btn-sm mt-5 w-full"
+                                                >
+                                                    {!hasAccess ? "Access Restricted" : targetTab ? "Open Department" : "Workspace Coming Next"}
+                                                </button>
+                                            </div>
+                                        </article>
+                                    );
+                                })}
+                            </div>
+                        </section>
+
                         <div className="hr-hub-shell">
                             <div className="hr-hub-hero">
                                 <div>
                                     <p className="ops-eyebrow">People Management</p>
-                                    <h3 className="ops-title">HR Management Hub</h3>
+                                    <h3 className="ops-title">People Management Department</h3>
                                     <p className="ops-copy">
                                         Recruitment, onboarding, staff directory, and compliance for the current branch.
                                     </p>
@@ -5808,7 +5869,7 @@ export default function Home() {
                 {canViewAdministration && (
                     <button onClick={() => setActiveTab("departments")} className={`mobile-nav-item ${activeTab === "departments" ? "active" : ""}`}>
                         {Icons.Departments()}
-                        <span>HR Hub</span>
+                        <span>Departments</span>
                     </button>
                 )}
                 {canManagePermissions && (
