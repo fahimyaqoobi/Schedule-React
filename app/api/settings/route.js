@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { adminDb, adminAuth } from "../../../lib/firebase-admin";
 import { ROLE_DEFINITIONS, canManageSystem } from "../../../lib/permissions";
 import { ensurePromotionList } from "../../../lib/promotions";
+import { normalizeDocumentCopy } from "../../../lib/documentCopy";
 
 async function authenticateRequest(request) {
     const authHeader = request.headers.get("Authorization");
@@ -51,10 +52,14 @@ export async function GET(request) {
             const data = docSnap.data();
             return NextResponse.json({
                 ...data,
-                promotions: ensurePromotionList(data.promotions)
+                promotions: ensurePromotionList(data.promotions),
+                documentCopy: normalizeDocumentCopy(data.documentCopy)
             }, { status: 200 });
         } else {
-            return NextResponse.json({ promotions: ensurePromotionList([]) }, { status: 200 });
+            return NextResponse.json({
+                promotions: ensurePromotionList([]),
+                documentCopy: normalizeDocumentCopy()
+            }, { status: 200 });
         }
     } catch (err) {
         console.error("GET Settings Error:", err);
@@ -70,10 +75,14 @@ export async function POST(request) {
         }
         
         const settingsData = await request.json();
-        await adminDb.collection("settings").doc("pricing").set({
-            ...settingsData,
-            promotions: settingsData.promotions ? ensurePromotionList(settingsData.promotions) : undefined
-        }, { merge: true });
+        const payload = { ...settingsData };
+        if (settingsData.promotions) {
+            payload.promotions = ensurePromotionList(settingsData.promotions);
+        }
+        if (settingsData.documentCopy) {
+            payload.documentCopy = normalizeDocumentCopy(settingsData.documentCopy);
+        }
+        await adminDb.collection("settings").doc("pricing").set(payload, { merge: true });
         return NextResponse.json({ message: "Settings saved successfully", settings: settingsData }, { status: 200 });
     } catch (err) {
         console.error("POST Settings Error:", err);

@@ -40,6 +40,7 @@ import {
     getBookingDocumentNumber
 } from "../lib/bookingDocuments";
 import { DEFAULT_PROMOTIONS, ensurePromotionList } from "../lib/promotions";
+import { DEFAULT_DOCUMENT_COPY, normalizeDocumentCopy } from "../lib/documentCopy";
 
 const V2SettingsManager = dynamic(() => import("./components/V2SettingsManager"), {
     ssr: false,
@@ -587,6 +588,7 @@ export default function Home() {
     // --- V2 Dynamic Catalog State ---
     const [v2Catalog, setV2Catalog] = useState(INITIAL_V2_CATALOG);
     const [promotionRules, setPromotionRules] = useState(DEFAULT_PROMOTIONS);
+    const [documentCopy, setDocumentCopy] = useState(DEFAULT_DOCUMENT_COPY);
     const [promotionSaving, setPromotionSaving] = useState(false);
 
     // Form inputs for scheduling modal
@@ -1005,6 +1007,9 @@ export default function Home() {
                         }
                         if (data.promotions) {
                             setPromotionRules(ensurePromotionList(data.promotions));
+                        }
+                        if (data.documentCopy) {
+                            setDocumentCopy(normalizeDocumentCopy(data.documentCopy));
                         }
                         setPricingRates(prev => {
                             const mergedServices = { ...DEFAULT_PRICES.services, ...data.services };
@@ -1843,14 +1848,16 @@ export default function Home() {
         }
         const companySnapshot = {
             ...(booking.companySnapshot || {}),
-            logoUrl: `${window.location.origin}/logo-full.png`
+            logoUrl: `${window.location.origin}/logo-full.png`,
+            promotions: promotionRules,
+            documentCopy
         };
         popup.document.open();
         const customerPortalUrl = `${window.location.origin}/customer-access?phone=${encodeURIComponent(String(booking.customerPortalPhone || booking.phone || "").replace(/\D+/g, ""))}&document=${encodeURIComponent(booking.invoiceNumber || booking.estimateNumber || booking.orderNumber || "")}&bookingId=${encodeURIComponent(booking.id || "")}`;
         popup.document.write(buildBookingDocumentHtml({ ...booking, companySnapshot, customerPortalUrl }));
         popup.document.close();
         return popup;
-    }, []);
+    }, [documentCopy, promotionRules]);
 
     const handleDownloadBookingDocument = useCallback(async (booking) => {
         if (!booking?.id) return;
@@ -2158,7 +2165,7 @@ export default function Home() {
             const res = await fetch("/api/settings", {
                 method: "POST",
                 headers,
-                body: JSON.stringify({ v2_catalog: v2Catalog, promotions: promotionRules })
+                body: JSON.stringify({ v2_catalog: v2Catalog, promotions: promotionRules, documentCopy })
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
@@ -2170,6 +2177,10 @@ export default function Home() {
         } finally {
             setPromotionSaving(false);
         }
+    };
+
+    const updateDocumentCopyField = (field, value) => {
+        setDocumentCopy(prev => ({ ...prev, [field]: value }));
     };
 
     const updateStaffDraftField = useCallback((section, field, value) => {
@@ -2837,7 +2848,8 @@ export default function Home() {
                     branchEmail: matchedBranch.email,
                     taxLabel: matchedBranch.taxLabel,
                     taxRate: matchedBranch.taxRate,
-                    promotions: promotionRules
+                    promotions: promotionRules,
+                    documentCopy
                 }
             };
             const res = await fetch("/api/bookings", {
@@ -2857,7 +2869,7 @@ export default function Home() {
         } catch (err) {
             alert(`Checkout failed: ${err.message}`);
         }
-    }, [activeBranch, adminCartTotals, adminCheckoutForm, adminServiceCart, currentUser, fieldStaff, getAuthHeaders, promotionRules, syncDatabaseData]);
+    }, [activeBranch, adminCartTotals, adminCheckoutForm, adminServiceCart, currentUser, documentCopy, fieldStaff, getAuthHeaders, promotionRules, syncDatabaseData]);
 
     const handleAdminCheckoutNext = useCallback(() => {
         if (!validateAdminCheckoutStep(adminCheckoutStep, adminCheckoutForm)) {
@@ -5404,15 +5416,57 @@ export default function Home() {
                             <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                                 <div>
                                     <p className="text-xs font-bold uppercase tracking-[0.28em] text-sky-700">Promotions</p>
-                                    <h3 className="mt-2 text-3xl font-black text-slate-900">Referral and Discount Control</h3>
+                                    <h3 className="mt-2 text-3xl font-black text-slate-900">Document, Referral and Discount Control</h3>
                                     <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-500">
-                                        Manage one-time promos, stackable offers, solo-only discounts, repeat rules, and referral-linked campaigns.
-                                        The referral code shown on estimates now comes from here and is stored on the booking.
+                                        Manage the wording shown on estimates, bookings, invoices, receipts, and any public promotions shown to customers.
                                     </p>
                                 </div>
                                 <button onClick={handleSavePromotions} className="btn btn-primary btn-sm" disabled={promotionSaving}>
-                                    {promotionSaving ? "Saving..." : "Save Promotions"}
+                                    {promotionSaving ? "Saving..." : "Save Document Settings"}
                                 </button>
+                            </div>
+                        </div>
+
+                        <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+                            <div className="mb-5">
+                                <p className="text-xs font-bold uppercase tracking-[0.24em] text-emerald-700">Customer Document Copy</p>
+                                <h4 className="mt-2 text-2xl font-black text-slate-900">Terms, Notes and Service Notes</h4>
+                                <p className="mt-2 text-sm leading-6 text-slate-500">
+                                    Use <code className="rounded bg-slate-100 px-1 py-0.5">{"{document}"}</code> inside terms when you want the system to write estimate, booking, invoice, or receipt automatically.
+                                </p>
+                            </div>
+                            <div className="grid gap-5 lg:grid-cols-2">
+                                <div className="grid gap-3 rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+                                    <label className="flex flex-col gap-1">
+                                        <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Service Notes Title</span>
+                                        <input value={documentCopy.serviceNotesTitle || ""} onChange={e => updateDocumentCopyField("serviceNotesTitle", e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2" />
+                                    </label>
+                                    <label className="flex flex-col gap-1">
+                                        <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Default Service Notes Body</span>
+                                        <textarea value={documentCopy.serviceNotesBody || ""} onChange={e => updateDocumentCopyField("serviceNotesBody", e.target.value)} className="min-h-[120px] rounded-xl border border-slate-200 px-3 py-2" />
+                                    </label>
+                                </div>
+                                <div className="grid gap-3 rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+                                    <label className="flex flex-col gap-1">
+                                        <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Notes Title</span>
+                                        <input value={documentCopy.notesTitle || ""} onChange={e => updateDocumentCopyField("notesTitle", e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2" />
+                                    </label>
+                                    <label className="flex flex-col gap-1">
+                                        <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Notes Body</span>
+                                        <textarea value={documentCopy.notesBody || ""} onChange={e => updateDocumentCopyField("notesBody", e.target.value)} className="min-h-[120px] rounded-xl border border-slate-200 px-3 py-2" />
+                                    </label>
+                                </div>
+                                <div className="grid gap-3 rounded-[22px] border border-slate-200 bg-slate-50 p-4 lg:col-span-2">
+                                    <label className="flex flex-col gap-1">
+                                        <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Terms Title</span>
+                                        <input value={documentCopy.termsTitle || ""} onChange={e => updateDocumentCopyField("termsTitle", e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2" />
+                                    </label>
+                                    <label className="flex flex-col gap-1">
+                                        <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Terms Body</span>
+                                        <textarea value={documentCopy.termsBody || ""} onChange={e => updateDocumentCopyField("termsBody", e.target.value)} className="min-h-[180px] rounded-xl border border-slate-200 px-3 py-2 font-mono text-sm leading-6" />
+                                    </label>
+                                    <p className="text-xs text-slate-500">Each line becomes one bullet in the PDF and document preview.</p>
+                                </div>
                             </div>
                         </div>
 

@@ -9,7 +9,8 @@ import {
     getBookingDocumentLabel,
     getBookingDocumentNumber
 } from "../../../../lib/bookingDocuments";
-import { buildCustomerPortalUrl } from "../../../../lib/promotions";
+import { buildCustomerPortalUrl, ensurePromotionList } from "../../../../lib/promotions";
+import { normalizeDocumentCopy } from "../../../../lib/documentCopy";
 
 function appendAuditLog(existingLog = [], event = {}) {
     return [
@@ -68,6 +69,21 @@ async function loadLogoBuffer(origin) {
     }
 }
 
+async function loadDocumentCompanySnapshot(origin, booking = {}) {
+    const settingsSnap = await adminDb.collection("settings").doc("pricing").get();
+    const settings = settingsSnap.exists ? settingsSnap.data() : {};
+    const currentPromotions = Array.isArray(settings.promotions)
+        ? ensurePromotionList(settings.promotions)
+        : ((booking.companySnapshot || {}).promotions || booking.promotions);
+
+    return {
+        ...(booking.companySnapshot || {}),
+        logoUrl: `${origin}/logo-full.png`,
+        promotions: currentPromotions,
+        documentCopy: normalizeDocumentCopy(settings.documentCopy || (booking.companySnapshot || {}).documentCopy || booking.documentCopy)
+    };
+}
+
 async function loadBookingForDocument(request, bookingId) {
     const user = await authenticateRequest(request);
     const role = normalizeRole(user.role);
@@ -102,10 +118,7 @@ export async function GET(request) {
 
         const { booking } = loaded;
         const origin = request.headers.get("origin") || request.nextUrl.origin;
-        const companySnapshot = {
-            ...(booking.companySnapshot || {}),
-            logoUrl: `${origin}/logo-full.png`
-        };
+        const companySnapshot = await loadDocumentCompanySnapshot(origin, booking);
         const customerPortalUrl = buildCustomerPortalUrl(origin, {
             ...booking,
             phone: booking.customerPortalPhone || booking.phone
@@ -159,10 +172,7 @@ export async function POST(request) {
         const documentLabel = getBookingDocumentLabel(booking);
         const documentNumber = getBookingDocumentNumber(booking);
         const origin = request.headers.get("origin") || request.nextUrl.origin;
-        const companySnapshot = {
-            ...(booking.companySnapshot || {}),
-            logoUrl: `${origin}/logo-full.png`
-        };
+        const companySnapshot = await loadDocumentCompanySnapshot(origin, booking);
         const customerPortalUrl = buildCustomerPortalUrl(origin, {
             ...booking,
             phone: booking.customerPortalPhone || booking.phone
