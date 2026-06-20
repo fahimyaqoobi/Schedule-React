@@ -1,72 +1,109 @@
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Work+Sans:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
-@theme {
-    --color-brand-action: #0352FC;
-    --color-brand-deep: #005691;
-    --color-brand-green: #78A53E;
-    --color-brand-sky: #00B2EE;
-    --color-brand-horizon: #3E8EDE;
-    --color-brand-slate: #333F48;
-    --color-brand-mint: #A8D1A5;
-    --color-brand-mist: #BFE3ED;
-    --font-heading: "Manrope", sans-serif;
-    --font-body: "Work Sans", sans-serif;
-    --radius-brand-sm: 8px;
-    --radius-brand-lg: 24px;
-    --shadow-sparkle: 0 10px 15px -3px rgba(3, 82, 252, 0.1), 0 4px 6px -2px rgba(3, 82, 252, 0.05);
+/* ============================================================
+   SMARTOUCH CLEAN — Apple/iOS Typography System
+   Native SF Pro on Apple devices (-apple-system), with self-hosted
+   Inter (variable, OFL) as the cross-platform fallback. iPhones/iPads/
+   Macs render genuine SF Pro and never download Inter; Android/Windows/
+   Linux render Inter — one clean, system-native look everywhere.
+   ============================================================ */
+@font-face {
+    font-family: 'Inter';
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url('/fonts/InterVariable.woff2') format('woff2');
+}
+@font-face {
+    font-family: 'Inter';
+    font-style: italic;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url('/fonts/InterVariable-Italic.woff2') format('woff2');
 }
 
-/* SmartTouch CLEAN | Digital Brand System (v1.0) */
+@theme {
+    --color-brand-action: #0A6CB8;   /* Trust Blue, energized for UI */
+    --color-brand-deep: #005691;     /* Deep Pro Blue */
+    --color-brand-green: #78A53E;    /* Leaf Green */
+    --color-brand-sky: #00B2EE;      /* Sky Blue */
+    --color-brand-horizon: #3E8EDE;  /* Horizon Blue */
+    --color-brand-forest: #387C2B;   /* Deep Forest */
+    --color-brand-slate: #333F48;    /* Slate Gray */
+    --color-brand-mint: #A8D1A5;     /* Soft Mint */
+    --color-brand-mist: #BFE3ED;     /* Mist Blue */
+    --font-heading: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --radius-brand-sm: 10px;
+    --radius-brand-lg: 22px;
+    --shadow-sparkle: 0 10px 30px -12px rgba(0, 86, 145, 0.18), 0 4px 10px -4px rgba(0, 86, 145, 0.08);
+}
+
+/* Smartouch Clean | Digital Brand System (v2.0) */
 :root {
-    --color-brand-action: #0352FC;
+    /* ---- Brand core palette ---- */
+    --color-brand-action: #0A6CB8;
     --color-brand-deep: #005691;
     --color-brand-green: #78A53E;
     --color-brand-sky: #00B2EE;
     --color-brand-horizon: #3E8EDE;
+    --color-brand-forest: #387C2B;
     --color-slate: #333F48;
     --color-mint: #A8D1A5;
     --color-mist: #BFE3ED;
     --color-white: #FFFFFF;
-    --radius-sm: 8px;
-    --radius-lg: 24px;
-    --shadow-sparkle: 0 10px 15px -3px rgba(3, 82, 252, 0.1), 0 4px 6px -2px rgba(3, 82, 252, 0.05);
+    --radius-sm: 10px;
+    --radius-lg: 22px;
+    --shadow-sparkle: 0 10px 30px -12px rgba(0, 86, 145, 0.18), 0 4px 10px -4px rgba(0, 86, 145, 0.08);
 
-    --bg-main: #f7fbff;
-    --bg-sidebar: rgba(255, 255, 255, 0.92);
-    --card-bg: rgba(255, 255, 255, 0.84);
-    --card-border: var(--color-mist);
+    /* ---- Signature gradients (blue swoosh + eco leaf) ---- */
+    --brand-gradient: linear-gradient(135deg, #005691 0%, #0A6CB8 48%, #00A3E0 100%);
+    --brand-gradient-soft: linear-gradient(135deg, #0A6CB8 0%, #00B2EE 100%);
+    --brand-gradient-eco: linear-gradient(135deg, #387C2B 0%, #78A53E 55%, #00A3E0 100%);
+    --brand-gradient-hero: linear-gradient(120deg, #00406b 0%, #005691 42%, #0A6CB8 100%);
+    --brand-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 62%);
+
+    --bg-main: #f4f9fd;
+    --bg-sidebar: rgba(255, 255, 255, 0.94);
+    --card-bg: rgba(255, 255, 255, 0.88);
+    --card-border: #d8e8f3;
     --card-hover-border: var(--color-brand-sky);
     --text-primary: var(--color-slate);
-    --text-secondary: #51606a;
-    --text-muted: #94a3b8;
+    --text-secondary: #566570;
+    --text-muted: #8fa3b1;
 
     --accent-blue: var(--color-brand-action);
-    --accent-blue-glow: rgba(3, 82, 252, 0.08);
+    --accent-blue-glow: rgba(10, 108, 184, 0.09);
     --accent-green: var(--color-brand-green);
-    --accent-green-glow: rgba(120, 165, 62, 0.10);
+    --accent-green-glow: rgba(120, 165, 62, 0.11);
 
     /* System Accents mapped to theme */
     --accent-purple: var(--color-brand-horizon);
-    --accent-purple-glow: rgba(62, 142, 222, 0.10);
+    --accent-purple-glow: rgba(62, 142, 222, 0.11);
     --accent-cyan: var(--color-brand-sky);
-    --accent-cyan-glow: rgba(0, 178, 238, 0.10);
+    --accent-cyan-glow: rgba(0, 178, 238, 0.11);
     --accent-yellow: #d97706;
-    --accent-yellow-glow: rgba(217, 119, 6, 0.06);
+    --accent-yellow-glow: rgba(217, 119, 6, 0.07);
     --accent-rose: #dc2626;
-    --accent-rose-glow: rgba(220, 38, 38, 0.06);
-    
+    --accent-rose-glow: rgba(220, 38, 38, 0.07);
+
     /* Layout constants */
-    --sidebar-width: 260px;
+    --sidebar-width: 264px;
     --header-height: 80px;
     --border-radius-lg: var(--radius-lg);
-    --border-radius-md: 12px;
+    --border-radius-md: 14px;
     --border-radius-sm: var(--radius-sm);
-    --font-family: 'Work Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    --font-heading: 'Manrope', sans-serif;
+    /* Apple system font (SF Pro) → self-hosted Inter → platform UI fonts */
+    --font-system: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", "Helvetica Neue", "Segoe UI", Roboto, Arial, sans-serif;
+    --font-family: var(--font-system);
+    --font-heading: var(--font-system);
     --box-shadow: var(--shadow-sparkle);
-    --box-shadow-lg: 0 20px 50px -12px rgba(3, 82, 252, 0.16);
-    --transition-speed: 0.25s;
+    --box-shadow-lg: 0 24px 60px -18px rgba(0, 86, 145, 0.22);
+    --transition-speed: 0.22s;
+
+    /* iOS safe-area insets (mobile bottom nav / notch) */
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-top: env(safe-area-inset-top, 0px);
 }
 
 /* Base resets & layouts */
@@ -76,14 +113,30 @@
     box-sizing: border-box;
 }
 
+html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
+
 body {
     background-color: var(--bg-main);
+    /* Fresh "spring" wash — a whisper of sky blue and leaf green behind the UI */
+    background-image:
+        radial-gradient(1100px 620px at 100% -8%, rgba(0, 178, 238, 0.07), transparent 60%),
+        radial-gradient(950px 540px at -10% 108%, rgba(120, 165, 62, 0.06), transparent 58%);
+    background-attachment: fixed;
     color: var(--text-primary);
     font-family: var(--font-family);
     font-size: 15px;
+    min-height: 100dvh;
     overflow-x: hidden;
-    line-height: 1.65;
+    line-height: 1.6;
+    letter-spacing: -0.006em;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-synthesis: none;
+    -webkit-tap-highlight-color: transparent;
 }
 
 h1, h2, h3, h4, h5, h6,
@@ -111,7 +164,7 @@ label {
 
 .text-primary { color: var(--color-brand-action); }
 .bg-primary { background-color: var(--color-brand-action); }
-.bg-primary-10 { background-color: rgba(3, 82, 252, 0.10); }
+.bg-primary-10 { background-color: rgba(10, 108, 184, 0.10); }
 .border-primary { border-color: var(--color-brand-action); }
 .text-secondary { color: var(--color-brand-green); }
 .bg-secondary { background-color: var(--color-brand-green); }
@@ -225,13 +278,15 @@ label {
 
 .nav-item:hover {
     color: var(--accent-blue);
-    background-color: rgba(2, 104, 179, 0.04);
+    background-color: rgba(10, 108, 184, 0.05);
 }
 
 .nav-item.active {
-    color: var(--accent-blue);
-    background: rgba(2, 104, 179, 0.07);
-    border-left: 4px solid var(--accent-blue);
+    color: var(--color-brand-deep);
+    font-weight: 700;
+    background: linear-gradient(90deg, rgba(10, 108, 184, 0.12) 0%, rgba(0, 178, 238, 0.05) 100%);
+    border-left: 4px solid var(--color-brand-action);
+    box-shadow: inset 0 0 0 1px rgba(10, 108, 184, 0.06);
 }
 
 .nav-icon {
@@ -419,43 +474,54 @@ label {
     justify-content: center;
     gap: 8px;
     border-radius: var(--radius-sm);
+    font-family: var(--font-heading);
     font-size: 14px;
     font-weight: 700;
     padding: 11px 24px;
     cursor: pointer;
-    transition: all var(--transition-speed) ease;
+    transition: transform var(--transition-speed) ease, box-shadow var(--transition-speed) ease, filter var(--transition-speed) ease, background-color var(--transition-speed) ease;
     border: none;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.01em;
     white-space: nowrap;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.btn:focus-visible {
+    outline: 3px solid rgba(10, 108, 184, 0.45);
+    outline-offset: 2px;
 }
 
 .btn-primary {
-    background-color: var(--color-brand-action);
+    background-image: var(--brand-gradient);
+    background-color: var(--color-brand-deep);
     color: var(--color-white);
-    box-shadow: 0 4px 16px rgba(3, 82, 252, 0.22);
+    box-shadow: 0 6px 18px -4px rgba(0, 86, 145, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
 .btn-primary:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(3, 82, 252, 0.35);
-    filter: brightness(1.10);
+    box-shadow: 0 12px 26px -6px rgba(0, 86, 145, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    filter: brightness(1.06) saturate(1.05);
 }
 
 .btn-primary:active {
     transform: translateY(0);
+    filter: brightness(0.98);
 }
 
 .btn-secondary {
+    background-image: var(--brand-gradient-eco);
     background-color: var(--color-brand-green);
-    border: 1.5px solid var(--color-brand-green);
+    border: none;
     color: var(--color-white);
-    box-shadow: 0 4px 14px rgba(120, 165, 62, 0.2);
+    box-shadow: 0 6px 16px -4px rgba(56, 124, 43, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
 .btn-secondary:hover {
-    filter: brightness(1.10);
+    filter: brightness(1.06) saturate(1.05);
     transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(120, 165, 62, 0.28);
+    box-shadow: 0 12px 24px -6px rgba(56, 124, 43, 0.44), inset 0 1px 0 rgba(255, 255, 255, 0.22);
 }
 
 .btn-danger {
@@ -1709,7 +1775,7 @@ label {
 .form-group select:focus,
 .form-group textarea:focus {
     border-color: var(--color-brand-action) !important;
-    box-shadow: 0 0 0 3px rgba(3, 82, 252, 0.15) !important;
+    box-shadow: 0 0 0 3px rgba(10, 108, 184, 0.15) !important;
     background-color: #fff !important;
 }
 
@@ -1733,7 +1799,7 @@ label {
 .catalog-studio-field:focus {
     background-color: #ffffff !important;
     border-color: var(--color-brand-action) !important;
-    box-shadow: 0 0 0 3px rgba(3, 82, 252, 0.15) !important;
+    box-shadow: 0 0 0 3px rgba(10, 108, 184, 0.15) !important;
 }
 
 .catalog-studio-field-currency {
@@ -1832,7 +1898,7 @@ label {
 }
 
 .catalog-studio-button-secondary {
-    background: rgba(3, 82, 252, 0.08);
+    background: rgba(10, 108, 184, 0.08);
     color: var(--color-brand-action);
 }
 
@@ -2371,14 +2437,14 @@ label {
     width: 84px;
     height: 84px;
     border-radius: 24px;
-    background: linear-gradient(135deg, #0352FC 0%, #38bdf8 100%);
+    background: linear-gradient(135deg, #0A6CB8 0%, #38bdf8 100%);
     color: #fff;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 28px;
     font-weight: 900;
-    box-shadow: 0 18px 30px rgba(3, 82, 252, 0.2);
+    box-shadow: 0 18px 30px rgba(10, 108, 184, 0.2);
 }
 
 .people-profile-headings h3 {
@@ -2829,7 +2895,7 @@ label {
 .admin-payroll-summary strong {
     font-size: 22px;
     font-weight: 900;
-    color: #00327d;
+    color: #00426d;
 }
 
 .cleaner-payroll-summary-foot {
@@ -2848,7 +2914,7 @@ label {
     border-radius: 999px;
     margin: 0 auto;
     border: 10px solid #dbeafe;
-    background: #00327d;
+    background: #00426d;
     color: #fff;
     display: flex;
     flex-direction: column;
@@ -2905,7 +2971,7 @@ label {
 .admin-payroll-row-actions button {
     border-radius: 999px;
     padding: 10px 16px;
-    background: #00327d;
+    background: #00426d;
     color: #fff;
     font-weight: 800;
 }
@@ -3025,7 +3091,7 @@ label {
     font-size: 36px;
     line-height: 1;
     font-weight: 900;
-    color: #00327d;
+    color: #00426d;
 }
 
 .hr-hub-metric-card em {
@@ -3220,7 +3286,7 @@ label {
 }
 
 .people-profile-summary-card {
-    background: linear-gradient(180deg, #0f4aa3 0%, #0a2f73 100%);
+    background: linear-gradient(180deg, #005691 0%, #003a5f 100%);
     color: #fff;
     border-radius: 20px;
     padding: 22px;
@@ -3277,7 +3343,7 @@ label {
     min-height: 52px;
     border-radius: 14px;
     background: #fff;
-    color: #0f4aa3;
+    color: #005691;
     font-size: 18px;
     font-weight: 900;
 }
@@ -3377,7 +3443,7 @@ label {
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #0f4aa3;
+    color: #005691;
     font-size: 34px;
     font-weight: 900;
 }
@@ -3431,7 +3497,7 @@ label {
     min-height: 42px;
     border-radius: 999px;
     background: #eff6ff;
-    color: #0f4aa3;
+    color: #005691;
     padding: 0 16px;
     font-size: 13px;
     font-weight: 900;
@@ -3456,14 +3522,14 @@ label {
 }
 
 .people-file-upload-field strong {
-    color: #0f4aa3;
+    color: #005691;
     font-size: 13px;
     font-weight: 800;
 }
 
 .people-file-upload-field a,
 .people-profile-read-list a {
-    color: #0f4aa3;
+    color: #005691;
     text-decoration: underline;
     font-weight: 800;
 }
@@ -3537,7 +3603,7 @@ label {
 }
 
 .people-mobile-profile-stats strong {
-    color: #0f4aa3;
+    color: #005691;
     font-size: 26px;
     font-weight: 900;
 }
@@ -3576,8 +3642,8 @@ label {
 }
 
 .people-mobile-profile-tabs button.active {
-    color: #0f4aa3;
-    border-bottom-color: #0f4aa3;
+    color: #005691;
+    border-bottom-color: #005691;
 }
 
 .people-mobile-profile-content {
@@ -3596,7 +3662,7 @@ label {
 
 .people-mobile-card-group label,
 .people-mobile-blocked-wrap label {
-    color: #0f4aa3;
+    color: #005691;
     font-size: 12px;
     font-weight: 900;
     text-transform: uppercase;
@@ -3697,7 +3763,7 @@ label {
     justify-content: space-between;
     gap: 16px;
     border-radius: 22px;
-    background: linear-gradient(135deg, #0f4aa3 0%, #0b2f72 100%);
+    background: linear-gradient(135deg, #005691 0%, #0b2f72 100%);
     color: #ffffff;
     padding: 18px;
 }
@@ -3840,7 +3906,7 @@ label {
     height: 60px;
     border-radius: 999px;
     border: none;
-    background: #0f4aa3;
+    background: #005691;
     color: #ffffff;
     box-shadow: 0 14px 30px rgba(15, 74, 163, 0.28);
     display: none;
@@ -4207,7 +4273,7 @@ select option:disabled {
     outline: none;
     border-color: var(--color-brand-action);
     background-color: #ffffff;
-    box-shadow: 0 0 0 3px rgba(3, 82, 252, 0.15);
+    box-shadow: 0 0 0 3px rgba(10, 108, 184, 0.15);
 }
 
 /* Edit review side-by-side modifications comparison styles */
@@ -4296,7 +4362,7 @@ select option:disabled {
 
     .main-content {
         margin-left: 0 !important;
-        padding: 16px 16px 85px 16px !important; /* Space for the bottom nav bar */
+        padding: 16px 16px calc(82px + var(--safe-bottom)) 16px !important; /* Space for the bottom nav bar */
     }
 
     /* Floating Action Button (FAB) on mobile header */
@@ -4395,7 +4461,7 @@ select option:disabled {
         width: 100% !important;
         max-width: 100% !important;
         box-sizing: border-box !important;
-        padding: 16px 16px 85px 16px !important;
+        padding: 16px 16px calc(82px + var(--safe-bottom)) 16px !important;
     }
 
     /* Lock navigation bar permanently at the very bottom */
@@ -4534,16 +4600,18 @@ select option:disabled {
         bottom: 0 !important;
         left: 0 !important;
         right: 0 !important;
-        height: 65px !important;
-        background-color: rgba(255, 255, 255, 0.96) !important;
+        height: calc(64px + var(--safe-bottom)) !important;
+        box-sizing: border-box !important;
+        background-color: rgba(255, 255, 255, 0.9) !important;
         border-top: 1px solid var(--card-border) !important;
-        box-shadow: 0 -4px 20px rgba(15, 23, 42, 0.05) !important;
+        box-shadow: 0 -6px 26px rgba(0, 86, 145, 0.08) !important;
         z-index: 9999 !important;
         justify-content: flex-start !important;
         align-items: center !important;
-        backdrop-filter: blur(20px) !important;
+        backdrop-filter: blur(22px) saturate(1.12) !important;
+        -webkit-backdrop-filter: blur(22px) saturate(1.12) !important;
         margin: 0 !important;
-        padding: 0 10px !important;
+        padding: 0 8px var(--safe-bottom) 8px !important;
         overflow-x: auto !important;
         scrollbar-width: none !important;
         -webkit-overflow-scrolling: touch !important;
@@ -4554,31 +4622,49 @@ select option:disabled {
     }
 
     .mobile-nav-item {
+        position: relative !important;
         display: flex !important;
         flex-direction: column !important;
         align-items: center !important;
         justify-content: center !important;
         gap: 4px !important;
-        padding: 6px 0 !important;
+        padding: 8px 0 !important;
+        margin: 5px 2px !important;
+        border-radius: 14px !important;
+        font-family: var(--font-heading) !important;
         font-size: 10px !important;
-        font-weight: 600 !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.01em !important;
         color: var(--text-secondary) !important;
-        min-width: 82px !important;
-        width: 82px !important;
+        min-width: 76px !important;
+        width: 76px !important;
         background: none !important;
         border: none !important;
         outline: none !important;
         cursor: pointer !important;
-        transition: all var(--transition-speed) ease !important;
+        transition: color var(--transition-speed) ease, background var(--transition-speed) ease !important;
     }
 
     .mobile-nav-item.active {
-        color: var(--accent-blue) !important;
+        color: var(--color-brand-deep) !important;
+        background: linear-gradient(180deg, var(--accent-blue-glow), rgba(10, 108, 184, 0)) !important;
+    }
+
+    .mobile-nav-item.active::after {
+        content: '' !important;
+        position: absolute !important;
+        top: -5px !important;
+        left: 50% !important;
+        transform: translateX(-50%) !important;
+        width: 28px !important;
+        height: 3px !important;
+        border-radius: 0 0 4px 4px !important;
+        background-image: var(--brand-gradient-soft) !important;
     }
 
     .mobile-nav-item svg {
-        width: 20px !important;
-        height: 20px !important;
+        width: 21px !important;
+        height: 21px !important;
         stroke-width: 2.2 !important;
     }
 
@@ -4682,7 +4768,7 @@ select option:disabled {
 .ops-eyebrow {
     margin: 0 0 0.25rem;
     color: #006878;
-    font-family: "Montserrat", system-ui, sans-serif;
+    font-family: var(--font-heading);
     font-size: 0.74rem;
     font-weight: 900;
     letter-spacing: 0.05em;
@@ -4691,8 +4777,8 @@ select option:disabled {
 
 .ops-title {
     margin: 0;
-    color: #00327d;
-    font-family: "Montserrat", system-ui, sans-serif;
+    color: #00426d;
+    font-family: var(--font-heading);
     font-size: 1.75rem;
     font-weight: 900;
     line-height: 1.2;
@@ -4762,14 +4848,14 @@ select option:disabled {
     place-items: center;
     border-radius: 0.75rem;
     background: #f3f4f5;
-    color: #00327d;
+    color: #00426d;
 }
 
 .department-card h4,
 .permission-card h4 {
     margin: 1rem 0 0.35rem;
     color: #191c1d;
-    font-family: "Montserrat", system-ui, sans-serif;
+    font-family: var(--font-heading);
     font-size: 1rem;
     font-weight: 900;
 }
@@ -4806,7 +4892,7 @@ select option:disabled {
 
 .permission-departments span.allowed {
     background: #dae2ff;
-    color: #00327d;
+    color: #00426d;
 }
 
 .permission-flags {
@@ -4844,7 +4930,7 @@ select option:disabled {
 }
 
 .notification-requirements-grid strong {
-    color: #00327d;
+    color: #00426d;
     font-family: var(--font-heading);
     font-size: 15px;
     font-weight: 800;
@@ -4888,7 +4974,7 @@ select option:disabled {
 
 .admin-command-header h3 {
     margin: 0;
-    color: #00327d;
+    color: #00426d;
     font-family: var(--font-heading);
     font-size: clamp(28px, 4vw, 44px);
     font-weight: 800;
@@ -4931,7 +5017,7 @@ select option:disabled {
     height: 22px;
     place-items: center;
     border-radius: 50%;
-    background: #00327d;
+    background: #00426d;
     color: #ffffff;
     font-size: 11px;
     font-weight: 900;
@@ -4948,7 +5034,7 @@ select option:disabled {
     min-height: 44px;
     border: 0;
     border-radius: 8px;
-    background: #00327d;
+    background: #00426d;
     color: #ffffff;
     padding: 10px 16px;
     font-size: 14px;
@@ -4968,7 +5054,7 @@ select option:disabled {
     margin-top: 16px;
     border: 1px solid #c3c6d5;
     background: #ffffff;
-    color: #00327d;
+    color: #00426d;
 }
 
 .admin-checkout-btn {
@@ -5112,7 +5198,7 @@ select option:disabled {
 }
 
 .admin-service-card:hover {
-    border-color: #00327d;
+    border-color: #00426d;
     box-shadow: 0 10px 24px rgba(0, 50, 125, 0.1);
     transform: translateY(-2px);
 }
@@ -5138,7 +5224,7 @@ select option:disabled {
     bottom: 12px;
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.92);
-    color: #00327d;
+    color: #00426d;
     padding: 5px 9px;
     font-size: 11px;
     font-weight: 900;
@@ -5182,7 +5268,7 @@ select option:disabled {
 
 .admin-service-title-row h5 {
     margin: 0;
-    color: #00327d;
+    color: #00426d;
     font-family: var(--font-heading);
     font-size: 18px;
     font-weight: 800;
@@ -5303,7 +5389,7 @@ select option:disabled {
 .admin-cart-price .admin-cart-edit {
     border-color: #c7d7fe;
     background: #f5f8ff;
-    color: #00327d;
+    color: #00426d;
 }
 
 .admin-cart-breakdown {
@@ -5334,7 +5420,7 @@ select option:disabled {
 }
 
 .admin-cart-breakdown strong {
-    color: #00327d;
+    color: #00426d;
     font-weight: 950;
 }
 
@@ -5363,7 +5449,7 @@ select option:disabled {
 }
 
 .admin-cart-grand strong {
-    color: #00327d;
+    color: #00426d;
     font-family: var(--font-heading);
     font-size: 22px;
 }
@@ -5396,7 +5482,7 @@ select option:disabled {
 .admin-dispatch-item > span {
     border-radius: 8px;
     background: #dae2ff;
-    color: #00327d;
+    color: #00426d;
     padding: 7px 8px;
     font-size: 12px;
     font-weight: 900;
@@ -5444,7 +5530,7 @@ select option:disabled {
 
 .admin-hr-queue strong {
     display: block;
-    color: #00327d;
+    color: #00426d;
     font-family: var(--font-heading);
     font-size: 26px;
     font-weight: 800;
@@ -5532,7 +5618,7 @@ select option:disabled {
 
 .service-config-heading h4 {
     margin: 0;
-    color: #00327d;
+    color: #00426d;
     font-family: var(--font-heading);
     font-size: 19px;
     font-weight: 800;
@@ -5573,7 +5659,7 @@ select option:disabled {
 }
 
 .service-bathroom-picker label {
-    color: #00327d;
+    color: #00426d;
     font-family: var(--font-heading);
     font-size: 12px;
     font-weight: 900;
@@ -5595,7 +5681,7 @@ select option:disabled {
 }
 
 .service-bathroom-picker select:focus {
-    border-color: #00327d;
+    border-color: #00426d;
     box-shadow: 0 0 0 3px rgba(0, 50, 125, 0.1);
 }
 
@@ -5616,7 +5702,7 @@ select option:disabled {
 }
 
 .service-option-card.active {
-    border-color: #00327d;
+    border-color: #00426d;
     background: #f3f4f5;
     box-shadow: 0 8px 20px rgba(0, 50, 125, 0.08);
 }
@@ -5656,7 +5742,7 @@ select option:disabled {
 }
 
 .service-addon-row.active {
-    border-color: #00327d;
+    border-color: #00426d;
     background: #f3f4f5;
 }
 
@@ -5666,7 +5752,7 @@ select option:disabled {
     border: 1px solid #c3c6d5;
     border-radius: 8px;
     background: #fff;
-    color: #00327d;
+    color: #00426d;
     padding: 0 10px;
     font-size: 12px;
     font-weight: 800;
@@ -5697,7 +5783,7 @@ select option:disabled {
 }
 
 .service-config-footer strong {
-    color: #00327d;
+    color: #00426d;
     font-family: var(--font-heading);
     font-size: 28px;
     font-weight: 800;
@@ -5786,9 +5872,9 @@ select option:disabled {
 }
 
 .admin-staff-picker label.active {
-    border-color: #0352fc;
+    border-color: #0A6CB8;
     background: #f4f8ff;
-    box-shadow: 0 8px 18px rgba(3, 82, 252, 0.08);
+    box-shadow: 0 8px 18px rgba(10, 108, 184, 0.08);
 }
 
 .admin-staff-picker label.unavailable {
@@ -5852,7 +5938,7 @@ select option:disabled {
 .admin-checkout-grid input:focus,
 .admin-checkout-grid select:focus,
 .admin-checkout-grid textarea:focus {
-    border-color: #00327d;
+    border-color: #00426d;
     box-shadow: 0 0 0 3px rgba(0, 50, 125, 0.1);
 }
 
@@ -5921,8 +6007,8 @@ select option:disabled {
 }
 
 .admin-time-slot.selected {
-    border-color: #00327d;
-    background: #00327d;
+    border-color: #00426d;
+    background: #00426d;
 }
 
 .admin-time-slot.selected strong,
@@ -6074,7 +6160,7 @@ select option:disabled {
 }
 
 .admin-checkout-review-line em {
-    color: #00327d;
+    color: #00426d;
     font-size: 16px;
     font-style: normal;
     font-weight: 900;
@@ -6110,13 +6196,13 @@ select option:disabled {
 .admin-checkout-review-totals-row.total {
     border-top: 1px solid #dbe7ff;
     padding-top: 12px;
-    color: #00327d;
+    color: #00426d;
     font-size: 16px;
     font-weight: 900;
 }
 
 .admin-checkout-review-totals-row.total strong {
-    color: #00327d;
+    color: #00426d;
     font-size: 22px;
 }
 
@@ -6361,7 +6447,7 @@ select option:disabled {
     }
 
     .admin-checkout-summary .admin-checkout-total strong {
-        color: #00327d;
+        color: #00426d;
         font-size: 17px;
         text-align: right;
         white-space: nowrap;
@@ -6562,7 +6648,7 @@ select option:disabled {
 
 
 /* ============================================================
-   AUTH PAGE — Premium Split-Panel Design (SmartTouch Clean)
+   AUTH PAGE — Premium Split-Panel Design (Smartouch Clean)
    ============================================================ */
 
 .auth-fullscreen {
@@ -6579,6 +6665,7 @@ select option:disabled {
     justify-content: center;
     padding: 60px 48px;
     background-color: var(--color-brand-deep);
+    background-image: var(--brand-gradient-hero);
     position: relative;
     overflow: hidden;
 }
@@ -6783,7 +6870,7 @@ select option:disabled {
 .auth-field select:focus {
     border-color: var(--color-brand-action);
     background: #ffffff;
-    box-shadow: 0 0 0 3px rgba(3, 82, 252, 0.15);
+    box-shadow: 0 0 0 3px rgba(10, 108, 184, 0.18);
 }
 
 .auth-field input::placeholder { color: #94a3b8; }
@@ -6792,23 +6879,24 @@ select option:disabled {
     width: 100%;
     padding: 14px 24px;
     border: none;
-    border-radius: 10px;
-    background-color: var(--color-brand-action);
+    border-radius: 12px;
+    background-image: var(--brand-gradient);
+    background-color: var(--color-brand-deep);
     color: #ffffff;
     font-size: 15px;
-    font-weight: 700;
-    font-family: inherit;
+    font-weight: 800;
+    font-family: var(--font-heading);
     cursor: pointer;
-    transition: all 0.25s ease;
-    box-shadow: 0 4px 18px rgba(3,82,252,0.22);
+    transition: transform 0.22s ease, box-shadow 0.22s ease, filter 0.22s ease;
+    box-shadow: 0 8px 22px -6px rgba(0, 86, 145, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.2);
     margin-top: 8px;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.01em;
 }
 
 .auth-submit-btn:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 26px rgba(3,82,252,0.35);
-    filter: brightness(1.10);
+    box-shadow: 0 14px 30px -8px rgba(0, 86, 145, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.24);
+    filter: brightness(1.06) saturate(1.05);
 }
 
 .auth-submit-btn:active { transform: translateY(0); }
@@ -7974,4 +8062,64 @@ select option:disabled {
     overflow: hidden !important;
     text-overflow: ellipsis !important;
     display: block !important;
+}
+
+/* ============================================================
+   SMARTOUCH CLEAN — Brand Polish & Accessibility Layer (v2.0)
+   Additive refinements only — no structural/layout changes.
+   ============================================================ */
+
+/* On-brand text selection */
+::selection { background: rgba(10, 108, 184, 0.18); color: var(--color-brand-deep); }
+::-moz-selection { background: rgba(10, 108, 184, 0.18); color: var(--color-brand-deep); }
+
+/* Smooth in-page scrolling */
+html { scroll-behavior: smooth; }
+
+/* Media never overflows its column on small screens */
+img, picture, video, canvas { max-width: 100%; }
+
+/* Crisp, on-brand keyboard focus ring (does not affect mouse users) */
+a:focus-visible,
+button:focus-visible,
+[role="button"]:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+    outline: 3px solid rgba(10, 108, 184, 0.4);
+    outline-offset: 2px;
+}
+
+/* Thumb-friendly tap targets on touch devices (cleaners & customers on mobile) */
+@media (pointer: coarse) {
+    .nav-item,
+    .mobile-nav-item,
+    .btn,
+    .btn-sm,
+    .auth-submit-btn,
+    .auth-switch-link,
+    .filters-actions select {
+        min-height: 44px;
+    }
+    .auth-switch-link { display: inline-flex; align-items: center; }
+}
+
+/* Extra-small phones: keep dense admin chrome readable */
+@media (max-width: 360px) {
+    .mobile-nav-item {
+        min-width: 68px !important;
+        width: 68px !important;
+        font-size: 9.5px !important;
+    }
+    .view-title { font-size: 18px !important; }
+}
+
+/* Respect users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
+    }
 }

@@ -18,7 +18,7 @@ export default async function CustomerAccessPage({ searchParams }) {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontFamily: "Arial, sans-serif"
+            fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
         }}>
             <div style={{
                 width: "100%",
@@ -26,18 +26,18 @@ export default async function CustomerAccessPage({ searchParams }) {
                 background: "#ffffff",
                 borderRadius: 28,
                 border: "1px solid #d8e3ef",
-                boxShadow: "0 24px 70px rgba(6, 43, 99, 0.12)",
+                boxShadow: "0 24px 70px rgba(0, 86, 145, 0.16)",
                 overflow: "hidden"
             }}>
-                <div style={{ padding: "28px 24px 18px", background: "linear-gradient(135deg, #062b63 0%, #0d4ca1 100%)", color: "#ffffff" }}>
+                <div style={{ padding: "28px 24px 18px", background: "linear-gradient(135deg, #005691 0%, #0A6CB8 100%)", color: "#ffffff" }}>
                     <img src="/logo-full.png" alt="SmarTouch Clean" style={{ width: "100%", maxWidth: 168, height: "auto", display: "block", margin: "0 auto 18px" }} />
-                    <div style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.1 }}>Customer Estimate Access</div>
+                    <div style={{ fontSize: 30, fontWeight: 700, lineHeight: 1.1, letterSpacing: "-0.022em" }}>Customer Estimate Access</div>
                     <p style={{ margin: "10px 0 0", opacity: 0.92, lineHeight: 1.6 }}>Your estimate is linked to your phone number. Customer portal confirmation will continue from this secure access flow.</p>
                 </div>
 
                 <div style={{ padding: 24, display: "grid", gap: 16 }}>
                     <div style={{ padding: 18, borderRadius: 18, border: "1px solid #d8e3ef", background: "#f8fbff" }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", color: "#0d4ca1", textTransform: "uppercase", marginBottom: 10 }}>Linked Details</div>
+                        <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", color: "#0A6CB8", textTransform: "uppercase", marginBottom: 10 }}>Linked Details</div>
                         <div style={{ display: "grid", gap: 10 }}>
                             <div><strong>Phone Number:</strong> {phone || "Not provided"}</div>
                             <div><strong>Document Number:</strong> {documentNumber || "Pending"}</div>
@@ -46,7 +46,7 @@ export default async function CustomerAccessPage({ searchParams }) {
                     </div>
 
                     <div style={{ padding: 18, borderRadius: 18, border: "1px solid #d8e3ef", background: "#ffffff" }}>
-                        <div style={{ fontSize: 22, fontWeight: 800, color: "#10233f", marginBottom: 10 }}>Next step</div>
+                        <div style={{ fontSize: 22, fontWeight: 700, color: "#005691", marginBottom: 10, letterSpacing: "-0.018em" }}>Next step</div>
                         <p style={{ margin: 0, color: "#526276", lineHeight: 1.7 }}>
                             We are preparing the full customer portal so clients can confirm estimates, review invoices, and manage bookings by phone number in a clean mobile flow.
                         </p>
@@ -61,7 +61,7 @@ export default async function CustomerAccessPage({ searchParams }) {
                                 justifyContent: "center",
                                 padding: "14px 20px",
                                 borderRadius: 999,
-                                background: "#062b63",
+                                background: "#005691",
                                 color: "#ffffff",
                                 textDecoration: "none",
                                 fontWeight: 700
@@ -78,7 +78,7 @@ export default async function CustomerAccessPage({ searchParams }) {
                                 padding: "14px 20px",
                                 borderRadius: 999,
                                 background: "#eef4fb",
-                                color: "#062b63",
+                                color: "#005691",
                                 textDecoration: "none",
                                 fontWeight: 700
                             }}

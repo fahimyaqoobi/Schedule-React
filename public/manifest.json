@@ -4,8 +4,8 @@
   "description": "Secure, real-time client booking and operational crew dispatch manager.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#f4f6fa",
+  "background_color": "#f4f9fd",
+  "theme_color": "#005691",
   "icons": [
     {
       "src": "/logo-icon.png",
