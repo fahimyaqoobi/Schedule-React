@@ -30,7 +30,7 @@ export default async function CustomerAccessPage({ searchParams }) {
                 overflow: "hidden"
             }}>
                 <div style={{ padding: "28px 24px 18px", background: "linear-gradient(135deg, #062b63 0%, #0d4ca1 100%)", color: "#ffffff" }}>
-                    <img src="/logo-full.png" alt="SmarTouch Clean" style={{ width: "100%", maxWidth: 280, height: "auto", display: "block", marginBottom: 18 }} />
+                    <img src="/logo-full.png" alt="SmarTouch Clean" style={{ width: "100%", maxWidth: 168, height: "auto", display: "block", margin: "0 auto 18px" }} />
                     <div style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.1 }}>Customer Estimate Access</div>
                     <p style={{ margin: "10px 0 0", opacity: 0.92, lineHeight: 1.6 }}>Your estimate is linked to your phone number. Customer portal confirmation will continue from this secure access flow.</p>
                 </div>

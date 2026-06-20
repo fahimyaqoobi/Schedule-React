@@ -6015,7 +6015,7 @@ export default function Home() {
                                                 <h4 className="text-lg font-extrabold text-slate-800">{getBookingDocumentLabel(adminCheckoutForm.bookingStatus)} Preview</h4>
                                                 <p className="text-xs text-slate-500">{activeBranch.name} · {activeBranch.email || "info@smartouchclean.com"}</p>
                                             </div>
-                                            <img src="/logo-full.png" alt="SmarTouch Clean" className="h-12 w-auto" />
+                                            <img src="/logo-full.png" alt="SmarTouch Clean" className="h-16 w-auto object-contain" />
                                         </div>
                                         <div className="admin-checkout-review-sheet mt-4">
                                             <div className="admin-checkout-review-top">

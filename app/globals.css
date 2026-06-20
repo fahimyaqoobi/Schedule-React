@@ -157,17 +157,22 @@ label {
 }
 
 .brand-logo {
-    padding: 20px;
+    min-height: 104px;
+    padding: 18px 20px;
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 12px;
     border-bottom: 1px solid var(--card-border);
 }
 
 .brand-logo-img {
-    height: 44px;
-    width: auto;
+    width: 148px;
+    max-width: 100%;
+    height: auto;
+    max-height: 76px;
     object-fit: contain;
+    filter: drop-shadow(0 8px 18px rgba(6, 43, 99, 0.08));
 }
 
 .nav-links {
@@ -6555,7 +6560,8 @@ select option:disabled {
 }
 
 .auth-hero-logo {
-    width: 170px;
+    width: 190px;
+    max-width: 70%;
     height: auto;
     object-fit: contain;
     filter: drop-shadow(0 8px 24px rgba(0,0,0,0.28));
@@ -6677,7 +6683,7 @@ select option:disabled {
 
 .auth-card-logo-mobile {
     display: none;
-    width: 100px;
+    width: 138px;
     height: auto;
     margin: 0 auto 24px;
 }
@@ -6792,11 +6798,11 @@ select option:disabled {
     .auth-fullscreen { flex-direction: column; }
     .auth-hero { flex: none; padding: 36px 24px 28px; }
     .auth-hero-title { font-size: 22px; }
-    .auth-hero-logo { width: 110px; margin-bottom: 18px; }
+    .auth-hero-logo { width: 132px; margin-bottom: 18px; }
     .auth-hero-sub { margin-bottom: 12px; font-size: 13px; }
     .auth-quotes { display: none; }
     .auth-panel { width: 100%; min-width: 0; padding: 32px 20px 48px; }
-    .auth-card-logo-mobile { display: block; }
+    .auth-card-logo-mobile { display: block; width: 132px; }
 }
 
 /* Specific overrides for Rates & Pricing inputs to bypass global form-group !important widths */
