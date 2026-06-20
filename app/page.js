@@ -625,7 +625,12 @@ export default function Home() {
         status: "Pending",
         paymentStatus: "unpaid",
         serviceDescription: "",
-        accessDescription: ""
+        accessDescription: "",
+        cartItems: [],
+        subtotal: 87.50,
+        tax: 11.38,
+        promoCode: "",
+        giftCardCode: ""
     });
 
     // Details and Editing modals
@@ -1601,6 +1606,7 @@ export default function Home() {
         const nameParts = (b.clientName || "").split(" ");
         const fName = b.firstName || nameParts[0] || "";
         const lName = b.lastName || nameParts.slice(1).join(" ") || "";
+        const editableCartItems = normalizeEditableBookingCartItems(b.cartItems, b.service || "Cleaning Service", b.duration || 2, b.subtotal || b.price || 0);
         setBookingForm({
             id: b.id,
             firstName: fName,
@@ -1627,7 +1633,7 @@ export default function Home() {
             customDiscountPercent: b.customDiscountPercent || 0,
             customDiscountAmount: b.customDiscountAmount || 0,
             price: b.price || 87.50,
-            duration: b.duration || 2,
+            duration: b.duration || editableCartItems.reduce((sum, item) => sum + Number(item.durationHrs || 0), 0) || 2,
             date: b.date,
             time: b.time,
             team: "",
@@ -1636,7 +1642,12 @@ export default function Home() {
             status: b.status,
             paymentStatus: b.paymentStatus || "unpaid",
             serviceDescription: b.serviceDescription || "",
-            accessDescription: b.accessDescription || ""
+            accessDescription: b.accessDescription || "",
+            cartItems: editableCartItems,
+            subtotal: Number(b.subtotal || editableCartItems.reduce((sum, item) => sum + Number(item.price || 0), 0)),
+            tax: Number(b.tax || 0),
+            promoCode: b.promoCode || "",
+            giftCardCode: b.giftCardCode || ""
         });
         setAddressQuery(b.address1 || "");
         setBookingModalOpen(true);
@@ -1648,12 +1659,116 @@ export default function Home() {
         }
     };
 
+    const calculateBookingCartTotals = useCallback((cartItems = [], taxRate = 0, discountAmount = 0, discountPercent = 0) => {
+        const subtotal = cartItems.reduce((sum, item) => sum + Number(item.price || 0), 0);
+        const duration = cartItems.reduce((sum, item) => sum + Number(item.durationHrs || 0), 0);
+        const tax = subtotal * Number(taxRate || 0);
+        const percentDiscountValue = subtotal * (Number(discountPercent || 0) / 100);
+        const totalDiscount = Math.min(subtotal, Number(discountAmount || 0) + percentDiscountValue);
+        const total = Math.max(0, subtotal + tax - totalDiscount);
+        return { subtotal, tax, total, duration };
+    }, []);
+
+    const syncBookingFormCartTotals = useCallback((draft) => {
+        const totals = calculateBookingCartTotals(
+            draft.cartItems || [],
+            activeBranch.taxRate,
+            draft.customDiscountAmount || 0,
+            draft.customDiscountPercent || 0
+        );
+        return {
+            ...draft,
+            subtotal: totals.subtotal,
+            tax: totals.tax,
+            price: totals.total,
+            duration: totals.duration || draft.duration || 0
+        };
+    }, [activeBranch.taxRate, calculateBookingCartTotals]);
+
+    const updateBookingCartItem = useCallback((cartId, field, value) => {
+        setBookingForm(prev => syncBookingFormCartTotals({
+            ...prev,
+            cartItems: (prev.cartItems || []).map(item => item.cartId === cartId ? { ...item, [field]: value } : item)
+        }));
+    }, [syncBookingFormCartTotals]);
+
+    const updateBookingCartAddon = useCallback((cartId, addonId, field, value) => {
+        setBookingForm(prev => syncBookingFormCartTotals({
+            ...prev,
+            cartItems: (prev.cartItems || []).map(item => {
+                if (item.cartId !== cartId) return item;
+                const nextAddons = (item.addons || []).map(addon => addon.id === addonId ? { ...addon, [field]: value } : addon);
+                const nextPrice = Math.max(0, Number(item.price || 0));
+                return { ...item, addons: nextAddons, price: nextPrice };
+            })
+        }));
+    }, [syncBookingFormCartTotals]);
+
+    const addBookingServiceLine = useCallback(() => {
+        setBookingForm(prev => syncBookingFormCartTotals({
+            ...prev,
+            cartItems: [
+                ...(prev.cartItems || []),
+                {
+                    cartId: `line-${Date.now()}`,
+                    name: "New Service",
+                    optionName: "Configured Service",
+                    bathroomKey: "",
+                    durationHrs: 1,
+                    price: 0,
+                    addons: []
+                }
+            ]
+        }));
+    }, [syncBookingFormCartTotals]);
+
+    const removeBookingServiceLine = useCallback((cartId) => {
+        setBookingForm(prev => syncBookingFormCartTotals({
+            ...prev,
+            cartItems: (prev.cartItems || []).filter(item => item.cartId !== cartId)
+        }));
+    }, [syncBookingFormCartTotals]);
+
+    const addBookingAddonLine = useCallback((cartId) => {
+        setBookingForm(prev => syncBookingFormCartTotals({
+            ...prev,
+            cartItems: (prev.cartItems || []).map(item => item.cartId === cartId ? {
+                ...item,
+                addons: [
+                    ...(item.addons || []),
+                    {
+                        id: `addon-${Date.now()}`,
+                        name: "New Add-on",
+                        qty: 1,
+                        price: 0
+                    }
+                ]
+            } : item)
+        }));
+    }, [syncBookingFormCartTotals]);
+
+    const removeBookingAddonLine = useCallback((cartId, addonId) => {
+        setBookingForm(prev => syncBookingFormCartTotals({
+            ...prev,
+            cartItems: (prev.cartItems || []).map(item => item.cartId === cartId ? {
+                ...item,
+                addons: (item.addons || []).filter(addon => addon.id !== addonId)
+            } : item)
+        }));
+    }, [syncBookingFormCartTotals]);
+
     const handleBookingSubmit = async (e) => {
         if (e && e.preventDefault) e.preventDefault();
 
         const durationNum = parseFloat(bookingForm.duration || 2);
         try {
             const headers = await getAuthHeaders();
+            const bookingCartTotals = calculateBookingCartTotals(
+                bookingForm.cartItems || [],
+                activeBranch.taxRate,
+                bookingForm.customDiscountAmount || 0,
+                bookingForm.customDiscountPercent || 0
+            );
             const payload = isCleanerBookingEditor
                 ? {
                     id: bookingForm.id,
@@ -1670,8 +1785,11 @@ export default function Home() {
                 : {
                     ...bookingForm,
                     clientName: `${bookingForm.firstName} ${bookingForm.lastName}`.trim(),
-                    price: parseFloat(bookingForm.price || 0),
-                    duration: durationNum
+                    cartItems: bookingForm.cartItems || [],
+                    subtotal: bookingCartTotals.subtotal,
+                    tax: bookingCartTotals.tax,
+                    price: bookingCartTotals.total,
+                    duration: bookingCartTotals.duration || durationNum
                 };
 
             const res = await fetch("/api/bookings", {
@@ -2557,6 +2675,35 @@ export default function Home() {
         setAdminServiceCart(prev => prev.filter(item => item.cartId !== cartId));
     }, []);
 
+    const normalizeEditableBookingCartItems = useCallback((items = [], fallbackService = "Cleaning Service", fallbackDuration = 2, fallbackPrice = 0) => {
+        if (!Array.isArray(items) || items.length === 0) {
+            return [{
+                cartId: `line-${Date.now()}`,
+                name: fallbackService,
+                optionName: "Standard Service",
+                bathroomKey: "",
+                durationHrs: Number(fallbackDuration || 0),
+                price: Number(fallbackPrice || 0),
+                addons: []
+            }];
+        }
+
+        return items.map((item, index) => ({
+            cartId: item.cartId || item.id || `line-${Date.now()}-${index}`,
+            name: item.name || fallbackService,
+            optionName: item.optionName || "Configured Service",
+            bathroomKey: item.bathroomKey || "",
+            durationHrs: Number(item.durationHrs || item.duration || 0),
+            price: Number(item.price || 0),
+            addons: Array.isArray(item.addons) ? item.addons.map((addon, addonIndex) => ({
+                id: addon.id || `addon-${index}-${addonIndex}`,
+                name: addon.name || "Add-on",
+                qty: Number(addon.qty || 1),
+                price: Number(addon.price || 0)
+            })) : []
+        }));
+    }, []);
+
     const adminCartTotals = useMemo(() => {
         const subtotal = adminServiceCart.reduce((total, item) => total + parseFloat(item.price || 0), 0);
         const duration = adminServiceCart.reduce((total, item) => total + parseFloat(item.durationHrs || 0), 0);
@@ -2647,6 +2794,7 @@ export default function Home() {
                 subtotal: adminCartTotals.subtotal,
                 tax: adminCartTotals.tax,
                 customDiscountAmount: totalDiscount,
+                customDiscountPercent: discountPercent,
                 promoCode: adminCheckoutForm.promoCode,
                 giftCardCode: adminCheckoutForm.giftCardCode,
                 customerPortalPhone: adminCheckoutForm.phone,
@@ -2941,6 +3089,33 @@ export default function Home() {
             adminCheckoutDuration
         );
     }, [adminCheckoutDuration, adminCheckoutForm.assignedStaffIds, adminCheckoutForm.date, buildCombinedSlotStatus]);
+
+    const adminCheckoutPricing = useMemo(() => {
+        const serviceLines = adminServiceCart.map((item) => {
+            const addons = Array.isArray(item.addons) ? item.addons : [];
+            const addonTotal = addons.reduce((sum, addon) => sum + (Number(addon.price || 0) * Number(addon.qty || 1)), 0);
+            const basePortion = Math.max(0, Number(item.price || 0) - addonTotal);
+            return {
+                ...item,
+                addonTotal,
+                basePortion,
+                addons
+            };
+        });
+
+        const fixedDiscount = Number(adminCheckoutForm.discountAmount || 0);
+        const percentDiscountValue = adminCartTotals.subtotal * (Number(adminCheckoutForm.discountPercent || 0) / 100);
+        const combinedDiscount = Math.min(adminCartTotals.subtotal, fixedDiscount + percentDiscountValue);
+        const finalTotal = Math.max(0, adminCartTotals.total - combinedDiscount);
+
+        return {
+            serviceLines,
+            fixedDiscount,
+            percentDiscountValue,
+            combinedDiscount,
+            finalTotal
+        };
+    }, [adminCartTotals.subtotal, adminCartTotals.total, adminCheckoutForm.discountAmount, adminCheckoutForm.discountPercent, adminServiceCart]);
 
     const bookingStaffAvailabilityCards = useMemo(() => {
         return fieldStaff.map((member) => ({
@@ -5797,16 +5972,51 @@ export default function Home() {
                                             </div>
                                             </div>
                                         <div className="admin-checkout-review-lines">
-                                            {adminServiceCart.map(item => (
+                                            {adminCheckoutPricing.serviceLines.map(item => (
                                                 <div key={item.cartId} className="admin-checkout-review-line">
                                                     <div>
                                                         <strong>{item.name}</strong>
-                                                        {item.addons?.length > 0 && <p>{item.addons.map(addon => `${addon.name}${addon.qty > 1 ? ` x${addon.qty}` : ""}`).join(", ")}</p>}
+                                                        <p>{item.optionName}{item.bathroomKey ? ` • ${item.bathroomKey}` : ""}</p>
                                                     </div>
                                                     <div>
-                                                        <span>{item.optionName}{item.bathroomKey ? ` • ${item.bathroomKey}` : ""}</span>
+                                                        <span>Estimated duration: {Number(item.durationHrs || 0).toFixed(1)} hrs</span>
                                                     </div>
                                                     <em>${item.price.toFixed(2)}</em>
+                                                    <div className="col-span-full mt-1 rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                                                        <div className="admin-checkout-review-line">
+                                                            <div>
+                                                                <strong>Base Service</strong>
+                                                                <p>{item.optionName || item.name}</p>
+                                                            </div>
+                                                            <div>
+                                                                <span>{item.bathroomKey ? item.bathroomKey : "Included configuration"}</span>
+                                                            </div>
+                                                            <em>${item.basePortion.toFixed(2)}</em>
+                                                        </div>
+                                                        {item.addons.length > 0 ? item.addons.map((addon) => (
+                                                            <div key={`${item.cartId}-${addon.id}`} className="admin-checkout-review-line">
+                                                                <div>
+                                                                    <strong>Add-on</strong>
+                                                                    <p>{addon.name}</p>
+                                                                </div>
+                                                                <div>
+                                                                    <span>{Number(addon.qty || 1) > 1 ? `Qty ${Number(addon.qty || 1)}` : "Qty 1"}</span>
+                                                                </div>
+                                                                <em>${(Number(addon.price || 0) * Number(addon.qty || 1)).toFixed(2)}</em>
+                                                            </div>
+                                                        )) : (
+                                                            <div className="admin-checkout-review-line">
+                                                                <div>
+                                                                    <strong>Add-ons</strong>
+                                                                    <p>No add-ons on this service</p>
+                                                                </div>
+                                                                <div>
+                                                                    <span>Included</span>
+                                                                </div>
+                                                                <em>$0.00</em>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
@@ -5819,30 +6029,37 @@ export default function Home() {
                                                 <span>{activeBranch.taxLabel}</span>
                                                 <strong>${adminCartTotals.tax.toFixed(2)}</strong>
                                             </div>
+                                            {adminCheckoutForm.promoCode ? (
+                                                <div className="admin-checkout-review-totals-row">
+                                                    <span>Promo Code</span>
+                                                    <strong>{adminCheckoutForm.promoCode}</strong>
+                                                </div>
+                                            ) : null}
+                                            {adminCheckoutForm.giftCardCode ? (
+                                                <div className="admin-checkout-review-totals-row">
+                                                    <span>Gift Card</span>
+                                                    <strong>{adminCheckoutForm.giftCardCode}</strong>
+                                                </div>
+                                            ) : null}
+                                            {adminCheckoutPricing.fixedDiscount > 0 ? (
+                                                <div className="admin-checkout-review-totals-row">
+                                                    <span>Manual Discount ($)</span>
+                                                    <strong>-${adminCheckoutPricing.fixedDiscount.toFixed(2)}</strong>
+                                                </div>
+                                            ) : null}
+                                            {adminCheckoutPricing.percentDiscountValue > 0 ? (
+                                                <div className="admin-checkout-review-totals-row">
+                                                    <span>Manual Discount (%)</span>
+                                                    <strong>-${adminCheckoutPricing.percentDiscountValue.toFixed(2)}</strong>
+                                                </div>
+                                            ) : null}
                                             <div className="admin-checkout-review-totals-row">
-                                                <span>Discounts</span>
-                                                <strong>
-                                                    -$
-                                                    {Math.min(
-                                                        adminCartTotals.subtotal,
-                                                        parseFloat(adminCheckoutForm.discountAmount || 0) +
-                                                        (adminCartTotals.subtotal * (parseFloat(adminCheckoutForm.discountPercent || 0) / 100))
-                                                    ).toFixed(2)}
-                                                </strong>
+                                                <span>Total Discounts</span>
+                                                <strong>-${adminCheckoutPricing.combinedDiscount.toFixed(2)}</strong>
                                             </div>
                                             <div className="admin-checkout-review-totals-row total">
                                                 <span>Estimated Total</span>
-                                                <strong>
-                                                    $
-                                                    {Math.max(
-                                                        0,
-                                                        adminCartTotals.total - Math.min(
-                                                            adminCartTotals.subtotal,
-                                                            parseFloat(adminCheckoutForm.discountAmount || 0) +
-                                                            (adminCartTotals.subtotal * (parseFloat(adminCheckoutForm.discountPercent || 0) / 100))
-                                                        )
-                                                    ).toFixed(2)}
-                                                </strong>
+                                                <strong>${adminCheckoutPricing.finalTotal.toFixed(2)}</strong>
                                             </div>
                                         </div>
                                         </div>
@@ -6359,8 +6576,78 @@ export default function Home() {
                                                     <input type="text" value={bookingForm.postalCode} onChange={e => setBookingForm(prev => ({ ...prev, postalCode: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
                                                 </div>
                                                 <div className="form-group flex flex-col gap-1">
-                                                    <label className="font-bold text-slate-700">Service Category</label>
-                                                    <input type="text" value={bookingForm.service} onChange={e => setBookingForm(prev => ({ ...prev, service: e.target.value }))} required className="border border-slate-200 rounded-lg p-2 bg-slate-50 cursor-not-allowed" disabled />
+                                                    <label className="font-bold text-slate-700">Primary Service Label</label>
+                                                    <input type="text" value={bookingForm.service} onChange={e => setBookingForm(prev => ({ ...prev, service: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
+                                                </div>
+                                            </div>
+
+                                            <div className="form-group flex flex-col gap-3">
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <label className="font-bold text-slate-700">Booked Services</label>
+                                                    <button type="button" onClick={addBookingServiceLine} className="btn btn-secondary btn-sm">Add Service Line</button>
+                                                </div>
+                                                <div className="flex flex-col gap-4">
+                                                    {(bookingForm.cartItems || []).map((item) => (
+                                                        <div key={item.cartId} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
+                                                                <div className="form-group flex flex-col gap-1 xl:col-span-2">
+                                                                    <label className="font-bold text-slate-700">Service Name</label>
+                                                                    <input type="text" value={item.name} onChange={e => updateBookingCartItem(item.cartId, "name", e.target.value)} className="border border-slate-200 rounded-lg p-2 bg-white" />
+                                                                </div>
+                                                                <div className="form-group flex flex-col gap-1">
+                                                                    <label className="font-bold text-slate-700">Subcategory / Tier</label>
+                                                                    <input type="text" value={item.optionName || ""} onChange={e => updateBookingCartItem(item.cartId, "optionName", e.target.value)} className="border border-slate-200 rounded-lg p-2 bg-white" />
+                                                                </div>
+                                                                <div className="form-group flex flex-col gap-1">
+                                                                    <label className="font-bold text-slate-700">Details</label>
+                                                                    <input type="text" value={item.bathroomKey || ""} onChange={e => updateBookingCartItem(item.cartId, "bathroomKey", e.target.value)} className="border border-slate-200 rounded-lg p-2 bg-white" />
+                                                                </div>
+                                                                <div className="form-group flex flex-col gap-1">
+                                                                    <label className="font-bold text-slate-700">Line Total</label>
+                                                                    <input type="number" step="0.01" value={item.price} onChange={e => updateBookingCartItem(item.cartId, "price", parseFloat(e.target.value || 0))} className="border border-slate-200 rounded-lg p-2 bg-white" />
+                                                                </div>
+                                                                <div className="form-group flex flex-col gap-1">
+                                                                    <label className="font-bold text-slate-700">Hours</label>
+                                                                    <input type="number" step="0.5" value={item.durationHrs || 0} onChange={e => updateBookingCartItem(item.cartId, "durationHrs", parseFloat(e.target.value || 0))} className="border border-slate-200 rounded-lg p-2 bg-white" />
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3">
+                                                                <div className="mb-3 flex items-center justify-between gap-3">
+                                                                    <strong className="text-sm text-slate-800">Add-ons</strong>
+                                                                    <div className="flex gap-2">
+                                                                        <button type="button" onClick={() => addBookingAddonLine(item.cartId)} className="btn btn-secondary btn-sm">Add Add-on</button>
+                                                                        <button type="button" onClick={() => removeBookingServiceLine(item.cartId)} className="btn btn-danger btn-sm">Delete Service</button>
+                                                                    </div>
+                                                                </div>
+                                                                {(item.addons || []).length === 0 ? (
+                                                                    <p className="text-sm text-slate-400">No add-ons attached to this service line.</p>
+                                                                ) : (
+                                                                    <div className="flex flex-col gap-3">
+                                                                        {item.addons.map((addon) => (
+                                                                            <div key={addon.id} className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                                                                                <div className="form-group flex flex-col gap-1 md:col-span-2">
+                                                                                    <label className="font-bold text-slate-700">Add-on Name</label>
+                                                                                    <input type="text" value={addon.name} onChange={e => updateBookingCartAddon(item.cartId, addon.id, "name", e.target.value)} className="border border-slate-200 rounded-lg p-2" />
+                                                                                </div>
+                                                                                <div className="form-group flex flex-col gap-1">
+                                                                                    <label className="font-bold text-slate-700">Qty</label>
+                                                                                    <input type="number" min="1" value={addon.qty} onChange={e => updateBookingCartAddon(item.cartId, addon.id, "qty", parseInt(e.target.value || "1", 10))} className="border border-slate-200 rounded-lg p-2" />
+                                                                                </div>
+                                                                                <div className="form-group flex flex-col gap-1">
+                                                                                    <label className="font-bold text-slate-700">Unit Price</label>
+                                                                                    <input type="number" step="0.01" value={addon.price} onChange={e => updateBookingCartAddon(item.cartId, addon.id, "price", parseFloat(e.target.value || 0))} className="border border-slate-200 rounded-lg p-2" />
+                                                                                </div>
+                                                                                <div className="md:col-span-4 flex justify-end">
+                                                                                    <button type="button" onClick={() => removeBookingAddonLine(item.cartId, addon.id)} className="btn btn-danger btn-sm">Delete Add-on</button>
+                                                                                </div>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    ))}
                                                 </div>
                                             </div>
 
@@ -6461,8 +6748,29 @@ export default function Home() {
                                                     </select>
                                                 </div>
                                                 <div className="form-group flex flex-col gap-1">
-                                                    <label className="font-bold text-slate-700">Override Total Price ($)</label>
-                                                    <input type="number" step="0.01" value={bookingForm.price} onChange={e => setBookingForm(prev => ({ ...prev, price: parseFloat(e.target.value) }))} required className="border border-slate-200 rounded-lg p-2" />
+                                                    <label className="font-bold text-slate-700">Manual Discount ($)</label>
+                                                    <input type="number" step="0.01" value={bookingForm.customDiscountAmount || 0} onChange={e => setBookingForm(prev => syncBookingFormCartTotals({ ...prev, customDiscountAmount: parseFloat(e.target.value || 0) }))} className="border border-slate-200 rounded-lg p-2" />
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                                <div className="form-group flex flex-col gap-1">
+                                                    <label className="font-bold text-slate-700">Manual Discount (%)</label>
+                                                    <input type="number" step="1" min="0" max="100" value={bookingForm.customDiscountPercent || 0} onChange={e => setBookingForm(prev => syncBookingFormCartTotals({ ...prev, customDiscountPercent: parseFloat(e.target.value || 0) }))} className="border border-slate-200 rounded-lg p-2" />
+                                                </div>
+                                                <div className="form-group flex flex-col gap-1">
+                                                    <label className="font-bold text-slate-700">Promo Code</label>
+                                                    <input type="text" value={bookingForm.promoCode || ""} onChange={e => setBookingForm(prev => ({ ...prev, promoCode: e.target.value }))} className="border border-slate-200 rounded-lg p-2" />
+                                                </div>
+                                                <div className="form-group flex flex-col gap-1">
+                                                    <label className="font-bold text-slate-700">Gift Card</label>
+                                                    <input type="text" value={bookingForm.giftCardCode || ""} onChange={e => setBookingForm(prev => ({ ...prev, giftCardCode: e.target.value }))} className="border border-slate-200 rounded-lg p-2" />
+                                                </div>
+                                                <div className="rounded-2xl border border-blue-100 bg-blue-50 p-3">
+                                                    <div className="text-xs font-bold uppercase tracking-wider text-blue-700">Live Totals</div>
+                                                    <div className="mt-2 text-sm text-slate-700">Subtotal: <strong>${Number(bookingForm.subtotal || 0).toFixed(2)}</strong></div>
+                                                    <div className="text-sm text-slate-700">{activeBranch.taxLabel}: <strong>${Number(bookingForm.tax || 0).toFixed(2)}</strong></div>
+                                                    <div className="text-sm text-slate-900">Total: <strong>${Number(bookingForm.price || 0).toFixed(2)}</strong></div>
                                                 </div>
                                             </div>
 
