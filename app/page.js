@@ -545,6 +545,7 @@ export default function Home() {
     const canViewAdministration = isPendingCleanerOnboarding ? false : canViewDepartment("administration");
     const canManagePermissions = canManageSystem(currentUser);
     const canManagePeopleProfiles = currentUser ? ["super-admin", "branch-admin"].includes(normalizeRole(currentUser.role)) : false;
+    const isSuperAdmin = normalizeRole(currentUser?.role) === "super-admin";
     const isCleanerSelfServiceView = Boolean(canSelfManagePeopleProfile && !canManagePeopleProfiles && !isPendingCleanerOnboarding);
     const showBookingContactFields = !isCleanerSelfServiceView;
     const isCleanerBookingEditor = isCleanerSelfServiceView;
@@ -641,11 +642,16 @@ export default function Home() {
     const [bookingModalOpen, setBookingModalOpen] = useState(false);
     const [adminServiceCart, setAdminServiceCart] = useState([]);
     const [serviceConfigOpen, setServiceConfigOpen] = useState(false);
+    const [serviceConfigTarget, setServiceConfigTarget] = useState("checkout");
     const [configCategory, setConfigCategory] = useState(null);
     const [configSizeId, setConfigSizeId] = useState("");
     const [configBathroomKey, setConfigBathroomKey] = useState("1 Bathroom");
     const [configAddons, setConfigAddons] = useState({});
     const [configEditingCartId, setConfigEditingCartId] = useState("");
+    const [bookingServiceCartOpen, setBookingServiceCartOpen] = useState(false);
+    const [bookingServiceDraft, setBookingServiceDraft] = useState([]);
+    const [bookingServicesChanged, setBookingServicesChanged] = useState(false);
+    const [bookingPriceOverrideOpen, setBookingPriceOverrideOpen] = useState(false);
     const [adminCheckoutOpen, setAdminCheckoutOpen] = useState(false);
     const [adminCheckoutStep, setAdminCheckoutStep] = useState(0);
     const [adminScheduleHint, setAdminScheduleHint] = useState("");
@@ -1655,6 +1661,9 @@ export default function Home() {
             promoCode: b.promoCode || "",
             giftCardCode: b.giftCardCode || ""
         });
+        setBookingServicesChanged(false);
+        setBookingPriceOverrideOpen(false);
+        setBookingServiceCartOpen(false);
         setAddressQuery(b.address1 || "");
         setBookingModalOpen(true);
     };
@@ -1698,18 +1707,6 @@ export default function Home() {
         }));
     }, [syncBookingFormCartTotals]);
 
-    const updateBookingCartAddon = useCallback((cartId, addonId, field, value) => {
-        setBookingForm(prev => syncBookingFormCartTotals({
-            ...prev,
-            cartItems: (prev.cartItems || []).map(item => {
-                if (item.cartId !== cartId) return item;
-                const nextAddons = (item.addons || []).map(addon => addon.id === addonId ? { ...addon, [field]: value } : addon);
-                const nextPrice = Math.max(0, Number(item.price || 0));
-                return { ...item, addons: nextAddons, price: nextPrice };
-            })
-        }));
-    }, [syncBookingFormCartTotals]);
-
     const addBookingServiceLine = useCallback(() => {
         setBookingForm(prev => syncBookingFormCartTotals({
             ...prev,
@@ -1732,34 +1729,6 @@ export default function Home() {
         setBookingForm(prev => syncBookingFormCartTotals({
             ...prev,
             cartItems: (prev.cartItems || []).filter(item => item.cartId !== cartId)
-        }));
-    }, [syncBookingFormCartTotals]);
-
-    const addBookingAddonLine = useCallback((cartId) => {
-        setBookingForm(prev => syncBookingFormCartTotals({
-            ...prev,
-            cartItems: (prev.cartItems || []).map(item => item.cartId === cartId ? {
-                ...item,
-                addons: [
-                    ...(item.addons || []),
-                    {
-                        id: `addon-${Date.now()}`,
-                        name: "New Add-on",
-                        qty: 1,
-                        price: 0
-                    }
-                ]
-            } : item)
-        }));
-    }, [syncBookingFormCartTotals]);
-
-    const removeBookingAddonLine = useCallback((cartId, addonId) => {
-        setBookingForm(prev => syncBookingFormCartTotals({
-            ...prev,
-            cartItems: (prev.cartItems || []).map(item => item.cartId === cartId ? {
-                ...item,
-                addons: (item.addons || []).filter(addon => addon.id !== addonId)
-            } : item)
         }));
     }, [syncBookingFormCartTotals]);
 
@@ -1792,6 +1761,8 @@ export default function Home() {
                     ...bookingForm,
                     clientName: `${bookingForm.firstName} ${bookingForm.lastName}`.trim(),
                     cartItems: bookingForm.cartItems || [],
+                    servicesChanged: bookingServicesChanged,
+                    priceOverride: isSuperAdmin && bookingPriceOverrideOpen,
                     subtotal: bookingCartTotals.subtotal,
                     tax: bookingCartTotals.tax,
                     price: bookingCartTotals.total,
@@ -2612,7 +2583,8 @@ export default function Home() {
         return parseFloat(category.durationHrs || 0);
     }, []);
 
-    const openServiceConfigurator = useCallback((category) => {
+    const openServiceConfigurator = useCallback((category, target = "checkout") => {
+        setServiceConfigTarget(target);
         setConfigCategory(category);
         setConfigSizeId(category.sizes?.[0]?.id || "base");
         setConfigBathroomKey("1 Bathroom");
@@ -2621,8 +2593,8 @@ export default function Home() {
         setServiceConfigOpen(true);
     }, []);
 
-    const editAdminCartItem = useCallback((item) => {
-        const category = (v2Catalog.categories || []).find(candidate => candidate.id === item.categoryId) || {
+    const editAdminCartItem = useCallback((item, target = "checkout") => {
+        const category = (v2Catalog.categories || []).find(candidate => candidate.id === item.categoryId || candidate.name === item.name) || {
             id: item.categoryId,
             name: item.name,
             pricingModel: item.pricingModel,
@@ -2637,6 +2609,7 @@ export default function Home() {
         (item.addons || []).forEach(addon => {
             addonMap[addon.id] = Number(addon.qty || 1);
         });
+        setServiceConfigTarget(target);
         setConfigCategory(category);
         setConfigSizeId(item.optionId || category.sizes?.[0]?.id || "base");
         setConfigBathroomKey(item.bathroomKey || "1 Bathroom");
@@ -2702,13 +2675,17 @@ export default function Home() {
             configuredExtras,
             addons: selectedAddons
         };
-        setAdminServiceCart(prev => configEditingCartId
-            ? prev.map(item => item.cartId === configEditingCartId ? nextItem : item)
-            : [...prev, nextItem]
-        );
+        const updateCart = (items) => configEditingCartId
+            ? items.map(item => item.cartId === configEditingCartId ? nextItem : item)
+            : [...items, nextItem];
+        if (serviceConfigTarget === "booking") {
+            setBookingServiceDraft(updateCart);
+        } else {
+            setAdminServiceCart(updateCart);
+        }
         setConfigEditingCartId("");
         setServiceConfigOpen(false);
-    }, [configAddons, configBathroomKey, configCategory, configEditingCartId, configSizeId, getCategoryBasePrice, getCategoryDuration, v2Catalog.bathrooms]);
+    }, [configAddons, configBathroomKey, configCategory, configEditingCartId, configSizeId, getCategoryBasePrice, getCategoryDuration, serviceConfigTarget, v2Catalog.bathrooms]);
 
     const removeAdminCartItem = useCallback((cartId) => {
         setAdminServiceCart(prev => prev.filter(item => item.cartId !== cartId));
@@ -2742,6 +2719,38 @@ export default function Home() {
             })) : []
         }));
     }, []);
+
+    const openBookingServiceEditor = () => {
+        setBookingServiceDraft(normalizeEditableBookingCartItems(
+            bookingForm.cartItems,
+            bookingForm.service || "Cleaning Service",
+            bookingForm.duration || 2,
+            bookingForm.subtotal || bookingForm.price || 0
+        ));
+        setBookingServiceCartOpen(true);
+    };
+
+    const bookingServiceDraftTotals = useMemo(() => {
+        const subtotal = bookingServiceDraft.reduce((sum, item) => sum + Number(item.price || 0), 0);
+        const duration = bookingServiceDraft.reduce((sum, item) => sum + Number(item.durationHrs || 0), 0);
+        const tax = subtotal * Number(activeBranch.taxRate || 0);
+        return { subtotal, duration, tax, total: subtotal + tax };
+    }, [activeBranch.taxRate, bookingServiceDraft]);
+
+    const applyBookingServiceDraft = () => {
+        if (bookingServiceDraft.length === 0) {
+            alert("Add at least one configured service before saving.");
+            return;
+        }
+        setBookingForm(prev => syncBookingFormCartTotals({
+            ...prev,
+            service: bookingServiceDraft.map(item => item.name).join(" + "),
+            cartItems: bookingServiceDraft
+        }));
+        setBookingServicesChanged(true);
+        setBookingPriceOverrideOpen(false);
+        setBookingServiceCartOpen(false);
+    };
 
     const adminCartTotals = useMemo(() => {
         const subtotal = adminServiceCart.reduce((total, item) => total + parseFloat(item.price || 0), 0);
@@ -5760,6 +5769,82 @@ export default function Home() {
                 )}
             </div>
 
+            {bookingServiceCartOpen && (
+                <div className="modal-backdrop show">
+                    <div className="modal-content modal-content-service-config animate-pop">
+                        <div className="modal-header modal-header-brand">
+                            <div className="modal-title-stack">
+                                <h3 className="modal-title-inverse">Edit Booking Services</h3>
+                                <p className="modal-subtitle-inverse">Catalog-controlled pricing for this booking</p>
+                            </div>
+                            <button onClick={() => setBookingServiceCartOpen(false)} className="modal-close-btn" aria-label="Close">
+                                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="1" y1="1" x2="13" y2="13" /><line x1="13" y1="1" x2="1" y2="13" /></svg>
+                            </button>
+                        </div>
+                        <div className="max-h-[70dvh] overflow-y-auto p-5">
+                            <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                <div className="mb-3 flex items-center justify-between gap-3">
+                                    <div>
+                                        <h4 className="font-extrabold text-slate-900">Add from Catalog Studio</h4>
+                                        <p className="text-xs text-slate-500">Choose a service, then select its tier and add-ons.</p>
+                                    </div>
+                                    <span className="rounded-full bg-cyan-100 px-3 py-1 text-xs font-bold text-cyan-800">{bookingServiceDraft.length} items</span>
+                                </div>
+                                <div className="grid gap-2 sm:grid-cols-2">
+                                    {(v2Catalog.categories || []).map(category => (
+                                        <button
+                                            key={category.id}
+                                            type="button"
+                                            onClick={() => openServiceConfigurator(category, "booking")}
+                                            className="rounded-xl border border-slate-200 bg-white p-3 text-left transition hover:border-blue-400 hover:bg-blue-50"
+                                        >
+                                            <strong className="block text-sm text-slate-900">{category.name}</strong>
+                                            <span className="mt-1 block text-xs text-slate-500">From ${getCategoryBasePrice(category).toFixed(2)}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </section>
+
+                            <section className="mt-4 grid gap-3">
+                                {bookingServiceDraft.length === 0 ? (
+                                    <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">No services in this booking.</div>
+                                ) : bookingServiceDraft.map(item => {
+                                    const addonTotal = (item.addons || []).reduce((sum, addon) => sum + Number(addon.total ?? (Number(addon.price || 0) * Number(addon.qty || 1))), 0);
+                                    return (
+                                        <article key={item.cartId} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div>
+                                                    <h4 className="text-lg font-extrabold text-slate-900">{item.name}</h4>
+                                                    <p className="mt-1 text-xs font-semibold text-slate-500">{item.optionName || "Base service"} • {Number(item.durationHrs || 0)} hrs</p>
+                                                </div>
+                                                <strong className="text-lg text-slate-800">${Number(item.price || 0).toFixed(2)}</strong>
+                                            </div>
+                                            <div className="mt-3 border-t border-slate-100 pt-3 text-sm text-slate-600">
+                                                <div className="flex justify-between gap-3"><span>Base service / tier</span><strong>${Number(item.basePrice ?? (Number(item.price || 0) - addonTotal)).toFixed(2)}</strong></div>
+                                                {(item.addons || []).map(addon => (
+                                                    <div key={addon.id} className="mt-1 flex justify-between gap-3"><span>{addon.name} ×{addon.qty || 1}</span><strong>${Number(addon.total ?? (Number(addon.price || 0) * Number(addon.qty || 1))).toFixed(2)}</strong></div>
+                                                ))}
+                                            </div>
+                                            <div className="mt-4 flex justify-end gap-2">
+                                                <button type="button" onClick={() => editAdminCartItem(item, "booking")} className="btn btn-secondary btn-sm">Edit</button>
+                                                <button type="button" onClick={() => setBookingServiceDraft(prev => prev.filter(candidate => candidate.cartId !== item.cartId))} className="btn btn-danger btn-sm">Delete</button>
+                                            </div>
+                                        </article>
+                                    );
+                                })}
+                            </section>
+                        </div>
+                        <div className="service-config-footer">
+                            <div>
+                                <span>Subtotal · {bookingServiceDraftTotals.duration.toFixed(1)} hrs</span>
+                                <strong>${bookingServiceDraftTotals.subtotal.toFixed(2)}</strong>
+                            </div>
+                            <button type="button" onClick={applyBookingServiceDraft} className="admin-primary-action">Apply Services to Booking</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {serviceConfigOpen && configCategory && (() => {
                 const selectedSize = configCategory.sizes?.find(size => size.id === configSizeId);
                 const basePrice = selectedSize ? parseFloat(selectedSize.price || 0) : getCategoryBasePrice(configCategory);
@@ -6686,7 +6771,7 @@ export default function Home() {
                                                 )}
                                             </div>
 
-                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                 <div className="form-group flex flex-col gap-1">
                                                     <label className="font-bold text-slate-700">City</label>
                                                     <input type="text" value={bookingForm.city} onChange={e => setBookingForm(prev => ({ ...prev, city: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
@@ -6695,80 +6780,70 @@ export default function Home() {
                                                     <label className="font-bold text-slate-700">Postal Code</label>
                                                     <input type="text" value={bookingForm.postalCode} onChange={e => setBookingForm(prev => ({ ...prev, postalCode: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
                                                 </div>
-                                                <div className="form-group flex flex-col gap-1">
-                                                    <label className="font-bold text-slate-700">Primary Service Label</label>
-                                                    <input type="text" value={bookingForm.service} onChange={e => setBookingForm(prev => ({ ...prev, service: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
-                                                </div>
                                             </div>
 
-                                            <div className="form-group flex flex-col gap-3">
-                                                <div className="flex items-center justify-between gap-3">
-                                                    <label className="font-bold text-slate-700">Booked Services</label>
-                                                    <button type="button" onClick={addBookingServiceLine} className="btn btn-secondary btn-sm">Add Service Line</button>
+                                            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                                    <div>
+                                                        <div className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">Booked Services</div>
+                                                        <p className="mt-1 text-sm text-slate-500">Catalog pricing is protected. Use the catalog editor to change tiers or add-ons.</p>
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        <button type="button" onClick={openBookingServiceEditor} className="btn btn-primary btn-sm">Edit Services from Catalog</button>
+                                                        {isSuperAdmin && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setBookingPriceOverrideOpen(prev => !prev)}
+                                                                className="btn btn-secondary btn-sm"
+                                                            >
+                                                                {bookingPriceOverrideOpen ? "Close Price Override" : "Override Name / Price"}
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                                <div className="flex flex-col gap-4">
+                                                <div className="mt-4 grid gap-3">
                                                     {(bookingForm.cartItems || []).map((item) => (
-                                                        <div key={item.cartId} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
-                                                                <div className="form-group flex flex-col gap-1 xl:col-span-2">
-                                                                    <label className="font-bold text-slate-700">Service Name</label>
-                                                                    <input type="text" value={item.name} onChange={e => updateBookingCartItem(item.cartId, "name", e.target.value)} className="border border-slate-200 rounded-lg p-2 bg-white" />
+                                                        <div key={item.cartId} className="rounded-2xl border border-slate-200 bg-white p-4">
+                                                            <div className="flex items-start justify-between gap-4">
+                                                                <div>
+                                                                    <strong className="text-slate-900">{item.name}</strong>
+                                                                    <p className="mt-1 text-xs text-slate-500">{item.optionName || "Base service"}{item.bathroomKey ? ` • ${item.bathroomKey}` : ""} • {Number(item.durationHrs || 0)} hrs</p>
+                                                                    {(item.addons || []).length > 0 && (
+                                                                        <p className="mt-2 text-xs text-slate-500">Add-ons: {item.addons.map(addon => `${addon.name} ×${addon.qty || 1}`).join(", ")}</p>
+                                                                    )}
                                                                 </div>
-                                                                <div className="form-group flex flex-col gap-1">
-                                                                    <label className="font-bold text-slate-700">Subcategory / Tier</label>
-                                                                    <input type="text" value={item.optionName || ""} onChange={e => updateBookingCartItem(item.cartId, "optionName", e.target.value)} className="border border-slate-200 rounded-lg p-2 bg-white" />
-                                                                </div>
-                                                                <div className="form-group flex flex-col gap-1">
-                                                                    <label className="font-bold text-slate-700">Details</label>
-                                                                    <input type="text" value={item.bathroomKey || ""} onChange={e => updateBookingCartItem(item.cartId, "bathroomKey", e.target.value)} className="border border-slate-200 rounded-lg p-2 bg-white" />
-                                                                </div>
-                                                                <div className="form-group flex flex-col gap-1">
-                                                                    <label className="font-bold text-slate-700">Line Total</label>
-                                                                    <input type="number" step="0.01" value={item.price} onChange={e => updateBookingCartItem(item.cartId, "price", parseFloat(e.target.value || 0))} className="border border-slate-200 rounded-lg p-2 bg-white" />
-                                                                </div>
-                                                                <div className="form-group flex flex-col gap-1">
-                                                                    <label className="font-bold text-slate-700">Hours</label>
-                                                                    <input type="number" step="0.5" value={item.durationHrs || 0} onChange={e => updateBookingCartItem(item.cartId, "durationHrs", parseFloat(e.target.value || 0))} className="border border-slate-200 rounded-lg p-2 bg-white" />
-                                                                </div>
-                                                            </div>
-
-                                                            <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3">
-                                                                <div className="mb-3 flex items-center justify-between gap-3">
-                                                                    <strong className="text-sm text-slate-800">Add-ons</strong>
-                                                                    <div className="flex gap-2">
-                                                                        <button type="button" onClick={() => addBookingAddonLine(item.cartId)} className="btn btn-secondary btn-sm">Add Add-on</button>
-                                                                        <button type="button" onClick={() => removeBookingServiceLine(item.cartId)} className="btn btn-danger btn-sm">Delete Service</button>
-                                                                    </div>
-                                                                </div>
-                                                                {(item.addons || []).length === 0 ? (
-                                                                    <p className="text-sm text-slate-400">No add-ons attached to this service line.</p>
-                                                                ) : (
-                                                                    <div className="flex flex-col gap-3">
-                                                                        {item.addons.map((addon) => (
-                                                                            <div key={addon.id} className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                                                                                <div className="form-group flex flex-col gap-1 md:col-span-2">
-                                                                                    <label className="font-bold text-slate-700">Add-on Name</label>
-                                                                                    <input type="text" value={addon.name} onChange={e => updateBookingCartAddon(item.cartId, addon.id, "name", e.target.value)} className="border border-slate-200 rounded-lg p-2" />
-                                                                                </div>
-                                                                                <div className="form-group flex flex-col gap-1">
-                                                                                    <label className="font-bold text-slate-700">Qty</label>
-                                                                                    <input type="number" min="1" value={addon.qty} onChange={e => updateBookingCartAddon(item.cartId, addon.id, "qty", parseInt(e.target.value || "1", 10))} className="border border-slate-200 rounded-lg p-2" />
-                                                                                </div>
-                                                                                <div className="form-group flex flex-col gap-1">
-                                                                                    <label className="font-bold text-slate-700">Unit Price</label>
-                                                                                    <input type="number" step="0.01" value={addon.price} onChange={e => updateBookingCartAddon(item.cartId, addon.id, "price", parseFloat(e.target.value || 0))} className="border border-slate-200 rounded-lg p-2" />
-                                                                                </div>
-                                                                                <div className="md:col-span-4 flex justify-end">
-                                                                                    <button type="button" onClick={() => removeBookingAddonLine(item.cartId, addon.id)} className="btn btn-danger btn-sm">Delete Add-on</button>
-                                                                                </div>
-                                                                            </div>
-                                                                        ))}
-                                                                    </div>
-                                                                )}
+                                                                <strong className="text-lg text-blue-900">${Number(item.price || 0).toFixed(2)}</strong>
                                                             </div>
                                                         </div>
                                                     ))}
                                                 </div>
+
+                                                {isSuperAdmin && bookingPriceOverrideOpen && (
+                                                    <div className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 p-4">
+                                                        <div className="flex items-center justify-between gap-3">
+                                                            <div>
+                                                                <strong className="text-amber-900">Super Admin Override</strong>
+                                                                <p className="text-xs text-amber-700">Changes apply only to this booking and are recorded in its audit log.</p>
+                                                            </div>
+                                                            <button type="button" onClick={addBookingServiceLine} className="btn btn-secondary btn-sm">Add Manual Service</button>
+                                                        </div>
+                                                        <div className="mt-4 grid gap-3">
+                                                            {(bookingForm.cartItems || []).map(item => (
+                                                                <div key={item.cartId} className="grid gap-3 rounded-xl border border-amber-200 bg-white p-3 md:grid-cols-[1fr,160px,auto]">
+                                                                    <label className="flex flex-col gap-1">
+                                                                        <span className="text-xs font-bold text-slate-600">Service Name</span>
+                                                                        <input value={item.name} onChange={e => updateBookingCartItem(item.cartId, "name", e.target.value)} className="rounded-lg border border-slate-200 p-2" />
+                                                                    </label>
+                                                                    <label className="flex flex-col gap-1">
+                                                                        <span className="text-xs font-bold text-slate-600">Line Price</span>
+                                                                        <input type="number" min="0" step="0.01" value={item.price} onChange={e => updateBookingCartItem(item.cartId, "price", Number(e.target.value || 0))} className="rounded-lg border border-slate-200 p-2" />
+                                                                    </label>
+                                                                    <button type="button" onClick={() => removeBookingServiceLine(item.cartId)} className="btn btn-danger btn-sm self-end">Delete</button>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
 
                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -6782,7 +6857,7 @@ export default function Home() {
                                                 </div>
                                                 <div className="form-group flex flex-col gap-1">
                                                     <label className="font-bold text-slate-700">Estimated Hours</label>
-                                                    <input type="number" step="0.5" value={bookingForm.duration} onChange={e => setBookingForm(prev => ({ ...prev, duration: parseFloat(e.target.value) }))} required className="border border-slate-200 rounded-lg p-2" />
+                                                    <input type="number" step="0.5" value={bookingForm.duration} readOnly required className="border border-slate-200 rounded-lg bg-slate-50 p-2 text-slate-600" />
                                                 </div>
                                             </div>
 

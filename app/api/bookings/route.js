@@ -41,6 +41,83 @@ function appendBookingAuditLog(existingLog = [], event = {}) {
     ];
 }
 
+function calculateCatalogCartItems(requestedItems = [], catalog = {}) {
+    if (!Array.isArray(requestedItems) || requestedItems.length === 0) {
+        return { error: "At least one catalog service is required." };
+    }
+
+    const categories = Array.isArray(catalog.categories) ? catalog.categories : [];
+    const bathrooms = catalog.bathrooms && typeof catalog.bathrooms === "object" ? catalog.bathrooms : {};
+    const items = [];
+
+    for (const requestedItem of requestedItems) {
+        const category = categories.find(candidate => candidate.id === requestedItem.categoryId);
+        if (!category) {
+            return { error: `Service ${requestedItem.name || requestedItem.categoryId || "unknown"} is not available in Catalog Studio.` };
+        }
+
+        const sizes = Array.isArray(category.sizes) ? category.sizes : [];
+        const selectedSize = sizes.find(size => size.id === requestedItem.optionId);
+        if (sizes.length > 0 && !selectedSize) {
+            return { error: `Select a valid catalog tier for ${category.name}.` };
+        }
+
+        const basePrice = Number(selectedSize?.price ?? category.baseRate ?? 0);
+        const durationHrs = Number(selectedSize?.durationHrs ?? category.durationHrs ?? 0);
+        const isHouseCleaning = category.id === "house_cleaning";
+        const bathroomKey = isHouseCleaning ? String(requestedItem.bathroomKey || "1 Bathroom") : "";
+        if (isHouseCleaning && !Object.prototype.hasOwnProperty.call(bathrooms, bathroomKey)) {
+            return { error: `Select a valid bathroom tier for ${category.name}.` };
+        }
+        const bathroomPrice = isHouseCleaning ? Number(bathrooms[bathroomKey] || 0) : 0;
+
+        const catalogAddons = Array.isArray(category.addons) ? category.addons : [];
+        const selectedAddons = [];
+        for (const requestedAddon of Array.isArray(requestedItem.addons) ? requestedItem.addons : []) {
+            const addon = catalogAddons.find(candidate => candidate.id === requestedAddon.id);
+            if (!addon) {
+                return { error: `Add-on ${requestedAddon.name || requestedAddon.id || "unknown"} is not available for ${category.name}.` };
+            }
+            const qty = addon.qtySelector
+                ? Math.max(1, Number.parseInt(requestedAddon.qty || 1, 10))
+                : 1;
+            const price = Number(addon.price || 0);
+            selectedAddons.push({
+                id: addon.id,
+                name: addon.name,
+                price,
+                qty,
+                total: price * qty
+            });
+        }
+
+        const addonTotal = selectedAddons.reduce((sum, addon) => sum + addon.total, 0);
+        items.push({
+            cartId: requestedItem.cartId || `${category.id}-${Date.now()}-${items.length}`,
+            categoryId: category.id,
+            name: category.name,
+            pricingModel: category.pricingModel || "flat_rate",
+            optionId: selectedSize?.id || "base",
+            optionName: selectedSize?.name || "Base service",
+            basePrice,
+            bathroomKey,
+            bathroomPrice,
+            price: basePrice + bathroomPrice + addonTotal,
+            durationHrs,
+            configuredExtras: isHouseCleaning ? [{
+                id: "bathrooms",
+                name: bathroomKey,
+                price: bathroomPrice,
+                qty: 1,
+                total: bathroomPrice
+            }] : [],
+            addons: selectedAddons
+        });
+    }
+
+    return { items };
+}
+
 // Shared Secure JWT and Role verification helper
 async function authenticateRequest(request) {
     const authHeader = request.headers.get("Authorization");
@@ -244,6 +321,50 @@ export async function PUT(request) {
         }
         
         if (canManageBranch(user)) {
+            const overrideRequested = bookingData.priceOverride === true;
+            const catalogEditRequested = bookingData.servicesChanged === true;
+            if (overrideRequested && role !== "super-admin") {
+                return NextResponse.json({ error: "Forbidden: Only Super Admin can override service names or prices." }, { status: 403 });
+            }
+
+            let protectedCartItems = Array.isArray(originalData.cartItems) ? originalData.cartItems : [];
+            let protectedService = originalData.service || "Cleaning Service";
+            let protectedSubtotal = Number(originalData.subtotal ?? originalData.price ?? 0);
+            let protectedTax = Number(originalData.tax ?? 0);
+            let protectedDuration = Number(originalData.duration ?? 0);
+
+            if (overrideRequested) {
+                if (!Array.isArray(bookingData.cartItems) || bookingData.cartItems.length === 0) {
+                    return NextResponse.json({ error: "At least one manual service is required for an override." }, { status: 400 });
+                }
+                protectedCartItems = bookingData.cartItems.map((item, index) => ({
+                    ...item,
+                    cartId: item.cartId || `override-${Date.now()}-${index}`,
+                    name: String(item.name || `Manual Service ${index + 1}`).trim(),
+                    price: Math.max(0, Number(item.price || 0)),
+                    durationHrs: Math.max(0, Number(item.durationHrs || 0)),
+                    addons: Array.isArray(item.addons) ? item.addons : []
+                }));
+                protectedService = protectedCartItems.map(item => item.name).join(" + ");
+                protectedSubtotal = protectedCartItems.reduce((sum, item) => sum + item.price, 0);
+                protectedDuration = protectedCartItems.reduce((sum, item) => sum + item.durationHrs, 0);
+                const taxRate = Number(originalData.companySnapshot?.taxRate ?? originalData.taxRate ?? 0.13);
+                protectedTax = protectedSubtotal * taxRate;
+            } else if (catalogEditRequested) {
+                const settingsDoc = await adminDb.collection("settings").doc("pricing").get();
+                const catalog = settingsDoc.exists ? settingsDoc.data()?.v2_catalog : null;
+                const catalogResult = calculateCatalogCartItems(bookingData.cartItems, catalog || {});
+                if (catalogResult.error) {
+                    return NextResponse.json({ error: catalogResult.error }, { status: 400 });
+                }
+                protectedCartItems = catalogResult.items;
+                protectedService = protectedCartItems.map(item => item.name).join(" + ");
+                protectedSubtotal = protectedCartItems.reduce((sum, item) => sum + item.price, 0);
+                protectedDuration = protectedCartItems.reduce((sum, item) => sum + item.durationHrs, 0);
+                const taxRate = Number(originalData.companySnapshot?.taxRate ?? originalData.taxRate ?? 0.13);
+                protectedTax = protectedSubtotal * taxRate;
+            }
+
             const nextStatus = normalizeBookingStatus(bookingData.status ?? originalData.status ?? "Lead");
             const nextPaymentStatus = normalizePaymentStatus(bookingData.paymentStatus ?? originalData.paymentStatus ?? "unpaid");
             const requestedDocumentStage = String(bookingData.documentStage || "").toLowerCase();
@@ -252,12 +373,19 @@ export async function PUT(request) {
                 : ["Lead", "Follow Up", "Pending"].includes(nextStatus)
                     ? "estimate"
                     : "booking";
-            const nextPrice = nextPaymentStatus === "redo"
-                ? 0
-                : parseFloat(bookingData.price ?? originalData.price);
+            const fixedDiscount = Math.max(0, Number(bookingData.customDiscountAmount ?? originalData.customDiscountAmount ?? 0));
+            const percentDiscount = Math.min(100, Math.max(0, Number(bookingData.customDiscountPercent ?? originalData.customDiscountPercent ?? 0)));
+            const percentDiscountValue = protectedSubtotal * (percentDiscount / 100);
+            const totalDiscount = Math.min(protectedSubtotal, fixedDiscount + percentDiscountValue);
+            const nextPrice = nextPaymentStatus === "redo" ? 0 : Math.max(0, protectedSubtotal + protectedTax - totalDiscount);
+            const safeBookingData = { ...bookingData };
+            delete safeBookingData.priceOverride;
+            delete safeBookingData.servicesChanged;
             const updatedBooking = {
                 ...originalData,
-                ...bookingData,
+                ...safeBookingData,
+                service: protectedService,
+                cartItems: protectedCartItems,
                 customerPortalPhone: bookingData.customerPortalPhone ?? bookingData.phone ?? originalData.customerPortalPhone ?? originalData.phone ?? "",
                 referralCode: bookingData.referralCode || originalData.referralCode || generateReferralCode(
                     bookingData.customerPortalPhone ?? bookingData.phone ?? originalData.customerPortalPhone ?? originalData.phone ?? "",
@@ -267,8 +395,8 @@ export async function PUT(request) {
                 price: nextPrice,
                 status: nextStatus,
                 paymentStatus: nextPaymentStatus,
-                tax: nextPaymentStatus === "redo" ? 0 : parseFloat(bookingData.tax ?? originalData.tax ?? 0),
-                subtotal: nextPaymentStatus === "redo" ? 0 : parseFloat(bookingData.subtotal ?? originalData.subtotal ?? nextPrice),
+                tax: nextPaymentStatus === "redo" ? 0 : protectedTax,
+                subtotal: nextPaymentStatus === "redo" ? 0 : protectedSubtotal,
                 documentStage: nextDocumentStage,
                 estimateNumber: nextDocumentStage === "estimate"
                     ? (originalData.estimateNumber || originalData.orderNumber || "")
@@ -276,13 +404,22 @@ export async function PUT(request) {
                 invoiceNumber: nextDocumentStage === "invoice"
                     ? (bookingData.invoiceNumber || originalData.invoiceNumber || originalData.orderNumber || "")
                     : (originalData.invoiceNumber || ""),
-                duration: parseFloat(bookingData.duration ?? originalData.duration),
+                duration: protectedDuration,
+                servicePriceOverride: overrideRequested ? {
+                    active: true,
+                    at: new Date().toISOString(),
+                    by: user.email || user.uid
+                } : catalogEditRequested ? null : originalData.servicePriceOverride || null,
                 updatedAt: new Date().toISOString(),
                 updatedBy: user.email,
                 auditLog: appendBookingAuditLog(originalData.auditLog, {
-                    type: "updated",
+                    type: overrideRequested ? "service_price_override" : catalogEditRequested ? "catalog_service_update" : "updated",
                     by: user.email || user.uid,
-                    summary: `${nextDocumentStage === "invoice" ? "Invoice generated" : `Booking updated to ${nextStatus}`}`,
+                    summary: overrideRequested
+                        ? "Super Admin manually overrode service name or price"
+                        : catalogEditRequested
+                            ? "Booking services updated from Catalog Studio"
+                            : `${nextDocumentStage === "invoice" ? "Invoice generated" : `Booking updated to ${nextStatus}`}`,
                     status: nextStatus,
                     paymentStatus: nextPaymentStatus
                 })
@@ -294,6 +431,9 @@ export async function PUT(request) {
             const reqId = `req-${Date.now()}`;
             const requestedStatus = normalizeBookingStatus(bookingData.status ?? originalData.status ?? "Lead");
             const requestedPaymentStatus = normalizePaymentStatus(bookingData.paymentStatus ?? originalData.paymentStatus ?? "unpaid");
+            const safeRequestedBookingData = { ...bookingData };
+            delete safeRequestedBookingData.priceOverride;
+            delete safeRequestedBookingData.servicesChanged;
             const editRequest = {
                 id: reqId,
                 bookingId: bookingData.id,
@@ -304,14 +444,16 @@ export async function PUT(request) {
                 originalData: originalData,
                 requestedData: {
                     ...originalData,
-                    ...bookingData,
-                    price: requestedPaymentStatus === "redo" ? 0 : parseFloat(bookingData.price ?? originalData.price),
-                    subtotal: requestedPaymentStatus === "redo" ? 0 : parseFloat(bookingData.subtotal ?? originalData.subtotal ?? bookingData.price ?? originalData.price),
-                    tax: requestedPaymentStatus === "redo" ? 0 : parseFloat(bookingData.tax ?? originalData.tax ?? 0),
+                    ...safeRequestedBookingData,
+                    service: originalData.service,
+                    cartItems: originalData.cartItems,
+                    price: requestedPaymentStatus === "redo" ? 0 : Number(originalData.price || 0),
+                    subtotal: requestedPaymentStatus === "redo" ? 0 : Number(originalData.subtotal ?? originalData.price ?? 0),
+                    tax: requestedPaymentStatus === "redo" ? 0 : Number(originalData.tax || 0),
                     status: requestedStatus,
                     paymentStatus: requestedPaymentStatus,
                     documentStage: ["Lead", "Follow Up", "Pending"].includes(requestedStatus) ? "estimate" : "booking",
-                    duration: parseFloat(bookingData.duration ?? originalData.duration)
+                    duration: Number(originalData.duration || 0)
                 }
             };
             
