@@ -1457,6 +1457,10 @@ label {
     align-items: center;
     justify-content: center;
     padding: 20px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
 }
 
 .modal-backdrop.show {
@@ -5379,6 +5383,8 @@ select option:disabled {
     overflow-y: hidden;
     border-radius: 18px;
     background: #ffffff;
+    min-height: 0;
+    margin: auto;
 }
 
 .modal-content-admin-checkout .modal-header {
@@ -5611,7 +5617,11 @@ select option:disabled {
     gap: 20px;
     flex: 1 1 auto;
     min-height: 0;
-    overflow: auto;
+    height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
     padding: 22px;
     background: #f8f9fa;
 }
@@ -5638,6 +5648,7 @@ select option:disabled {
 .admin-checkout-grid.review-mode {
     grid-column: 1 / -1;
     display: block;
+    min-width: 0;
 }
 
 .admin-checkout-grid label {
@@ -6167,6 +6178,7 @@ select option:disabled {
         height: 94vh;
         max-height: 94vh;
         border-radius: 16px;
+        margin: 0;
     }
 
     .modal-content-service-config .modal-header,
@@ -6183,7 +6195,8 @@ select option:disabled {
     .admin-checkout-form {
         grid-template-columns: minmax(0, 1fr);
         gap: 14px;
-        overflow: auto;
+        overflow-x: hidden;
+        overflow-y: auto;
         padding-bottom: calc(18px + env(safe-area-inset-bottom));
     }
 
