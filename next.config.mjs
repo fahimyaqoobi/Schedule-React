@@ -8,11 +8,6 @@ const nextConfig = {
   turbopack: {
     root: projectRoot,
   },
-  outputFileTracingIncludes: {
-    "/api/bookings/document": [
-      "./node_modules/pdfkit/js/data/**/*",
-    ],
-  },
 };
 
 export default nextConfig;
