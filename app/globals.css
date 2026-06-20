@@ -5377,14 +5377,14 @@ select option:disabled {
     flex-direction: column;
     width: min(1240px, 96vw);
     max-width: min(1240px, 96vw);
-    height: min(88vh, 980px);
-    max-height: min(88vh, 980px);
-    overflow: hidden;
-    overflow-y: hidden;
+    height: auto;
+    max-height: none;
+    overflow: visible;
     border-radius: 18px;
     background: #ffffff;
     min-height: 0;
     margin: auto;
+    align-self: flex-start;
 }
 
 .modal-content-admin-checkout .modal-header {
@@ -5617,11 +5617,8 @@ select option:disabled {
     gap: 20px;
     flex: 1 1 auto;
     min-height: 0;
-    height: 100%;
-    overflow-x: hidden;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    -webkit-overflow-scrolling: touch;
+    height: auto;
+    overflow: visible;
     padding: 22px;
     background: #f8f9fa;
 }
@@ -6050,8 +6047,8 @@ select option:disabled {
     .modal-content-service-config,
     .modal-content-admin-checkout {
         width: min(96vw, 1040px);
-        height: min(92vh, 1040px);
-        max-height: min(92vh, 1040px);
+        height: auto;
+        max-height: none;
     }
 
     .service-config-section {
@@ -6175,8 +6172,8 @@ select option:disabled {
     .modal-content-service-config,
     .modal-content-admin-checkout {
         width: 96vw;
-        height: 94vh;
-        max-height: 94vh;
+        height: auto;
+        max-height: none;
         border-radius: 16px;
         margin: 0;
     }
@@ -6195,8 +6192,7 @@ select option:disabled {
     .admin-checkout-form {
         grid-template-columns: minmax(0, 1fr);
         gap: 14px;
-        overflow-x: hidden;
-        overflow-y: auto;
+        overflow: visible;
         padding-bottom: calc(18px + env(safe-area-inset-bottom));
     }
 
