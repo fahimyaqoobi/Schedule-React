@@ -9,7 +9,8 @@ import {
     userCanAccessBranch,
     buildBranchRecordFields
 } from "../../../lib/branches";
-import { generateReferralCode } from "../../../lib/promotions";
+import { generateReferralCode, ensurePromotionList, normalizePromoCode, applyPromotion } from "../../../lib/promotions";
+import { getCustomerPromoContext, getPersonalReferralCode } from "../../../lib/customerRewards";
 
 const BOOKING_STATUS_FLOW = ["Lead", "Follow Up", "Pending", "Confirmed", "Completed", "Cancelled"];
 const PAYMENT_STATUS_FLOW = ["unpaid", "paid", "redo"];
@@ -254,8 +255,49 @@ export async function POST(request) {
             : bookingData.tax !== undefined
                 ? parseFloat(bookingData.tax || 0)
                 : subtotal * matchedBranch.taxRate;
-        const total = paymentStatus === "redo" ? 0 : parseFloat(bookingData.price || subtotal + tax);
         const customerPortalPhone = bookingData.customerPortalPhone || bookingData.phone || "";
+
+        // ---- Server-authoritative promo + referral reward application ----
+        // The client never discounts for a promo itself; the server validates the
+        // code against this customer's real usage / earned referral credit and
+        // subtracts the trustworthy amount. No promo ⇒ total is unchanged.
+        let promoDiscount = 0;
+        let promoType = null;
+        let appliedPromo = null;
+        const requestedPromoCode = normalizePromoCode(bookingData.promoCode);
+        const requestedReferralCode = normalizePromoCode(bookingData.referredByCode);
+        const personalReferralCode = getPersonalReferralCode({
+            email: bookingData.email || "",
+            phone: customerPortalPhone,
+            name: bookingData.clientName || ""
+        });
+        if (requestedPromoCode) {
+            const settingsDoc = await adminDb.collection("settings").doc("pricing").get();
+            const promotions = ensurePromotionList(settingsDoc.exists ? settingsDoc.data()?.promotions : []);
+            const rewardContext = await getCustomerPromoContext({
+                user: { email: bookingData.email || "", phone: customerPortalPhone, name: bookingData.clientName || "" },
+                adminDb,
+                promotions
+            });
+            const promoResult = applyPromotion({
+                code: requestedPromoCode,
+                subtotal,
+                promotions,
+                customerUsage: rewardContext.customerUsage,
+                referralCredits: rewardContext.referralCredits
+            });
+            if (promoResult.ok) {
+                promoDiscount = promoResult.discount;
+                promoType = promoResult.promo.type;
+                appliedPromo = promoResult.promo;
+            }
+        }
+        const baseTotal = paymentStatus === "redo" ? 0 : parseFloat(bookingData.price || subtotal + tax);
+        const total = paymentStatus === "redo" ? 0 : Math.max(0, Number((baseTotal - promoDiscount).toFixed(2)));
+        // Only credit a referrer if a *different* customer's code was supplied.
+        const validReferredByCode = requestedReferralCode && requestedReferralCode !== personalReferralCode
+            ? requestedReferralCode
+            : "";
         const newBooking = {
             ...bookingData,
             ...buildBranchRecordFields(matchedBranch, user),
@@ -274,13 +316,20 @@ export async function POST(request) {
             invoiceNumber: "",
             customerPortalPhone,
             referralCode: bookingData.referralCode || generateReferralCode(customerPortalPhone, orderNumber, bookingData.clientName),
+            promoCode: requestedPromoCode || "",
+            promoType: promoType || "",
+            promoName: appliedPromo?.name || "",
+            promoDiscount,
+            referredByCode: validReferredByCode,
             duration: parseFloat(bookingData.duration || 2),
             createdAt: new Date().toISOString(),
             createdBy: user.email,
             auditLog: appendBookingAuditLog([], {
                 type: "created",
                 by: user.email || user.uid,
-                summary: `Booking created as ${bookingStatus}`,
+                summary: promoDiscount > 0
+                    ? `Booking created as ${bookingStatus} · ${appliedPromo?.name || requestedPromoCode} saved $${promoDiscount.toFixed(2)}`
+                    : `Booking created as ${bookingStatus}`,
                 status: bookingStatus,
                 paymentStatus
             })

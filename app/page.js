@@ -39,7 +39,8 @@ import {
     getBookingDocumentLabel as getBookingDocumentType,
     getBookingDocumentNumber
 } from "../lib/bookingDocuments";
-import { DEFAULT_PROMOTIONS, ensurePromotionList } from "../lib/promotions";
+import { DEFAULT_PROMOTIONS, ensurePromotionList, getCustomerEligiblePromotions } from "../lib/promotions";
+import { getPersonalReferralCode } from "../lib/customerRewards";
 import { DEFAULT_DOCUMENT_COPY, normalizeDocumentCopy } from "../lib/documentCopy";
 
 const V2SettingsManager = dynamic(() => import("./components/V2SettingsManager"), {
@@ -589,6 +590,7 @@ export default function Home() {
     // --- V2 Dynamic Catalog State ---
     const [v2Catalog, setV2Catalog] = useState(INITIAL_V2_CATALOG);
     const [promotionRules, setPromotionRules] = useState(DEFAULT_PROMOTIONS);
+    const [customerRewards, setCustomerRewards] = useState(null);
     const [documentCopy, setDocumentCopy] = useState(DEFAULT_DOCUMENT_COPY);
     const [promotionSaving, setPromotionSaving] = useState(false);
 
@@ -1056,6 +1058,24 @@ export default function Home() {
         };
         if (currentUser) {
             loadPricingRates();
+        }
+    }, [currentUser, getAuthHeaders]);
+
+    // Customer rewards wallet — real referral code, earned credit, and eligible promos.
+    useEffect(() => {
+        const loadCustomerRewards = async () => {
+            try {
+                const headers = await getAuthHeaders();
+                const res = await fetch("/api/promotions", { headers });
+                if (res.ok) {
+                    setCustomerRewards(await res.json());
+                }
+            } catch (err) {
+                console.warn("Failed to load customer rewards.", err);
+            }
+        };
+        if (currentUser && normalizeRole(currentUser.role) === "customer") {
+            loadCustomerRewards();
         }
     }, [currentUser, getAuthHeaders]);
 
@@ -3500,17 +3520,53 @@ export default function Home() {
                                     </div>
 
                                     <div className="lg:col-span-1 flex flex-col gap-6">
-                                        <div className="panel-card bg-amber-50 border-amber-200">
-                                            <div className="panel-header border-amber-200">
-                                                <h4 className="text-amber-800">Refer & Earn</h4>
-                                            </div>
-                                            <div className="panel-body p-6">
-                                                <p className="text-sm text-amber-700 font-medium mb-4">Give your friends <strong>$20 off</strong> their first cleaning, and get <strong>$40 off</strong> your next cleaning when they book!</p>
-                                                <div className="bg-white p-3 rounded-xl border border-amber-200 text-center font-mono font-bold text-amber-900 text-lg tracking-widest shadow-inner">
-                                                    REF-{currentUser.uid.slice(0, 6).toUpperCase()}
-                                                </div>
-                                            </div>
-                                        </div>
+                                        {(() => {
+                                            const myBookings = bookings.filter(b => b.email === currentUser.email);
+                                            const usage = myBookings.filter(b => b.promoCode).map(b => ({ code: b.promoCode }));
+                                            const referralCode = customerRewards?.referralCode || getPersonalReferralCode({ email: currentUser.email, phone: currentUser.phone, name: currentUser.name });
+                                            const availableCredit = Number(customerRewards?.rewards?.availableCredit || 0);
+                                            const qualifying = Number(customerRewards?.rewards?.qualifyingReferrals || 0);
+                                            const perReferral = Number(customerRewards?.rewards?.perReferral || 30);
+                                            const eligible = customerRewards?.eligiblePromotions || getCustomerEligiblePromotions({ promotions: promotionRules, customerUsage: usage, referralCredits: availableCredit });
+                                            const copy = (text, label) => { try { navigator.clipboard?.writeText(text); } catch { /* clipboard unavailable */ } alert(`${label} copied${label === referralCode ? "" : " — apply it at checkout"}.`); };
+                                            return (
+                                                <>
+                                                    <div className="rewards-card">
+                                                        <span className="rewards-kicker">Rewards Wallet</span>
+                                                        <div className="rewards-balance">
+                                                            <span>Available credit</span>
+                                                            <strong>${availableCredit.toFixed(2)}</strong>
+                                                            <small>{qualifying > 0 ? `${qualifying} friend${qualifying > 1 ? "s" : ""} booked · $${perReferral} each` : `Earn $${perReferral} when a friend completes their first booking`}</small>
+                                                        </div>
+                                                        <div className="rewards-referral">
+                                                            <span className="rewards-referral-label">Your referral code</span>
+                                                            <button type="button" className="rewards-code" onClick={() => copy(referralCode, referralCode)}>
+                                                                <code>{referralCode}</code>
+                                                                <span className="rewards-copy">Copy</span>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    <div className="rewards-promos panel-card">
+                                                        <div className="panel-header"><h4>Available Promos</h4></div>
+                                                        <div className="rewards-promo-list">
+                                                            {eligible.length === 0 && <p className="rewards-empty">No promotions available right now.</p>}
+                                                            {eligible.map(p => (
+                                                                <div key={p.id} className={`rewards-promo ${p.eligible ? "" : "locked"}`}>
+                                                                    <div className="rewards-promo-main">
+                                                                        <code>{p.code}</code>
+                                                                        <span className="rewards-promo-name">{p.name}</span>
+                                                                        {p.description && <small>{p.description}</small>}
+                                                                    </div>
+                                                                    {p.eligible
+                                                                        ? <button type="button" className="rewards-promo-copy" onClick={() => copy(p.code, p.code)}>Copy</button>
+                                                                        : <span className="rewards-promo-locked" title={p.lockedReason}>Locked</span>}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </>
+                                            );
+                                        })()}
                                     </div>
                                 </div>
                             </div>
