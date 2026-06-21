@@ -1,35 +1,43 @@
 import { NextResponse } from "next/server";
-import twilio from "twilio";
+import { adminDb } from "../../../../lib/firebase-admin";
 import { signCustomerSession } from "../../../../lib/customerSession";
-
-function getTwilio() {
-    const sid = process.env.TWILIO_ACCOUNT_SID;
-    const token = process.env.TWILIO_AUTH_TOKEN;
-    const service = process.env.TWILIO_VERIFY_SERVICE_SID;
-    if (!sid || !token || !service) throw new Error("SMS service not configured.");
-    return { client: twilio(sid, token), service };
-}
 
 function normalizePhone(raw = "") {
     const digits = String(raw || "").replace(/\D/g, "");
-    const ten = digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits;
-    if (ten.length !== 10) throw new Error("Invalid phone number.");
-    return ten;
+    if (digits.length === 11 && digits.startsWith("1")) return digits.slice(1);
+    return digits;
 }
 
 export async function POST(request) {
     try {
         const { phone, code } = await request.json();
-        if (!code || String(code).replace(/\D/g, "").length !== 6) throw new Error("Please enter the 6-digit code.");
+        if (!code || String(code).replace(/\D/g, "").length !== 6) {
+            throw new Error("Please enter the 6-digit code.");
+        }
 
         const normalized = normalizePhone(phone);
-        const { client, service } = getTwilio();
+        if (normalized.length !== 10) throw new Error("Invalid phone number.");
 
-        const check = await client.verify.v2.services(service)
-            .verificationChecks
-            .create({ to: `+1${normalized}`, code: String(code) });
+        const doc = await adminDb.collection("customer_otps").doc(normalized).get();
+        if (!doc.exists) throw new Error("No code was sent to this number. Please request a new one.");
 
-        if (check.status !== "approved") throw new Error("Incorrect code. Please try again.");
+        const data = doc.data();
+
+        if (Date.now() > data.expiresAt) {
+            await doc.ref.delete();
+            throw new Error("Code has expired. Please request a new one.");
+        }
+
+        if ((data.attempts || 0) >= 5) {
+            throw new Error("Too many attempts. Please request a new code.");
+        }
+
+        if (String(data.code) !== String(code).replace(/\D/g, "")) {
+            await doc.ref.update({ attempts: (data.attempts || 0) + 1 });
+            throw new Error("Incorrect code. Please try again.");
+        }
+
+        await doc.ref.delete();
 
         const sessionToken = signCustomerSession(normalized);
         return NextResponse.json({ ok: true, sessionToken });
