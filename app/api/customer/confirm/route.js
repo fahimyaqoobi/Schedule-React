@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "../../../../lib/firebase-admin";
 import { getSessionPhone } from "../../../../lib/customerSession";
+import { recordCustomerBooking, recordCustomerPromo } from "../../../../lib/customerProfile";
 
 function normalizePhone(raw = "") {
     const digits = String(raw || "").replace(/\D/g, "");
@@ -35,6 +36,23 @@ export async function POST(request) {
             status: nextStatus,
             updatedAt: new Date().toISOString(),
         });
+
+        // Record booking + promo in customer profile
+        recordCustomerBooking(sessionPhone, {
+            bookingId,
+            service: data.service,
+            date: data.date,
+            price: data.price,
+            status: nextStatus,
+        }).catch(err => console.error("recordCustomerBooking failed:", err));
+
+        if (data.promoCode && Number(data.promoDiscount) > 0) {
+            recordCustomerPromo(sessionPhone, {
+                code: data.promoCode,
+                discount: data.promoDiscount,
+                bookingId,
+            }).catch(err => console.error("recordCustomerPromo failed:", err));
+        }
 
         return NextResponse.json({ message: "Job confirmed successfully" });
     } catch (err) {

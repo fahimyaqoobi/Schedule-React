@@ -43,6 +43,18 @@ import { DEFAULT_PROMOTIONS, ensurePromotionList, getCustomerEligiblePromotions 
 import { getPersonalReferralCode } from "../lib/customerRewards";
 import { DEFAULT_DOCUMENT_COPY, normalizeDocumentCopy } from "../lib/documentCopy";
 
+import CatalogTab from "./components/admin/tabs/CatalogTab";
+import PromotionsTab from "./components/admin/tabs/PromotionsTab";
+import SettingsTab from "./components/admin/tabs/SettingsTab";
+import DepartmentsTab from "./components/admin/tabs/DepartmentsTab";
+import PermissionsTab from "./components/admin/tabs/PermissionsTab";
+import EditRequestsTab from "./components/admin/tabs/EditRequestsTab";
+import JobsPayrollTab from "./components/admin/tabs/JobsPayrollTab";
+import TeamsTab from "./components/admin/tabs/TeamsTab";
+import DashboardTab from "./components/admin/tabs/DashboardTab";
+import BookingsTab from "./components/admin/tabs/BookingsTab";
+import CalendarTab from "./components/admin/tabs/CalendarTab";
+
 const V2SettingsManager = dynamic(() => import("./components/V2SettingsManager"), {
     ssr: false,
     loading: () => (
@@ -1928,6 +1940,43 @@ export default function Home() {
         }
     }, [getAuthHeaders]);
 
+    const handleApproveBooking = useCallback(async (booking) => {
+        if (!booking?.id) return;
+        if (!window.confirm(`Approve and confirm job for ${booking.clientName}? Status will move to Confirmed.`)) return;
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch("/api/bookings/approve", {
+                method: "POST",
+                headers,
+                body: JSON.stringify({ bookingId: booking.id })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || "Failed to approve booking.");
+            alert(data.message || "Booking approved and client notified.");
+            setDetailsModalOpen(false);
+            syncDatabaseData(currentUser);
+        } catch (error) {
+            alert(`Approval failed: ${error.message}`);
+        }
+    }, [currentUser, getAuthHeaders, syncDatabaseData]);
+
+    const handleSendReceipt = useCallback(async (booking) => {
+        if (!booking?.id) return;
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch("/api/bookings/receipt", {
+                method: "POST",
+                headers,
+                body: JSON.stringify({ bookingId: booking.id })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || "Failed to send receipt.");
+            alert(data.message || "Receipt sent to client.");
+        } catch (error) {
+            alert(`Receipt send failed: ${error.message}`);
+        }
+    }, [getAuthHeaders]);
+
     // ----------------------------------------------------
     // Admin Crew Creation Actions
     // ----------------------------------------------------
@@ -2935,7 +2984,8 @@ export default function Home() {
 
             const matchService = !filterService || (b.service || "").toLowerCase().includes(filterService.toLowerCase());
             const matchTeam = !filterTeam || b.team === filterTeam;
-            const matchStatus = !filterStatus || b.status === filterStatus;
+            const matchStatus = !filterStatus ||
+                (filterStatus === "awaiting_approval" ? (b.customerConfirmed === true && b.status === "Pending") : b.status === filterStatus);
 
             const matchRoleAccess = currentUser?.role === "customer" ? b.email === currentUser?.email : true;
 
@@ -2986,6 +3036,8 @@ export default function Home() {
         const revenue = completedBookings.reduce((total, booking) => total + parseFloat(booking.price || booking.totalAmount || 0), 0);
         const pending = activeBookings.filter(booking => booking.status === "Pending").length;
         const confirmed = activeBookings.filter(booking => booking.status === "Confirmed").length;
+        const awaitingApproval = activeBookings.filter(booking => booking.customerConfirmed === true && booking.status === "Pending").length;
+        const paidInvoices = activeBookings.filter(booking => booking.paymentStatus === "paid").length;
 
         return {
             activeBookings: activeBookings.length,
@@ -2993,7 +3045,9 @@ export default function Home() {
             bookedServices,
             revenue,
             pending,
-            confirmed
+            confirmed,
+            awaitingApproval,
+            paidInvoices
         };
     }, [bookings]);
 
@@ -3472,2348 +3526,228 @@ export default function Home() {
 
                 {/* TAB 1: DASHBOARD VIEW */}
                 {activeTab === "dashboard" && (
-                    <div className="animate-fade">
-                        {currentUser.role === "customer" ? (
-                            <div className="customer-dashboard flex flex-col gap-8">
-                                <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 bg-gradient-to-br from-blue-50 to-indigo-50">
-                                    <h2 className="text-3xl font-black text-slate-800 tracking-tight">Welcome back, {currentUser.name.split(" ")[0]}!</h2>
-                                    <p className="text-slate-500 font-medium mt-2 max-w-lg">Manage your home cleaning schedule, view past services, and earn credits through our referral program.</p>
-                                </div>
-
-                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                                    <div className="lg:col-span-2 flex flex-col gap-6">
-                                        <div className="panel-card">
-                                            <div className="panel-header">
-                                                <h4>Your Bookings</h4>
-                                            </div>
-                                            <div className="panel-body p-0">
-                                                {(() => {
-                                                    const myBookings = bookings.filter(b => b.email === currentUser.email).sort((a, b) => new Date(b.date) - new Date(a.date));
-                                                    if (myBookings.length === 0) {
-                                                        return <div className="p-8 text-center text-slate-400 text-sm">You haven&apos;t booked any services yet.</div>;
-                                                    }
-                                                    return (
-                                                        <div className="flex flex-col">
-                                                            {myBookings.map((b, idx) => (
-                                                                <div key={b.id || idx} className="flex justify-between items-center p-4 border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
-                                                                    <div>
-                                                                        <div className="font-bold text-slate-800 text-sm">{b.date} at {b.time}</div>
-                                                                        <div className="text-[10px] text-slate-500 uppercase tracking-wider mt-1">{b.status}</div>
-                                                                        {b.isV2Booking && b.cartItems && b.cartItems.some(i => ["Weekly", "Bi-Weekly", "Monthly"].includes(i.frequency)) && (
-                                                                            <div className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded inline-block mt-2">
-                                                                                ↻ Next Scheduled: {
-                                                                                    (() => {
-                                                                                        const freq = b.cartItems.find(i => ["Weekly", "Bi-Weekly", "Monthly"].includes(i.frequency))?.frequency;
-                                                                                        const d = new Date(b.date);
-                                                                                        if (freq === "Weekly") d.setDate(d.getDate() + 7);
-                                                                                        if (freq === "Bi-Weekly") d.setDate(d.getDate() + 14);
-                                                                                        if (freq === "Monthly") d.setMonth(d.getMonth() + 1);
-                                                                                        return d.toLocaleDateString('en-CA');
-                                                                                    })()
-                                                                                } ({b.cartItems.find(i => ["Weekly", "Bi-Weekly", "Monthly"].includes(i.frequency))?.frequency})
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                    <div className="text-right">
-                                                                        <div className="font-black text-slate-800">${parseFloat(b.price || b.totalAmount || 0).toFixed(2)}</div>
-                                                                        <div className="text-[10px] text-slate-400 mt-1">{b.duration} hrs</div>
-                                                                    </div>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    );
-                                                })()}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="lg:col-span-1 flex flex-col gap-6">
-                                        {(() => {
-                                            const myBookings = bookings.filter(b => b.email === currentUser.email);
-                                            const usage = myBookings.filter(b => b.promoCode).map(b => ({ code: b.promoCode }));
-                                            const referralCode = customerRewards?.referralCode || getPersonalReferralCode({ email: currentUser.email, phone: currentUser.phone, name: currentUser.name });
-                                            const availableCredit = Number(customerRewards?.rewards?.availableCredit || 0);
-                                            const qualifying = Number(customerRewards?.rewards?.qualifyingReferrals || 0);
-                                            const perReferral = Number(customerRewards?.rewards?.perReferral || 30);
-                                            const eligible = customerRewards?.eligiblePromotions || getCustomerEligiblePromotions({ promotions: promotionRules, customerUsage: usage, referralCredits: availableCredit });
-                                            const copy = (text, label) => { try { navigator.clipboard?.writeText(text); } catch { /* clipboard unavailable */ } alert(`${label} copied${label === referralCode ? "" : " — apply it at checkout"}.`); };
-                                            return (
-                                                <>
-                                                    <div className="rewards-card">
-                                                        <span className="rewards-kicker">Rewards Wallet</span>
-                                                        <div className="rewards-balance">
-                                                            <span>Available credit</span>
-                                                            <strong>${availableCredit.toFixed(2)}</strong>
-                                                            <small>{qualifying > 0 ? `${qualifying} friend${qualifying > 1 ? "s" : ""} booked · $${perReferral} each` : `Earn $${perReferral} when a friend completes their first booking`}</small>
-                                                        </div>
-                                                        <div className="rewards-referral">
-                                                            <span className="rewards-referral-label">Your referral code</span>
-                                                            <button type="button" className="rewards-code" onClick={() => copy(referralCode, referralCode)}>
-                                                                <code>{referralCode}</code>
-                                                                <span className="rewards-copy">Copy</span>
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                    <div className="rewards-promos panel-card">
-                                                        <div className="panel-header"><h4>Available Promos</h4></div>
-                                                        <div className="rewards-promo-list">
-                                                            {eligible.length === 0 && <p className="rewards-empty">No promotions available right now.</p>}
-                                                            {eligible.map(p => (
-                                                                <div key={p.id} className={`rewards-promo ${p.eligible ? "" : "locked"}`}>
-                                                                    <div className="rewards-promo-main">
-                                                                        <code>{p.code}</code>
-                                                                        <span className="rewards-promo-name">{p.name}</span>
-                                                                        {p.description && <small>{p.description}</small>}
-                                                                    </div>
-                                                                    {p.eligible
-                                                                        ? <button type="button" className="rewards-promo-copy" onClick={() => copy(p.code, p.code)}>Copy</button>
-                                                                        : <span className="rewards-promo-locked" title={p.lockedReason}>Locked</span>}
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                </>
-                                            );
-                                        })()}
-                                    </div>
-                                </div>
-                            </div>
-                        ) : (
-                            <>
-                                <section className="admin-command-shell">
-                                    <div className="admin-command-header">
-                                        <div>
-                                            <p className="admin-command-kicker">Admin booking command</p>
-                                            <h3>Start a booking from the service catalog</h3>
-                                            <p>
-                                                Choose a core service, configure the subcategory and add-ons, add it to the cart, then repeat for multiple services before checkout.
-                                            </p>
-                                            <div className="admin-workflow-steps" aria-label="Booking workflow">
-                                                <span><strong>1</strong> Select service</span>
-                                                <span><strong>2</strong> Configure details</span>
-                                                <span><strong>3</strong> Add to cart</span>
-                                                <span><strong>4</strong> Checkout</span>
-                                            </div>
-                                        </div>
-                                        <button onClick={openNewBookingCommand} className="admin-primary-action">
-                                            {Icons.Plus()}
-                                            Start Service Cart
-                                        </button>
-                                    </div>
-
-                                    <div className="admin-metric-row">
-                                        <div className="admin-metric-card">
-                                            <span>Total Revenue</span>
-                                            <strong>${adminCommandMetrics.revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-                                            <small>Completed jobs/bookings only</small>
-                                        </div>
-                                        <div className="admin-metric-card">
-                                            <span>Booked Clients</span>
-                                            <strong>{adminCommandMetrics.uniqueClients}</strong>
-                                            <small>{adminCommandMetrics.activeBookings} active bookings</small>
-                                        </div>
-                                        <div className="admin-metric-card">
-                                            <span>Booked Services</span>
-                                            <strong>{adminCommandMetrics.bookedServices}</strong>
-                                            <small>Cart and legacy bookings</small>
-                                        </div>
-                                        <div className="admin-metric-card warning">
-                                            <span>Pending Work</span>
-                                            <strong>{adminCommandMetrics.pending}</strong>
-                                            <small>{adminCommandMetrics.confirmed} confirmed jobs</small>
-                                        </div>
-                                    </div>
-
-                                    <div className="admin-booking-workspace">
-                                        <div ref={serviceCatalogRef} className="admin-service-panel" tabIndex="-1">
-                                            <div className="admin-section-heading">
-                                                <div>
-                                                    <h4>Service Catalog</h4>
-                                                    <p>Core services from your V2 Dynamic Service Manager.</p>
-                                                </div>
-                                                <span>{catalogServiceCards.length} Services</span>
-                                            </div>
-                                            <div className="admin-service-grid">
-                                                {catalogServiceCards.map(service => (
-                                                    <article key={service.id} className="admin-service-card">
-                                                        <div className={`admin-service-visual ${service.visualClass}`}>
-                                                            <span>{service.count} booked</span>
-                                                        </div>
-                                                        <div className="admin-service-body">
-                                                            <div className="admin-service-title-row">
-                                                                <h5>{service.name}</h5>
-                                                                <strong>${service.basePrice.toFixed(2)}</strong>
-                                                            </div>
-                                                            <p>{service.pricingModel.replaceAll("_", " ")} • {service.durationHrs || "Custom"} hrs baseline</p>
-                                                            <div className="admin-service-meta">
-                                                                <span>{service.sizes?.length || 0} subcategories</span>
-                                                                <span>{service.addons?.length || 0} add-ons</span>
-                                                            </div>
-                                                            <button onClick={() => openServiceConfigurator(service)} type="button" className="admin-add-service-btn">
-                                                                {Icons.Plus()}
-                                                                Configure
-                                                            </button>
-                                                        </div>
-                                                    </article>
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        <aside className="admin-cart-panel">
-                                            <div className="admin-section-heading">
-                                                <div>
-                                                    <h4>Client Service Cart</h4>
-                                                    <p>Add multiple services before checkout.</p>
-                                                </div>
-                                                <span>{adminServiceCart.length} Items</span>
-                                            </div>
-                                            {adminServiceCart.length === 0 ? (
-                                                <div className="admin-cart-empty">
-                                                    <strong>No services selected yet.</strong>
-                                                    <p>Tap Configure on any core service, choose the tier and add-ons, then add it to this cart.</p>
-                                                </div>
-                                            ) : (
-                                                <div className="admin-cart-list">
-                                                    {adminServiceCart.map(item => {
-                                                        const basePrice = Number(item.basePrice || 0);
-                                                        const bathroomPrice = Number(item.bathroomPrice || 0);
-                                                        const addons = item.addons || [];
-                                                        return (
-                                                            <div key={item.cartId} className="admin-cart-item">
-                                                                <div>
-                                                                    <strong>{item.name}</strong>
-                                                                    <span>
-                                                                        {item.optionName}
-                                                                        {item.bathroomKey ? ` • ${item.bathroomKey}` : ""}
-                                                                        {` • ${Number(item.durationHrs || 0).toFixed(1)} hrs`}
-                                                                    </span>
-                                                                    <div className="admin-cart-breakdown">
-                                                                        <div>
-                                                                            <span>Base service / tier</span>
-                                                                            <strong>${basePrice.toFixed(2)}</strong>
-                                                                        </div>
-                                                                        {bathroomPrice > 0 && (
-                                                                            <div>
-                                                                                <span>{item.bathroomKey || "Bathroom adjustment"}</span>
-                                                                                <strong>${bathroomPrice.toFixed(2)}</strong>
-                                                                            </div>
-                                                                        )}
-                                                                        {addons.length > 0 ? addons.map(addon => {
-                                                                            const qty = Number(addon.qty || 1);
-                                                                            const addonLineTotal = Number(addon.total ?? Number(addon.price || 0) * qty);
-                                                                            return (
-                                                                                <div key={addon.id}>
-                                                                                    <span>{addon.name}{qty > 1 ? ` x${qty}` : ""}</span>
-                                                                                    <strong>${addonLineTotal.toFixed(2)}</strong>
-                                                                                </div>
-                                                                            );
-                                                                        }) : (
-                                                                            <div>
-                                                                                <span>Add-ons</span>
-                                                                                <strong>$0.00</strong>
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-                                                                <div className="admin-cart-price">
-                                                                    <strong>${Number(item.price || 0).toFixed(2)}</strong>
-                                                                    <button onClick={() => editAdminCartItem(item)} type="button" className="admin-cart-edit" aria-label={`Edit ${item.name}`}>
-                                                                        {Icons.Edit()}
-                                                                    </button>
-                                                                    <button onClick={() => removeAdminCartItem(item.cartId)} type="button" aria-label={`Remove ${item.name}`}>
-                                                                        {Icons.Trash()}
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            )}
-                                            <div className="admin-cart-totals">
-                                                <div><span>Subtotal</span><strong>${adminCartTotals.subtotal.toFixed(2)}</strong></div>
-                                                <div><span>{activeBranch.taxLabel}</span><strong>${adminCartTotals.tax.toFixed(2)}</strong></div>
-                                                <div><span>Estimated Hours</span><strong>{adminCartTotals.duration.toFixed(1)}</strong></div>
-                                                <div className="admin-cart-grand"><span>Total</span><strong>${adminCartTotals.total.toFixed(2)}</strong></div>
-                                            </div>
-                                            <button disabled={adminServiceCart.length === 0} onClick={checkoutAdminCart} type="button" className="admin-checkout-btn">
-                                                Continue to Checkout
-                                            </button>
-                                        </aside>
-                                    </div>
-
-                                    <div className="admin-ops-grid">
-                                        <div className="admin-live-panel">
-                                            <div className="admin-section-heading">
-                                                <div>
-                                                    <h4>Today&apos;s Dispatches</h4>
-                                                    <p>{new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                                                </div>
-                                                <span>{todayBookings.length} Jobs</span>
-                                            </div>
-                                            {todayBookings.length === 0 ? (
-                                                <div className="admin-cart-empty">No dispatches scheduled for today.</div>
-                                            ) : (
-                                                <div className="admin-dispatch-list">
-                                                    {todayBookings.slice(0, 5).map(b => (
-                                                        <button key={b.id} onClick={() => { setSelectedBooking(b); setDetailsModalOpen(true); }} className="admin-dispatch-item" type="button">
-                                                            <span>{b.time}</span>
-                                                            <div>
-                                                                <strong>{b.clientName}</strong>
-                                                                <small>{b.service} • {b.team}</small>
-                                                            </div>
-                                                            <em>{b.status}</em>
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <div className="admin-live-panel">
-                                            <div className="admin-section-heading">
-                                                <div>
-                                                    <h4>HR & Compliance Queue</h4>
-                                                    <p>Employee/subcontractor readiness.</p>
-                                                </div>
-                                                <span>{pendingUsers.length} Pending</span>
-                                            </div>
-                                            <div className="admin-hr-queue">
-                                                <div><strong>{fieldStaff.length}</strong><span>Approved field staff</span></div>
-                                                <div><strong>{pendingUsers.length}</strong><span>Pending approvals</span></div>
-                                                <div><strong>{bookings.filter(b => b.assignedStaffIds?.length > 0).length}</strong><span>Assigned jobs</span></div>
-                                            </div>
-                                            <button onClick={() => setActiveTab("departments")} className="admin-secondary-action" type="button">
-                                                Open HR modules
-                                            </button>
-                                        </div>
-                                    </div>
-                                </section>
-
-                                {/* Permissioned pending user approvals table in Dashboard */}
-                                {canManagePermissions && pendingUsers.length > 0 && (
-                                    <div className="panel-card mt-6">
-                                        <div className="panel-header">
-                                            <h4>Awaiting operational registration approvals</h4>
-                                            <span className="badge badge-warning">{pendingUsers.length} Pending</span>
-                                        </div>
-                                        <div className="panel-body">
-                                            <div className="table-container">
-                                                <table className="bookings-table">
-                                                    <thead>
-                                                        <tr>
-                                                            <th>Person Name</th>
-                                                            <th>Email Address</th>
-                                                            <th>Account Role</th>
-                                                            <th>Requested Role</th>
-                                                            <th className="text-right">Actions</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {pendingUsers.map(u => (
-                                                            <tr key={u.uid}>
-                                                                <td className="font-bold text-slate-800">{u.name}</td>
-                                                                <td>{u.email}</td>
-                                                                <td>
-                                                                    <span className={`px-2 py-1 rounded text-xs font-bold ${u.role === 'customer' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
-                                                                        {getRoleLabel(u.role)}
-                                                                    </span>
-                                                                </td>
-                                                                <td>{getRoleLabel(u.role)}</td>
-                                                                <td className="text-right">
-                                                                    <div className="flex gap-2 justify-end">
-                                                                        <button onClick={() => handleResolveUserApproval(u.uid, "approve")} className="btn btn-secondary btn-sm">Approve</button>
-                                                                        <button onClick={() => handleResolveUserApproval(u.uid, "reject")} className="btn btn-danger btn-sm">Reject</button>
-                                                                    </div>
-                                                                </td>
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                            </>
-                        )}
-                    </div>
+                    <DashboardTab
+                        currentUser={currentUser}
+                        bookings={bookings}
+                        customerRewards={customerRewards}
+                        promotionRules={promotionRules}
+                        adminCommandMetrics={adminCommandMetrics}
+                        catalogServiceCards={catalogServiceCards}
+                        adminServiceCart={adminServiceCart}
+                        adminCartTotals={adminCartTotals}
+                        activeBranch={activeBranch}
+                        todayBookings={todayBookings}
+                        pendingUsers={pendingUsers}
+                        fieldStaff={fieldStaff}
+                        canManagePermissions={canManagePermissions}
+                        Icons={Icons}
+                        serviceCatalogRef={serviceCatalogRef}
+                        getPersonalReferralCode={getPersonalReferralCode}
+                        getCustomerEligiblePromotions={getCustomerEligiblePromotions}
+                        openNewBookingCommand={openNewBookingCommand}
+                        openServiceConfigurator={openServiceConfigurator}
+                        editAdminCartItem={editAdminCartItem}
+                        removeAdminCartItem={removeAdminCartItem}
+                        checkoutAdminCart={checkoutAdminCart}
+                        setSelectedBooking={setSelectedBooking}
+                        setDetailsModalOpen={setDetailsModalOpen}
+                        setActiveTab={setActiveTab}
+                        setFilterStatus={setFilterStatus}
+                        handleResolveUserApproval={handleResolveUserApproval}
+                        getRoleLabel={getRoleLabel}
+                    />
                 )}
 
                 {/* TAB 2: BOOKINGS LIST VIEWS */}
                 {activeTab === "bookings" && (
-                    <div className="animate-fade">
-                        <div className="filters-card">
-                            <div className="search-input-wrapper">
-                                <span className="search-icon">{Icons.Search()}</span>
-                                <input type="text" value={searchVal} onChange={e => setSearchVal(e.target.value)} placeholder="Search by client name, address, email or phone..." />
-                            </div>
-                            <div className="filters-actions">
-                                <select value={filterService} onChange={e => setFilterService(e.target.value)}>
-                                    <option value="">All Services</option>
-                                    {Object.keys(pricingRates.services).map(s => <option key={s} value={s}>{s}</option>)}
-                                </select>
-                                <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-                                    <option value="">All Statuses</option>
-                                    <option value="Pending">Pending</option>
-                                    <option value="Confirmed">Confirmed</option>
-                                    <option value="Completed">Completed</option>
-                                    <option value="Cancelled">Cancelled</option>
-                                </select>
-                                <select value={sortVal} onChange={e => setSortVal(e.target.value)}>
-                                    <option value="date-asc">Date: Soonest First</option>
-                                    <option value="date-desc">Date: Latest First</option>
-                                    <option value="name-asc">Client: Name A-Z</option>
-                                    <option value="price-desc">Cost: Highest First</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div className="table-container">
-                            {filteredBookings.length === 0 ? (
-                                <div className="text-center p-12 text-slate-400 text-sm">No scheduled cleanings match search variables.</div>
-                            ) : (
-                                <table className="bookings-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Client Details</th>
-                                            <th>Street Address</th>
-                                            <th>Service Details</th>
-                                            <th>Schedule Window</th>
-                                            <th>Assigned Staff</th>
-                                            <th>Status</th>
-                                            <th className="text-right">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {filteredBookings.map(b => {
-                                            const hasPendingEdit = editRequests.some(r => r.bookingId === b.id && r.status === "Pending");
-                                            return (
-                                                <tr key={b.id}>
-                                                    <td data-label="Client Details">
-                                                        <div className="flex flex-col items-end md:items-start">
-                                                            <div className="client-name-cell">{b.clientName}</div>
-                                                            <div className="text-[10px] text-slate-400 mt-0.5">{b.phone}</div>
-                                                            {hasPendingEdit && (
-                                                                <div className="inline-block text-[9px] bg-amber-50 border border-amber-200 text-amber-700 font-bold px-1.5 py-0.5 rounded-full mt-1">Pending Admin Review</div>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                    <td data-label="Street Address">
-                                                        <div className="address-cell text-xs" title={formatAddress(b)}>{formatAddress(b)}</div>
-                                                    </td>
-                                                    <td data-label="Service Details" className="service-cell">
-                                                        <div className="flex flex-col items-end md:items-start">
-                                                            <div className="font-bold text-slate-700 text-xs">{b.service}</div>
-                                                            <div className="price-text">${parseFloat(b.price || 0).toFixed(2)}</div>
-                                                        </div>
-                                                    </td>
-                                                    <td data-label="Schedule Window" className="datetime-cell">
-                                                        <div className="flex flex-col items-end md:items-start">
-                                                            <div className="font-bold text-xs">{b.date}</div>
-                                                            <div className="time-text text-[11px]">{formatTimeWindow(b.time, b.duration)}</div>
-                                                        </div>
-                                                    </td>
-                                                    <td data-label="Assigned Staff">
-                                                        <div className="assigned-staff-list">
-                                                            {(b.assignedStaff || []).map(member => (
-                                                                <span key={member.uid || member.email}>{member.name}</span>
-                                                            ))}
-                                                            {!b.assignedStaff?.length && <span>{b.team || "Unassigned"}</span>}
-                                                        </div>
-                                                    </td>
-                                                    <td data-label="Status">
-                                                        <div>
-                                                            <span className={`status-badge status-${b.status.toLowerCase()}`}>{b.status}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td data-label="Actions" className="actions-cell text-right">
-                                                        <div className="actions-cell-inner flex gap-2 justify-end">
-                                                            <button onClick={() => { setSelectedBooking(b); setDetailsModalOpen(true); }} className="action-btn btn-view" title="Details">{Icons.Eye()}</button>
-                                                            <button onClick={() => openEditBookingModal(b)} className="action-btn btn-edit" title="Edit">{Icons.Edit()}</button>
-                                                            {canManagePermissions && (
-                                                                <button onClick={() => handleDeleteBooking(b.id)} className="action-btn btn-delete" title="Cancel">{Icons.Trash()}</button>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            )}
-                        </div>
-                    </div>
+                    <BookingsTab
+                        searchVal={searchVal}
+                        setSearchVal={setSearchVal}
+                        filterService={filterService}
+                        setFilterService={setFilterService}
+                        filterStatus={filterStatus}
+                        setFilterStatus={setFilterStatus}
+                        sortVal={sortVal}
+                        setSortVal={setSortVal}
+                        pricingRates={pricingRates}
+                        filteredBookings={filteredBookings}
+                        editRequests={editRequests}
+                        canManagePermissions={canManagePermissions}
+                        Icons={Icons}
+                        formatAddress={formatAddress}
+                        formatTimeWindow={formatTimeWindow}
+                        setSelectedBooking={setSelectedBooking}
+                        setDetailsModalOpen={setDetailsModalOpen}
+                        openEditBookingModal={openEditBookingModal}
+                        handleDeleteBooking={handleDeleteBooking}
+                    />
                 )}
 
                 {/* TAB 3: CALENDAR & DAY AGENDA PANEL */}
                 {activeTab === "calendar" && (
-                    <div className="calendar-split-container animate-fade">
-                        <div className="calendar-card panel-card">
-                            <div className="panel-header flex justify-between items-center">
-                                <h4>Calendar Dispatch Matrix</h4>
-                                <div className="flex items-center gap-3">
-                                    <button onClick={() => changeMonth(-1)} className="action-btn">{Icons.ChevronLeft()}</button>
-                                    <span className="font-bold text-sm text-slate-700">{monthNames[currentCalMonth.getMonth()]} {currentCalMonth.getFullYear()}</span>
-                                    <button onClick={() => changeMonth(1)} className="action-btn">{Icons.ChevronRight()}</button>
-                                </div>
-                            </div>
-                            <div className="panel-body">
-                                <div className="calendar-grid-header">
-                                    <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
-                                </div>
-                                <div className="calendar-grid-days border-t border-slate-100 pt-2">
-                                    {calendarDays.map((cell, idx) => {
-                                        if (!cell.day) return <div key={`empty-${idx}`} className="cal-day empty"></div>;
-
-                                        const dayBookings = bookings.filter(b => b.date === cell.dateStr && (isCleanerSelfServiceView ? true : b.status !== "Cancelled"));
-                                        const isSelected = cell.dateStr === selectedCalDate;
-                                        const isToday = cell.dateStr === new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
-
-                                        return (
-                                            <div
-                                                key={cell.dateStr}
-                                                onClick={() => setSelectedCalDate(cell.dateStr)}
-                                                className={`cal-day ${isSelected ? 'selected' : ''} ${isToday ? 'today' : ''}`}
-                                            >
-                                                <span className="cal-day-num">{cell.day}</span>
-                                                <div className="cal-events-dots">
-                                                    {dayBookings.slice(0, 3).map(b => {
-                                                        const teamColor = teams.find(t => t.name === b.team)?.color || "sparkle";
-                                                        return (
-                                                            <span
-                                                                key={b.id}
-                                                                className={`event-dot ${teamColor}`}
-                                                                title={`${isCleanerSelfServiceView ? getBookingCustomerFirstName(b) : b.clientName} - ${b.service}`}
-                                                            ></span>
-                                                        );
-                                                    })}
-                                                    {dayBookings.length > 3 && <span className="text-[9px] text-slate-400 font-bold">+{dayBookings.length - 3}</span>}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Calendar Agenda Pane */}
-                        <div className="agenda-card">
-                            <div className="panel-header agenda-panel-header">
-                                <div>
-                                    <h4 className="agenda-panel-kicker">Day agenda list</h4>
-                                    <h3 className="font-extrabold text-slate-800 text-sm mt-1">{selectedCalDate}</h3>
-                                </div>
-                                <span className="badge">{agendaBookings.length} Job{agendaBookings.length === 1 ? '' : 's'}</span>
-                            </div>
-                            <div className="agenda-list">
-                                {agendaBookings.length === 0 ? (
-                                    <div className="text-center p-8 text-slate-400 text-xs">No dispatches scheduled on this date.</div>
-                                ) : (
-                                    agendaBookings.map(b => {
-                                        const teamColor = (teams.find(t => t.name === b.team)?.color || "sparkle").toLowerCase();
-                                        return (
-                                            <div key={b.id} className={`agenda-item ${teamColor}`}>
-                                                <div className="agenda-item-header">
-                                                    <span className="agenda-item-title">{isCleanerSelfServiceView ? getBookingCustomerFirstName(b) : b.clientName}</span>
-                                                    <span className="agenda-item-time">{b.time}</span>
-                                                </div>
-                                                <div className="agenda-item-desc">{b.service} ({b.duration} hrs)</div>
-                                                <div className="agenda-item-addr">
-                                                    {Icons.MapPin()}
-                                                    <span className="agenda-address-text">{b.address1}</span>
-                                                </div>
-                                                <div className="flex justify-between items-center mt-2 border-t border-slate-100 pt-2">
-                                                    <span className={`status-badge status-${b.status.toLowerCase()}`}>{b.status}</span>
-                                                    <div className="actions-cell">
-                                                        <button onClick={() => { setSelectedBooking(b); setDetailsModalOpen(true); }} className="action-btn btn-view">{Icons.Eye()}</button>
-                                                        <button onClick={() => openEditBookingModal(b)} className="action-btn btn-edit">{Icons.Edit()}</button>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })
-                                )}
-                            </div>
-                        </div>
-                    </div>
+                    <CalendarTab
+                        monthNames={monthNames}
+                        currentCalMonth={currentCalMonth}
+                        calendarDays={calendarDays}
+                        bookings={bookings}
+                        selectedCalDate={selectedCalDate}
+                        isCleanerSelfServiceView={isCleanerSelfServiceView}
+                        teams={teams}
+                        agendaBookings={agendaBookings}
+                        Icons={Icons}
+                        changeMonth={changeMonth}
+                        setSelectedCalDate={setSelectedCalDate}
+                        getBookingCustomerFirstName={getBookingCustomerFirstName}
+                        setSelectedBooking={setSelectedBooking}
+                        setDetailsModalOpen={setDetailsModalOpen}
+                        openEditBookingModal={openEditBookingModal}
+                    />
                 )}
 
                 {(activeTab === "jobs" || activeTab === "payroll") && (
-                    <div className={`animate-fade ${isCleanerSelfServiceView ? "cleaner-jobs-shell" : "admin-payroll-shell"}`}>
-                        {isCleanerSelfServiceView ? (
-                            <div className="cleaner-jobs-mobile">
-                                <section className="cleaner-payroll-summary-card">
-                                    <div className="cleaner-payroll-summary-head">
-                                        <div>
-                                            <span>Current Pay Period</span>
-                                            <h3>{cleanerPayPeriod.label}</h3>
-                                        </div>
-                                        <div className="cleaner-period-badge">Active Period</div>
-                                    </div>
-                                    <div className="cleaner-payroll-summary-stats">
-                                        <div>
-                                            <span>Total Hours</span>
-                                            <strong>{formatDurationMinutes(weeklyTimeSummary.totalMinutes)}</strong>
-                                        </div>
-                                        <div>
-                                            <span>Est. Gross Pay</span>
-                                            <strong>${weeklyTimeSummary.grossPay.toFixed(2)}</strong>
-                                        </div>
-                                    </div>
-                                    <div className="cleaner-payroll-summary-foot">
-                                        <span>{Icons.Cash()}</span>
-                                        <strong>Cutoff {cleanerPayPeriod.cutoffLabel}</strong>
-                                        <em>Payday {cleanerPayPeriod.payDateLabel}</em>
-                                    </div>
-                                </section>
-
-                                <section className="cleaner-active-shift-card">
-                                    <button
-                                        type="button"
-                                        className={`cleaner-shift-button ${activeTimeEntry ? "clock-out" : "clock-in"}`}
-                                        disabled={timeEntrySaving || (!activeTimeEntry && cleanerTodayConfirmedJobs.length === 0)}
-                                        onClick={() => {
-                                            const targetJob = activeJobForCleaner || cleanerTodayConfirmedJobs[0];
-                                            if (targetJob) {
-                                                handleOpenCleanerJob(targetJob, activeTimeEntry ? "task-list" : "overview");
-                                            }
-                                        }}
-                                    >
-                                        <span>{Icons.Clock()}</span>
-                                        <strong>{activeTimeEntry ? "End Job" : "Start Job"}</strong>
-                                        <em>{activeTimeEntry ? formatRuntime(activeTimeEntry.startedAt, jobsNow) : "Open workspace"}</em>
-                                    </button>
-                                    <div className="cleaner-active-shift-meta">
-                                        <h4>{activeJobForCleaner?.service || cleanerTodayConfirmedJobs[0]?.service || "No job for today"}</h4>
-                                        <p>
-                                            {activeJobForCleaner
-                                                ? `${getBookingCustomerFirstName(activeJobForCleaner)} • ${getBookingLocationLabel(activeJobForCleaner)}`
-                                                : cleanerTodayConfirmedJobs[0]
-                                                    ? `${getBookingCustomerFirstName(cleanerTodayConfirmedJobs[0])} • ${getBookingLocationLabel(cleanerTodayConfirmedJobs[0])}`
-                                                    : "Only confirmed jobs scheduled for today appear here."}
-                                        </p>
-                                        {activeTimeEntry && <span>Started at {new Date(activeTimeEntry.startedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</span>}
-                                    </div>
-                                    {jobsFeedback && <div className="people-profile-message">{jobsFeedback}</div>}
-                                </section>
-
-                                <section className="cleaner-assigned-jobs-list">
-                                    <div className="cleaner-section-head">
-                                        <h4>Today&apos;s Confirmed Jobs</h4>
-                                        <span>{cleanerTodayConfirmedJobs.length}</span>
-                                    </div>
-                                    {cleanerTodayConfirmedJobs.length === 0 ? (
-                                        <div className="admin-cart-empty">No confirmed jobs scheduled for today.</div>
-                                    ) : cleanerTodayConfirmedJobs.map(job => {
-                                        const isCurrent = activeTimeEntry?.bookingId === job.id;
-                                        return (
-                                            <article key={job.id} className={`cleaner-job-card ${isCurrent ? "active" : ""}`}>
-                                                <div className="cleaner-job-card-head">
-                                                    <div>
-                                                        <strong>{job.service}</strong>
-                                                        <span>{getBookingCustomerFirstName(job)} • {getBookingLocationLabel(job)}</span>
-                                                    </div>
-                                                    <em>{job.date}</em>
-                                                </div>
-                                                <div className="cleaner-job-card-foot">
-                                                    <span>{job.time} • {job.duration}h</span>
-                                                    <button type="button" onClick={() => handleOpenCleanerJob(job, isCurrent ? "task-list" : "overview")} disabled={timeEntrySaving}>
-                                                        {isCurrent ? "In Progress" : "Open Job"}
-                                                    </button>
-                                                </div>
-                                            </article>
-                                        );
-                                    })}
-                                </section>
-
-                                <section className="cleaner-recent-time-list">
-                                    <div className="cleaner-section-head">
-                                        <h4>Recent Entries</h4>
-                                    </div>
-                                    {recentOwnTimeEntries.length === 0 ? (
-                                        <div className="admin-cart-empty">No completed time entries yet.</div>
-                                    ) : recentOwnTimeEntries.map(entry => (
-                                        <article key={entry.id} className="cleaner-recent-entry-card">
-                                            <div>
-                                                <strong>{entry.serviceName}</strong>
-                                                <span>{entry.bookingDate} • {formatDurationMinutes(entry.durationMinutes || 0)}</span>
-                                            </div>
-                                            <div className={`cleaner-entry-status status-${entry.status}`}>
-                                                <strong>{entry.status.replace("_", " ")}</strong>
-                                                <em>${Number(entry.grossPayEstimate || 0).toFixed(2)}</em>
-                                            </div>
-                                        </article>
-                                    ))}
-                                </section>
-                            </div>
-                        ) : (
-                            <div className="admin-payroll-grid">
-                                <div className="admin-payroll-main">
-                                    <div className="admin-payroll-hero">
-                                        <div>
-                                            <h3>Payroll & Time Hub</h3>
-                                            <p>Manage staff compensation and shift approvals for the current period.</p>
-                                        </div>
-                                        <div className="admin-payroll-actions">
-                                            <button type="button" className="team-secondary-action" onClick={() => syncDatabaseData(currentUser)}>Refresh</button>
-                                        </div>
-                                    </div>
-                                    <div className="admin-payroll-summary">
-                                        <article><span>Total Payroll</span><strong>${payrollSummary.totalPayroll.toFixed(2)}</strong></article>
-                                        <article><span>Hours Tracked</span><strong>{formatDurationMinutes(payrollSummary.trackedMinutes)}</strong></article>
-                                        <article><span>Pending Approvals</span><strong>{payrollSummary.pendingCount} entries</strong></article>
-                                        <article><span>Next Pay Date</span><strong>{payrollSummary.nextPayDate}</strong></article>
-                                    </div>
-                                    <section className="admin-payroll-queue">
-                                        <div className="cleaner-section-head">
-                                            <h4>Shift Approval Queue</h4>
-                                            <span>{payrollSummary.pendingEntries.length} pending</span>
-                                        </div>
-                                        <div className="admin-payroll-table">
-                                            <div className="admin-payroll-table-head">
-                                                <span>Staff</span>
-                                                <span>Date</span>
-                                                <span>Service</span>
-                                                <span>Duration</span>
-                                                <span>Total Pay</span>
-                                                <span>Status</span>
-                                                <span>Actions</span>
-                                            </div>
-                                            {payrollSummary.pendingEntries.length === 0 ? (
-                                                <div className="admin-cart-empty">No pending payroll approvals.</div>
-                                            ) : payrollSummary.pendingEntries.map(entry => (
-                                                <div key={entry.id} className="admin-payroll-row">
-                                                    <span>{entry.cleanerName}</span>
-                                                    <span>{entry.bookingDate || entry.startedAt?.split("T")[0]}</span>
-                                                    <span>{entry.serviceName}</span>
-                                                    <span>{formatDurationMinutes(entry.durationMinutes || 0)}</span>
-                                                    <span>${Number(entry.grossPayEstimate || 0).toFixed(2)}</span>
-                                                    <span>{entry.status}</span>
-                                                    <div className="admin-payroll-row-actions">
-                                                        <button type="button" onClick={() => handleReviewTimeEntry(entry.id, "approve")} disabled={timeEntrySaving}>Approve</button>
-                                                        <button type="button" className="team-secondary-action" onClick={() => handleReviewTimeEntry(entry.id, "reject")} disabled={timeEntrySaving}>Reject</button>
-                                                    </div>
-                                                    <div className="md:col-span-7 grid grid-cols-1 md:grid-cols-3 gap-3 mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                                                        <label className="flex flex-col gap-1 text-xs text-slate-700">
-                                                            <strong>Start Time</strong>
-                                                            <input
-                                                                type="datetime-local"
-                                                                value={timeEntryEditDrafts[entry.id]?.startedAt || (entry.startedAt ? new Date(entry.startedAt).toISOString().slice(0, 16) : "")}
-                                                                onChange={e => setTimeEntryEditDrafts(prev => ({
-                                                                    ...prev,
-                                                                    [entry.id]: {
-                                                                        ...(prev[entry.id] || {}),
-                                                                        startedAt: e.target.value
-                                                                    }
-                                                                }))}
-                                                                className="border border-slate-200 rounded-lg p-2"
-                                                            />
-                                                        </label>
-                                                        <label className="flex flex-col gap-1 text-xs text-slate-700">
-                                                            <strong>Finish Time</strong>
-                                                            <input
-                                                                type="datetime-local"
-                                                                value={timeEntryEditDrafts[entry.id]?.endedAt || (entry.endedAt ? new Date(entry.endedAt).toISOString().slice(0, 16) : "")}
-                                                                onChange={e => setTimeEntryEditDrafts(prev => ({
-                                                                    ...prev,
-                                                                    [entry.id]: {
-                                                                        ...(prev[entry.id] || {}),
-                                                                        endedAt: e.target.value
-                                                                    }
-                                                                }))}
-                                                                className="border border-slate-200 rounded-lg p-2"
-                                                            />
-                                                        </label>
-                                                        <label className="flex flex-col gap-1 text-xs text-slate-700">
-                                                            <strong>Unpaid Break (mins)</strong>
-                                                            <input
-                                                                type="number"
-                                                                min="0"
-                                                                step="1"
-                                                                value={timeEntryEditDrafts[entry.id]?.unpaidBreakMinutes ?? entry.unpaidBreakMinutes ?? 0}
-                                                                onChange={e => setTimeEntryEditDrafts(prev => ({
-                                                                    ...prev,
-                                                                    [entry.id]: {
-                                                                        ...(prev[entry.id] || {}),
-                                                                        unpaidBreakMinutes: parseInt(e.target.value || "0", 10)
-                                                                    }
-                                                                }))}
-                                                                className="border border-slate-200 rounded-lg p-2"
-                                                            />
-                                                        </label>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </section>
-                                    <section className="admin-payroll-queue">
-                                        <div className="cleaner-section-head">
-                                            <h4>Manual Time Card</h4>
-                                            <span>Employees only</span>
-                                        </div>
-                                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 grid grid-cols-1 md:grid-cols-5 gap-3">
-                                            <label className="flex flex-col gap-1 text-xs text-slate-700">
-                                                <strong>Employee</strong>
-                                                <select value={manualTimeEntryForm.cleanerUid} onChange={e => setManualTimeEntryForm(prev => ({ ...prev, cleanerUid: e.target.value }))} className="border border-slate-200 rounded-lg p-2">
-                                                    <option value="">Select employee</option>
-                                                    {employeePayrollRoster.map(member => (
-                                                        <option key={member.uid} value={member.uid}>{member.name}</option>
-                                                    ))}
-                                                </select>
-                                            </label>
-                                            <label className="flex flex-col gap-1 text-xs text-slate-700">
-                                                <strong>Booking Id</strong>
-                                                <input value={manualTimeEntryForm.bookingId} onChange={e => setManualTimeEntryForm(prev => ({ ...prev, bookingId: e.target.value }))} className="border border-slate-200 rounded-lg p-2" placeholder="Optional" />
-                                            </label>
-                                            <label className="flex flex-col gap-1 text-xs text-slate-700">
-                                                <strong>Start Time</strong>
-                                                <input type="datetime-local" value={manualTimeEntryForm.startedAt} onChange={e => setManualTimeEntryForm(prev => ({ ...prev, startedAt: e.target.value }))} className="border border-slate-200 rounded-lg p-2" />
-                                            </label>
-                                            <label className="flex flex-col gap-1 text-xs text-slate-700">
-                                                <strong>Finish Time</strong>
-                                                <input type="datetime-local" value={manualTimeEntryForm.endedAt} onChange={e => setManualTimeEntryForm(prev => ({ ...prev, endedAt: e.target.value }))} className="border border-slate-200 rounded-lg p-2" />
-                                            </label>
-                                            <label className="flex flex-col gap-1 text-xs text-slate-700">
-                                                <strong>Unpaid Break (mins)</strong>
-                                                <input type="number" min="0" step="1" value={manualTimeEntryForm.unpaidBreakMinutes} onChange={e => setManualTimeEntryForm(prev => ({ ...prev, unpaidBreakMinutes: parseInt(e.target.value || "0", 10) }))} className="border border-slate-200 rounded-lg p-2" />
-                                            </label>
-                                        </div>
-                                        <div className="mt-3 flex justify-end">
-                                            <button type="button" className="team-primary-action" onClick={handleCreateManualTimeEntry} disabled={timeEntrySaving}>Add Manual Hours</button>
-                                        </div>
-                                    </section>
-                                    <section className="admin-payroll-queue">
-                                        <div className="cleaner-section-head">
-                                            <h4>Approved Payroll Ledger</h4>
-                                            <span>{payrollApprovedRows.length} entries</span>
-                                        </div>
-                                        <div className="admin-payroll-table">
-                                            <div className="admin-payroll-table-head">
-                                                <span>Staff</span>
-                                                <span>Date</span>
-                                                <span>Regular</span>
-                                                <span>Overtime</span>
-                                                <span>Rate</span>
-                                                <span>Gross</span>
-                                                <span>Status</span>
-                                            </div>
-                                            {payrollApprovedRows.length === 0 ? (
-                                                <div className="admin-cart-empty">No approved payroll entries yet.</div>
-                                            ) : payrollApprovedRows.map(entry => (
-                                                <div key={entry.id} className="admin-payroll-row">
-                                                    <span>{entry.cleanerName}</span>
-                                                    <span>{entry.bookingDate || entry.startedAt?.split("T")[0]}</span>
-                                                    <span>{entry.payrollBreakdown?.regularHours || 0}h</span>
-                                                    <span>{entry.payrollBreakdown?.overtimeHours || 0}h</span>
-                                                    <span>${Number(entry.payRate || 20).toFixed(2)}</span>
-                                                    <span>${Number(entry.grossPayEstimate || 0).toFixed(2)}</span>
-                                                    <span>{entry.status}</span>
-                                                    <div className="admin-payroll-row-actions">
-                                                        <button type="button" onClick={() => handleReviewTimeEntry(entry.id, "approve")} disabled={timeEntrySaving}>Update</button>
-                                                    </div>
-                                                    <div className="md:col-span-7 grid grid-cols-1 md:grid-cols-3 gap-3 mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                                                        <label className="flex flex-col gap-1 text-xs text-slate-700">
-                                                            <strong>Start Time</strong>
-                                                            <input type="datetime-local" value={timeEntryEditDrafts[entry.id]?.startedAt || (entry.startedAt ? new Date(entry.startedAt).toISOString().slice(0, 16) : "")} onChange={e => setTimeEntryEditDrafts(prev => ({ ...prev, [entry.id]: { ...(prev[entry.id] || {}), startedAt: e.target.value } }))} className="border border-slate-200 rounded-lg p-2" />
-                                                        </label>
-                                                        <label className="flex flex-col gap-1 text-xs text-slate-700">
-                                                            <strong>Finish Time</strong>
-                                                            <input type="datetime-local" value={timeEntryEditDrafts[entry.id]?.endedAt || (entry.endedAt ? new Date(entry.endedAt).toISOString().slice(0, 16) : "")} onChange={e => setTimeEntryEditDrafts(prev => ({ ...prev, [entry.id]: { ...(prev[entry.id] || {}), endedAt: e.target.value } }))} className="border border-slate-200 rounded-lg p-2" />
-                                                        </label>
-                                                        <label className="flex flex-col gap-1 text-xs text-slate-700">
-                                                            <strong>Unpaid Break (mins)</strong>
-                                                            <input type="number" min="0" step="1" value={timeEntryEditDrafts[entry.id]?.unpaidBreakMinutes ?? entry.unpaidBreakMinutes ?? 0} onChange={e => setTimeEntryEditDrafts(prev => ({ ...prev, [entry.id]: { ...(prev[entry.id] || {}), unpaidBreakMinutes: parseInt(e.target.value || "0", 10) } }))} className="border border-slate-200 rounded-lg p-2" />
-                                                        </label>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </section>
-                                    <section className="admin-payroll-queue">
-                                        <div className="cleaner-section-head">
-                                            <h4>Rejected Time Card Log</h4>
-                                            <span>{payrollRejectedRows.length} rejected</span>
-                                        </div>
-                                        <div className="admin-payroll-table">
-                                            <div className="admin-payroll-table-head">
-                                                <span>Staff</span>
-                                                <span>Date</span>
-                                                <span>Service</span>
-                                                <span>Hours</span>
-                                                <span>Gross</span>
-                                                <span>Status</span>
-                                                <span>Reviewed</span>
-                                            </div>
-                                            {payrollRejectedRows.length === 0 ? (
-                                                <div className="admin-cart-empty">No rejected time cards yet.</div>
-                                            ) : payrollRejectedRows.map(entry => (
-                                                <div key={entry.id} className="admin-payroll-row">
-                                                    <span>{entry.cleanerName}</span>
-                                                    <span>{entry.bookingDate || entry.startedAt?.split("T")[0]}</span>
-                                                    <span>{entry.serviceName}</span>
-                                                    <span>{formatDurationMinutes(entry.durationMinutes || 0)}</span>
-                                                    <span>${Number(entry.grossPayEstimate || 0).toFixed(2)}</span>
-                                                    <span>{entry.status}</span>
-                                                    <span>{entry.reviewedAt ? entry.reviewedAt.split("T")[0] : "n/a"}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </section>
-                                </div>
-                                <aside className="admin-payroll-side">
-                                    <div className="admin-payroll-alert-card">
-                                        <span>Approval Deadline</span>
-                                        <strong>Wednesday at 5:00 PM</strong>
-                                        <p>All pending shifts must be approved before the cutoff for payroll processing.</p>
-                                    </div>
-                                </aside>
-                            </div>
-                        )}
-                    </div>
+                    <JobsPayrollTab
+                        isCleanerSelfServiceView={isCleanerSelfServiceView}
+                        cleanerPayPeriod={cleanerPayPeriod}
+                        weeklyTimeSummary={weeklyTimeSummary}
+                        Icons={Icons}
+                        activeTimeEntry={activeTimeEntry}
+                        timeEntrySaving={timeEntrySaving}
+                        cleanerTodayConfirmedJobs={cleanerTodayConfirmedJobs}
+                        activeJobForCleaner={activeJobForCleaner}
+                        jobsNow={jobsNow}
+                        jobsFeedback={jobsFeedback}
+                        recentOwnTimeEntries={recentOwnTimeEntries}
+                        payrollSummary={payrollSummary}
+                        payrollApprovedRows={payrollApprovedRows}
+                        payrollRejectedRows={payrollRejectedRows}
+                        timeEntryEditDrafts={timeEntryEditDrafts}
+                        setTimeEntryEditDrafts={setTimeEntryEditDrafts}
+                        manualTimeEntryForm={manualTimeEntryForm}
+                        setManualTimeEntryForm={setManualTimeEntryForm}
+                        employeePayrollRoster={employeePayrollRoster}
+                        currentUser={currentUser}
+                        formatDurationMinutes={formatDurationMinutes}
+                        formatRuntime={formatRuntime}
+                        getBookingCustomerFirstName={getBookingCustomerFirstName}
+                        getBookingLocationLabel={getBookingLocationLabel}
+                        handleOpenCleanerJob={handleOpenCleanerJob}
+                        syncDatabaseData={syncDatabaseData}
+                        handleReviewTimeEntry={handleReviewTimeEntry}
+                        handleCreateManualTimeEntry={handleCreateManualTimeEntry}
+                    />
                 )}
 
                 {/* TAB 4: FIELD STAFF ASSIGNMENTS VIEW */}
                 {activeTab === "teams" && (
-                    <div className="animate-fade flex flex-col gap-6">
-                        {!isViewingOwnCleanerProfile && (
-                            <div className="ops-control-header">
-                                <div>
-                                    <p className="ops-eyebrow">People Management</p>
-                                    <h3 className="ops-title">Field Staff Profiles</h3>
-                                    <p className="ops-copy">
-                                        Open a staff profile to review branch status, required documents, eligibility, and approval requests. Staff can submit updates from their own login for branch admin approval.
-                                    </p>
-                                </div>
-                                <span className="ops-chip">{peopleRoster.length} Visible Staff</span>
-                            </div>
-                        )}
-                        {peopleRoster.length === 0 ? (
-                            <div className="empty-state p-12 text-center text-slate-400 bg-white border border-slate-200 rounded-2xl shadow-md">
-                                <svg viewBox="0 0 24 24" width="48" height="48" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-4 text-slate-300"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-                                <h4 className="font-extrabold text-slate-700 text-sm mb-1">No approved field staff yet</h4>
-                                <p className="text-xs text-slate-400 max-w-[280px] mx-auto">Register and approve cleaners, supervisors, employees, or subcontractors to assign them to jobs.</p>
-                            </div>
-                        ) : (
-                            <div className="people-management-shell">
-                                {!isViewingOwnCleanerProfile && (
-                                    <div className="grid grid-cols-4 gap-3 md:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10">
-                                        {peopleRoster.map(member => {
-                                            const assignedJobs = bookings.filter(b => b.assignedStaffIds?.includes(member.uid) && b.status !== "Cancelled");
-                                            const completedCount = assignedJobs.filter(b => b.status === "Completed").length;
-                                            const initials = getInitials(member.name || member.email || "FS");
-                                            const requestPending = member.staffProfileRequest?.requestedProfile;
-                                            return (
-                                                <button
-                                                    key={member.uid}
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setSelectedStaffUid(member.uid);
-                                                        setStaffProfileDraftOwnerUid(member.uid);
-                                                        setStaffProfileDraft(normalizeStaffProfile(member.staffProfile));
-                                                        setStaffProfileFeedback("");
-                                                        setStaffProfileRejectReason("");
-                                                        setStaffProfileEditOpen(false);
-                                                    }}
-                                                    className={`rounded-[28px] border p-3 text-left shadow-sm transition ${selectedStaffMember?.uid === member.uid ? "border-blue-500 bg-blue-50 shadow-md" : "border-slate-200 bg-white hover:border-slate-300"}`}
-                                                >
-                                                    <div className="flex flex-col items-center gap-2">
-                                                        <div className={`relative h-16 w-16 overflow-hidden rounded-full border-4 ${selectedStaffMember?.uid === member.uid ? "border-blue-500" : "border-slate-100"} bg-blue-600 text-white flex items-center justify-center text-lg font-extrabold`}>
-                                                            {member.photoURL ? (
-                                                                <img src={member.photoURL} alt={member.name || member.email} className="h-full w-full object-cover" />
-                                                            ) : initials}
-                                                            <span className={`absolute bottom-0 right-0 h-4 w-4 rounded-full border-2 border-white ${member.status === "approved" ? "bg-emerald-500" : "bg-amber-400"}`}></span>
-                                                        </div>
-                                                        <div className="flex flex-wrap justify-center gap-1">
-                                                            <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${member.staffProfileMeta?.status === "approved" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>P</span>
-                                                            <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${assignedJobs.length > 0 ? "bg-blue-50 text-blue-700" : "bg-slate-100 text-slate-600"}`}>J{assignedJobs.length}</span>
-                                                            <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${completedCount > 0 ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>C{completedCount}</span>
-                                                            {requestPending && <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold text-amber-700">R</span>}
-                                                        </div>
-                                                        <div className="text-center">
-                                                            <h4 className="line-clamp-2 text-xs font-bold text-slate-800">{member.name}</h4>
-                                                            <span className="text-[10px] text-slate-500">{getRoleLabel(member.role)}</span>
-                                                        </div>
-                                                    </div>
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-
-                                {selectedStaffMember && activeStaffProfileDraft && (
-                                    <section className="people-profile-canvas">
-                                        <section className={`people-mobile-profile-shell ${isViewingOwnCleanerProfile ? "people-mobile-profile-shell-self" : ""}`}>
-                                            <div className="people-mobile-profile-top">
-                                                <div className="people-mobile-profile-avatar-wrap">
-                                                    <div className={`people-mobile-profile-avatar ${selectedStaffMember.photoURL ? "people-mobile-profile-avatar-photo" : ""}`}>
-                                                        {selectedStaffMember.photoURL ? (
-                                                            <img src={selectedStaffMember.photoURL} alt={selectedStaffMember.name || selectedStaffMember.email} className="avatar-image" />
-                                                        ) : getInitials(selectedStaffMember.name || selectedStaffMember.email || "FS")}
-                                                    </div>
-                                                    <span className="people-mobile-profile-presence"></span>
-                                                </div>
-                                                <h3>{selectedStaffMember.name}</h3>
-                                                <div className="people-mobile-profile-status">
-                                                    <span></span>
-                                                    Active
-                                                </div>
-                                                {canEditSelectedStaffProfile && (
-                                                    <label className="people-photo-upload-button">
-                                                        <input
-                                                            type="file"
-                                                            accept="image/*"
-                                                            capture="user"
-                                                            onChange={e => handleProfilePhotoCapture(e.target.files?.[0])}
-                                                            disabled={profilePhotoUploading}
-                                                        />
-                                                        {profilePhotoUploading ? "Uploading Photo..." : "Take Live Photo"}
-                                                    </label>
-                                                )}
-                                            </div>
-
-                                            <div className="people-mobile-profile-stats">
-                                                <div>
-                                                    <strong>4.9</strong>
-                                                    <span>Rating</span>
-                                                </div>
-                                                <div>
-                                                    <strong>{selectedStaffCompletedJobs.length}</strong>
-                                                    <span>Jobs</span>
-                                                </div>
-                                                <div>
-                                                    <strong>98%</strong>
-                                                    <span>On-Time</span>
-                                                </div>
-                                            </div>
-
-                                            {staffProfileFeedback && (
-                                                <div className="people-profile-message people-mobile-profile-message">
-                                                    {staffProfileFeedback}
-                                                </div>
-                                            )}
-
-                                            {canManagePeopleProfiles && selectedStaffMember.staffProfileRequest?.requestedProfile && (
-                                                <div className="people-review-panel people-mobile-review-panel">
-                                                    <div>
-                                                        <p className="ops-eyebrow">Approval Queue</p>
-                                                        <h4>Pending Staff Profile Request</h4>
-                                                        <p>
-                                                            Submitted by {selectedStaffMember.staffProfileRequest.submittedByName} on {selectedStaffMember.staffProfileRequest.submittedAt?.split("T")[0]}.
-                                                        </p>
-                                                    </div>
-                                                    <textarea
-                                                        placeholder="Optional rejection reason for branch admin feedback"
-                                                        value={staffProfileRejectReason}
-                                                        onChange={e => setStaffProfileRejectReason(e.target.value)}
-                                                    />
-                                                    <div className="people-review-actions">
-                                                        <button type="button" className="team-primary-action" onClick={() => handleReviewStaffProfileRequest("approve")} disabled={staffProfileSaving}>
-                                                            Approve Changes
-                                                        </button>
-                                                        <button type="button" className="team-secondary-action" onClick={() => handleReviewStaffProfileRequest("reject")} disabled={staffProfileSaving}>
-                                                            Reject Changes
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            <nav className="people-mobile-profile-tabs">
-                                                <button type="button" className={staffProfileMobileTab === "identity" ? "active" : ""} onClick={() => setStaffProfileMobileTab("identity")}>Identity</button>
-                                                <button type="button" className={staffProfileMobileTab === "employment" ? "active" : ""} onClick={() => setStaffProfileMobileTab("employment")}>Employment</button>
-                                                <button type="button" className={staffProfileMobileTab === "availability" ? "active" : ""} onClick={() => setStaffProfileMobileTab("availability")}>Availability</button>
-                                            </nav>
-
-                                            <div className="people-mobile-profile-content">
-                                                {staffProfileMobileTab === "identity" && !staffProfileEditOpen && (
-                                                    <div className="people-mobile-section-stack">
-                                                        <section className="people-mobile-card-group">
-                                                            <label>Contact Information</label>
-                                                            <div className="people-mobile-info-stack">
-                                                                {selectedStaffIdentityCards.map(card => (
-                                                                    <article key={card.key} className="people-mobile-info-card">
-                                                                        <div className="people-mobile-info-icon">{card.icon}</div>
-                                                                        <div>
-                                                                            <span>{card.label}</span>
-                                                                            <strong>{card.value}</strong>
-                                                                        </div>
-                                                                    </article>
-                                                                ))}
-                                                            </div>
-                                                        </section>
-                                                        <section className="people-mobile-card-group">
-                                                            <label>Emergency Contact</label>
-                                                            <article className="people-mobile-emergency-card">
-                                                                <div>
-                                                                    <strong>{activeStaffProfileDraft.emergency.contactName || "Not submitted"}</strong>
-                                                                    <span>{activeStaffProfileDraft.emergency.relationship || "Relationship pending"}</span>
-                                                                    <p>{activeStaffProfileDraft.emergency.phone || "Phone pending"}</p>
-                                                                </div>
-                                                                <div className="people-mobile-info-icon">{Icons.Contact()}</div>
-                                                            </article>
-                                                        </section>
-                                                    </div>
-                                                )}
-
-                                                {staffProfileMobileTab === "employment" && !staffProfileEditOpen && (
-                                                    <div className="people-mobile-section-stack">
-                                                        <section className="people-mobile-card-group">
-                                                            <label>Employment</label>
-                                                            <div className="people-mobile-mini-grid">
-                                                                {selectedStaffEmploymentCards.map(card => (
-                                                                    <article key={card.key} className="people-mobile-mini-card">
-                                                                        <span>{card.label}</span>
-                                                                        <strong>{card.value}</strong>
-                                                                    </article>
-                                                                ))}
-                                                            </div>
-                                                        </section>
-                                                        <section className="people-mobile-card-group">
-                                                            <label>Internal Notes</label>
-                                                            <article className="people-mobile-note-card">
-                                                                {activeStaffProfileDraft.employment.availabilityNotes || "Staff profile notes will appear here after branch admin approval."}
-                                                            </article>
-                                                        </section>
-                                                    </div>
-                                                )}
-
-                                                {staffProfileMobileTab === "availability" && !staffProfileEditOpen && (
-                                                    <div className="people-mobile-section-stack">
-                                                        <section className="people-mobile-availability-hero">
-                                                            <div>
-                                                                <strong>Weekly Schedule</strong>
-                                                                <span>Live scheduling data from Firestore</span>
-                                                            </div>
-                                                            <span>Max {selectedStaffAvailability.maxJobsPerDay} Jobs/Week</span>
-                                                        </section>
-                                                        <section className="people-mobile-availability-card">
-                                                            <div className="people-mobile-availability-week">
-                                                                {selectedStaffAvailability.weekdays.map((day, index) => (
-                                                                    <div key={`${day.label}-${index}`} className="people-mobile-availability-day">
-                                                                        <span>{day.label}</span>
-                                                                        <div className={`people-mobile-day-pill ${day.status !== "A" ? "passive" : ""}`}>{day.status}</div>
-                                                                        <small>{day.shifts?.morning ? "M" : "-"}/{day.shifts?.afternoon ? "A" : "-"}/{day.shifts?.evening ? "E" : "-"}</small>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                            <div className="people-mobile-availability-shifts">
-                                                                <div className="people-mobile-shift-row"><div><span className="people-mobile-shift-dot"></span><p>Morning (08:00 - 12:00)</p></div><strong>Per day</strong></div>
-                                                                <div className="people-mobile-shift-row"><div><span className="people-mobile-shift-dot"></span><p>Afternoon (13:00 - 17:00)</p></div><strong>Per day</strong></div>
-                                                                <div className="people-mobile-shift-row muted"><div><span className="people-mobile-shift-dot"></span><p>Evening (18:00+)</p></div><strong>Per day</strong></div>
-                                                            </div>
-                                                            <div className="people-mobile-blocked-wrap">
-                                                                <label>Upcoming Blocked Dates</label>
-                                                                <div className="people-blocked-dates people-mobile-blocked-dates">
-                                                                    {selectedStaffBlockedDates.length > 0 ? selectedStaffBlockedDates.map(date => (
-                                                                        <span key={date}>{date}</span>
-                                                                    )) : <span>No blocked dates</span>}
-                                                                </div>
-                                                            </div>
-                                                        </section>
-                                                    </div>
-                                                )}
-
-                                                {staffProfileEditOpen && (
-                                                    <section className="people-mobile-editor">
-                                                        {staffProfileMobileTab === "identity" && (
-                                                            <div className="people-mobile-editor-section">
-                                                                <label className="span-2"><span>Legal name</span><input value={activeStaffProfileDraft.personal.legalName} onChange={e => updateStaffDraftField("personal", "legalName", e.target.value)} /></label>
-                                                                <label><span>Preferred name</span><input value={activeStaffProfileDraft.personal.preferredName} onChange={e => updateStaffDraftField("personal", "preferredName", e.target.value)} /></label>
-                                                                {canAdminDirectEditSelectedStaffProfile && (
-                                                                    <label><span>Email</span><input type="email" value={activeStaffProfileDraft.personal.email || selectedStaffMember.email || ""} onChange={e => updateStaffDraftField("personal", "email", e.target.value)} /></label>
-                                                                )}
-                                                                {canAdminDirectEditSelectedStaffProfile && (
-                                                                    <label><span>Phone</span><input value={activeStaffProfileDraft.personal.phone} onChange={e => updateStaffDraftField("personal", "phone", e.target.value)} /></label>
-                                                                )}
-                                                                <label className="span-2 people-address-field" ref={staffAutocompleteRef}><span>Address</span><input value={activeStaffProfileDraft.personal.address} onChange={e => handleStaffAddressChange(e.target.value)} />
-                                                                    {showStaffAddressSuggestions && staffAddressSuggestions.length > 0 && (
-                                                                        <div className="places-suggestion-list">
-                                                                            {staffAddressSuggestions.map(suggestion => (
-                                                                                <button key={suggestion.place_id} type="button" className="places-suggestion-item" onClick={() => selectStaffAddressSuggestion(suggestion)}>
-                                                                                    {suggestion.description}
-                                                                                </button>
-                                                                            ))}
-                                                                        </div>
-                                                                    )}
-                                                                </label>
-                                                                <label><span>City</span><input value={activeStaffProfileDraft.personal.city} onChange={e => updateStaffDraftField("personal", "city", e.target.value)} /></label>
-                                                                <label><span>Postal code</span><input value={activeStaffProfileDraft.personal.postalCode} onChange={e => updateStaffDraftField("personal", "postalCode", e.target.value)} /></label>
-                                                                <label className="span-2"><span>Emergency Contact Name</span><input value={activeStaffProfileDraft.emergency.contactName} onChange={e => updateStaffDraftField("emergency", "contactName", e.target.value)} /></label>
-                                                                <label><span>Relationship</span><input value={activeStaffProfileDraft.emergency.relationship} onChange={e => updateStaffDraftField("emergency", "relationship", e.target.value)} /></label>
-                                                                <label><span>Emergency phone</span><input value={activeStaffProfileDraft.emergency.phone} onChange={e => updateStaffDraftField("emergency", "phone", e.target.value)} /></label>
-                                                            </div>
-                                                        )}
-
-                                                        {staffProfileMobileTab === "employment" && (
-                                                            <div className="people-mobile-editor-section">
-                                                                {canAdminDirectEditSelectedStaffProfile && (
-                                                                    <label>
-                                                                        <span>Worker type</span>
-                                                                        <select value={activeStaffProfileDraft.employment.workerType || "employee"} onChange={e => updateStaffDraftField("employment", "workerType", e.target.value)}>
-                                                                            <option value="employee">Employee</option>
-                                                                            <option value="subcontractor">Subcontractor</option>
-                                                                        </select>
-                                                                    </label>
-                                                                )}
-                                                                {canAdminDirectEditSelectedStaffProfile && <label><span>Years experience</span><input value={activeStaffProfileDraft.employment.yearsExperience} onChange={e => updateStaffDraftField("employment", "yearsExperience", e.target.value)} /></label>}
-                                                                {canAdminDirectEditSelectedStaffProfile && <label><span>Hourly rate</span><input type="number" min="0" step="0.01" value={activeStaffProfileDraft.employment.hourlyRate || 20} onChange={e => updateStaffDraftField("employment", "hourlyRate", parseFloat(e.target.value || "0"))} /></label>}
-                                                                {canAdminDirectEditSelectedStaffProfile && <label><span>Overtime rate</span><input type="number" min="0" step="0.01" value={activeStaffProfileDraft.employment.overtimeRate || 30} onChange={e => updateStaffDraftField("employment", "overtimeRate", parseFloat(e.target.value || "0"))} /></label>}
-                                                                {canAdminDirectEditSelectedStaffProfile && <label><span>Overtime after hrs/week</span><input type="number" min="0" step="1" value={activeStaffProfileDraft.employment.overtimeAfterHours || 44} onChange={e => updateStaffDraftField("employment", "overtimeAfterHours", parseFloat(e.target.value || "0"))} /></label>}
-                                                                {canAdminDirectEditSelectedStaffProfile && <label><span>Payroll status</span><input value={activeStaffProfileDraft.employment.payrollStatus || "active"} onChange={e => updateStaffDraftField("employment", "payrollStatus", e.target.value)} /></label>}
-                                                                <label className="span-2 people-file-upload-field">
-                                                                    <span>Photo ID Upload</span>
-                                                                    <input type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.webp" onChange={e => handleStaffDocumentUpload(e.target.files?.[0], "photoIdUpload", "Photo ID")} disabled={staffDocumentUploading} />
-                                                                    <strong>{staffDocumentUploading ? "Uploading document..." : (activeStaffProfileDraft.eligibility.photoIdUpload?.name || "No photo ID uploaded yet")}</strong>
-                                                                </label>
-                                                                <label className="span-2 people-file-upload-field">
-                                                                    <span>Work Permit Document</span>
-                                                                    <input type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.webp" onChange={e => handleStaffDocumentUpload(e.target.files?.[0], "documentUpload", "Work permit document")} disabled={staffDocumentUploading} />
-                                                                    <strong>{staffDocumentUploading ? "Uploading document..." : (activeStaffProfileDraft.eligibility.documentUpload?.name || "No work permit uploaded yet")}</strong>
-                                                                </label>
-                                                                {canAdminDirectEditSelectedStaffProfile && <label><span>Background check</span><input value={activeStaffProfileDraft.compliance.backgroundCheckStatus} onChange={e => updateStaffDraftField("compliance", "backgroundCheckStatus", e.target.value)} /></label>}
-                                                                <label className="span-2"><span>Availability notes</span><textarea value={activeStaffProfileDraft.employment.availabilityNotes} onChange={e => updateStaffDraftField("employment", "availabilityNotes", e.target.value)} /></label>
-                                                            </div>
-                                                        )}
-
-                                                        {staffProfileMobileTab === "availability" && (
-                                                            <div className="people-mobile-editor-section">
-                                                                <div className="people-mobile-weekday-matrix">
-                                                                    <div className="people-mobile-weekday-matrix-head">
-                                                                        <span>Day</span>
-                                                                        <span>Morning</span>
-                                                                        <span>Afternoon</span>
-                                                                        <span>Evening</span>
-                                                                    </div>
-                                                                    {activeStaffProfileDraft.availability.weekdays.map((day, index) => (
-                                                                        <div key={`${day.label}-${index}`} className="people-mobile-weekday-row">
-                                                                            <strong>{day.label}</strong>
-                                                                            <label className="people-matrix-check"><input type="checkbox" checked={Boolean(day.shifts?.morning)} onChange={e => updateStaffDraftField("availability", "weekdays", updateAvailabilityDayShift(activeStaffProfileDraft.availability.weekdays, index, "morning", e.target.checked))} /></label>
-                                                                            <label className="people-matrix-check"><input type="checkbox" checked={Boolean(day.shifts?.afternoon)} onChange={e => updateStaffDraftField("availability", "weekdays", updateAvailabilityDayShift(activeStaffProfileDraft.availability.weekdays, index, "afternoon", e.target.checked))} /></label>
-                                                                            <label className="people-matrix-check"><input type="checkbox" checked={Boolean(day.shifts?.evening)} onChange={e => updateStaffDraftField("availability", "weekdays", updateAvailabilityDayShift(activeStaffProfileDraft.availability.weekdays, index, "evening", e.target.checked))} /></label>
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
-                                                                <label><span>Max jobs per week</span><input type="number" value={activeStaffProfileDraft.availability.maxJobsPerDay} onChange={e => updateStaffDraftField("availability", "maxJobsPerDay", parseInt(e.target.value || "0", 10))} /></label>
-                                                                <div className="span-2 people-file-upload-field">
-                                                                    <span>Blocked dates</span>
-                                                                    <div className="flex gap-2 items-center flex-wrap">
-                                                                        <input type="date" value={blockedDateInput} onChange={e => setBlockedDateInput(e.target.value)} />
-                                                                        <button type="button" className="team-secondary-action" onClick={addBlockedDateToDraft}>Add date</button>
-                                                                    </div>
-                                                                    <div className="people-blocked-dates">
-                                                                        {(activeStaffProfileDraft.availability.blockedDates || []).length > 0 ? activeStaffProfileDraft.availability.blockedDates.map(date => (
-                                                                            <button key={date} type="button" className="people-blocked-date-remove" onClick={() => removeBlockedDateFromDraft(date)}>{date} ×</button>
-                                                                        )) : <span>No blocked dates</span>}
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        )}
-
-                                                        <div className="people-mobile-editor-actions">
-                                                            <button type="button" className="team-secondary-action" onClick={() => setStaffProfileEditOpen(false)} disabled={staffProfileSaving}>
-                                                                Cancel
-                                                            </button>
-                                                            {canAdminDirectEditSelectedStaffProfile ? (
-                                                                <button type="button" className="team-primary-action" onClick={handleSaveStaffProfileDirect} disabled={staffProfileSaving}>
-                                                                    {staffProfileSaving ? "Saving..." : "Save Directly"}
-                                                                </button>
-                                                            ) : (
-                                                                <>
-                                                                    {staffProfileMobileTab === "identity" && (
-                                                                        <button type="button" className="team-primary-action" onClick={() => setStaffProfileMobileTab("employment")} disabled={staffProfileSaving}>
-                                                                            Next
-                                                                        </button>
-                                                                    )}
-                                                                    {staffProfileMobileTab === "employment" && (
-                                                                        <button type="button" className="team-primary-action" onClick={() => setStaffProfileMobileTab("availability")} disabled={staffProfileSaving}>
-                                                                            Next
-                                                                        </button>
-                                                                    )}
-                                                                    {staffProfileMobileTab === "availability" && (
-                                                                        <button type="button" className="team-primary-action" onClick={handleSubmitStaffProfile} disabled={staffProfileSaving}>
-                                                                            {staffProfileSaving ? "Submitting..." : "Submit"}
-                                                                        </button>
-                                                                    )}
-                                                                </>
-                                                            )}
-                                                        </div>
-                                                    </section>
-                                                )}
-                                            </div>
-
-                                            {(canEditSelectedStaffProfile || canAdminDirectEditSelectedStaffProfile) && (
-                                                <button
-                                                    type="button"
-                                                    className="people-mobile-fab"
-                                                    onClick={() => {
-                                                        setStaffProfileDraftOwnerUid(selectedStaffMember.uid);
-                                                        setStaffProfileDraft(normalizeStaffProfile(selectedStaffMember.staffProfileRequest?.requestedProfile || selectedStaffMember.staffProfile));
-                                                        setStaffProfileFeedback("");
-                                                        setStaffProfileEditOpen(true);
-                                                    }}
-                                                >
-                                                    {Icons.Edit()}
-                                                </button>
-                                            )}
-                                        </section>
-
-                                        <div className="people-profile-desktop-shell">
-                                        <div className="people-profile-breadcrumb">
-                                            <button type="button" onClick={() => setSelectedStaffUid(selectedStaffMember.uid)}>
-                                                Staff Management
-                                            </button>
-                                            <span>/</span>
-                                            <strong>{selectedStaffMember.name}</strong>
-                                        </div>
-
-                                        <div className="people-profile-stat-grid people-profile-stat-grid-top">
-                                            <div className="people-profile-stat-card">
-                                                <p>Rating</p>
-                                                <strong>4.9</strong>
-                                            </div>
-                                            <div className="people-profile-stat-card">
-                                                <p>Jobs Completed</p>
-                                                <strong>{selectedStaffCompletedJobs.length}</strong>
-                                            </div>
-                                            <div className="people-profile-stat-card">
-                                                <p>On-Time</p>
-                                                <strong>98.5%</strong>
-                                            </div>
-                                            <div className="people-profile-stat-card">
-                                                <p>Exp. Level</p>
-                                                <strong>{activeStaffProfileDraft.employment.yearsExperience || "0"} Years</strong>
-                                            </div>
-                                        </div>
-
-                                        <div className="people-profile-hero people-profile-hero-reference">
-                                            <div className="people-profile-hero-main">
-                                                <div className="people-profile-photo-card">
-                                                    <div className={`people-profile-photo ${selectedStaffMember.photoURL ? "people-profile-photo-image" : ""}`}>
-                                                        {selectedStaffMember.photoURL ? (
-                                                            <img src={selectedStaffMember.photoURL} alt={selectedStaffMember.name || selectedStaffMember.email} className="avatar-image" />
-                                                        ) : getInitials(selectedStaffMember.name || selectedStaffMember.email || "FS")}
-                                                    </div>
-                                                    <span className="people-profile-active-badge">Active</span>
-                                                </div>
-                                                <div className="people-profile-headings">
-                                                    <h3>{selectedStaffMember.name}</h3>
-                                                    <p>{selectedStaffMember.branchName || "Ottawa"} • {getRoleLabel(selectedStaffMember.role)}</p>
-                                                </div>
-                                            </div>
-                                            <div className="people-profile-hero-actions">
-                                                <button
-                                                    type="button"
-                                                    className="people-icon-action"
-                                                    disabled={!canEditSelectedStaffProfile && !canAdminDirectEditSelectedStaffProfile}
-                                                    onClick={() => {
-                                                        if (!canEditSelectedStaffProfile && !canAdminDirectEditSelectedStaffProfile) return;
-                                                        setStaffProfileDraftOwnerUid(selectedStaffMember.uid);
-                                                        setStaffProfileDraft(normalizeStaffProfile(selectedStaffMember.staffProfileRequest?.requestedProfile || selectedStaffMember.staffProfile));
-                                                        setStaffProfileFeedback("");
-                                                        setStaffProfileEditOpen(true);
-                                                    }}
-                                                >
-                                                    {Icons.Edit()}
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        {staffProfileFeedback && (
-                                            <div className="people-profile-message">
-                                                {staffProfileFeedback}
-                                            </div>
-                                        )}
-
-                                        {canManagePeopleProfiles && selectedStaffMember.staffProfileRequest?.requestedProfile && (
-                                            <div className="people-review-panel">
-                                                <div>
-                                                    <p className="ops-eyebrow">Approval Queue</p>
-                                                    <h4>Pending Staff Profile Request</h4>
-                                                    <p>
-                                                        Submitted by {selectedStaffMember.staffProfileRequest.submittedByName} on {selectedStaffMember.staffProfileRequest.submittedAt?.split("T")[0]}.
-                                                    </p>
-                                                </div>
-                                                <textarea
-                                                    placeholder="Optional rejection reason for branch admin feedback"
-                                                    value={staffProfileRejectReason}
-                                                    onChange={e => setStaffProfileRejectReason(e.target.value)}
-                                                />
-                                                <div className="people-review-actions">
-                                                    <button type="button" className="team-primary-action" onClick={() => handleReviewStaffProfileRequest("approve")} disabled={staffProfileSaving}>
-                                                        Approve Changes
-                                                    </button>
-                                                    <button type="button" className="team-secondary-action" onClick={() => handleReviewStaffProfileRequest("reject")} disabled={staffProfileSaving}>
-                                                        Reject Changes
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {!staffProfileEditOpen ? (
-                                        <div className="people-profile-reference-grid">
-                                            <article className="people-profile-section">
-                                                <div className="people-profile-section-head">
-                                                    <p className="ops-eyebrow">Identity</p>
-                                                    <h4>Identity</h4>
-                                                </div>
-                                                <div className="people-profile-read-list">
-                                                    <div><span>Email Address</span><strong>{activeStaffProfileDraft.personal.email || selectedStaffMember.email}</strong></div>
-                                                    <div><span>Phone</span><strong>{activeStaffProfileDraft.personal.phone || "Not submitted"}</strong></div>
-                                                    <div className="people-profile-divider"></div>
-                                                    <div><span className="people-alert-label">Emergency Contact</span><strong>{activeStaffProfileDraft.emergency.contactName || "Not submitted"}</strong></div>
-                                                    <div><span>Relationship</span><strong>{activeStaffProfileDraft.emergency.relationship || "Not submitted"}</strong></div>
-                                                    <div><span>Phone</span><strong>{activeStaffProfileDraft.emergency.phone || "Not submitted"}</strong></div>
-                                                </div>
-                                            </article>
-
-                                            <article className="people-profile-section">
-                                                <div className="people-profile-section-head">
-                                                    <p className="ops-eyebrow">Availability</p>
-                                                    <h4>Availability</h4>
-                                                </div>
-                                                <div className="people-availability-header">
-                                                    <strong>Max {selectedStaffAvailability.maxJobsPerDay} Jobs/Week</strong>
-                                                </div>
-                                                <div className="people-availability-week">
-                                                    {selectedStaffAvailability.weekdays.map((day, index) => (
-                                                        <div key={`${day.label}-${index}`} className="people-day-tile-wrap">
-                                                            <span>{day.label}</span>
-                                                            <div className={`people-day-tile ${day.status !== "A" ? "people-day-tile-passive" : ""}`}>{day.status}</div>
-                                                            <small>{day.shifts?.morning ? "M" : "-"}/{day.shifts?.afternoon ? "A" : "-"}/{day.shifts?.evening ? "E" : "-"}</small>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                                <div className="people-availability-shifts">
-                                                    <div className="people-shift-row"><span className="people-shift-dot"></span><span>Morning (08:00 - 12:00)</span><strong>Per day</strong></div>
-                                                    <div className="people-shift-row"><span className="people-shift-dot"></span><span>Afternoon (13:00 - 17:00)</span><strong>Per day</strong></div>
-                                                    <div className="people-shift-row people-shift-row-muted"><span className="people-shift-dot"></span><span>Evening (18:00+)</span><strong>Per day</strong></div>
-                                                </div>
-                                                <div className="people-profile-divider"></div>
-                                                <div>
-                                                    <span className="people-subsection-title">Upcoming Blocked Dates</span>
-                                                    <div className="people-blocked-dates">
-                                                        {selectedStaffBlockedDates.length > 0 ? selectedStaffBlockedDates.map(date => (
-                                                            <span key={date}>{date}</span>
-                                                        )) : <span>No blocked dates</span>}
-                                                    </div>
-                                                </div>
-                                            </article>
-
-                                            <article className="people-profile-section">
-                                                <div className="people-profile-section-head">
-                                                    <p className="ops-eyebrow">Performance</p>
-                                                    <h4>Performance</h4>
-                                                </div>
-                                                <div className="people-performance-rating">
-                                                    <span>Customer Rating</span>
-                                                    <strong>4.9 ★</strong>
-                                                </div>
-                                                <div className="people-performance-bar"><span></span></div>
-                                                <div className="people-performance-metrics">
-                                                    <div><span>No-Shows</span><strong>0</strong></div>
-                                                    <div><span>Late (&gt;15m)</span><strong>2</strong></div>
-                                                    <div><span>Cancellations</span><strong>1</strong></div>
-                                                </div>
-                                            </article>
-
-                                            <article className="people-profile-section">
-                                                <div className="people-profile-section-head">
-                                                    <p className="ops-eyebrow">Employment</p>
-                                                    <h4>Employment</h4>
-                                                </div>
-                                                <div className="people-profile-read-list">
-                                                    <div><span>Worker Type</span><strong>{activeStaffProfileDraft.employment.workerType || getRoleLabel(selectedStaffMember.role)}</strong></div>
-                                                    <div><span>Hourly Rate</span><strong>${Number(activeStaffProfileDraft.employment.hourlyRate || 20).toFixed(2)}/hr</strong></div>
-                                                    <div><span>Overtime Rate</span><strong>${Number(activeStaffProfileDraft.employment.overtimeRate || 30).toFixed(2)}/hr</strong></div>
-                                                    <div><span>Overtime After</span><strong>{Number(activeStaffProfileDraft.employment.overtimeAfterHours || 44)} hrs/week</strong></div>
-                                                    <div><span>Payroll Status</span><strong>{activeStaffProfileDraft.employment.payrollStatus || "active"}</strong></div>
-                                                    <div>
-                                                        <span>Work Permit Document</span>
-                                                        {activeStaffProfileDraft.eligibility.documentUpload?.url ? (
-                                                            <a href={activeStaffProfileDraft.eligibility.documentUpload.url} target="_blank" rel="noreferrer"><strong>{activeStaffProfileDraft.eligibility.documentUpload.name || "View document"}</strong></a>
-                                                        ) : (
-                                                            <strong>No document uploaded</strong>
-                                                        )}
-                                                    </div>
-                                                    <div>
-                                                        <span>Photo ID Upload</span>
-                                                        {activeStaffProfileDraft.eligibility.photoIdUpload?.url ? (
-                                                            <a href={activeStaffProfileDraft.eligibility.photoIdUpload.url} target="_blank" rel="noreferrer"><strong>{activeStaffProfileDraft.eligibility.photoIdUpload.name || "View photo ID"}</strong></a>
-                                                        ) : (
-                                                            <strong>No photo ID uploaded</strong>
-                                                        )}
-                                                    </div>
-                                                    <div><span>Police Clearance</span><strong>{activeStaffProfileDraft.compliance.backgroundCheckStatus || "Pending"}</strong></div>
-                                                    <div><span>Start Date</span><strong>{selectedStaffMember.createdAt ? selectedStaffMember.createdAt.split("T")[0] : "Pending"}</strong></div>
-                                                    <div className="people-note-card">
-                                                        “{activeStaffProfileDraft.employment.availabilityNotes || "Staff profile notes will appear here after branch admin approval."}”
-                                                    </div>
-                                                </div>
-                                            </article>
-
-                                            <article className="people-profile-section">
-                                                <div className="people-profile-section-head">
-                                                    <p className="ops-eyebrow">Skills & Restrictions</p>
-                                                    <h4>Skills & Restrictions</h4>
-                                                </div>
-                                                <div className="people-skill-group">
-                                                    <span className="people-subsection-title">Approved Services</span>
-                                                    <div className="people-chip-list">
-                                                        <span>Standard Cleaning</span>
-                                                        <span>Deep Cleaning</span>
-                                                        <span>Move-in/out</span>
-                                                        <span>Carpet Steam</span>
-                                                    </div>
-                                                </div>
-                                                <div className="people-skill-group">
-                                                    <span className="people-subsection-title">Work Restrictions</span>
-                                                    <div className="people-restrictions-list">
-                                                        <div><strong>No Pets</strong><span>(Allergy)</span></div>
-                                                        <div><strong>Can work alone</strong></div>
-                                                    </div>
-                                                </div>
-                                            </article>
-
-                                        </div>
-                                        ) : (
-                                            <section className="people-profile-editor people-profile-editor-full">
-                                                <div className="people-profile-section-head">
-                                                    <p className="ops-eyebrow">Edit Profile</p>
-                                                    <h4>{canAdminDirectEditSelectedStaffProfile ? "Edit Staff Profile" : "Submit Profile Changes For Review"}</h4>
-                                                </div>
-                                                <div className="people-edit-groups">
-                                                    <section className="people-edit-group">
-                                                        <div className="people-profile-section-head">
-                                                            <p className="ops-eyebrow">Approval Required</p>
-                                                            <h4>Identity</h4>
-                                                        </div>
-                                                        <div className="people-profile-form-grid people-profile-form-grid-wide">
-                                                            <label><span>Legal name</span><input value={activeStaffProfileDraft.personal.legalName} onChange={e => updateStaffDraftField("personal", "legalName", e.target.value)} /></label>
-                                                            <label><span>Preferred name</span><input value={activeStaffProfileDraft.personal.preferredName} onChange={e => updateStaffDraftField("personal", "preferredName", e.target.value)} /></label>
-                                                            {canAdminDirectEditSelectedStaffProfile && (
-                                                                <label><span>Email</span><input type="email" value={activeStaffProfileDraft.personal.email || selectedStaffMember.email || ""} onChange={e => updateStaffDraftField("personal", "email", e.target.value)} /></label>
-                                                            )}
-                                                            {canAdminDirectEditSelectedStaffProfile && (
-                                                                <label><span>Phone</span><input value={activeStaffProfileDraft.personal.phone} onChange={e => updateStaffDraftField("personal", "phone", e.target.value)} /></label>
-                                                            )}
-                                                            <label><span>Date of birth</span><input type="date" value={activeStaffProfileDraft.personal.dateOfBirth} onChange={e => updateStaffDraftField("personal", "dateOfBirth", e.target.value)} /></label>
-                                                            <label className="span-2 people-address-field" ref={staffAutocompleteRef}><span>Address</span><input value={activeStaffProfileDraft.personal.address} onChange={e => handleStaffAddressChange(e.target.value)} />
-                                                                {showStaffAddressSuggestions && staffAddressSuggestions.length > 0 && (
-                                                                    <div className="places-suggestion-list">
-                                                                        {staffAddressSuggestions.map(suggestion => (
-                                                                            <button key={suggestion.place_id} type="button" className="places-suggestion-item" onClick={() => selectStaffAddressSuggestion(suggestion)}>
-                                                                                {suggestion.description}
-                                                                            </button>
-                                                                        ))}
-                                                                    </div>
-                                                                )}
-                                                            </label>
-                                                            <label><span>City</span><input value={activeStaffProfileDraft.personal.city} onChange={e => updateStaffDraftField("personal", "city", e.target.value)} /></label>
-                                                            <label><span>Postal code</span><input value={activeStaffProfileDraft.personal.postalCode} onChange={e => updateStaffDraftField("personal", "postalCode", e.target.value)} /></label>
-                                                        </div>
-                                                    </section>
-
-                                                    <section className="people-edit-group">
-                                                        <div className="people-profile-section-head">
-                                                            <p className="ops-eyebrow">Approval Required</p>
-                                                            <h4>Emergency Contact</h4>
-                                                        </div>
-                                                        <div className="people-profile-form-grid people-profile-form-grid-wide">
-                                                            <label><span>Emergency Contact Name</span><input value={activeStaffProfileDraft.emergency.contactName} onChange={e => updateStaffDraftField("emergency", "contactName", e.target.value)} /></label>
-                                                            <label><span>Relationship</span><input value={activeStaffProfileDraft.emergency.relationship} onChange={e => updateStaffDraftField("emergency", "relationship", e.target.value)} /></label>
-                                                            <label><span>Emergency phone</span><input value={activeStaffProfileDraft.emergency.phone} onChange={e => updateStaffDraftField("emergency", "phone", e.target.value)} /></label>
-                                                        </div>
-                                                    </section>
-
-                                                    <section className="people-edit-group">
-                                                        <div className="people-profile-section-head">
-                                                            <p className="ops-eyebrow">Scheduling Logic</p>
-                                                            <h4>Availability</h4>
-                                                        </div>
-                                                        <div className="people-availability-edit-grid">
-                                                            <div className="people-availability-matrix">
-                                                                <div className="people-availability-matrix-head">
-                                                                    <span>Day</span>
-                                                                    <span>Morning</span>
-                                                                    <span>Afternoon</span>
-                                                                    <span>Evening</span>
-                                                                </div>
-                                                                {activeStaffProfileDraft.availability.weekdays.map((day, index) => (
-                                                                    <div key={`${day.label}-${index}`} className="people-availability-matrix-row">
-                                                                        <strong>{day.label}</strong>
-                                                                        <label className="people-matrix-check"><input type="checkbox" checked={Boolean(day.shifts?.morning)} onChange={e => updateStaffDraftField("availability", "weekdays", updateAvailabilityDayShift(activeStaffProfileDraft.availability.weekdays, index, "morning", e.target.checked))} /></label>
-                                                                        <label className="people-matrix-check"><input type="checkbox" checked={Boolean(day.shifts?.afternoon)} onChange={e => updateStaffDraftField("availability", "weekdays", updateAvailabilityDayShift(activeStaffProfileDraft.availability.weekdays, index, "afternoon", e.target.checked))} /></label>
-                                                                        <label className="people-matrix-check"><input type="checkbox" checked={Boolean(day.shifts?.evening)} onChange={e => updateStaffDraftField("availability", "weekdays", updateAvailabilityDayShift(activeStaffProfileDraft.availability.weekdays, index, "evening", e.target.checked))} /></label>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                            <label><span>Max jobs per week</span><input type="number" value={activeStaffProfileDraft.availability.maxJobsPerDay} onChange={e => updateStaffDraftField("availability", "maxJobsPerDay", parseInt(e.target.value || "0", 10))} /></label>
-                                                            <div className="span-2 people-file-upload-field">
-                                                                <span>Blocked dates</span>
-                                                                <div className="flex gap-2 items-center flex-wrap">
-                                                                    <input type="date" value={blockedDateInput} onChange={e => setBlockedDateInput(e.target.value)} />
-                                                                    <button type="button" className="team-secondary-action" onClick={addBlockedDateToDraft}>Add date</button>
-                                                                </div>
-                                                                <div className="people-blocked-dates">
-                                                                    {(activeStaffProfileDraft.availability.blockedDates || []).length > 0 ? activeStaffProfileDraft.availability.blockedDates.map(date => (
-                                                                        <button key={date} type="button" className="people-blocked-date-remove" onClick={() => removeBlockedDateFromDraft(date)}>{date} ×</button>
-                                                                    )) : <span>No blocked dates</span>}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </section>
-                                                </div>
-                                                <div className="people-profile-form-grid people-profile-form-grid-wide">
-                                                    {canAdminDirectEditSelectedStaffProfile && (
-                                                        <label>
-                                                            <span>Worker type</span>
-                                                            <select value={activeStaffProfileDraft.employment.workerType || "employee"} onChange={e => updateStaffDraftField("employment", "workerType", e.target.value)}>
-                                                                <option value="employee">Employee</option>
-                                                                <option value="subcontractor">Subcontractor</option>
-                                                            </select>
-                                                        </label>
-                                                    )}
-                                                    {canAdminDirectEditSelectedStaffProfile && <label><span>Years experience</span><input value={activeStaffProfileDraft.employment.yearsExperience} onChange={e => updateStaffDraftField("employment", "yearsExperience", e.target.value)} /></label>}
-                                                    {canAdminDirectEditSelectedStaffProfile && <label><span>Languages</span><input value={activeStaffProfileDraft.employment.languages} onChange={e => updateStaffDraftField("employment", "languages", e.target.value)} /></label>}
-                                                    {canAdminDirectEditSelectedStaffProfile && <label><span>Hourly rate</span><input type="number" min="0" step="0.01" value={activeStaffProfileDraft.employment.hourlyRate || 20} onChange={e => updateStaffDraftField("employment", "hourlyRate", parseFloat(e.target.value || "0"))} /></label>}
-                                                    {canAdminDirectEditSelectedStaffProfile && <label><span>Overtime rate</span><input type="number" min="0" step="0.01" value={activeStaffProfileDraft.employment.overtimeRate || 30} onChange={e => updateStaffDraftField("employment", "overtimeRate", parseFloat(e.target.value || "0"))} /></label>}
-                                                    {canAdminDirectEditSelectedStaffProfile && <label><span>Overtime after hrs/week</span><input type="number" min="0" step="1" value={activeStaffProfileDraft.employment.overtimeAfterHours || 44} onChange={e => updateStaffDraftField("employment", "overtimeAfterHours", parseFloat(e.target.value || "0"))} /></label>}
-                                                    {canAdminDirectEditSelectedStaffProfile && <label><span>Payroll status</span><input value={activeStaffProfileDraft.employment.payrollStatus || "active"} onChange={e => updateStaffDraftField("employment", "payrollStatus", e.target.value)} /></label>}
-                                                    <label><span>T-shirt size</span><input value={activeStaffProfileDraft.employment.tshirtSize} onChange={e => updateStaffDraftField("employment", "tshirtSize", e.target.value)} /></label>
-                                                    <label className="span-2"><span>Availability notes</span><textarea value={activeStaffProfileDraft.employment.availabilityNotes} onChange={e => updateStaffDraftField("employment", "availabilityNotes", e.target.value)} /></label>
-                                                    <label className="span-2 people-file-upload-field">
-                                                        <span>Photo ID Upload</span>
-                                                        <input type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.webp" onChange={e => handleStaffDocumentUpload(e.target.files?.[0], "photoIdUpload", "Photo ID")} disabled={staffDocumentUploading} />
-                                                        <strong>{staffDocumentUploading ? "Uploading document..." : (activeStaffProfileDraft.eligibility.photoIdUpload?.name || "No photo ID uploaded yet")}</strong>
-                                                        {canAdminDirectEditSelectedStaffProfile && activeStaffProfileDraft.eligibility.photoIdUpload?.url && (
-                                                            <a href={activeStaffProfileDraft.eligibility.photoIdUpload.url} target="_blank" rel="noreferrer">View uploaded photo ID</a>
-                                                        )}
-                                                    </label>
-                                                    <label className="span-2 people-file-upload-field">
-                                                        <span>Work Permit Document</span>
-                                                        <input type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.webp" onChange={e => handleStaffDocumentUpload(e.target.files?.[0], "documentUpload", "Work permit document")} disabled={staffDocumentUploading} />
-                                                        <strong>{staffDocumentUploading ? "Uploading document..." : (activeStaffProfileDraft.eligibility.documentUpload?.name || "No work permit uploaded yet")}</strong>
-                                                        {canAdminDirectEditSelectedStaffProfile && activeStaffProfileDraft.eligibility.documentUpload?.url && (
-                                                            <a href={activeStaffProfileDraft.eligibility.documentUpload.url} target="_blank" rel="noreferrer">View uploaded work permit</a>
-                                                        )}
-                                                    </label>
-                                                    <label><span>Permit expiry</span><input type="date" value={activeStaffProfileDraft.eligibility.workPermitExpiry} onChange={e => updateStaffDraftField("eligibility", "workPermitExpiry", e.target.value)} /></label>
-                                                    <label><span>SIN last 4</span><input value={activeStaffProfileDraft.eligibility.sinLast4} onChange={e => updateStaffDraftField("eligibility", "sinLast4", e.target.value)} /></label>
-                                                    <label><span>License class</span><input value={activeStaffProfileDraft.eligibility.driversLicenseClass} onChange={e => updateStaffDraftField("eligibility", "driversLicenseClass", e.target.value)} /></label>
-                                                    {canAdminDirectEditSelectedStaffProfile && <label><span>Background check</span><input value={activeStaffProfileDraft.compliance.backgroundCheckStatus} onChange={e => updateStaffDraftField("compliance", "backgroundCheckStatus", e.target.value)} /></label>}
-                                                    {canAdminDirectEditSelectedStaffProfile && <label><span>Background expiry</span><input type="date" value={activeStaffProfileDraft.compliance.backgroundCheckExpiry} onChange={e => updateStaffDraftField("compliance", "backgroundCheckExpiry", e.target.value)} /></label>}
-                                                    {canAdminDirectEditSelectedStaffProfile && <label><span>Insurance status</span><input value={activeStaffProfileDraft.compliance.insuranceStatus} onChange={e => updateStaffDraftField("compliance", "insuranceStatus", e.target.value)} /></label>}
-                                                    {canAdminDirectEditSelectedStaffProfile && <label><span>Insurance expiry</span><input type="date" value={activeStaffProfileDraft.compliance.insuranceExpiry} onChange={e => updateStaffDraftField("compliance", "insuranceExpiry", e.target.value)} /></label>}
-                                                    <label><span>Training status</span><input value={activeStaffProfileDraft.compliance.trainingStatus} onChange={e => updateStaffDraftField("compliance", "trainingStatus", e.target.value)} /></label>
-                                                </div>
-                                                <div className="people-profile-footer">
-                                                    <p>
-                                                        This profile is stored in Firestore. Identity and emergency contact changes require admin approval. Availability follows separate scheduling rules with the next 48 hours locked from direct cleaner changes.
-                                                    </p>
-                                                    <div className="people-editor-actions">
-                                                        <button type="button" className="team-secondary-action" onClick={() => setStaffProfileEditOpen(false)} disabled={staffProfileSaving}>
-                                                            Cancel
-                                                        </button>
-                                                        {canAdminDirectEditSelectedStaffProfile ? (
-                                                            <button type="button" className="team-primary-action" onClick={handleSaveStaffProfileDirect} disabled={staffProfileSaving}>
-                                                                {staffProfileSaving ? "Saving..." : "Save Directly"}
-                                                            </button>
-                                                        ) : (
-                                                            <button type="button" className="team-primary-action" onClick={handleSubmitStaffProfile} disabled={staffProfileSaving}>
-                                                                {staffProfileSaving ? "Submitting..." : "Submit For Review"}
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </section>
-                                        )}
-
-                                        {!canManagePeopleProfiles && (
-                                            <div className="people-profile-footer">
-                                                <p>
-                                                    Profile changes go to branch admin for approval. Availability restrictions are enforced by scheduling logic and are not shown as editable warnings in the UI.
-                                                </p>
-                                                {canEditSelectedStaffProfile && (
-                                                    <button type="button" className="team-primary-action" onClick={handleSubmitStaffProfile} disabled={staffProfileSaving}>
-                                                        {staffProfileSaving ? "Submitting..." : "Submit Profile Update"}
-                                                    </button>
-                                                )}
-                                            </div>
-                                        )}
-                                        </div>
-                                    </section>
-                                )}
-                            </div>
-                        )}
-                    </div>
+                    <TeamsTab
+                        isViewingOwnCleanerProfile={isViewingOwnCleanerProfile}
+                        peopleRoster={peopleRoster}
+                        bookings={bookings}
+                        selectedStaffMember={selectedStaffMember}
+                        activeStaffProfileDraft={activeStaffProfileDraft}
+                        selectedStaffCompletedJobs={selectedStaffCompletedJobs}
+                        staffProfileFeedback={staffProfileFeedback}
+                        staffProfileRejectReason={staffProfileRejectReason}
+                        staffProfileMobileTab={staffProfileMobileTab}
+                        staffProfileEditOpen={staffProfileEditOpen}
+                        staffDocumentUploading={staffDocumentUploading}
+                        staffProfileSaving={staffProfileSaving}
+                        profilePhotoUploading={profilePhotoUploading}
+                        blockedDateInput={blockedDateInput}
+                        staffAddressSuggestions={staffAddressSuggestions}
+                        showStaffAddressSuggestions={showStaffAddressSuggestions}
+                        staffAutocompleteRef={staffAutocompleteRef}
+                        selectedStaffIdentityCards={selectedStaffIdentityCards}
+                        selectedStaffEmploymentCards={selectedStaffEmploymentCards}
+                        selectedStaffAvailability={selectedStaffAvailability}
+                        selectedStaffBlockedDates={selectedStaffBlockedDates}
+                        canEditSelectedStaffProfile={canEditSelectedStaffProfile}
+                        canAdminDirectEditSelectedStaffProfile={canAdminDirectEditSelectedStaffProfile}
+                        canManagePeopleProfiles={canManagePeopleProfiles}
+                        Icons={Icons}
+                        getInitials={getInitials}
+                        getRoleLabel={getRoleLabel}
+                        normalizeStaffProfile={normalizeStaffProfile}
+                        setSelectedStaffUid={setSelectedStaffUid}
+                        setStaffProfileDraftOwnerUid={setStaffProfileDraftOwnerUid}
+                        setStaffProfileDraft={setStaffProfileDraft}
+                        setStaffProfileFeedback={setStaffProfileFeedback}
+                        setStaffProfileRejectReason={setStaffProfileRejectReason}
+                        setStaffProfileEditOpen={setStaffProfileEditOpen}
+                        setStaffProfileMobileTab={setStaffProfileMobileTab}
+                        setBlockedDateInput={setBlockedDateInput}
+                        updateStaffDraftField={updateStaffDraftField}
+                        handleStaffAddressChange={handleStaffAddressChange}
+                        selectStaffAddressSuggestion={selectStaffAddressSuggestion}
+                        handleProfilePhotoCapture={handleProfilePhotoCapture}
+                        handleReviewStaffProfileRequest={handleReviewStaffProfileRequest}
+                        handleSaveStaffProfileDirect={handleSaveStaffProfileDirect}
+                        handleSubmitStaffProfile={handleSubmitStaffProfile}
+                        handleStaffDocumentUpload={handleStaffDocumentUpload}
+                        updateAvailabilityDayShift={updateAvailabilityDayShift}
+                        addBlockedDateToDraft={addBlockedDateToDraft}
+                        removeBlockedDateFromDraft={removeBlockedDateFromDraft}
+                    />
                 )}
 
                 {activeTab === "departments" && canViewAdministration && (
-                    <div className="animate-fade flex flex-col gap-6">
-                        <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-                            <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-                                <div>
-                                    <p className="ops-eyebrow">Organization</p>
-                                    <h3 className="ops-title">Departments</h3>
-                                    <p className="ops-copy">View every operating department, its responsibilities, and the modules connected to it.</p>
-                                </div>
-                                <span className="w-fit rounded-full bg-cyan-100 px-4 py-2 text-xs font-black uppercase tracking-wider text-cyan-800">{DEPARTMENTS.length} Departments</span>
-                            </div>
-
-                            <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                                {DEPARTMENTS.map((department, index) => {
-                                    const targetTab = DEPARTMENT_TAB_TARGETS[department.id];
-                                    const hasAccess = canViewDepartment(department.id);
-                                    const accents = [
-                                        "from-blue-600 to-cyan-500",
-                                        "from-emerald-600 to-teal-500",
-                                        "from-amber-500 to-orange-500",
-                                        "from-violet-600 to-indigo-500",
-                                        "from-slate-700 to-slate-500",
-                                        "from-cyan-700 to-blue-600",
-                                        "from-rose-600 to-orange-500"
-                                    ];
-                                    return (
-                                        <article key={department.id} className="overflow-hidden rounded-[22px] border border-slate-200 bg-slate-50">
-                                            <div className={`h-2 bg-gradient-to-r ${accents[index % accents.length]}`}></div>
-                                            <div className="p-5">
-                                                <div className="flex items-start justify-between gap-3">
-                                                    <div className="rounded-xl bg-white p-3 text-blue-800 shadow-sm">{Icons.Departments()}</div>
-                                                    <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider ${hasAccess ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-500"}`}>{hasAccess ? "Available" : "Restricted"}</span>
-                                                </div>
-                                                <h4 className="mt-4 text-xl font-black text-slate-900">{department.name}</h4>
-                                                <p className="mt-2 min-h-[60px] text-sm leading-6 text-slate-500">{department.description}</p>
-                                                <div className="mt-4 flex flex-wrap gap-2">
-                                                    {department.modules.map(module => (
-                                                        <span key={module} className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-bold text-slate-600">{module}</span>
-                                                    ))}
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    disabled={!hasAccess || !targetTab}
-                                                    onClick={() => targetTab && setActiveTab(targetTab)}
-                                                    className="btn btn-secondary btn-sm mt-5 w-full"
-                                                >
-                                                    {!hasAccess ? "Access Restricted" : targetTab ? "Open Department" : "Workspace Coming Next"}
-                                                </button>
-                                            </div>
-                                        </article>
-                                    );
-                                })}
-                            </div>
-                        </section>
-
-                        <div className="hr-hub-shell">
-                            <div className="hr-hub-hero">
-                                <div>
-                                    <p className="ops-eyebrow">People Management</p>
-                                    <h3 className="ops-title">People Management Department</h3>
-                                    <p className="ops-copy">
-                                        Recruitment, onboarding, staff directory, and compliance for the current branch.
-                                    </p>
-                                </div>
-                                <div className="hr-hub-actions">
-                                    <button type="button" className="team-secondary-action">Post New Job</button>
-                                    <button type="button" className="team-primary-action" onClick={() => setActiveTab("teams")}>Open Staff Profiles</button>
-                                </div>
-                            </div>
-
-                            <div className="hr-hub-metrics">
-                                <article className="hr-hub-metric-card">
-                                    <span>Open Roles</span>
-                                    <strong>{Math.max(3, pendingUsers.length)}</strong>
-                                    <em>Recruitment active</em>
-                                </article>
-                                <article className="hr-hub-metric-card">
-                                    <span>New Applications</span>
-                                    <strong>{pendingUsers.length}</strong>
-                                    <em>Needs review</em>
-                                </article>
-                                <article className="hr-hub-metric-card">
-                                    <span>Total Employees</span>
-                                    <strong>{fieldStaff.filter(member => member.status === "approved").length}</strong>
-                                    <em>Approved staff</em>
-                                </article>
-                                <article className="hr-hub-metric-card hr-hub-metric-alert">
-                                    <span>Pending Documents</span>
-                                    <strong>{fieldStaff.filter(member => !member.staffProfile?.eligibility?.documentUpload?.url || !member.staffProfile?.eligibility?.photoIdUpload?.url).length}</strong>
-                                    <em>Compliance required</em>
-                                </article>
-                            </div>
-
-                            <div className="hr-hub-grid">
-                                <section className="hr-hub-panel">
-                                    <div className="cleaner-section-head">
-                                        <h4>Recruitment Pipeline</h4>
-                                        <span>View All</span>
-                                    </div>
-                                    <div className="hr-hub-list">
-                                        {pendingUsers.length === 0 ? (
-                                            <div className="admin-cart-empty">No pending recruitment records right now.</div>
-                                        ) : pendingUsers.slice(0, 4).map(user => (
-                                            <article key={user.uid} className="hr-hub-list-item">
-                                                <div>
-                                                    <strong>{user.name}</strong>
-                                                    <span>{getRoleLabel(user.role)} · {user.branchName || activeBranch.name}</span>
-                                                </div>
-                                                <em>{user.status === "pending_approval" ? "Awaiting approval" : "Ready"}</em>
-                                            </article>
-                                        ))}
-                                    </div>
-                                </section>
-
-                                <section className="hr-hub-panel">
-                                    <div className="cleaner-section-head">
-                                        <h4>Onboarding Tasks</h4>
-                                        <span>{fieldStaff.length}</span>
-                                    </div>
-                                    <div className="hr-hub-list">
-                                        {fieldStaff.slice(0, 4).map(member => {
-                                            const missingPermit = !member.staffProfile?.eligibility?.documentUpload?.url;
-                                            const missingPhotoId = !member.staffProfile?.eligibility?.photoIdUpload?.url;
-                                            return (
-                                                <article key={member.uid} className="hr-hub-list-item">
-                                                    <div>
-                                                        <strong>{member.name}</strong>
-                                                        <span>{missingPermit || missingPhotoId ? "Documents pending" : "Onboarding complete"}</span>
-                                                    </div>
-                                                    <em>{missingPermit || missingPhotoId ? "Action Required" : "Ready"}</em>
-                                                </article>
-                                            );
-                                        })}
-                                    </div>
-                                </section>
-
-                                <section className="hr-hub-panel">
-                                    <div className="cleaner-section-head">
-                                        <h4>Staff Directory</h4>
-                                        <span>{fieldStaff.length}</span>
-                                    </div>
-                                    <div className="hr-hub-list">
-                                        {fieldStaff.slice(0, 5).map(member => (
-                                            <article key={member.uid} className="hr-hub-list-item">
-                                                <div>
-                                                    <strong>{member.name}</strong>
-                                                    <span>{getRoleLabel(member.role)} · {member.branchName || activeBranch.name}</span>
-                                                </div>
-                                                <em>{member.status}</em>
-                                            </article>
-                                        ))}
-                                    </div>
-                                </section>
-
-                                <section className="hr-hub-panel hr-hub-panel-alert">
-                                    <div className="cleaner-section-head">
-                                        <h4>Compliance</h4>
-                                        <span>Attention</span>
-                                    </div>
-                                    <p>Track photo ID, work permit, background check, and insurance readiness before cleaners go fully active.</p>
-                                    <div className="hr-hub-compliance-list">
-                                        <div><strong>{fieldStaff.filter(member => !member.staffProfile?.eligibility?.photoIdUpload?.url).length}</strong><span>Missing photo ID</span></div>
-                                        <div><strong>{fieldStaff.filter(member => !member.staffProfile?.eligibility?.documentUpload?.url).length}</strong><span>Missing work permit</span></div>
-                                        <div><strong>{fieldStaff.filter(member => !member.staffProfile?.compliance?.backgroundCheckStatus).length}</strong><span>Background checks pending</span></div>
-                                    </div>
-                                </section>
-                            </div>
-                        </div>
-                    </div>
+                    <DepartmentsTab
+                        DEPARTMENTS={DEPARTMENTS}
+                        canViewDepartment={canViewDepartment}
+                        setActiveTab={setActiveTab}
+                        pendingUsers={pendingUsers}
+                        fieldStaff={fieldStaff}
+                        getRoleLabel={getRoleLabel}
+                        activeBranch={activeBranch}
+                    />
                 )}
-
                 {activeTab === "permissions" && canManagePermissions && (
-                    <div className="animate-fade flex flex-col gap-6">
-                        <div className="ops-control-header">
-                            <div>
-                                <p className="ops-eyebrow">Access control</p>
-                                <h3 className="ops-title">Permissions & Roles</h3>
-                                <p className="ops-copy">
-                                    Legacy roles remain compatible while we introduce real departments, branch rules, and people management.
-                                </p>
-                            </div>
-                            <span className="ops-chip ops-chip-green">Super Admin controlled</span>
-                        </div>
-
-                        <div className="permissions-grid">
-                            {Object.entries(ROLE_DEFINITIONS).map(([roleId, definition]) => (
-                                <article key={roleId} className="permission-card">
-                                    <div className="permission-card-head">
-                                        <div>
-                                            <h4>{definition.label}</h4>
-                                            <p>{definition.description}</p>
-                                        </div>
-                                        <span className="ops-chip">{roleId}</span>
-                                    </div>
-                                    <div className="permission-departments">
-                                        {DEPARTMENTS.map(department => (
-                                            <span
-                                                key={department.id}
-                                                className={definition.departments.includes(department.id) ? "allowed" : ""}
-                                            >
-                                                {department.name}
-                                            </span>
-                                        ))}
-                                    </div>
-                                    <div className="permission-flags">
-                                        <span>{definition.canSwitchBranches ? "Can switch branches" : "Branch scoped"}</span>
-                                        <span>{definition.canManagePermissions ? "Can manage permissions" : "No permission edits"}</span>
-                                    </div>
-                                </article>
-                            ))}
-                        </div>
-
-                        <div className="notification-readiness-panel">
-                            <div>
-                                <p className="ops-eyebrow">Communication infrastructure</p>
-                                <h3 className="ops-title">Email, SMS, and App Push Requirements</h3>
-                                <p className="ops-copy">
-                                    To send reminders from info@smartouchclean.com and notify customers, cleaners, supervisors, and admins,
-                                    the app needs these production services connected.
-                                </p>
-                            </div>
-                            <div className="notification-requirements-grid">
-                                <div>
-                                    <strong>Email</strong>
-                                    <span>SendGrid, Resend, Postmark, or Gmail Workspace SMTP with SPF/DKIM/DMARC configured for smartouchclean.com.</span>
-                                </div>
-                                <div>
-                                    <strong>SMS / Phone</strong>
-                                    <span>Twilio or Telnyx number, consent tracking, opt-out handling, and customer/cleaner phone verification.</span>
-                                </div>
-                                <div>
-                                    <strong>Web Push</strong>
-                                    <span>PWA manifest, service worker, VAPID keys, browser permission prompts, and saved push subscriptions per user/device.</span>
-                                </div>
-                                <div>
-                                    <strong>In-App Notes</strong>
-                                    <span>Firestore notifications collection for supervisor notes, admin alerts, job comments, unread counts, and audit trail.</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    <PermissionsTab ROLE_DEFINITIONS={ROLE_DEFINITIONS} DEPARTMENTS={DEPARTMENTS} />
                 )}
 
                 {activeTab === "edit-requests" && canViewAdministration && (
-                    <div className="animate-fade flex flex-col gap-6">
-                        {editRequests.filter(r => r.status === "Pending").length === 0 ? (
-                            <div className="panel-card p-12 text-center text-slate-400 text-sm">Review Inbox is clean. No cleaner modification requests pending.</div>
-                        ) : (
-                            editRequests.filter(r => r.status === "Pending").map(req => {
-                                const orig = req.originalData || {};
-                                const reqd = req.requestedData || {};
-                                const resolution = editRequestResolutions[req.id] || {
-                                    finalStatus: reqd.status || orig.status || "Confirmed",
-                                    paymentStatus: reqd.paymentStatus || orig.paymentStatus || "unpaid"
-                                };
-                                return (
-                                    <div key={req.id} className="panel-card border-l-4 border-amber-500 p-6 flex flex-col gap-4 bg-white shadow rounded-2xl">
-                                        <div className="flex justify-between items-start border-b border-slate-100 pb-3">
-                                            <div>
-                                                <h4 className="font-extrabold text-sm text-slate-800">Booking Edit Request for {req.clientName}</h4>
-                                                <span className="text-[10px] text-slate-400 block mt-1">Submitted by: <strong>{req.requestedBy}</strong> • {req.createdAt.split("T")[0]}</span>
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <button onClick={() => handleResolveEdit(req.id, "approve")} className="btn btn-primary btn-sm">Approve &amp; Merge</button>
-                                                <button onClick={() => handleResolveEdit(req.id, "reject")} className="btn btn-danger btn-sm">Reject Request</button>
-                                            </div>
-                                        </div>
-
-                                        {/* side-by-side comparative grid */}
-                                        <div className="comparison-grid grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            {/* Original details */}
-                                            <div className="comparison-column bg-slate-50 p-4 rounded-xl border border-slate-200">
-                                                <div className="comparison-title text-[9px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200 pb-1 mb-2">Original dispatch Details</div>
-                                                <div className="flex flex-col gap-1.5 text-xs text-slate-700">
-                                                    <div><strong>Client:</strong> {orig.clientName}</div>
-                                                    <div><strong>Phone:</strong> {orig.phone}</div>
-                                                    <div><strong>Email:</strong> {orig.email}</div>
-                                                    <div><strong>Address 1:</strong> {orig.address1}</div>
-                                                    <div><strong>Address 2:</strong> {orig.address2 || "None"}</div>
-                                                    <div><strong>City:</strong> {orig.city} ({orig.postalCode})</div>
-                                                    <div><strong>Service:</strong> {orig.service}</div>
-                                                    <div><strong>Price / Duration:</strong> ${orig.price} / {orig.duration} hrs</div>
-                                                    {orig.customDiscountAmount > 0 && (
-                                                        <div className="text-green-600 font-semibold"><strong>Special Discount:</strong> -${parseFloat(orig.customDiscountAmount).toFixed(2)}</div>
-                                                    )}
-                                                    <div><strong>Schedule Date:</strong> {orig.date} • {orig.time}</div>
-                                                    <div><strong>Assigned Team:</strong> {orig.team}</div>
-                                                    <div><strong>Status:</strong> <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${orig.status === 'Completed' ? 'bg-green-100 text-green-700' : orig.status === 'Cancelled' ? 'bg-red-100 text-red-700' : orig.status === 'Confirmed' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>{orig.status || 'Pending'}</span></div>
-                                                    <div><strong>Payment:</strong> {orig.paymentStatus || "unpaid"}</div>
-                                                </div>
-                                            </div>
-                                            {/* Requested updates */}
-                                            <div className="comparison-column bg-amber-50 bg-opacity-30 border border-amber-200 p-4 rounded-xl">
-                                                <div className="comparison-title text-[9px] font-bold text-amber-700 uppercase tracking-widest border-b border-amber-200 pb-1 mb-2">Requested Updates</div>
-                                                <div className="flex flex-col gap-1.5 text-xs text-slate-700">
-                                                    <div><strong>Client:</strong> <span className={orig.clientName !== reqd.clientName ? "diff-highlight font-bold" : ""}>{reqd.clientName}</span></div>
-                                                    <div><strong>Phone:</strong> <span className={orig.phone !== reqd.phone ? "diff-highlight font-bold" : ""}>{reqd.phone}</span></div>
-                                                    <div><strong>Email:</strong> <span className={orig.email !== reqd.email ? "diff-highlight font-bold" : ""}>{reqd.email}</span></div>
-                                                    <div><strong>Address 1:</strong> <span className={orig.address1 !== reqd.address1 ? "diff-highlight font-bold" : ""}>{reqd.address1}</span></div>
-                                                    <div><strong>Address 2:</strong> <span className={orig.address2 !== reqd.address2 ? "diff-highlight font-bold" : ""}>{reqd.address2 || "None"}</span></div>
-                                                    <div><strong>City:</strong> <span className={(orig.city !== reqd.city || orig.postalCode !== reqd.postalCode) ? "diff-highlight font-bold" : ""}>{reqd.city} ({reqd.postalCode})</span></div>
-                                                    <div><strong>Service:</strong> <span className={orig.service !== reqd.service ? "diff-highlight font-bold" : ""}>{reqd.service}</span></div>
-                                                    <div><strong>Price / Duration:</strong> <span className={(orig.price !== reqd.price || orig.duration !== reqd.duration) ? "diff-highlight font-bold" : ""}>${reqd.price} / {reqd.duration} hrs</span></div>
-                                                    {reqd.customDiscountAmount > 0 && (
-                                                        <div className="text-green-600 font-semibold"><strong>Special Discount:</strong> <span className={orig.customDiscountAmount !== reqd.customDiscountAmount ? "diff-highlight font-bold text-green-700" : ""}>-${parseFloat(reqd.customDiscountAmount).toFixed(2)}</span></div>
-                                                    )}
-                                                    <div><strong>Schedule Date:</strong> <span className={(orig.date !== reqd.date || orig.time !== reqd.time) ? "diff-highlight font-bold" : ""}>{reqd.date} • {reqd.time}</span></div>
-                                                    <div><strong>Assigned Team:</strong> <span className={orig.team !== reqd.team ? "diff-highlight font-bold" : ""}>{reqd.team}</span></div>
-                                                    <div><strong>Status:</strong> <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${orig.status !== reqd.status ? 'diff-highlight' : ''} ${reqd.status === 'Completed' ? 'bg-green-100 text-green-700' : reqd.status === 'Cancelled' ? 'bg-red-100 text-red-700' : reqd.status === 'Confirmed' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>{reqd.status || 'Pending'}</span></div>
-                                                    <div><strong>Payment:</strong> <span className={orig.paymentStatus !== reqd.paymentStatus ? "diff-highlight font-bold" : ""}>{reqd.paymentStatus || "unpaid"}</span></div>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div className="comparison-column bg-slate-50 p-4 rounded-xl border border-slate-200">
-                                                <div className="comparison-title text-[9px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200 pb-1 mb-2">Admin Final Decision</div>
-                                                <div className="flex flex-col gap-3 text-xs text-slate-700">
-                                                    <label className="flex flex-col gap-1">
-                                                        <strong>Final Job Status</strong>
-                                                        <select
-                                                            value={resolution.finalStatus}
-                                                            onChange={e => setEditRequestResolutions(prev => ({
-                                                                ...prev,
-                                                                [req.id]: {
-                                                                    ...resolution,
-                                                                    finalStatus: e.target.value
-                                                                }
-                                                            }))}
-                                                            className="border border-slate-200 rounded-lg p-2"
-                                                        >
-                                                            <option value="Pending">Pending</option>
-                                                            <option value="Confirmed">Confirmed</option>
-                                                            <option value="Completed">Completed</option>
-                                                            <option value="Cancelled">Cancelled</option>
-                                                        </select>
-                                                    </label>
-                                                    <label className="flex flex-col gap-1">
-                                                        <strong>Payment Status</strong>
-                                                        <select
-                                                            value={resolution.paymentStatus}
-                                                            onChange={e => setEditRequestResolutions(prev => ({
-                                                                ...prev,
-                                                                [req.id]: {
-                                                                    ...resolution,
-                                                                    paymentStatus: e.target.value
-                                                                }
-                                                            }))}
-                                                            className="border border-slate-200 rounded-lg p-2"
-                                                        >
-                                                            <option value="unpaid">Unpaid</option>
-                                                            <option value="paid">Paid</option>
-                                                        </select>
-                                                    </label>
-                                                    <p className="text-[11px] text-slate-500">Payment is admin-only and does not have to match the operational job status.</p>
-                                                </div>
-                                            </div>
-
-                                            {reqd.cleanerChecklist?.tasks?.length > 0 && (
-                                                <div className="comparison-column bg-amber-50 bg-opacity-30 border border-amber-200 p-4 rounded-xl">
-                                                    <div className="comparison-title text-[9px] font-bold text-amber-700 uppercase tracking-widest border-b border-amber-200 pb-1 mb-2">Cleaner Completion Review</div>
-                                                    <div className="flex flex-col gap-2 text-xs text-slate-700">
-                                                        {reqd.cleanerChecklist.tasks.map(task => (
-                                                            <div key={task.id} className="rounded-xl border border-amber-200 bg-white p-3">
-                                                                <strong>{task.label}</strong>
-                                                                <div className="mt-2"><strong>Before photos:</strong> {(task.beforePhotos || []).length ? task.beforePhotos.join(", ") : "None submitted"}</div>
-                                                                <div><strong>After photos:</strong> {(task.afterPhotos || []).length ? task.afterPhotos.join(", ") : "None submitted"}</div>
-                                                            </div>
-                                                        ))}
-                                                        <p className="text-[11px] text-slate-500">Photo files are not persistently reviewable across accounts yet until storage-backed uploads are completed.</p>
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
-                            })
-                        )}
-                    </div>
+                    <EditRequestsTab
+                        editRequests={editRequests}
+                        editRequestResolutions={editRequestResolutions}
+                        setEditRequestResolutions={setEditRequestResolutions}
+                        handleResolveEdit={handleResolveEdit}
+                    />
                 )}
 
                 {activeTab === "catalog" && canViewAdministration && (
-                    <div className="animate-fade">
-                        <V2SettingsManager
-                            catalog={v2Catalog}
-                            setCatalog={setV2Catalog}
-                            onSave={handleSaveV2Catalog}
-                        />
-                    </div>
+                    <CatalogTab catalog={v2Catalog} setCatalog={setV2Catalog} onSave={handleSaveV2Catalog} />
                 )}
 
                 {activeTab === "promotions" && canViewAdministration && (
-                    <div className="animate-fade space-y-6">
-                        <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-                            <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-                                <div>
-                                    <p className="text-xs font-bold uppercase tracking-[0.28em] text-sky-700">Promotions</p>
-                                    <h3 className="mt-2 text-3xl font-black text-slate-900">Document, Referral and Discount Control</h3>
-                                    <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-500">
-                                        Manage the wording shown on estimates, bookings, invoices, receipts, and any public promotions shown to customers.
-                                    </p>
-                                </div>
-                                <button onClick={handleSavePromotions} className="btn btn-primary btn-sm" disabled={promotionSaving}>
-                                    {promotionSaving ? "Saving..." : "Save Document Settings"}
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-                            <div className="mb-5">
-                                <p className="text-xs font-bold uppercase tracking-[0.24em] text-emerald-700">Customer Document Copy</p>
-                                <h4 className="mt-2 text-2xl font-black text-slate-900">Terms, Notes and Service Notes</h4>
-                                <p className="mt-2 text-sm leading-6 text-slate-500">
-                                    Use <code className="rounded bg-slate-100 px-1 py-0.5">{"{document}"}</code> inside terms when you want the system to write estimate, booking, invoice, or receipt automatically.
-                                </p>
-                            </div>
-                            <div className="grid gap-5 lg:grid-cols-2">
-                                <div className="grid gap-3 rounded-[22px] border border-slate-200 bg-slate-50 p-4">
-                                    <label className="flex flex-col gap-1">
-                                        <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Service Notes Title</span>
-                                        <input value={documentCopy.serviceNotesTitle || ""} onChange={e => updateDocumentCopyField("serviceNotesTitle", e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2" />
-                                    </label>
-                                    <label className="flex flex-col gap-1">
-                                        <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Default Service Notes Body</span>
-                                        <textarea value={documentCopy.serviceNotesBody || ""} onChange={e => updateDocumentCopyField("serviceNotesBody", e.target.value)} className="min-h-[120px] rounded-xl border border-slate-200 px-3 py-2" />
-                                    </label>
-                                </div>
-                                <div className="grid gap-3 rounded-[22px] border border-slate-200 bg-slate-50 p-4">
-                                    <label className="flex flex-col gap-1">
-                                        <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Notes Title</span>
-                                        <input value={documentCopy.notesTitle || ""} onChange={e => updateDocumentCopyField("notesTitle", e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2" />
-                                    </label>
-                                    <label className="flex flex-col gap-1">
-                                        <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Notes Body</span>
-                                        <textarea value={documentCopy.notesBody || ""} onChange={e => updateDocumentCopyField("notesBody", e.target.value)} className="min-h-[120px] rounded-xl border border-slate-200 px-3 py-2" />
-                                    </label>
-                                </div>
-                                <div className="grid gap-3 rounded-[22px] border border-slate-200 bg-slate-50 p-4 lg:col-span-2">
-                                    <label className="flex flex-col gap-1">
-                                        <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Terms Title</span>
-                                        <input value={documentCopy.termsTitle || ""} onChange={e => updateDocumentCopyField("termsTitle", e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2" />
-                                    </label>
-                                    <label className="flex flex-col gap-1">
-                                        <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Terms Body</span>
-                                        <textarea value={documentCopy.termsBody || ""} onChange={e => updateDocumentCopyField("termsBody", e.target.value)} className="min-h-[180px] rounded-xl border border-slate-200 px-3 py-2 font-mono text-sm leading-6" />
-                                    </label>
-                                    <p className="text-xs text-slate-500">Each line becomes one bullet in the PDF and document preview.</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="grid gap-4">
-                            {promotionRules.map((promo, index) => (
-                                <div key={promo.id} className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
-                                    <div className="grid gap-4 lg:grid-cols-[1.2fr,0.8fr]">
-                                        <div className="grid gap-4 sm:grid-cols-2">
-                                            <label className="flex flex-col gap-1">
-                                                <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Promo Name</span>
-                                                <input value={promo.name} onChange={e => setPromotionRules(prev => prev.map((item, itemIndex) => itemIndex === index ? { ...item, name: e.target.value } : item))} className="rounded-xl border border-slate-200 px-3 py-2" />
-                                            </label>
-                                            <label className="flex flex-col gap-1">
-                                                <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Promo Code</span>
-                                                <input value={promo.code} onChange={e => setPromotionRules(prev => prev.map((item, itemIndex) => itemIndex === index ? { ...item, code: e.target.value.toUpperCase().replace(/\s+/g, "") } : item))} className="rounded-xl border border-slate-200 px-3 py-2" />
-                                            </label>
-                                            <label className="flex flex-col gap-1">
-                                                <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Type</span>
-                                                <select value={promo.type} onChange={e => setPromotionRules(prev => prev.map((item, itemIndex) => itemIndex === index ? { ...item, type: e.target.value } : item))} className="rounded-xl border border-slate-200 px-3 py-2">
-                                                    <option value="fixed">Fixed Amount</option>
-                                                    <option value="percent">Percent</option>
-                                                    <option value="referral">Referral</option>
-                                                </select>
-                                            </label>
-                                            <label className="flex flex-col gap-1">
-                                                <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Value</span>
-                                                <input type="number" value={promo.value} onChange={e => setPromotionRules(prev => prev.map((item, itemIndex) => itemIndex === index ? { ...item, value: Number(e.target.value || 0) } : item))} className="rounded-xl border border-slate-200 px-3 py-2" />
-                                            </label>
-                                            <label className="sm:col-span-2 flex flex-col gap-1">
-                                                <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Description</span>
-                                                <textarea value={promo.description || ""} onChange={e => setPromotionRules(prev => prev.map((item, itemIndex) => itemIndex === index ? { ...item, description: e.target.value } : item))} className="min-h-[90px] rounded-xl border border-slate-200 px-3 py-2" />
-                                            </label>
-                                        </div>
-
-                                        <div className="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
-                                            <div className="mb-3 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Rules</div>
-                                            <div className="grid gap-2 text-sm text-slate-700">
-                                                {[
-                                                    ["active", "Active"],
-                                                    ["oneTimeOnly", "One time only"],
-                                                    ["stackable", "Can be used with others"],
-                                                    ["soloOnly", "Must be used alone"],
-                                                    ["repeatable", "Repeat use allowed"],
-                                                    ["referralRequired", "Needs referred customer purchase"],
-                                                    ["showOnDocuments", "Show on estimates, invoices, and receipts"]
-                                                ].map(([field, label]) => (
-                                                    <label key={field} className="flex items-center gap-3 rounded-xl bg-white px-3 py-2">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={Boolean(promo[field])}
-                                                            onChange={e => setPromotionRules(prev => prev.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: e.target.checked } : item))}
-                                                        />
-                                                        <span>{label}</span>
-                                                    </label>
-                                                ))}
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => setPromotionRules(prev => prev.filter((_, itemIndex) => itemIndex !== index))}
-                                                className="btn btn-secondary btn-sm mt-4"
-                                            >
-                                                Remove Promotion
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-
-                        <button
-                            type="button"
-                            onClick={() => setPromotionRules(prev => ([
-                                ...prev,
-                                {
-                                    id: `promo_${Date.now()}`,
-                                    code: `PROMO${prev.length + 1}`,
-                                    name: "New Promotion",
-                                    type: "fixed",
-                                    value: 0,
-                                    active: true,
-                                    oneTimeOnly: false,
-                                    stackable: false,
-                                    soloOnly: false,
-                                    repeatable: false,
-                                    referralRequired: false,
-                                    showOnDocuments: true,
-                                    description: ""
-                                }
-                            ]))}
-                            className="btn btn-secondary btn-sm"
-                        >
-                            Add Promotion
-                        </button>
-                    </div>
+                    <PromotionsTab
+                        promotionRules={promotionRules}
+                        setPromotionRules={setPromotionRules}
+                        documentCopy={documentCopy}
+                        updateDocumentCopyField={updateDocumentCopyField}
+                        handleSavePromotions={handleSavePromotions}
+                        promotionSaving={promotionSaving}
+                    />
                 )}
 
                 {activeTab === "settings" && (
-                    <div className="animate-fade">
-                        <div className="settings-container">
-                            {/* Card 1: User Profile */}
-                            <div className="settings-card">
-                                <div className="panel-header border-b border-slate-100 pb-3">
-                                    <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">User Profile Specifications</h4>
-                                </div>
-                                <form onSubmit={handleProfileUpdate} className="settings-form">
-                                    <div className="settings-avatar-group">
-                                        <div className={`settings-avatar ${currentUser.photoURL ? "settings-avatar-photo" : ""}`}>
-                                            {currentUser.photoURL ? (
-                                                <img src={currentUser.photoURL} alt={currentUser.name} className="avatar-image" />
-                                            ) : getInitials(currentUser.name)}
-                                        </div>
-                                        <div>
-                                            <h5 className="settings-profile-name">{currentUser.name}</h5>
-                                            <span className="settings-profile-role">{roleLabel}</span>
-                                        </div>
-                                    </div>
-                                    <label className="settings-photo-upload">
-                                        <input
-                                            type="file"
-                                            accept="image/*"
-                                            capture="user"
-                                            onChange={e => handleProfilePhotoCapture(e.target.files?.[0])}
-                                            disabled={profilePhotoUploading}
-                                        />
-                                        {profilePhotoUploading ? "Uploading Photo..." : "Take Or Upload Profile Photo"}
-                                    </label>
-                                    {profilePhotoStatus && (
-                                        <div className="people-profile-message">
-                                            {profilePhotoStatus}
-                                        </div>
-                                    )}
-                                    <div className="form-group">
-                                        <label>Display Name</label>
-                                        <input
-                                            type="text"
-                                            value={profileName}
-                                            onChange={e => setProfileName(e.target.value)}
-                                            required
-                                        />
-                                    </div>
-                                    <div className="form-group">
-                                        <label>Email Address (Read-only)</label>
-                                        <input
-                                            type="email"
-                                            value={currentUser.email}
-                                            disabled
-                                            className="input-readonly"
-                                        />
-                                    </div>
-                                    {!canManagePermissions && (
-                                        <div className="form-group">
-                                            <label>Assigned Cleaning Crew</label>
-                                            <input
-                                                type="text"
-                                                value={currentUser.teamId || "None"}
-                                                disabled
-                                                className="input-readonly"
-                                            />
-                                        </div>
-                                    )}
-                                    <button type="submit" disabled={profileLoading} className="btn btn-primary h-[44px] rounded-lg text-white font-bold transition mt-2">
-                                        {profileLoading ? "Updating Profile..." : "Save Profile Details"}
-                                    </button>
-
-                                    {/* Mobile Accessible Log Out Button */}
-                                    <div className="mt-4 pt-4 border-t border-slate-100/80 w-full">
-                                        <button
-                                            type="button"
-                                            onClick={handleSignout}
-                                            className="btn btn-danger w-full h-[44px] flex items-center justify-center gap-2 font-bold transition-all mt-2"
-                                        >
-                                            {Icons.Logout()} Log Out of Account
-                                        </button>
-                                    </div>
-                                </form>
-                            </div>
-
-                            {/* Card 2: Security & Password Update */}
-                            <div className="settings-card">
-                                <div className="panel-header border-b border-slate-100 pb-3">
-                                    <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">Security & Password Management</h4>
-                                </div>
-                                <form onSubmit={handlePasswordChange} className="settings-form">
-                                    <div className="form-group">
-                                        <label>Current Password</label>
-                                        <input
-                                            type="password"
-                                            value={securityForm.currentPassword}
-                                            onChange={e => setSecurityForm(prev => ({ ...prev, currentPassword: e.target.value }))}
-                                            required
-                                            placeholder="••••••••"
-                                        />
-                                    </div>
-                                    <div className="form-group">
-                                        <label>New Password</label>
-                                        <input
-                                            type="password"
-                                            value={securityForm.newPassword}
-                                            onChange={e => setSecurityForm(prev => ({ ...prev, newPassword: e.target.value }))}
-                                            required
-                                            placeholder="Min 6 characters"
-                                        />
-                                    </div>
-                                    <div className="form-group">
-                                        <label>Confirm New Password</label>
-                                        <input
-                                            type="password"
-                                            value={securityForm.confirmPassword}
-                                            onChange={e => setSecurityForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                                            required
-                                            placeholder="••••••••"
-                                        />
-                                    </div>
-                                    <button type="submit" disabled={securityLoading} className="btn btn-danger h-[44px] rounded-lg font-bold transition mt-2">
-                                        {securityLoading ? "Updating Password..." : "Change Security Password"}
-                                    </button>
-                                </form>
-                            </div>
-
-                        </div>
-                    </div>
+                    <SettingsTab
+                        currentUser={currentUser}
+                        profileName={profileName}
+                        setProfileName={setProfileName}
+                        profileLoading={profileLoading}
+                        profilePhotoUploading={profilePhotoUploading}
+                        profilePhotoStatus={profilePhotoStatus}
+                        handleProfileUpdate={handleProfileUpdate}
+                        handleProfilePhotoCapture={handleProfilePhotoCapture}
+                        canManagePermissions={canManagePermissions}
+                        roleLabel={roleLabel}
+                        handleSignout={handleSignout}
+                        securityForm={securityForm}
+                        setSecurityForm={setSecurityForm}
+                        securityLoading={securityLoading}
+                        handlePasswordChange={handlePasswordChange}
+                        getInitials={getInitials}
+                    />
                 )}
             </main>
 
@@ -6548,7 +4482,15 @@ export default function Home() {
                                         {!isCleanerSelfServiceView && (
                                             <div className="detail-row">
                                                 <span className="detail-label">Payment Status</span>
-                                                <span className="detail-value">{b.paymentStatus || "unpaid"}</span>
+                                                <span className="detail-value">{b.paymentStatus === "paid" ? "💳 Paid" : b.paymentStatus || "unpaid"}</span>
+                                            </div>
+                                        )}
+                                        {!isCleanerSelfServiceView && b.customerConfirmed && (
+                                            <div className="detail-row">
+                                                <span className="detail-label">Customer Confirmed</span>
+                                                <span className="detail-value" style={{color:"#16a34a",fontWeight:700}}>
+                                                    ✓ Yes{b.customerConfirmedAt ? ` · ${new Date(b.customerConfirmedAt).toLocaleString("en-CA", {dateStyle:"medium",timeStyle:"short"})}` : ""}
+                                                </span>
                                             </div>
                                         )}
                                         {!isCleanerSelfServiceView && (
@@ -6674,6 +4616,12 @@ export default function Home() {
                                 <button onClick={() => setDetailsModalOpen(false)} className="btn btn-secondary btn-sm">Close</button>
                                 {!isCleanerSelfServiceView && (
                                     <>
+                                        {b.customerConfirmed && b.status === "Pending" && (
+                                            <button onClick={() => handleApproveBooking(b)} className="btn btn-sm" style={{background:"#16a34a",color:"#fff",fontWeight:700}}>✓ Approve Job</button>
+                                        )}
+                                        {b.paymentStatus === "paid" && (
+                                            <button onClick={() => handleSendReceipt(b)} className="btn btn-sm" style={{background:"#0A6CB8",color:"#fff",fontWeight:700}}>Send Receipt</button>
+                                        )}
                                         {b.status === "Completed" && !b.invoiceNumber && (
                                             <button onClick={() => handleGenerateInvoice(b)} className="btn btn-secondary btn-sm">Generate Invoice</button>
                                         )}

@@ -330,6 +330,12 @@ export default function CustomerFlow({ phone, bookingId, paid }) {
                                 </div>
                                 {docNumber && <div style={{ fontSize: 12, color: "#8fa3b8", fontWeight: 600, paddingTop: 4 }}>#{docNumber}</div>}
                             </div>
+                            {(booking.rewardPoints > 0 || booking.referralCode) && (
+                                <div style={{ background: "#f0f8e8", borderRadius: 10, padding: "10px 14px", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                                    {booking.rewardPoints > 0 && <span style={{ fontSize: 13, color: "#3d6b1a", fontWeight: 600 }}>⭐ {booking.rewardPoints} reward points</span>}
+                                    {booking.referralCode && <span style={{ fontSize: 12, color: "#526276" }}>Referral: <strong style={{ color: GREEN }}>{booking.referralCode}</strong></span>}
+                                </div>
+                            )}
                             <span style={S.sectionLabel}>Service Details</span>
                             {booking.date && <div style={S.infoRow}><span>📅</span> {formatDate(booking.date)}{booking.time ? ` at ${booking.time}` : ""}</div>}
                             {booking.address1 && <div style={S.infoRow}><span>📍</span> {[booking.address1, booking.address2, booking.city, booking.postalCode].filter(Boolean).join(", ")}</div>}
@@ -355,6 +361,11 @@ export default function CustomerFlow({ phone, bookingId, paid }) {
                                 </div>
                                 {docNumber && <div style={{ fontSize: 12, color: "#8fa3b8", fontWeight: 600, paddingTop: 4 }}>#{docNumber}</div>}
                             </div>
+                            {booking.rewardPoints > 0 && (
+                                <div style={{ background: "#f0f8e8", borderRadius: 10, padding: "10px 14px", marginBottom: 12 }}>
+                                    <span style={{ fontSize: 13, color: "#3d6b1a", fontWeight: 600 }}>⭐ {booking.rewardPoints} reward points earned so far</span>
+                                </div>
+                            )}
                             <span style={S.sectionLabel}>Service Details</span>
                             {booking.date && <div style={S.infoRow}><span>📅</span> {formatDate(booking.date)}{booking.time ? ` at ${booking.time}` : ""}</div>}
                             {booking.address1 && <div style={S.infoRow}><span>📍</span> {[booking.address1, booking.address2, booking.city, booking.postalCode].filter(Boolean).join(", ")}</div>}

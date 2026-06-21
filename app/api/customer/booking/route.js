@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "../../../../lib/firebase-admin";
 import { getSessionPhone } from "../../../../lib/customerSession";
+import { getCustomerProfile } from "../../../../lib/customerProfile";
 
 function normalizePhone(raw = "") {
     const digits = String(raw || "").replace(/\D/g, "");
@@ -15,7 +16,11 @@ export async function GET(request) {
         const bookingId = (url.searchParams.get("bookingId") || "").trim();
         if (!bookingId) throw new Error("Missing bookingId.");
 
-        const snap = await adminDb.collection("bookings").doc(bookingId).get();
+        const [snap, profile] = await Promise.all([
+            adminDb.collection("bookings").doc(bookingId).get(),
+            getCustomerProfile(sessionPhone),
+        ]);
+
         if (!snap.exists) throw new Error("Booking not found.");
 
         const data = snap.data();
@@ -46,6 +51,10 @@ export async function GET(request) {
             status: data.status || "Lead",
             paymentStatus: data.paymentStatus || "unpaid",
             customerConfirmed: Boolean(data.customerConfirmed),
+            // Customer profile fields (rewards, referral code)
+            rewardPoints: profile?.rewardPoints || 0,
+            referralCode: profile?.referralCode || null,
+            totalBookings: (profile?.bookingRefs || []).length,
         });
     } catch (err) {
         const status = err.message === "Unauthorized" ? 401 : 400;

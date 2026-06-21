@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "../../../../lib/firebase-admin";
 import { signCustomerSession } from "../../../../lib/customerSession";
+import { upsertCustomerProfile } from "../../../../lib/customerProfile";
 
 function normalizePhone(raw = "") {
     const digits = String(raw || "").replace(/\D/g, "");
@@ -38,6 +39,9 @@ export async function POST(request) {
         }
 
         await doc.ref.delete();
+
+        // Create or refresh the customer profile (fire-and-forget — don't block auth on this)
+        upsertCustomerProfile(normalized).catch(err => console.error("upsertCustomerProfile failed:", err));
 
         const sessionToken = signCustomerSession(normalized);
         return NextResponse.json({ ok: true, sessionToken });
