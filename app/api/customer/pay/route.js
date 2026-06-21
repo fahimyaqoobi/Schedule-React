@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { adminDb, adminAuth } from "../../../../lib/firebase-admin";
+import { adminDb } from "../../../../lib/firebase-admin";
+import { getSessionPhone } from "../../../../lib/customerSession";
 import Stripe from "stripe";
 
 function normalizePhone(raw = "") {
@@ -20,24 +21,19 @@ export async function POST(request) {
     }
 
     try {
-        const authHeader = request.headers.get("Authorization");
-        if (!authHeader?.startsWith("Bearer ")) throw new Error("Unauthorized");
-        const token = authHeader.split("Bearer ")[1];
-
-        const decoded = await adminAuth.verifyIdToken(token);
-        const authPhone = normalizePhone(decoded.phone_number || "");
-        if (!authPhone) throw new Error("No phone number on this account.");
+        const sessionPhone = getSessionPhone(request);
 
         const { bookingId } = await request.json();
-        if (!bookingId) throw new Error("Missing bookingId");
+        if (!bookingId) throw new Error("Missing bookingId.");
 
         const ref = adminDb.collection("bookings").doc(bookingId);
         const snap = await ref.get();
         if (!snap.exists) throw new Error("Booking not found.");
 
         const data = snap.data();
-        const bookingPhone = normalizePhone(data.phone || "");
-        if (bookingPhone !== authPhone) throw new Error("This invoice is not associated with your phone number.");
+        if (normalizePhone(data.phone) !== sessionPhone) {
+            throw new Error("This invoice is not linked to your phone number.");
+        }
 
         if (data.paymentStatus === "paid") {
             return NextResponse.json({ error: "This invoice has already been paid." }, { status: 400 });
@@ -67,7 +63,7 @@ export async function POST(request) {
             customer_email: data.email || undefined,
             success_url: `${origin}/customer-access?bookingId=${bookingId}&paid=true`,
             cancel_url: `${origin}/customer-access?bookingId=${bookingId}&phone=${normalizePhone(data.phone || "")}`,
-            metadata: { bookingId, phone: decoded.phone_number || "" },
+            metadata: { bookingId, phone: sessionPhone },
         });
 
         await ref.update({

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { adminDb, adminAuth } from "../../../../lib/firebase-admin";
+import { adminDb } from "../../../../lib/firebase-admin";
+import { getSessionPhone } from "../../../../lib/customerSession";
 
 function normalizePhone(raw = "") {
     const digits = String(raw || "").replace(/\D/g, "");
@@ -8,26 +9,18 @@ function normalizePhone(raw = "") {
 
 export async function GET(request) {
     try {
-        const authHeader = request.headers.get("Authorization");
-        if (!authHeader?.startsWith("Bearer ")) throw new Error("Unauthorized");
-        const token = authHeader.split("Bearer ")[1];
-
-        const decoded = await adminAuth.verifyIdToken(token);
-        const authPhone = normalizePhone(decoded.phone_number || "");
-        if (!authPhone) throw new Error("No phone number on this account.");
+        const sessionPhone = getSessionPhone(request);
 
         const url = new URL(request.url);
         const bookingId = (url.searchParams.get("bookingId") || "").trim();
-        if (!bookingId) throw new Error("Missing bookingId");
+        if (!bookingId) throw new Error("Missing bookingId.");
 
         const snap = await adminDb.collection("bookings").doc(bookingId).get();
         if (!snap.exists) throw new Error("Booking not found.");
 
         const data = snap.data();
-        const bookingPhone = normalizePhone(data.phone || "");
-
-        if (bookingPhone !== authPhone) {
-            throw new Error("This link is not associated with your phone number.");
+        if (normalizePhone(data.phone) !== sessionPhone) {
+            throw new Error("This document is not linked to your phone number.");
         }
 
         return NextResponse.json({
