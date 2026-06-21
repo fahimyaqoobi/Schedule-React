@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "../../../../lib/firebase-admin";
-import { getSessionPhone } from "../../../../lib/customerSession";
+import { getSessionPhoneAny } from "../../../../lib/customerSession";
 import { getCustomerProfile } from "../../../../lib/customerProfile";
 
 function normalizePhone(raw = "") {
@@ -10,7 +10,7 @@ function normalizePhone(raw = "") {
 
 export async function GET(request) {
     try {
-        const sessionPhone = getSessionPhone(request);
+        const sessionPhone = getSessionPhoneAny(request);
 
         const url = new URL(request.url);
         const bookingId = (url.searchParams.get("bookingId") || "").trim();

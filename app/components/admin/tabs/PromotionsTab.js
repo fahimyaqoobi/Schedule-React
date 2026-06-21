@@ -93,6 +93,24 @@ export default function PromotionsTab({
                                     <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Value</span>
                                     <input type="number" value={promo.value} onChange={e => setPromotionRules(prev => prev.map((item, i) => i === index ? { ...item, value: Number(e.target.value || 0) } : item))} className="rounded-xl border border-slate-200 px-3 py-2" />
                                 </label>
+                                <label className="flex flex-col gap-1">
+                                    <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Scope</span>
+                                    <select value={promo.scope || "all"} onChange={e => setPromotionRules(prev => prev.map((item, i) => i === index ? { ...item, scope: e.target.value, applicableServices: e.target.value === "all" ? [] : (item.applicableServices || []) } : item))} className="rounded-xl border border-slate-200 px-3 py-2">
+                                        <option value="all">All Services</option>
+                                        <option value="service">Specific Services Only</option>
+                                    </select>
+                                </label>
+                                {promo.scope === "service" && (
+                                    <label className="sm:col-span-2 flex flex-col gap-1">
+                                        <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Applicable Services (comma-separated)</span>
+                                        <input
+                                            value={(promo.applicableServices || []).join(", ")}
+                                            onChange={e => setPromotionRules(prev => prev.map((item, i) => i === index ? { ...item, applicableServices: e.target.value.split(",").map(s => s.trim()).filter(Boolean) } : item))}
+                                            placeholder="e.g. Window Cleaning, Gutter Cleaning"
+                                            className="rounded-xl border border-slate-200 px-3 py-2"
+                                        />
+                                    </label>
+                                )}
                                 <label className="sm:col-span-2 flex flex-col gap-1">
                                     <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Description</span>
                                     <textarea value={promo.description || ""} onChange={e => setPromotionRules(prev => prev.map((item, i) => i === index ? { ...item, description: e.target.value } : item))} className="min-h-[90px] rounded-xl border border-slate-200 px-3 py-2" />
@@ -144,6 +162,8 @@ export default function PromotionsTab({
                         name: "New Promotion",
                         type: "fixed",
                         value: 0,
+                        scope: "all",
+                        applicableServices: [],
                         active: true,
                         oneTimeOnly: false,
                         stackable: false,

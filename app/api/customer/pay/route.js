@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "../../../../lib/firebase-admin";
-import { getSessionPhone } from "../../../../lib/customerSession";
+import { getSessionPhoneAny } from "../../../../lib/customerSession";
 import Stripe from "stripe";
 
 function normalizePhone(raw = "") {
@@ -21,9 +21,9 @@ export async function POST(request) {
     }
 
     try {
-        const sessionPhone = getSessionPhone(request);
+        const sessionPhone = getSessionPhoneAny(request);
 
-        const { bookingId } = await request.json();
+        const { bookingId, successPath, cancelPath } = await request.json();
         if (!bookingId) throw new Error("Missing bookingId.");
 
         const ref = adminDb.collection("bookings").doc(bookingId);
@@ -61,8 +61,12 @@ export async function POST(request) {
             }],
             mode: "payment",
             customer_email: data.email || undefined,
-            success_url: `${origin}/customer-access?bookingId=${bookingId}&paid=true`,
-            cancel_url: `${origin}/customer-access?bookingId=${bookingId}&phone=${normalizePhone(data.phone || "")}`,
+            success_url: successPath
+                ? `${origin}${successPath}`
+                : `${origin}/customer-access?bookingId=${bookingId}&paid=true`,
+            cancel_url: cancelPath
+                ? `${origin}${cancelPath}`
+                : `${origin}/customer-access?bookingId=${bookingId}&phone=${normalizePhone(data.phone || "")}`,
             metadata: { bookingId, phone: sessionPhone },
         });
 

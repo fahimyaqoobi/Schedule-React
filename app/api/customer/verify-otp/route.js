@@ -44,7 +44,15 @@ export async function POST(request) {
         upsertCustomerProfile(normalized).catch(err => console.error("upsertCustomerProfile failed:", err));
 
         const sessionToken = signCustomerSession(normalized);
-        return NextResponse.json({ ok: true, sessionToken });
+        const response = NextResponse.json({ ok: true, sessionToken });
+        response.cookies.set("cst", sessionToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax",
+            path: "/",
+            maxAge: 8 * 60 * 60,
+        });
+        return response;
     } catch (err) {
         return NextResponse.json({ error: err.message }, { status: 400 });
     }

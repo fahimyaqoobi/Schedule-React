@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "../../../../lib/firebase-admin";
-import { getSessionPhone } from "../../../../lib/customerSession";
+import { getSessionPhoneAny } from "../../../../lib/customerSession";
 import { recordCustomerBooking, recordCustomerPromo } from "../../../../lib/customerProfile";
 
 function normalizePhone(raw = "") {
@@ -10,7 +10,7 @@ function normalizePhone(raw = "") {
 
 export async function POST(request) {
     try {
-        const sessionPhone = getSessionPhone(request);
+        const sessionPhone = getSessionPhoneAny(request);
 
         const { bookingId } = await request.json();
         if (!bookingId) throw new Error("Missing bookingId.");
