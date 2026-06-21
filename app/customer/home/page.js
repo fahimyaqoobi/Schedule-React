@@ -94,9 +94,14 @@ export default function CustomerHomePage() {
                         <div style={{ fontSize: 13, color: "#78350f", marginBottom: 12 }}>
                             {pendingPayment.service} · {pendingPayment.date} · <strong>${parseFloat(pendingPayment.price || 0).toFixed(2)}</strong>
                         </div>
-                        <Link href={`/customer/jobs/${pendingPayment.id}`} style={{ display: "block", background: "#d97706", color: "#fff", textAlign: "center", padding: "11px 0", borderRadius: 10, fontWeight: 700, fontSize: 14, textDecoration: "none" }}>
-                            Pay Now →
-                        </Link>
+                        <div style={{ display: "flex", gap: 8 }}>
+                            <Link href={`/customer/jobs/${pendingPayment.id}`} style={{ flex: 1, background: "#fff", color: "#92400e", border: "1.5px solid #fbbf24", textAlign: "center", padding: "10px 0", borderRadius: 10, fontWeight: 700, fontSize: 13, textDecoration: "none" }}>
+                                View Invoice
+                            </Link>
+                            <Link href={`/customer/jobs/${pendingPayment.id}`} style={{ flex: 1, background: "#d97706", color: "#fff", textAlign: "center", padding: "10px 0", borderRadius: 10, fontWeight: 700, fontSize: 13, textDecoration: "none" }}>
+                                Pay Now →
+                            </Link>
+                        </div>
                     </div>
                 )}
 

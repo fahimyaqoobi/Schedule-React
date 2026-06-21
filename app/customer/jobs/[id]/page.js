@@ -232,6 +232,22 @@ export default function JobDetailPage({ params }) {
 
                 {step === 3 && (
                     <div style={{ background: "#fff", borderRadius: 18, padding: "20px 18px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)", marginBottom: 14 }}>
+                        {/* Assigned cleaner(s) */}
+                        {booking?.assignedStaff?.length > 0 && (
+                            <div style={{ marginBottom: 16, background: "#f8fafc", borderRadius: 14, padding: "14px 16px" }}>
+                                <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>
+                                    Your Cleaner{booking.assignedStaff.length > 1 ? "s" : ""}
+                                </div>
+                                {booking.assignedStaff.map((s, i) => (
+                                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: i < booking.assignedStaff.length - 1 ? 8 : 0 }}>
+                                        <div style={{ width: 36, height: 36, borderRadius: "50%", background: ACTION + "20", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: ACTION, fontSize: 14 }}>
+                                            {(s.name || "?")[0]?.toUpperCase()}
+                                        </div>
+                                        <div style={{ fontWeight: 600, fontSize: 14, color: "#0f172a" }}>{s.name || "Staff"}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                         <div style={{ textAlign: "center", marginBottom: 16 }}>
                             <div style={{ fontSize: 36, marginBottom: 8 }}>⭐</div>
                             <div style={{ fontWeight: 700, color: "#0f172a", fontSize: 15, marginBottom: 4 }}>How was your clean?</div>
