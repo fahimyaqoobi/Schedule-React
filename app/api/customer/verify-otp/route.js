@@ -40,11 +40,41 @@ export async function POST(request) {
 
         await doc.ref.delete();
 
-        // Create or refresh the customer profile (fire-and-forget — don't block auth on this)
-        upsertCustomerProfile(normalized).catch(err => console.error("upsertCustomerProfile failed:", err));
+        // Create or refresh the customer profile; try to pre-fill from existing bookings if brand new
+        let isNewCustomer = false;
+        try {
+            const { created } = await upsertCustomerProfile(normalized);
+            if (created) {
+                // Look for existing admin bookings to pre-populate name/email/address
+                const bookingSnap = await adminDb.collection("bookings")
+                    .where("phone", "==", normalized)
+                    .limit(5)
+                    .get();
+
+                let prefill = {};
+                if (!bookingSnap.empty) {
+                    const booking = bookingSnap.docs
+                        .map(d => d.data())
+                        .sort((a, b) => ((b.date || "") > (a.date || "") ? 1 : -1))[0];
+                    const clientName = booking.clientName ||
+                        [booking.firstName, booking.lastName].filter(Boolean).join(" ").trim();
+                    if (clientName) prefill.name = clientName;
+                    if (booking.email) prefill.email = booking.email;
+                    if (booking.address1) prefill.address = booking.address1;
+                    if (booking.city) prefill.city = booking.city;
+                    if (booking.state || booking.province) prefill.province = booking.state || booking.province;
+                    if (booking.postalCode) prefill.postalCode = booking.postalCode;
+                    if (Object.keys(prefill).length > 0) await upsertCustomerProfile(normalized, prefill);
+                }
+                // Need onboarding only if we still don't have a name
+                isNewCustomer = !prefill.name;
+            }
+        } catch (err) {
+            console.error("Profile setup error:", err);
+        }
 
         const sessionToken = signCustomerSession(normalized);
-        const response = NextResponse.json({ ok: true, sessionToken });
+        const response = NextResponse.json({ ok: true, sessionToken, isNewCustomer });
         response.cookies.set("cst", sessionToken, {
             httpOnly: true,
             secure: process.env.NODE_ENV === "production",

@@ -95,9 +95,9 @@ export default function CustomerHomePage() {
                             {pendingPayment.service} · {pendingPayment.date} · <strong>${parseFloat(pendingPayment.price || 0).toFixed(2)}</strong>
                         </div>
                         <div style={{ display: "flex", gap: 8 }}>
-                            <Link href={`/customer/jobs/${pendingPayment.id}`} style={{ flex: 1, background: "#fff", color: "#92400e", border: "1.5px solid #fbbf24", textAlign: "center", padding: "10px 0", borderRadius: 10, fontWeight: 700, fontSize: 13, textDecoration: "none" }}>
-                                View Invoice
-                            </Link>
+                            <a href={`/api/customer/invoice-pdf?bookingId=${pendingPayment.id}`} download style={{ flex: 1, background: "#fff", color: "#92400e", border: "1.5px solid #fbbf24", textAlign: "center", padding: "10px 0", borderRadius: 10, fontWeight: 700, fontSize: 13, textDecoration: "none" }}>
+                                ⬇ View Invoice
+                            </a>
                             <Link href={`/customer/jobs/${pendingPayment.id}`} style={{ flex: 1, background: "#d97706", color: "#fff", textAlign: "center", padding: "10px 0", borderRadius: 10, fontWeight: 700, fontSize: 13, textDecoration: "none" }}>
                                 Pay Now →
                             </Link>

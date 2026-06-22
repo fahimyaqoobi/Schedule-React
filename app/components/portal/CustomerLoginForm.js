@@ -48,13 +48,30 @@ export default function CustomerLoginForm() {
     }
 
     function handleOtpChange(i, e) {
-        const val = e.target.value.replace(/\D/g, "").slice(-1);
+        const rawVal = e.target.value.replace(/\D/g, "");
+        // iOS SMS autofill delivers all 6 digits into the focused box at once
+        if (rawVal.length > 1) {
+            const next = otp.map((_, j) => rawVal[j] || "");
+            setOtp(next);
+            otpRefs.current[Math.min(rawVal.length - 1, 5)]?.focus();
+            return;
+        }
+        const val = rawVal.slice(0, 1);
         const next = [...otp]; next[i] = val; setOtp(next);
         if (val && i < 5) otpRefs.current[i + 1]?.focus();
     }
 
     function handleOtpKey(i, e) {
         if (e.key === "Backspace" && !otp[i] && i > 0) otpRefs.current[i - 1]?.focus();
+    }
+
+    function handleOtpPaste(e) {
+        e.preventDefault();
+        const pasted = (e.clipboardData?.getData("text") || "").replace(/\D/g, "").slice(0, 6);
+        if (!pasted) return;
+        const next = otp.map((_, j) => pasted[j] || "");
+        setOtp(next);
+        otpRefs.current[Math.min(pasted.length - 1, 5)]?.focus();
     }
 
     async function verifyOtp() {
@@ -69,7 +86,7 @@ export default function CustomerLoginForm() {
             });
             const data = await res.json();
             if (!data.ok) throw new Error(data.error || "Verification failed.");
-            router.push("/customer/home");
+            router.push(data.isNewCustomer ? "/customer/onboarding" : "/customer/home");
         } catch (e) { setError(e.message); }
         finally { setLoading(false); }
     }
@@ -126,12 +143,13 @@ export default function CustomerLoginForm() {
                                     key={i}
                                     ref={el => { otpRefs.current[i] = el; }}
                                     style={S.otpBox}
-                                    type="text"
+                                    type="tel"
                                     inputMode="numeric"
-                                    maxLength={1}
+                                    autoComplete={i === 0 ? "one-time-code" : "off"}
                                     value={v}
                                     onChange={e => handleOtpChange(i, e)}
                                     onKeyDown={e => handleOtpKey(i, e)}
+                                    onPaste={handleOtpPaste}
                                 />
                             ))}
                         </div>

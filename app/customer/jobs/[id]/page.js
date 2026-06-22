@@ -220,6 +220,14 @@ export default function JobDetailPage({ params }) {
                             </div>
                         )}
                         {err && <div style={{ color: "#dc2626", fontSize: 13, marginBottom: 12 }}>{err}</div>}
+                        {/* View Invoice PDF */}
+                        <a
+                            href={`/api/customer/invoice-pdf?bookingId=${id}`}
+                            download
+                            style={{ display: "block", width: "100%", background: "#f8fafc", color: BRAND, border: `1.5px solid ${BRAND}30`, borderRadius: 14, padding: "13px 0", fontSize: 15, fontWeight: 700, textAlign: "center", textDecoration: "none", marginBottom: 10, boxSizing: "border-box" }}
+                        >
+                            ⬇ View / Download Invoice PDF
+                        </a>
                         <button
                             onClick={handlePay}
                             disabled={actionLoading}
