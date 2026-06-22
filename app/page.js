@@ -149,6 +149,14 @@ function formatDurationMinutes(totalMinutes = 0) {
     return `${hours}h ${String(minutes).padStart(2, "0")}m`;
 }
 
+// Convert a datetime-local string (local time, no TZ) to UTC ISO for API storage.
+// The browser treats bare "YYYY-MM-DDTHH:MM" as local time, so new Date() gives the right UTC offset.
+function localDtToIso(s) {
+    if (!s) return s;
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? s : d.toISOString();
+}
+
 function formatRuntime(startedAt, now) {
     if (!startedAt) return "00:00:00";
     const diffSeconds = Math.max(0, Math.floor((now - new Date(startedAt).getTime()) / 1000));
@@ -2715,7 +2723,7 @@ export default function Home() {
             const res = await fetch("/api/time-entries", {
                 method: "POST",
                 headers,
-                body: JSON.stringify({ action: "admin_checkin", cleanerUid, bookingId, startedAt })
+                body: JSON.stringify({ action: "admin_checkin", cleanerUid, bookingId, startedAt: localDtToIso(startedAt) })
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "Failed to clock in for staff member.");
@@ -2736,7 +2744,7 @@ export default function Home() {
             const res = await fetch("/api/time-entries", {
                 method: "PUT",
                 headers,
-                body: JSON.stringify({ action: "admin_checkout", entryId, endedAt })
+                body: JSON.stringify({ action: "admin_checkout", entryId, endedAt: localDtToIso(endedAt) })
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "Failed to clock out for staff member.");
@@ -2760,8 +2768,8 @@ export default function Home() {
                 body: JSON.stringify({
                     entryId,
                     action,
-                    startedAt: editDraft?.startedAt,
-                    endedAt: editDraft?.endedAt,
+                    startedAt: localDtToIso(editDraft?.startedAt),
+                    endedAt: localDtToIso(editDraft?.endedAt),
                     unpaidBreakMinutes: editDraft?.unpaidBreakMinutes
                 })
             });
@@ -2795,8 +2803,8 @@ export default function Home() {
                     action: "admin_create_manual",
                     cleanerUid: manualTimeEntryForm.cleanerUid,
                     bookingId: manualTimeEntryForm.bookingId || "",
-                    startedAt: manualTimeEntryForm.startedAt,
-                    endedAt: manualTimeEntryForm.endedAt,
+                    startedAt: localDtToIso(manualTimeEntryForm.startedAt),
+                    endedAt: localDtToIso(manualTimeEntryForm.endedAt),
                     unpaidBreakMinutes: manualTimeEntryForm.unpaidBreakMinutes || 0
                 })
             });
@@ -2824,7 +2832,7 @@ export default function Home() {
             const res = await fetch("/api/time-entries", {
                 method: "PUT",
                 headers,
-                body: JSON.stringify({ action: "admin_edit", entryId, startedAt, endedAt, unpaidBreakMinutes })
+                body: JSON.stringify({ action: "admin_edit", entryId, startedAt: localDtToIso(startedAt), endedAt: localDtToIso(endedAt), unpaidBreakMinutes })
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(data.error || "Edit failed.");

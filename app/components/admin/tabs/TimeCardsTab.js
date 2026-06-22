@@ -26,6 +26,16 @@ function fmtDate(iso) {
     return new Date(iso + (iso.length === 10 ? "T12:00:00" : "")).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+// Convert a UTC ISO string → "YYYY-MM-DDTHH:MM" in the browser's local timezone
+// so datetime-local inputs show the correct local time rather than UTC.
+function toLocalDatetimeInput(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    const pad = n => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 function fmtMin(mins) {
     if (!mins && mins !== 0) return "—";
     const h = Math.floor(mins / 60), m = mins % 60;
@@ -271,14 +281,14 @@ export default function TimeCardsTab({
                                                 <label style={S.label}>
                                                     <span>Adjust Start Time</span>
                                                     <input type="datetime-local" style={S.input}
-                                                        value={draft.startedAt || (entry.startedAt ? new Date(entry.startedAt).toISOString().slice(0, 16) : "")}
+                                                        value={draft.startedAt || toLocalDatetimeInput(entry.startedAt)}
                                                         onChange={e => setTimeEntryEditDrafts(p => ({ ...p, [entry.id]: { ...(p[entry.id] || {}), startedAt: e.target.value } }))}
                                                     />
                                                 </label>
                                                 <label style={S.label}>
                                                     <span>Adjust End Time</span>
                                                     <input type="datetime-local" style={S.input}
-                                                        value={draft.endedAt || (entry.endedAt ? new Date(entry.endedAt).toISOString().slice(0, 16) : "")}
+                                                        value={draft.endedAt || toLocalDatetimeInput(entry.endedAt)}
                                                         onChange={e => setTimeEntryEditDrafts(p => ({ ...p, [entry.id]: { ...(p[entry.id] || {}), endedAt: e.target.value } }))}
                                                     />
                                                 </label>
@@ -371,14 +381,14 @@ export default function TimeCardsTab({
                                             <label style={S.label}>
                                                 <span>Start Time</span>
                                                 <input type="datetime-local" style={S.input}
-                                                    value={draft.startedAt || (entry.startedAt ? new Date(entry.startedAt).toISOString().slice(0, 16) : "")}
+                                                    value={draft.startedAt || toLocalDatetimeInput(entry.startedAt)}
                                                     onChange={e => setTimeEntryEditDrafts(p => ({ ...p, [entry.id]: { ...(p[entry.id] || {}), startedAt: e.target.value } }))}
                                                 />
                                             </label>
                                             <label style={S.label}>
                                                 <span>End Time</span>
                                                 <input type="datetime-local" style={S.input}
-                                                    value={draft.endedAt || (entry.endedAt ? new Date(entry.endedAt).toISOString().slice(0, 16) : "")}
+                                                    value={draft.endedAt || toLocalDatetimeInput(entry.endedAt)}
                                                     onChange={e => setTimeEntryEditDrafts(p => ({ ...p, [entry.id]: { ...(p[entry.id] || {}), endedAt: e.target.value } }))}
                                                 />
                                             </label>
