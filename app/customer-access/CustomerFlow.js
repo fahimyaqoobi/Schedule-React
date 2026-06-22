@@ -394,6 +394,13 @@ export default function CustomerFlow({ phone, bookingId, paid }) {
                             <p style={{ fontSize: 15, color: "#526276", lineHeight: 1.65, margin: "0 0 16px" }}>
                                 Thank you! Our team will review your confirmation and reach out shortly.
                             </p>
+                            {/* Portal CTA */}
+                            <a href="/customer/home" style={{ display: "block", background: ACTION, color: "#fff", borderRadius: 14, padding: "15px 0", fontWeight: 700, fontSize: 16, textDecoration: "none", marginBottom: 12 }}>
+                                View My Portal →
+                            </a>
+                            <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 16px", lineHeight: 1.5 }}>
+                                Track your booking, earn rewards, and manage everything from your personal portal.
+                            </p>
                             <div style={{ background: "#f0f8e8", borderRadius: 12, padding: "14px 16px" }}>
                                 <div style={{ fontSize: 13, color: "#3d6b1a", lineHeight: 1.6 }}>
                                     Questions? Call{" "}
@@ -411,6 +418,9 @@ export default function CustomerFlow({ phone, bookingId, paid }) {
                             <p style={{ fontSize: 15, color: "#526276", lineHeight: 1.65, margin: "0 0 16px" }}>
                                 Your payment was processed successfully. A receipt will be sent to your email.
                             </p>
+                            <a href="/customer/home" style={{ display: "block", background: ACTION, color: "#fff", borderRadius: 14, padding: "15px 0", fontWeight: 700, fontSize: 16, textDecoration: "none", marginBottom: 12 }}>
+                                View My Portal →
+                            </a>
                             <div style={{ background: "#f0f6fc", borderRadius: 12, padding: "14px 16px" }}>
                                 <div style={{ fontSize: 13, color: "#344a5e", lineHeight: 1.6 }}>
                                     Questions? Call{" "}
@@ -425,8 +435,14 @@ export default function CustomerFlow({ phone, bookingId, paid }) {
                         <div style={{ textAlign: "center", padding: "8px 0 16px" }}>
                             <div style={{ fontSize: 48, marginBottom: 12 }}>👍</div>
                             <div style={{ fontSize: 22, fontWeight: 800, color: BRAND, letterSpacing: "-0.02em", marginBottom: 8 }}>Already Confirmed</div>
-                            <p style={{ fontSize: 15, color: "#526276", lineHeight: 1.65, margin: 0 }}>
+                            <p style={{ fontSize: 15, color: "#526276", lineHeight: 1.65, margin: "0 0 20px" }}>
                                 You already confirmed this job. Our team is on it!
+                            </p>
+                            <a href="/customer/home" style={{ display: "block", background: ACTION, color: "#fff", borderRadius: 14, padding: "15px 0", fontWeight: 700, fontSize: 16, textDecoration: "none", marginBottom: 10 }}>
+                                View My Portal →
+                            </a>
+                            <p style={{ fontSize: 13, color: "#94a3b8", margin: 0 }}>
+                                Track this booking, view your invoice, and earn rewards.
                             </p>
                         </div>
                     )}
@@ -436,8 +452,14 @@ export default function CustomerFlow({ phone, bookingId, paid }) {
                         <div style={{ textAlign: "center", padding: "8px 0 16px" }}>
                             <div style={{ fontSize: 48, marginBottom: 12 }}>✅</div>
                             <div style={{ fontSize: 22, fontWeight: 800, color: GREEN, letterSpacing: "-0.02em", marginBottom: 8 }}>Invoice Paid</div>
-                            <p style={{ fontSize: 15, color: "#526276", lineHeight: 1.65, margin: 0 }}>
+                            <p style={{ fontSize: 15, color: "#526276", lineHeight: 1.65, margin: "0 0 20px" }}>
                                 This invoice has already been paid. Thank you!
+                            </p>
+                            <a href="/customer/home" style={{ display: "block", background: ACTION, color: "#fff", borderRadius: 14, padding: "15px 0", fontWeight: 700, fontSize: 16, textDecoration: "none", marginBottom: 10 }}>
+                                View My Portal →
+                            </a>
+                            <p style={{ fontSize: 13, color: "#94a3b8", margin: 0 }}>
+                                See your receipt, book again, and check your rewards.
                             </p>
                         </div>
                     )}
