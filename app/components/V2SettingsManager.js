@@ -274,6 +274,219 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
     const deleteTask = (taskId) =>
         updateField("tasks", (cat.tasks || []).filter(t => t.id !== taskId));
 
+    // ── Global Settings: bathrooms ────────────────────────────────────────────
+    const bathroomsArr = Object.entries(catalog.bathrooms || {}).map(([label, price]) => ({ label, price }));
+
+    const updateBathroom = (oldLabel, field, rawValue) => {
+        setCatalog(prev => {
+            const updated = { ...prev.bathrooms };
+            if (field === "label") {
+                const price = updated[oldLabel];
+                delete updated[oldLabel];
+                updated[rawValue] = price;
+            } else {
+                updated[oldLabel] = parseFloat(rawValue) || 0;
+            }
+            return { ...prev, bathrooms: updated };
+        });
+    };
+    const addBathroom = () => {
+        const prices = Object.values(catalog.bathrooms || {});
+        const nextPrice = prices.length > 0 ? (prices[prices.length - 1] + 14) : 14;
+        const label = `${Object.keys(catalog.bathrooms || {}).length + 1} Bathrooms`;
+        setCatalog(prev => ({ ...prev, bathrooms: { ...prev.bathrooms, [label]: nextPrice } }));
+    };
+    const deleteBathroom = (label) => {
+        setCatalog(prev => {
+            const updated = { ...prev.bathrooms };
+            delete updated[label];
+            return { ...prev, bathrooms: updated };
+        });
+    };
+
+    // ── Global Settings: frequencies ──────────────────────────────────────────
+    const freqArr = Object.entries(catalog.frequencies || {}).map(([key, val]) => ({ key, ...val }));
+
+    const updateFrequency = (key, field, rawValue) => {
+        setCatalog(prev => ({
+            ...prev,
+            frequencies: {
+                ...prev.frequencies,
+                [key]: { ...prev.frequencies[key], [field]: field === "discount" ? (parseFloat(rawValue) || 0) / 100 : rawValue }
+            }
+        }));
+    };
+    const renameFreqKey = (oldKey, newKey) => {
+        if (!newKey || newKey === oldKey) return;
+        setCatalog(prev => {
+            const entries = Object.entries(prev.frequencies || {});
+            const updated = {};
+            entries.forEach(([k, v]) => { updated[k === oldKey ? newKey : k] = v; });
+            return { ...prev, frequencies: updated };
+        });
+    };
+    const addFrequency = () => {
+        const key = `New Frequency ${Date.now()}`;
+        setCatalog(prev => ({ ...prev, frequencies: { ...prev.frequencies, [key]: { name: "New Frequency", discount: 0 } } }));
+    };
+    const deleteFrequency = (key) => {
+        setCatalog(prev => {
+            const updated = { ...prev.frequencies };
+            delete updated[key];
+            return { ...prev, frequencies: updated };
+        });
+    };
+
+    // ── Global Settings: global add-ons ──────────────────────────────────────
+    const updateGlobalAddon = (id, field, value) =>
+        setCatalog(prev => ({ ...prev, globalAddons: (prev.globalAddons || []).map(a => a.id === id ? { ...a, [field]: value } : a) }));
+    const addGlobalAddon = () => {
+        const a = { id: createLocalId("gaddon"), name: "New Global Fee", price: 0, qtySelector: false };
+        setCatalog(prev => ({ ...prev, globalAddons: [...(prev.globalAddons || []), a] }));
+    };
+    const deleteGlobalAddon = (id) =>
+        setCatalog(prev => ({ ...prev, globalAddons: (prev.globalAddons || []).filter(a => a.id !== id) }));
+
+    if (activeServiceId === "__global__") {
+        return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 0, background: "#f8fafc", borderRadius: 20, border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: "0 4px 24px rgba(0,0,0,0.07)" }}>
+                {/* top bar */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, padding: "18px 28px", background: "#fff", borderBottom: "1px solid #e2e8f0", flexWrap: "wrap" }}>
+                    <div>
+                        <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", color: "#94a3b8", marginBottom: 2 }}>Catalog Studio · Desktop Only</div>
+                        <div style={{ fontSize: 20, fontWeight: 900, color: "#1e293b" }}>V2 Service Manager</div>
+                    </div>
+                    <button type="button" onClick={handleSave} disabled={isSaving}
+                        style={{ padding: "12px 28px", background: isSaving ? "#94a3b8" : "#2563eb", color: "#fff", border: "none", borderRadius: 12, fontSize: 14, fontWeight: 800, cursor: isSaving ? "not-allowed" : "pointer", boxShadow: "0 2px 8px rgba(37,99,235,0.3)" }}>
+                        {isSaving ? "Saving…" : "💾  Save Catalog"}
+                    </button>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", minHeight: 600 }}>
+                    {/* left: back to services */}
+                    <div style={{ background: "#fff", borderRight: "1px solid #e2e8f0", padding: "16px 12px" }}>
+                        <Btn variant="secondary" onClick={() => setActiveServiceId(catalog.categories[0]?.id || "")} style={{ width: "100%", marginBottom: 12 }}>← Back to Services</Btn>
+                        <div style={{ padding: "14px", background: "#fef9c3", border: "1px solid #fde68a", borderRadius: 12 }}>
+                            <div style={{ fontSize: 12, fontWeight: 800, color: "#92400e", marginBottom: 4 }}>⚙️ Global Settings</div>
+                            <div style={{ fontSize: 11, color: "#a16207" }}>These values apply across ALL services. Changes take effect after you Save Catalog.</div>
+                        </div>
+                    </div>
+
+                    {/* right: three global tables */}
+                    <div style={{ overflowY: "auto", padding: 24, display: "flex", flexDirection: "column", gap: 24 }}>
+
+                        {/* ── Bathroom Surcharges ── */}
+                        <SectionCard>
+                            <SectionHeader icon="🚿" title="Bathroom Surcharges" subtitle="Extra charge added per bathroom count — applies to services with 'Has Bathrooms?' enabled"
+                                action={<Btn variant="ghost" onClick={addBathroom} style={{ fontSize: 11 }}>+ Add Row</Btn>} />
+                            <div style={{ padding: "0 0 0 0" }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 140px 40px", gap: 0, padding: "8px 20px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+                                    <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: "#94a3b8" }}>Label (shown to customer)</span>
+                                    <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: "#94a3b8" }}>Extra Charge</span>
+                                    <span />
+                                </div>
+                                {bathroomsArr.length === 0 && (
+                                    <div style={{ padding: "30px", textAlign: "center", color: "#94a3b8", fontSize: 12 }}>No bathroom tiers yet.</div>
+                                )}
+                                {bathroomsArr.map(({ label, price }, idx) => (
+                                    <div key={label} style={{ display: "grid", gridTemplateColumns: "1fr 140px 40px", gap: 0, padding: "10px 20px", alignItems: "center", borderBottom: idx < bathroomsArr.length - 1 ? "1px solid #f1f5f9" : "none", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
+                                        <input type="text" value={label}
+                                            onChange={e => updateBathroom(label, "label", e.target.value)}
+                                            style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: "6px 10px", fontSize: 13, fontWeight: 600, color: "#1e293b", background: "#fff", width: "90%" }} />
+                                        <div style={{ position: "relative" }}>
+                                            <span style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", fontSize: 11, fontWeight: 800, color: "#94a3b8" }}>+$</span>
+                                            <input type="number" value={price} onChange={e => updateBathroom(label, "price", e.target.value)}
+                                                style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: "6px 8px 6px 28px", fontSize: 13, fontWeight: 600, color: "#1e293b", background: "#fff", width: "100%" }} />
+                                        </div>
+                                        <button type="button" onClick={() => deleteBathroom(label)}
+                                            style={{ width: 28, height: 28, borderRadius: 7, border: "1px solid #fca5a5", background: "#fef2f2", color: "#dc2626", fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+                                    </div>
+                                ))}
+                            </div>
+                        </SectionCard>
+
+                        {/* ── Frequency Discounts ── */}
+                        <SectionCard>
+                            <SectionHeader icon="📅" title="Frequency Discounts" subtitle="Recurring booking discounts — applied before tax at checkout"
+                                action={<Btn variant="ghost" onClick={addFrequency} style={{ fontSize: 11 }}>+ Add</Btn>} />
+                            <div>
+                                <div style={{ display: "grid", gridTemplateColumns: "140px 1fr 120px 40px", gap: 0, padding: "8px 20px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+                                    {["Frequency Key", "Display Name", "Discount %", ""].map(h => (
+                                        <span key={h} style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: "#94a3b8" }}>{h}</span>
+                                    ))}
+                                </div>
+                                {freqArr.length === 0 && (
+                                    <div style={{ padding: "30px", textAlign: "center", color: "#94a3b8", fontSize: 12 }}>No frequency options yet.</div>
+                                )}
+                                {freqArr.map(({ key, name, discount }, idx) => (
+                                    <div key={key} style={{ display: "grid", gridTemplateColumns: "140px 1fr 120px 40px", gap: 0, padding: "10px 20px", alignItems: "center", borderBottom: idx < freqArr.length - 1 ? "1px solid #f1f5f9" : "none", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
+                                        <input type="text" value={key}
+                                            onBlur={e => renameFreqKey(key, e.target.value)}
+                                            defaultValue={key}
+                                            key={`key-${key}`}
+                                            style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: "6px 10px", fontSize: 12, fontWeight: 700, color: "#475569", background: "#f1f5f9", width: "90%" }} />
+                                        <input type="text" value={name}
+                                            onChange={e => updateFrequency(key, "name", e.target.value)}
+                                            style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: "6px 10px", fontSize: 13, fontWeight: 600, color: "#1e293b", background: "#fff", width: "90%" }} />
+                                        <div style={{ position: "relative" }}>
+                                            <input type="number" value={Math.round((discount || 0) * 100)} min={0} max={100} step={1}
+                                                onChange={e => updateFrequency(key, "discount", e.target.value)}
+                                                style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: "6px 28px 6px 8px", fontSize: 13, fontWeight: 600, color: "#1e293b", background: "#fff", width: "100%" }} />
+                                            <span style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", fontSize: 11, fontWeight: 800, color: "#94a3b8" }}>%</span>
+                                        </div>
+                                        <button type="button" onClick={() => deleteFrequency(key)}
+                                            style={{ width: 28, height: 28, borderRadius: 7, border: "1px solid #fca5a5", background: "#fef2f2", color: "#dc2626", fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+                                    </div>
+                                ))}
+                                <div style={{ padding: "10px 20px", background: "#f0fdf4", borderTop: "1px solid #bbf7d0" }}>
+                                    <span style={{ fontSize: 11, color: "#15803d", fontWeight: 600 }}>💡 A 0% discount = no change (e.g. "One-Time"). Discounts are applied to the subtotal before tax.</span>
+                                </div>
+                            </div>
+                        </SectionCard>
+
+                        {/* ── Global Add-ons / Fees ── */}
+                        <SectionCard>
+                            <SectionHeader icon="🌐" title="Global Fees & Add-ons" subtitle="Fees that can be added to any booking regardless of service type"
+                                action={<Btn variant="ghost" onClick={addGlobalAddon} style={{ fontSize: 11 }}>+ Add Fee</Btn>} />
+                            <div>
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 130px 160px 40px", gap: 0, padding: "8px 20px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+                                    {["Fee Name", "Amount", "Qty Setting", ""].map(h => (
+                                        <span key={h} style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: "#94a3b8" }}>{h}</span>
+                                    ))}
+                                </div>
+                                {(catalog.globalAddons || []).length === 0 && (
+                                    <div style={{ padding: "30px", textAlign: "center", color: "#94a3b8", fontSize: 12 }}>No global fees configured.</div>
+                                )}
+                                {(catalog.globalAddons || []).map((addon, idx) => (
+                                    <div key={addon.id} style={{ display: "grid", gridTemplateColumns: "1fr 130px 160px 40px", gap: 0, padding: "10px 20px", alignItems: "center", borderBottom: idx < (catalog.globalAddons || []).length - 1 ? "1px solid #f1f5f9" : "none", background: idx % 2 === 0 ? "#fff" : "#fafafa" }}>
+                                        <input type="text" value={addon.name} onChange={e => updateGlobalAddon(addon.id, "name", e.target.value)}
+                                            style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: "6px 10px", fontSize: 13, fontWeight: 600, color: "#1e293b", background: "#fff", width: "90%" }} />
+                                        <div style={{ position: "relative" }}>
+                                            <span style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", fontSize: 11, fontWeight: 800, color: "#94a3b8" }}>$</span>
+                                            <input type="number" value={addon.price} onChange={e => updateGlobalAddon(addon.id, "price", parseFloat(e.target.value) || 0)}
+                                                style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: "6px 8px 6px 22px", fontSize: 13, fontWeight: 600, color: "#1e293b", background: "#fff", width: "100%" }} />
+                                        </div>
+                                        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "6px 10px", border: "1px solid #e2e8f0", borderRadius: 8, background: "#f8fafc" }}>
+                                            <input type="checkbox" checked={!!addon.qtySelector} onChange={e => updateGlobalAddon(addon.id, "qtySelector", e.target.checked)}
+                                                style={{ width: 14, height: 14, accentColor: "#2563eb", cursor: "pointer" }} />
+                                            <span style={{ fontSize: 11, fontWeight: 700, color: "#475569" }}>Qty selector</span>
+                                        </label>
+                                        <button type="button" onClick={() => deleteGlobalAddon(addon.id)}
+                                            style={{ width: 28, height: 28, borderRadius: 7, border: "1px solid #fca5a5", background: "#fef2f2", color: "#dc2626", fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+                                    </div>
+                                ))}
+                                <div style={{ padding: "10px 20px", background: "#eff6ff", borderTop: "1px solid #bfdbfe" }}>
+                                    <span style={{ fontSize: 11, color: "#1d4ed8", fontWeight: 600 }}>💡 Global fees appear as optional add-ons in every booking regardless of which service is booked. Set price to $0 to make a fee free (e.g. seasonal promotion).</span>
+                                </div>
+                            </div>
+                        </SectionCard>
+
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     if (!cat) return null;
 
     const TABS = [
@@ -326,7 +539,7 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
                         <span style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#94a3b8" }}>Services</span>
                         <Btn variant="ghost" onClick={addService} style={{ fontSize: 11, padding: "4px 10px" }}>+ New</Btn>
                     </div>
-                    <div style={{ flex: 1, overflowY: "auto", padding: "4px 12px 12px" }}>
+                    <div style={{ flex: 1, overflowY: "auto", padding: "4px 12px 8px" }}>
                         {catalog.categories.map(c => {
                             const isActive = c.id === activeServiceId;
                             const typeCount = (c.serviceTypes || []).length;
@@ -347,6 +560,17 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
                                 </button>
                             );
                         })}
+                    </div>
+                    {/* Global Settings entry */}
+                    <div style={{ padding: "8px 12px 12px", borderTop: "1px solid #f1f5f9" }}>
+                        <button
+                            type="button"
+                            onClick={() => setActiveServiceId("__global__")}
+                            style={{ display: "block", width: "100%", textAlign: "left", padding: "11px 14px", borderRadius: 12, border: "2px solid #fde68a", background: "#fffbeb", cursor: "pointer" }}
+                        >
+                            <div style={{ fontSize: 12, fontWeight: 800, color: "#92400e" }}>⚙️ Global Settings</div>
+                            <div style={{ fontSize: 10, color: "#a16207", marginTop: 3 }}>Bathrooms · Frequencies · Global Fees</div>
+                        </button>
                     </div>
                 </div>
 
