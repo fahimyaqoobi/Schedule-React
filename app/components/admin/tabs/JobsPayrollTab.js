@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 
 export default function JobsPayrollTab({
     isCleanerSelfServiceView,
@@ -29,7 +30,15 @@ export default function JobsPayrollTab({
     syncDatabaseData,
     handleReviewTimeEntry,
     handleCreateManualTimeEntry,
+    handleAdminClockInFor,
+    handleAdminClockOutFor,
+    activeTimeEntries,
+    allFieldStaff,
+    todayAllConfirmedJobs,
+    adminClockForm,
+    setAdminClockForm,
 }) {
+    const [adminClockOutOverride, setAdminClockOutOverride] = useState({});
     return (
         <div className={`animate-fade ${isCleanerSelfServiceView ? "cleaner-jobs-shell" : "admin-payroll-shell"}`}>
             {isCleanerSelfServiceView ? (
@@ -156,6 +165,104 @@ export default function JobsPayrollTab({
                             <article><span>Pending Approvals</span><strong>{payrollSummary.pendingCount} entries</strong></article>
                             <article><span>Next Pay Date</span><strong>{payrollSummary.nextPayDate}</strong></article>
                         </div>
+                        {/* ── LIVE STAFF STATUS & ADMIN CLOCK CONTROLS ── */}
+                        <section className="admin-payroll-queue">
+                            <div className="cleaner-section-head">
+                                <h4>Live Staff Status</h4>
+                                <span>{(activeTimeEntries || []).length} active shift{(activeTimeEntries || []).length !== 1 ? "s" : ""}</span>
+                            </div>
+
+                            {/* Active shifts — admin can force clock out */}
+                            {(activeTimeEntries || []).length > 0 && (
+                                <div className="flex flex-col gap-2 mb-4">
+                                    {(activeTimeEntries || []).map(entry => (
+                                        <div key={entry.id} className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 flex flex-col gap-2">
+                                            <div className="flex items-center justify-between flex-wrap gap-2">
+                                                <div>
+                                                    <div className="font-semibold text-sm text-emerald-800">🟢 {entry.cleanerName}</div>
+                                                    <div className="text-[11px] text-emerald-700">{entry.serviceName} · {entry.locationLabel}</div>
+                                                    <div className="text-[11px] text-emerald-600">Clocked in: {entry.startedAt ? new Date(entry.startedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : "—"}{entry.source?.includes("admin_override") ? " (admin)" : ""}</div>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    className="team-secondary-action"
+                                                    style={{ background: "#fef2f2", color: "#dc2626", borderColor: "#fecaca" }}
+                                                    onClick={() => handleAdminClockOutFor({
+                                                        entryId: entry.id,
+                                                        endedAt: adminClockOutOverride[entry.id] || undefined
+                                                    })}
+                                                    disabled={timeEntrySaving}
+                                                >
+                                                    Force Clock Out
+                                                </button>
+                                            </div>
+                                            <label className="flex items-center gap-2 text-[11px] text-slate-500">
+                                                <span>Override end time (optional):</span>
+                                                <input
+                                                    type="datetime-local"
+                                                    className="border border-slate-200 rounded-lg p-1 text-[11px]"
+                                                    value={adminClockOutOverride[entry.id] || ""}
+                                                    onChange={e => setAdminClockOutOverride(prev => ({ ...prev, [entry.id]: e.target.value }))}
+                                                />
+                                            </label>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Admin clock-in form */}
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3">Clock In for a Staff Member</div>
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                                    <label className="flex flex-col gap-1 text-xs text-slate-700">
+                                        <strong>Staff Member</strong>
+                                        <select
+                                            value={adminClockForm?.cleanerUid || ""}
+                                            onChange={e => setAdminClockForm(prev => ({ ...prev, cleanerUid: e.target.value }))}
+                                            className="border border-slate-200 rounded-lg p-2"
+                                        >
+                                            <option value="">Select staff…</option>
+                                            {(allFieldStaff || []).map(m => (
+                                                <option key={m.uid} value={m.uid}>{m.name || m.email}</option>
+                                            ))}
+                                        </select>
+                                    </label>
+                                    <label className="flex flex-col gap-1 text-xs text-slate-700">
+                                        <strong>Today&apos;s Job</strong>
+                                        <select
+                                            value={adminClockForm?.bookingId || ""}
+                                            onChange={e => setAdminClockForm(prev => ({ ...prev, bookingId: e.target.value }))}
+                                            className="border border-slate-200 rounded-lg p-2"
+                                        >
+                                            <option value="">Select job…</option>
+                                            {(todayAllConfirmedJobs || []).map(job => (
+                                                <option key={job.id} value={job.id}>{job.service} — {job.firstName || "Client"} ({job.date})</option>
+                                            ))}
+                                        </select>
+                                    </label>
+                                    <label className="flex flex-col gap-1 text-xs text-slate-700">
+                                        <strong>Start Time (optional)</strong>
+                                        <input
+                                            type="datetime-local"
+                                            value={adminClockForm?.startedAt || ""}
+                                            onChange={e => setAdminClockForm(prev => ({ ...prev, startedAt: e.target.value }))}
+                                            className="border border-slate-200 rounded-lg p-2"
+                                        />
+                                    </label>
+                                    <div className="flex items-end">
+                                        <button
+                                            type="button"
+                                            className="team-primary-action w-full"
+                                            onClick={() => handleAdminClockInFor(adminClockForm || {})}
+                                            disabled={timeEntrySaving || !adminClockForm?.cleanerUid || !adminClockForm?.bookingId}
+                                        >
+                                            Clock In for Staff
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+
                         <section className="admin-payroll-queue">
                             <div className="cleaner-section-head">
                                 <h4>Shift Approval Queue</h4>

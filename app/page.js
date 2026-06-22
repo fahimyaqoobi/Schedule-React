@@ -248,14 +248,16 @@ function buildCleanerTaskList(booking = {}, pricingRates = {}) {
     const tasks = [
         {
             id: "main-service",
-            label: booking.service || "Assigned service"
+            label: booking.service || "Assigned service",
+            completed: false
         }
     ];
 
     if (booking.bathrooms) {
         tasks.push({
             id: "bathrooms",
-            label: booking.bathrooms
+            label: booking.bathrooms,
+            completed: false
         });
     }
 
@@ -266,7 +268,8 @@ function buildCleanerTaskList(booking = {}, pricingRates = {}) {
         const qtyVal = typeof qty === "boolean" ? 1 : Number(qty || 0);
         tasks.push({
             id: `extra-${key}`,
-            label: qtyVal > 1 ? `${extra.name} x${qtyVal}` : extra.name
+            label: qtyVal > 1 ? `${extra.name} x${qtyVal}` : extra.name,
+            completed: false
         });
     });
 
@@ -738,6 +741,7 @@ export default function Home() {
     const [jobsNow, setJobsNow] = useState(0);
     const [cleanerJobTab, setCleanerJobTab] = useState("overview");
     const [cleanerJobDrafts, setCleanerJobDrafts] = useState({});
+    const [adminClockForm, setAdminClockForm] = useState({ cleanerUid: "", bookingId: "", startedAt: "" });
     const [editRequestResolutions, setEditRequestResolutions] = useState({});
     const [timeEntryEditDrafts, setTimeEntryEditDrafts] = useState({});
     const [manualTimeEntryForm, setManualTimeEntryForm] = useState({
@@ -868,6 +872,15 @@ export default function Home() {
         const todayKey = getCurrentTorontoDateKey(jobsNow ? new Date(jobsNow) : new Date());
         return cleanerAssignedJobs.filter(job => job.date === todayKey && job.status === "Confirmed");
     }, [cleanerAssignedJobs, jobsNow]);
+
+    const todayAllConfirmedJobs = useMemo(() => {
+        const todayKey = getCurrentTorontoDateKey(jobsNow ? new Date(jobsNow) : new Date());
+        return bookings.filter(b => b.date === todayKey && b.status === "Confirmed");
+    }, [bookings, jobsNow]);
+
+    const activeTimeEntries = useMemo(() => {
+        return timeEntries.filter(e => e.status === "active");
+    }, [timeEntries]);
 
     const ownTimeEntries = useMemo(() => {
         if (!currentUser) return [];
@@ -1792,8 +1805,9 @@ export default function Home() {
                         tasks: (activeCleanerJobDraft?.tasks || []).map(task => ({
                             id: task.id,
                             label: task.label,
-                            beforePhotos: (task.beforePhotos || []).map(photo => photo.name),
-                            afterPhotos: (task.afterPhotos || []).map(photo => photo.name)
+                            completed: task.completed || false,
+                            beforePhotos: (task.beforePhotos || []).filter(p => p.url).map(p => ({ id: p.id, name: p.name, url: p.url })),
+                            afterPhotos: (task.afterPhotos || []).filter(p => p.url).map(p => ({ id: p.id, name: p.name, url: p.url }))
                         }))
                     }
                 }
@@ -2338,6 +2352,7 @@ export default function Home() {
             bookingId: booking.id,
             tasks: tasks.map(task => ({
                 ...task,
+                completed: false,
                 beforePhotos: [],
                 afterPhotos: []
             }))
@@ -2354,12 +2369,15 @@ export default function Home() {
         return cleanerJobDrafts[booking.id] || nextDraft;
     }, [cleanerJobDrafts, pricingRates]);
 
-    const updateCleanerJobPhotos = useCallback((bookingId, taskId, phase, files) => {
-        const photoList = Array.from(files || []).map((file, index) => ({
-            id: `${taskId}-${phase}-${Date.now()}-${index}`,
-            name: file.name || `${phase} photo`
+    const updateCleanerJobPhotos = useCallback(async (bookingId, taskId, phase, files) => {
+        const fileArray = Array.from(files || []);
+        if (!fileArray.length) return;
+        const placeholders = fileArray.map((file, i) => ({
+            id: `uploading-${taskId}-${Date.now()}-${i}`,
+            name: file.name || "photo",
+            url: null,
+            uploading: true
         }));
-
         setCleanerJobDrafts(prev => {
             const bookingDraft = prev[bookingId];
             if (!bookingDraft) return prev;
@@ -2369,15 +2387,47 @@ export default function Home() {
                     ...bookingDraft,
                     tasks: bookingDraft.tasks.map(task => {
                         if (task.id !== taskId) return task;
-                        return {
-                            ...task,
-                            [phase]: [...task[phase], ...photoList]
-                        };
+                        return { ...task, [phase]: [...task[phase], ...placeholders] };
                     })
                 }
             };
         });
-    }, []);
+        const headers = await getAuthHeaders();
+        const results = await Promise.all(fileArray.map(async (file, i) => {
+            try {
+                const form = new FormData();
+                form.append("file", file);
+                form.append("bookingId", bookingId);
+                form.append("taskId", taskId);
+                form.append("phase", phase);
+                const res = await fetch("/api/uploads/job-photo", {
+                    method: "POST",
+                    headers: { "Authorization": headers["Authorization"] },
+                    body: form
+                });
+                const data = await res.json();
+                return { id: placeholders[i].id, name: file.name || "photo", url: data.url || null, uploading: false };
+            } catch {
+                return { id: placeholders[i].id, name: file.name || "photo", url: null, uploading: false };
+            }
+        }));
+        setCleanerJobDrafts(prev => {
+            const bookingDraft = prev[bookingId];
+            if (!bookingDraft) return prev;
+            const placeholderIds = new Set(placeholders.map(p => p.id));
+            return {
+                ...prev,
+                [bookingId]: {
+                    ...bookingDraft,
+                    tasks: bookingDraft.tasks.map(task => {
+                        if (task.id !== taskId) return task;
+                        const existing = task[phase].filter(p => !placeholderIds.has(p.id));
+                        return { ...task, [phase]: [...existing, ...results] };
+                    })
+                }
+            };
+        });
+    }, [getAuthHeaders]);
 
     const removeCleanerJobPhoto = useCallback((bookingId, taskId, phase, photoId) => {
         setCleanerJobDrafts(prev => {
@@ -2393,6 +2443,23 @@ export default function Home() {
                             ...task,
                             [phase]: task[phase].filter(photo => photo.id !== photoId)
                         };
+                    })
+                }
+            };
+        });
+    }, []);
+
+    const toggleCleanerTaskComplete = useCallback((bookingId, taskId) => {
+        setCleanerJobDrafts(prev => {
+            const bookingDraft = prev[bookingId];
+            if (!bookingDraft) return prev;
+            return {
+                ...prev,
+                [bookingId]: {
+                    ...bookingDraft,
+                    tasks: bookingDraft.tasks.map(task => {
+                        if (task.id !== taskId) return task;
+                        return { ...task, completed: !task.completed };
                     })
                 }
             };
@@ -2502,27 +2569,56 @@ export default function Home() {
 
     const handleStartCleanerJob = useCallback(async (booking) => {
         if (!booking) return;
-        const draft = ensureCleanerJobDraft(booking);
-        const missingBeforePhotos = (draft?.tasks || []).some(task => (task.beforePhotos || []).length === 0);
-        if (missingBeforePhotos) {
-            setCleanerJobTab("task-list");
-            setJobsFeedback("Add before photos for every task before starting the job.");
-            return;
-        }
+        ensureCleanerJobDraft(booking);
         await handleClockIntoJob(booking);
     }, [ensureCleanerJobDraft, handleClockIntoJob]);
 
     const handleEndCleanerJob = useCallback(async (booking) => {
         if (!booking || !activeTimeEntry || activeTimeEntry.bookingId !== booking.id) return;
-        const draft = ensureCleanerJobDraft(booking);
-        const missingAfterPhotos = (draft?.tasks || []).some(task => (task.afterPhotos || []).length === 0);
-        if (missingAfterPhotos) {
-            setCleanerJobTab("task-list");
-            setJobsFeedback("Add after photos for every task before ending the job.");
-            return;
-        }
         await handleClockOutOfJob();
-    }, [activeTimeEntry, ensureCleanerJobDraft, handleClockOutOfJob]);
+    }, [activeTimeEntry, handleClockOutOfJob]);
+
+    const handleAdminClockInFor = useCallback(async ({ cleanerUid, bookingId, startedAt }) => {
+        setTimeEntrySaving(true);
+        setJobsFeedback("");
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch("/api/time-entries", {
+                method: "POST",
+                headers,
+                body: JSON.stringify({ action: "admin_checkin", cleanerUid, bookingId, startedAt })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Failed to clock in for staff member.");
+            setJobsFeedback(data.message || "Clocked in successfully.");
+            syncDatabaseData(currentUser);
+        } catch (err) {
+            setJobsFeedback(err.message || "Failed to clock in for staff.");
+        } finally {
+            setTimeEntrySaving(false);
+        }
+    }, [currentUser, getAuthHeaders, syncDatabaseData]);
+
+    const handleAdminClockOutFor = useCallback(async ({ entryId, endedAt }) => {
+        setTimeEntrySaving(true);
+        setJobsFeedback("");
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch("/api/time-entries", {
+                method: "PUT",
+                headers,
+                body: JSON.stringify({ action: "admin_checkout", entryId, endedAt })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Failed to clock out for staff member.");
+            setJobsFeedback(data.message || "Clocked out successfully.");
+            syncDatabaseData(currentUser);
+        } catch (err) {
+            setJobsFeedback(err.message || "Failed to clock out for staff.");
+        } finally {
+            setTimeEntrySaving(false);
+        }
+    }, [currentUser, getAuthHeaders, syncDatabaseData]);
 
     const handleReviewTimeEntry = useCallback(async (entryId, action) => {
         setTimeEntrySaving(true);
@@ -3634,6 +3730,13 @@ export default function Home() {
                         syncDatabaseData={syncDatabaseData}
                         handleReviewTimeEntry={handleReviewTimeEntry}
                         handleCreateManualTimeEntry={handleCreateManualTimeEntry}
+                        handleAdminClockInFor={handleAdminClockInFor}
+                        handleAdminClockOutFor={handleAdminClockOutFor}
+                        activeTimeEntries={activeTimeEntries}
+                        allFieldStaff={fieldStaff}
+                        todayAllConfirmedJobs={todayAllConfirmedJobs}
+                        adminClockForm={adminClockForm}
+                        setAdminClockForm={setAdminClockForm}
                     />
                 )}
 
@@ -4654,12 +4757,43 @@ export default function Home() {
                                 <div className="modal-body flex flex-col gap-4 text-xs p-6">
                                     {isCleanerBookingEditor ? (
                                         <>
-                                            <div className="flex gap-2 rounded-full bg-slate-100 p-1">
-                                                <button type="button" className={`btn btn-sm ${cleanerJobTab === "overview" ? "btn-primary" : "btn-secondary"}`} onClick={() => setCleanerJobTab("overview")}>Overview</button>
-                                                <button type="button" className={`btn btn-sm ${cleanerJobTab === "task-list" ? "btn-primary" : "btn-secondary"}`} onClick={() => setCleanerJobTab("task-list")}>Task List</button>
+                                            {/* Clock in/out strip */}
+                                            {(() => {
+                                                const jobEntry = activeTimeEntry?.bookingId === bookingForm.id ? activeTimeEntry : null;
+                                                const isToday = bookingForm.date === getCurrentTorontoDateKey(new Date());
+                                                if (!isToday && !jobEntry) return null;
+                                                return (
+                                                    <div className={`flex items-center justify-between gap-3 rounded-2xl p-3 ${jobEntry ? "bg-emerald-50 border border-emerald-200" : "bg-blue-50 border border-blue-100"}`}>
+                                                        <div>
+                                                            <strong className={`text-sm ${jobEntry ? "text-emerald-700" : "text-blue-700"}`}>
+                                                                {jobEntry ? `🟢 In Progress — started ${new Date(jobEntry.startedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}` : "⏰ Clock in when you arrive"}
+                                                            </strong>
+                                                            {jobEntry && <div className="text-[11px] text-emerald-600 mt-0.5">{formatRuntime(jobEntry.startedAt, jobsNow)} elapsed</div>}
+                                                        </div>
+                                                        {jobEntry
+                                                            ? <button type="button" onClick={() => handleEndCleanerJob(bookingForm)} disabled={timeEntrySaving} className="btn btn-sm" style={{ background: "#ef4444", color: "#fff", border: "none" }}>End Job</button>
+                                                            : <button type="button" onClick={() => handleStartCleanerJob(bookingForm)} disabled={timeEntrySaving} className="btn btn-primary btn-sm">Start Job</button>
+                                                        }
+                                                    </div>
+                                                );
+                                            })()}
+
+                                            {/* Tab bar — 4 tabs */}
+                                            <div className="flex gap-1 overflow-x-auto rounded-full bg-slate-100 p-1">
+                                                {[
+                                                    { key: "overview", label: "Overview" },
+                                                    { key: "tasks", label: "Tasks" },
+                                                    { key: "schedule", label: "Schedule" },
+                                                    { key: "hours", label: "Hours" },
+                                                ].map(tab => (
+                                                    <button key={tab.key} type="button" className={`btn btn-sm whitespace-nowrap flex-shrink-0 ${cleanerJobTab === tab.key ? "btn-primary" : "btn-secondary"}`} onClick={() => setCleanerJobTab(tab.key)}>
+                                                        {tab.label}
+                                                    </button>
+                                                ))}
                                             </div>
 
-                                            {cleanerJobTab === "overview" ? (
+                                            {/* ── OVERVIEW TAB ── */}
+                                            {cleanerJobTab === "overview" && (
                                                 <>
                                                     <div className="detail-card">
                                                         <div className="detail-card-title">🧹 Job Overview</div>
@@ -4673,11 +4807,11 @@ export default function Home() {
                                                                 <span className="detail-value bold">{bookingForm.firstName || "Client"}</span>
                                                             </div>
                                                             <div className="detail-row">
-                                                                <span className="detail-label">Rebooking Frequency</span>
+                                                                <span className="detail-label">Frequency</span>
                                                                 <span className="detail-value">{bookingForm.frequency || "One-Time"}</span>
                                                             </div>
                                                             <div className="detail-row">
-                                                                <span className="detail-label">Estimated Duration</span>
+                                                                <span className="detail-label">Duration</span>
                                                                 <span className="detail-value">{bookingForm.duration} hours</span>
                                                             </div>
                                                             <div className="detail-row">
@@ -4692,14 +4826,25 @@ export default function Home() {
                                                     </div>
 
                                                     <a href={getGoogleMapsDirectionsUrl(bookingForm)} target="_blank" rel="noreferrer" className="detail-card block no-underline">
-                                                        <div className="detail-card-title">📍 Address Information</div>
+                                                        <div className="detail-card-title">📍 Address — Tap for Directions</div>
                                                         <div className="detail-card-grid">
                                                             <div className="detail-row full-width">
-                                                                <span className="detail-label">Open in Google Maps</span>
-                                                                <span className="detail-value">{formatAddress(bookingForm)}</span>
+                                                                <span className="detail-value font-semibold text-blue-600">{formatAddress(bookingForm)}</span>
                                                             </div>
                                                         </div>
                                                     </a>
+
+                                                    {(bookingForm.accessMode || bookingForm.accessDetails || bookingForm.specialNotes) && (
+                                                        <div className="detail-card" style={{ background: "#fffbeb", borderColor: "#fde68a" }}>
+                                                            <div className="detail-card-title">🔑 Access &amp; Instructions</div>
+                                                            <div className="detail-card-grid">
+                                                                {bookingForm.accessMode && <div className="detail-row"><span className="detail-label">Access</span><span className="detail-value font-semibold">{bookingForm.accessMode}</span></div>}
+                                                                {bookingForm.freeParking !== undefined && <div className="detail-row"><span className="detail-label">Parking</span><span className="detail-value">{bookingForm.freeParking ? "Free parking available" : "Street / paid parking"}</span></div>}
+                                                                {bookingForm.accessDetails && <div className="detail-row full-width"><span className="detail-label">Access Notes</span><span className="detail-value whitespace-pre-wrap">{bookingForm.accessDetails}</span></div>}
+                                                                {bookingForm.specialNotes && <div className="detail-row full-width"><span className="detail-label">Special Instructions</span><span className="detail-value whitespace-pre-wrap">{bookingForm.specialNotes}</span></div>}
+                                                            </div>
+                                                        </div>
+                                                    )}
 
                                                     {Object.entries(bookingForm.extras || {}).some(([, qty]) => qty) && (
                                                         <div className="detail-card">
@@ -4721,71 +4866,167 @@ export default function Home() {
                                                     )}
 
                                                     <div className="detail-card">
-                                                        <div className="detail-card-title">🏠 Work Notes</div>
+                                                        <div className="detail-card-title">📞 Need Help?</div>
                                                         <div className="detail-card-grid">
-                                                            <div className="detail-row">
-                                                                <span className="detail-label">Access</span>
-                                                                <span className="detail-value">{bookingForm.accessMode || "—"}</span>
-                                                            </div>
-                                                            <div className="detail-row">
-                                                                <span className="detail-label">Parking</span>
-                                                                <span className="detail-value">{bookingForm.freeParking ? "Free parking" : "Street or paid parking"}</span>
-                                                            </div>
-                                                            {bookingForm.accessDetails && (
-                                                                <div className="detail-row full-width">
-                                                                    <span className="detail-label">Access Notes</span>
-                                                                    <span className="detail-value whitespace-pre-wrap">{bookingForm.accessDetails}</span>
-                                                                </div>
-                                                            )}
-                                                            {bookingForm.specialNotes && (
-                                                                <div className="detail-row full-width">
-                                                                    <span className="detail-label">Special Instructions</span>
-                                                                    <span className="detail-value whitespace-pre-wrap">{bookingForm.specialNotes}</span>
-                                                                </div>
-                                                            )}
                                                             <div className="detail-row full-width">
-                                                                <span className="detail-label">Customer Support</span>
-                                                                <span className="detail-value">6134165001</span>
+                                                                <span className="detail-label">Support</span>
+                                                                <a href="tel:6134165001" className="detail-value text-blue-600 font-semibold">613-416-5001</a>
                                                             </div>
                                                         </div>
                                                     </div>
                                                 </>
-                                            ) : (
-                                                <div className="detail-card">
-                                                    <div className="detail-card-title">📸 Task List</div>
-                                                    <div className="flex flex-col gap-3">
-                                                        {(activeCleanerJobDraft?.tasks || []).map(task => (
-                                                            <div key={task.id} className="rounded-2xl border border-slate-200 p-3">
-                                                                <div className="flex items-center justify-between gap-3">
-                                                                    <strong className="text-slate-800">{task.label}</strong>
-                                                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                                                        Before {task.beforePhotos.length} · After {task.afterPhotos.length}
-                                                                    </span>
-                                                                </div>
-                                                                <div className="mt-3 grid grid-cols-2 gap-3">
-                                                                    <label className="rounded-xl border border-slate-200 p-3 text-center text-slate-700">
-                                                                        <span className="block text-xs font-bold">Before Photos</span>
-                                                                        <span className="mt-1 block text-[11px] text-slate-400">Add site condition</span>
-                                                                        <input type="file" accept="image/*" capture="environment" multiple className="mt-2 block w-full text-[11px]" onChange={e => updateCleanerJobPhotos(bookingForm.id, task.id, "beforePhotos", e.target.files)} />
-                                                                    </label>
-                                                                    <label className="rounded-xl border border-slate-200 p-3 text-center text-slate-700">
-                                                                        <span className="block text-xs font-bold">After Photos</span>
-                                                                        <span className="mt-1 block text-[11px] text-slate-400">Add finished result</span>
-                                                                        <input type="file" accept="image/*" capture="environment" multiple className="mt-2 block w-full text-[11px]" onChange={e => updateCleanerJobPhotos(bookingForm.id, task.id, "afterPhotos", e.target.files)} />
-                                                                    </label>
-                                                                </div>
-                                                                <div className="mt-3 flex flex-wrap gap-2">
-                                                                    {[...task.beforePhotos.map(photo => ({ ...photo, phase: "beforePhotos" })), ...task.afterPhotos.map(photo => ({ ...photo, phase: "afterPhotos" }))].map(photo => (
-                                                                        <button key={photo.id} type="button" className="rounded-full bg-slate-100 px-3 py-1 text-[11px] text-slate-700" onClick={() => removeCleanerJobPhoto(bookingForm.id, task.id, photo.phase, photo.id)}>
-                                                                            {photo.phase === "beforePhotos" ? "Before" : "After"}: {photo.name} ×
-                                                                        </button>
-                                                                    ))}
-                                                                </div>
-                                                            </div>
-                                                        ))}
+                                            )}
+
+                                            {/* ── TASKS TAB ── */}
+                                            {cleanerJobTab === "tasks" && (
+                                                <div className="flex flex-col gap-3">
+                                                    <div className="text-[11px] text-slate-400 uppercase tracking-widest font-bold">
+                                                        {(activeCleanerJobDraft?.tasks || []).filter(t => t.completed).length} / {(activeCleanerJobDraft?.tasks || []).length} tasks done
                                                     </div>
+                                                    {(activeCleanerJobDraft?.tasks || []).map(task => (
+                                                        <div key={task.id} className={`rounded-2xl border p-3 transition-colors ${task.completed ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-white"}`}>
+                                                            {/* Task header with checkbox */}
+                                                            <div className="flex items-center gap-3">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => toggleCleanerTaskComplete(bookingForm.id, task.id)}
+                                                                    className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center flex-shrink-0 transition-colors ${task.completed ? "bg-emerald-500 border-emerald-500" : "border-slate-300 bg-white"}`}
+                                                                    title="Mark complete"
+                                                                >
+                                                                    {task.completed && <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                                                                </button>
+                                                                <strong className={`text-sm flex-1 ${task.completed ? "text-emerald-700 line-through" : "text-slate-800"}`}>{task.label}</strong>
+                                                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                                                    {task.beforePhotos.length}B · {task.afterPhotos.length}A
+                                                                </span>
+                                                            </div>
+
+                                                            {/* Photo sections */}
+                                                            <div className="mt-3 grid grid-cols-2 gap-2">
+                                                                {["beforePhotos", "afterPhotos"].map(phase => (
+                                                                    <div key={phase} className="rounded-xl border border-slate-200 p-2">
+                                                                        <div className="text-[11px] font-bold text-slate-600 mb-1">{phase === "beforePhotos" ? "📷 Before" : "✅ After"}</div>
+                                                                        {/* Thumbnails */}
+                                                                        {task[phase].length > 0 && (
+                                                                            <div className="flex flex-wrap gap-1 mb-2">
+                                                                                {task[phase].map(photo => (
+                                                                                    <div key={photo.id} className="relative group">
+                                                                                        {photo.url
+                                                                                            ? <img src={photo.url} alt={photo.name} className="w-12 h-12 rounded-lg object-cover" />
+                                                                                            : <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center text-[10px] text-slate-400">{photo.uploading ? "…" : photo.name?.slice(0, 6)}</div>
+                                                                                        }
+                                                                                        {!photo.uploading && (
+                                                                                            <button type="button" onClick={() => removeCleanerJobPhoto(bookingForm.id, task.id, phase, photo.id)} className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] flex items-center justify-center opacity-0 group-hover:opacity-100">×</button>
+                                                                                        )}
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        )}
+                                                                        <label className="flex items-center gap-1 text-[11px] text-blue-600 font-semibold cursor-pointer">
+                                                                            <span>+ Add photo</span>
+                                                                            <input type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={e => updateCleanerJobPhotos(bookingForm.id, task.id, phase, e.target.files)} />
+                                                                        </label>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                    {jobsFeedback && <div className="people-profile-message">{jobsFeedback}</div>}
                                                 </div>
                                             )}
+
+                                            {/* ── SCHEDULE TAB ── */}
+                                            {cleanerJobTab === "schedule" && (
+                                                <div className="flex flex-col gap-3">
+                                                    <div className="text-[11px] text-slate-400 uppercase tracking-widest font-bold">Your upcoming jobs</div>
+                                                    {cleanerAssignedJobs.filter(job => {
+                                                        const d = new Date(`${job.date}T00:00:00`);
+                                                        const today = new Date(); today.setHours(0,0,0,0);
+                                                        const cutoff = new Date(today); cutoff.setDate(cutoff.getDate() + 14);
+                                                        return d >= today && d <= cutoff;
+                                                    }).length === 0
+                                                        ? <div className="admin-cart-empty">No jobs scheduled in the next 14 days.</div>
+                                                        : cleanerAssignedJobs.filter(job => {
+                                                            const d = new Date(`${job.date}T00:00:00`);
+                                                            const today = new Date(); today.setHours(0,0,0,0);
+                                                            const cutoff = new Date(today); cutoff.setDate(cutoff.getDate() + 14);
+                                                            return d >= today && d <= cutoff;
+                                                        }).map(job => {
+                                                            const isCurrentJob = job.id === bookingForm.id;
+                                                            const hasActiveEntry = ownTimeEntries.some(e => e.bookingId === job.id && e.status === "active");
+                                                            return (
+                                                                <div key={job.id} className={`rounded-2xl border p-3 ${isCurrentJob ? "border-blue-300 bg-blue-50" : "border-slate-200 bg-white"}`}>
+                                                                    <div className="flex items-start justify-between gap-2">
+                                                                        <div>
+                                                                            <div className="font-semibold text-sm text-slate-800">{job.service}</div>
+                                                                            <div className="text-[11px] text-slate-500 mt-0.5">{getBookingCustomerFirstName(job)} · {getBookingLocationLabel(job)}</div>
+                                                                            <div className="text-[11px] text-slate-500">{job.date} · {job.time}</div>
+                                                                        </div>
+                                                                        <div className="flex flex-col items-end gap-1">
+                                                                            <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${job.status === "Confirmed" ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"}`}>{job.status}</span>
+                                                                            {hasActiveEntry && <span className="text-[10px] font-bold text-emerald-600">🟢 Active</span>}
+                                                                        </div>
+                                                                    </div>
+                                                                    {!isCurrentJob && (
+                                                                        <button type="button" onClick={() => { setBookingModalOpen(false); setTimeout(() => handleOpenCleanerJob(job, "overview"), 50); }} className="mt-2 text-[11px] text-blue-600 font-semibold">
+                                                                            Open this job →
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })
+                                                    }
+                                                </div>
+                                            )}
+
+                                            {/* ── HOURS TAB ── */}
+                                            {cleanerJobTab === "hours" && (() => {
+                                                const jobEntries = ownTimeEntries.filter(e => e.bookingId === bookingForm.id);
+                                                const completedEntry = jobEntries.find(e => e.status !== "active");
+                                                const activeEntry = jobEntries.find(e => e.status === "active");
+                                                const entry = completedEntry || activeEntry;
+                                                return (
+                                                    <div className="flex flex-col gap-3">
+                                                        <div className="text-[11px] text-slate-400 uppercase tracking-widest font-bold">Time for this job</div>
+                                                        {!entry ? (
+                                                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center text-slate-400 text-sm">No time tracked for this job yet.</div>
+                                                        ) : (
+                                                            <div className={`rounded-2xl border p-4 ${activeEntry ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-white"}`}>
+                                                                <div className="flex items-center justify-between mb-3">
+                                                                    <strong className="text-slate-800">Time Entry</strong>
+                                                                    <span className={`text-[11px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                                                                        entry.status === "active" ? "bg-emerald-100 text-emerald-700" :
+                                                                        entry.status === "approved" ? "bg-blue-100 text-blue-700" :
+                                                                        entry.status === "pending_approval" ? "bg-amber-100 text-amber-700" :
+                                                                        "bg-slate-100 text-slate-500"
+                                                                    }`}>{entry.status.replace("_", " ")}</span>
+                                                                </div>
+                                                                <div className="grid grid-cols-2 gap-2 text-sm">
+                                                                    <div><span className="text-[11px] text-slate-400 block">Clock In</span><strong>{entry.startedAt ? new Date(entry.startedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : "—"}</strong></div>
+                                                                    <div><span className="text-[11px] text-slate-400 block">Clock Out</span><strong>{entry.endedAt ? new Date(entry.endedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : activeEntry ? <span className="text-emerald-600">In Progress</span> : "—"}</strong></div>
+                                                                    <div><span className="text-[11px] text-slate-400 block">Duration</span><strong>{entry.status === "active" ? formatRuntime(entry.startedAt, jobsNow) : formatDurationMinutes(entry.durationMinutes || 0)}</strong></div>
+                                                                    <div><span className="text-[11px] text-slate-400 block">Est. Pay</span><strong className="text-blue-700">${Number(entry.grossPayEstimate || 0).toFixed(2)}</strong></div>
+                                                                    {entry.payRate && <div><span className="text-[11px] text-slate-400 block">Rate</span><strong>${entry.payRate}/hr</strong></div>}
+                                                                    {entry.payrollBreakdown?.overtimeHours > 0 && <div><span className="text-[11px] text-slate-400 block">Overtime</span><strong className="text-amber-600">{entry.payrollBreakdown.overtimeHours}h @ ${entry.overtimeRate}/hr</strong></div>}
+                                                                </div>
+                                                                {entry.source?.includes("admin_override") && (
+                                                                    <div className="mt-2 text-[10px] text-slate-400 italic">⚙ Clock time entered by admin</div>
+                                                                )}
+                                                            </div>
+                                                        )}
+
+                                                        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                                                            <div className="text-[11px] text-slate-400 uppercase tracking-widest font-bold mb-2">Pay Period Summary</div>
+                                                            <div className="grid grid-cols-2 gap-2 text-sm">
+                                                                <div><span className="text-[11px] text-slate-400 block">Period</span><strong>{cleanerPayPeriod.label}</strong></div>
+                                                                <div><span className="text-[11px] text-slate-400 block">Total Hours</span><strong>{formatDurationMinutes(weeklyTimeSummary.totalMinutes)}</strong></div>
+                                                                <div><span className="text-[11px] text-slate-400 block">Est. Gross Pay</span><strong className="text-blue-700">${weeklyTimeSummary.grossPay.toFixed(2)}</strong></div>
+                                                                <div><span className="text-[11px] text-slate-400 block">Pay Date</span><strong>{cleanerPayPeriod.payDateLabel}</strong></div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()}
 
                                             <div className="form-group flex flex-col gap-1">
                                                 <label className="font-bold text-slate-700">Job Status</label>

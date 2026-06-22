@@ -4,7 +4,7 @@ import { canManageBranch, normalizeRole } from "../../../lib/permissions";
 import { DEFAULT_BRANCH_ID, getBranchScopeForUser, userCanAccessBranch } from "../../../lib/branches";
 import { calculatePayrollBreakdown, DEFAULT_PAY_RATE, normalizePayrollSettings } from "../../../lib/payroll";
 
-const GEO_RADIUS_METERS = 100;
+const GEO_RADIUS_METERS = 200;
 
 function haversineMeters(pointA, pointB) {
     const toRadians = (value) => (value * Math.PI) / 180;
@@ -174,6 +174,52 @@ export async function POST(request) {
             return NextResponse.json({ message: "Manual time card added.", entry }, { status: 200 });
         }
 
+        if (body.action === "admin_checkin") {
+            if (!canManageBranch(user)) {
+                return NextResponse.json({ error: "Only admins can clock in on behalf of staff." }, { status: 403 });
+            }
+            const { cleanerUid, bookingId: adminBookingId, startedAt: adminStartedAt } = body;
+            if (!cleanerUid || !adminBookingId) {
+                return NextResponse.json({ error: "Staff member and booking are required." }, { status: 400 });
+            }
+            const cleanerDoc = await adminDb.collection("users").doc(cleanerUid).get();
+            if (!cleanerDoc.exists) return NextResponse.json({ error: "Staff member not found." }, { status: 404 });
+            const cleaner = cleanerDoc.data();
+            const existingActive = await adminDb.collection("timeEntries")
+                .where("cleanerUid", "==", cleanerUid).where("status", "==", "active").limit(1).get();
+            if (!existingActive.empty) {
+                return NextResponse.json({ error: `${cleaner.name || "This staff member"} already has an active shift.` }, { status: 400 });
+            }
+            const bookingSnap = await adminDb.collection("bookings").doc(adminBookingId).get();
+            const booking = bookingSnap.exists ? bookingSnap.data() : {};
+            const payroll = normalizePayrollSettings(cleaner.staffProfile?.employment || {});
+            const startIso = adminStartedAt ? toIsoOrFallback(adminStartedAt) : new Date().toISOString();
+            const id = `te-${Date.now()}`;
+            const entry = {
+                id, bookingId: adminBookingId,
+                branchId: booking.branchId || cleaner.branchId || DEFAULT_BRANCH_ID,
+                branchName: booking.branchName || cleaner.branchName || "Ottawa",
+                cleanerUid, cleanerName: cleaner.name || cleaner.email || "Staff",
+                cleanerRole: normalizeRole(cleaner.role),
+                serviceName: booking.service || "Assigned Job",
+                customerFirstName: booking.firstName || booking.clientName?.split(" ")[0] || "Client",
+                locationLabel: [booking.address1, booking.city].filter(Boolean).join(", "),
+                bookingDate: booking.date || startIso.split("T")[0],
+                scheduledTime: booking.time || "",
+                bookingPrice: Number(booking.price || 0),
+                payRate: payroll.hourlyRate, overtimeRate: payroll.overtimeRate,
+                overtimeAfterHours: payroll.overtimeAfterHours, payrollStatus: payroll.payrollStatus,
+                status: "active", startedAt: startIso, endedAt: "", durationMinutes: 0, grossPayEstimate: 0,
+                geofenceRadiusMeters: GEO_RADIUS_METERS, startLocation: null,
+                siteLocation: booking.location || null, startDistanceMeters: null,
+                endLocation: null, endDistanceMeters: null,
+                createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+                source: "admin_override"
+            };
+            await adminDb.collection("timeEntries").doc(id).set(entry);
+            return NextResponse.json({ message: `Clocked in ${cleaner.name || "staff member"} successfully.`, entry }, { status: 200 });
+        }
+
         if (!["cleaner", "subcontractor", "supervisor", "employee"].includes(role)) {
             return NextResponse.json({ error: "Only field staff can clock into jobs." }, { status: 403 });
         }
@@ -262,6 +308,32 @@ export async function PUT(request) {
         const user = await authenticateRequest(request);
         const body = await request.json();
         const { action, entryId, currentLocation, startedAt, endedAt, unpaidBreakMinutes } = body;
+
+        if (action === "admin_checkout") {
+            if (!canManageBranch(user)) {
+                return NextResponse.json({ error: "Only admins can clock out on behalf of staff." }, { status: 403 });
+            }
+            const { entryId: adminEntryId, endedAt: adminEndedAt } = body;
+            if (!adminEntryId) return NextResponse.json({ error: "Time entry ID is required." }, { status: 400 });
+            const entryRef = adminDb.collection("timeEntries").doc(adminEntryId);
+            const entrySnap = await entryRef.get();
+            if (!entrySnap.exists) return NextResponse.json({ error: "Time entry not found." }, { status: 404 });
+            const entry = entrySnap.data();
+            const endIso = adminEndedAt ? toIsoOrFallback(adminEndedAt) : new Date().toISOString();
+            const durationMinutes = getDurationMinutes(entry.startedAt, endIso);
+            const payrollBreakdown = calculatePayrollBreakdown(durationMinutes, {
+                hourlyRate: entry.payRate || DEFAULT_PAY_RATE,
+                overtimeRate: entry.overtimeRate, overtimeAfterHours: entry.overtimeAfterHours
+            });
+            const updated = {
+                ...entry, status: "pending_approval", endedAt: endIso, durationMinutes,
+                grossPayEstimate: payrollBreakdown.grossPay, payrollBreakdown,
+                endLocation: null, endDistanceMeters: null,
+                updatedAt: new Date().toISOString(), source: (entry.source || "") + "+admin_override"
+            };
+            await entryRef.set(updated);
+            return NextResponse.json({ message: "Clocked out staff member successfully. Entry pending approval.", entry: updated }, { status: 200 });
+        }
 
         if (action === "checkout") {
             if (!entryId || !currentLocation?.lat || !currentLocation?.lng) {
