@@ -246,36 +246,37 @@ function getGoogleMapsDirectionsUrl(booking = {}) {
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(destination)}`;
 }
 
-function buildCleanerTaskList(booking = {}, pricingRates = {}) {
-    const tasks = [
-        {
-            id: "main-service",
-            label: booking.service || "Assigned service",
-            completed: false
-        }
-    ];
+function buildCleanerTaskList(booking = {}, pricingRates = {}, v2Catalog = {}) {
+    const serviceCategory = (v2Catalog.categories || []).find(cat =>
+        cat.name === booking.service || cat.id === booking.serviceId
+    );
 
-    if (booking.bathrooms) {
-        tasks.push({
-            id: "bathrooms",
-            label: booking.bathrooms,
+    const baseTasks = serviceCategory?.tasks?.length > 0
+        ? serviceCategory.tasks.map(t => ({
+            id: t.id,
+            label: t.label,
+            requiresPhoto: !!t.requiresPhoto,
             completed: false
-        });
-    }
+        }))
+        : [
+            { id: "main-service", label: booking.service || "Assigned service", requiresPhoto: true, completed: false },
+            ...(booking.bathrooms ? [{ id: "bathrooms", label: booking.bathrooms, requiresPhoto: false, completed: false }] : [])
+        ];
 
     Object.entries(booking.extras || {}).forEach(([key, qty]) => {
         if (!qty) return;
         const extra = pricingRates.extras?.[key];
         if (!extra) return;
         const qtyVal = typeof qty === "boolean" ? 1 : Number(qty || 0);
-        tasks.push({
+        baseTasks.push({
             id: `extra-${key}`,
             label: qtyVal > 1 ? `${extra.name} x${qtyVal}` : extra.name,
+            requiresPhoto: false,
             completed: false
         });
     });
 
-    return tasks;
+    return baseTasks;
 }
 
 function parseGooglePlaceDetails(place) {
@@ -385,6 +386,16 @@ const INITIAL_V2_CATALOG = {
             name: 'House Cleaning (Interior)',
             pricingModel: 'size_based', // flat_rate, size_based, hourly, flat_plus_unit
             baseRate: 0,
+            tasks: [
+                { id: 'hc_t1', label: 'Walk-through — check access & note special instructions', requiresPhoto: true },
+                { id: 'hc_t2', label: 'Dust all surfaces, furniture & baseboards', requiresPhoto: false },
+                { id: 'hc_t3', label: 'Vacuum all carpets, rugs & upholstered furniture', requiresPhoto: false },
+                { id: 'hc_t4', label: 'Mop all hard floors', requiresPhoto: false },
+                { id: 'hc_t5', label: 'Clean kitchen — counters, stovetop, sink & faucet', requiresPhoto: false },
+                { id: 'hc_t6', label: 'Clean all bathroom(s) — toilet, sink, shower/tub & mirror', requiresPhoto: false },
+                { id: 'hc_t7', label: 'Empty & reline all trash bins', requiresPhoto: false },
+                { id: 'hc_t8', label: 'Final walk-through & review', requiresPhoto: true },
+            ],
             sizes: [
                 { id: 'hc_1bed', name: 'Studio or 1 Bedroom', price: 87.50, durationHrs: 2 },
                 { id: 'hc_2bed', name: '2 bedroom apartment', price: 101.50, durationHrs: 2.5 },
@@ -423,6 +434,14 @@ const INITIAL_V2_CATALOG = {
             durationHrs: 2,
             unitName: 'Additional Pane',
             unitPrice: 5.00,
+            tasks: [
+                { id: 'ww_t1', label: 'Inspect windows — note damage or difficult areas', requiresPhoto: true },
+                { id: 'ww_t2', label: 'Remove & set aside screens (if screen cleaning included)', requiresPhoto: false },
+                { id: 'ww_t3', label: 'Clean all exterior panes — scrub & squeegee', requiresPhoto: false },
+                { id: 'ww_t4', label: 'Wipe all window frames & sills', requiresPhoto: false },
+                { id: 'ww_t5', label: 'Reattach screens', requiresPhoto: false },
+                { id: 'ww_t6', label: 'Final streak inspection from ground', requiresPhoto: true },
+            ],
             sizes: [],
             addons: [
                 { id: 'screenCleaning', name: 'Screen Cleaning', price: 20.00, qtySelector: false },
@@ -437,6 +456,13 @@ const INITIAL_V2_CATALOG = {
             durationHrs: 2.5,
             unitName: 'Per Sq Ft over 1000',
             unitPrice: 0.20,
+            tasks: [
+                { id: 'pws_t1', label: 'Protect plants, electrical outlets & nearby surfaces', requiresPhoto: true },
+                { id: 'pws_t2', label: 'Pre-rinse entire siding with water', requiresPhoto: false },
+                { id: 'pws_t3', label: 'Apply cleaning solution to all siding surfaces', requiresPhoto: false },
+                { id: 'pws_t4', label: 'Pressure wash all siding sections top to bottom', requiresPhoto: false },
+                { id: 'pws_t5', label: 'Rinse clean & inspect for remaining stains', requiresPhoto: true },
+            ],
             sizes: [],
             addons: []
         },
@@ -446,6 +472,13 @@ const INITIAL_V2_CATALOG = {
             pricingModel: 'flat_rate',
             baseRate: 150.00,
             durationHrs: 2,
+            tasks: [
+                { id: 'pwd_t1', label: 'Clear furniture & obstacles from the area', requiresPhoto: true },
+                { id: 'pwd_t2', label: 'Apply pre-treatment cleaning solution', requiresPhoto: false },
+                { id: 'pwd_t3', label: 'Pressure wash surface in sections', requiresPhoto: false },
+                { id: 'pwd_t4', label: 'Rinse clean & check for stubborn stains', requiresPhoto: false },
+                { id: 'pwd_t5', label: 'Return furniture & tidy area', requiresPhoto: true },
+            ],
             sizes: [],
             addons: []
         },
@@ -455,6 +488,13 @@ const INITIAL_V2_CATALOG = {
             pricingModel: 'flat_rate',
             baseRate: 150.00,
             durationHrs: 1.5,
+            tasks: [
+                { id: 'gc_t1', label: 'Set up ladder safely & inspect gutters from ground', requiresPhoto: true },
+                { id: 'gc_t2', label: 'Clear all debris from gutters section by section', requiresPhoto: false },
+                { id: 'gc_t3', label: 'Flush gutters with water to confirm flow', requiresPhoto: false },
+                { id: 'gc_t4', label: 'Clear all downspout blockages', requiresPhoto: false },
+                { id: 'gc_t5', label: 'Bag & remove all debris from ground', requiresPhoto: true },
+            ],
             sizes: [
                 { id: 'gc_1story', name: '1-Story Home', price: 150.00, durationHrs: 1.5 },
                 { id: 'gc_2story', name: '2-Story Home', price: 250.00, durationHrs: 2.5 }
@@ -469,6 +509,13 @@ const INITIAL_V2_CATALOG = {
             pricingModel: 'flat_rate',
             baseRate: 60.00,
             durationHrs: 1,
+            tasks: [
+                { id: 'lm_t1', label: 'Walk the yard — remove obstacles & check for hazards', requiresPhoto: true },
+                { id: 'lm_t2', label: 'Mow grass to required height', requiresPhoto: false },
+                { id: 'lm_t3', label: 'Edge-trim borders, walkways & obstacles', requiresPhoto: false },
+                { id: 'lm_t4', label: 'Blow or rake clippings from paths & driveway', requiresPhoto: false },
+                { id: 'lm_t5', label: 'Final walkthrough inspection', requiresPhoto: true },
+            ],
             sizes: [
                 { id: 'lm_small', name: 'Small Yard (Under 1/4 acre)', price: 60.00, durationHrs: 1 },
                 { id: 'lm_med', name: 'Medium Yard (1/4 to 1/2 acre)', price: 90.00, durationHrs: 1.5 },
@@ -743,6 +790,7 @@ export default function Home() {
     const [jobsNow, setJobsNow] = useState(0);
     const [cleanerJobTab, setCleanerJobTab] = useState("overview");
     const [cleanerJobDrafts, setCleanerJobDrafts] = useState({});
+    const [pendingAfterPhotos, setPendingAfterPhotos] = useState({});
     const [adminClockForm, setAdminClockForm] = useState({ cleanerUid: "", bookingId: "", startedAt: "" });
     const [editRequestResolutions, setEditRequestResolutions] = useState({});
     const [timeEntryEditDrafts, setTimeEntryEditDrafts] = useState({});
@@ -972,13 +1020,32 @@ export default function Home() {
         if (!bookingForm?.id) return null;
         return cleanerJobDrafts[bookingForm.id] || {
             bookingId: bookingForm.id,
-            tasks: buildCleanerTaskList(bookingForm, pricingRates).map(task => ({
+            tasks: buildCleanerTaskList(bookingForm, pricingRates, v2Catalog).map(task => ({
                 ...task,
                 beforePhotos: [],
                 afterPhotos: []
             }))
         };
-    }, [bookingForm, cleanerJobDrafts, pricingRates]);
+    }, [bookingForm, cleanerJobDrafts, pricingRates, v2Catalog]);
+
+    const cleanerWizardPhase = useMemo(() => {
+        if (!bookingForm?.id || !isCleanerSelfServiceView) return "read_only";
+        const hasSubmitted = editRequests.some(req =>
+            req.bookingId === bookingForm.id &&
+            req.status === "Pending" &&
+            req.requestedData?.cleanerChecklist?.tasks?.length > 0
+        );
+        if (hasSubmitted) return "submitted";
+        if (activeTimeEntry?.bookingId === bookingForm.id) return "in_progress";
+        if (pendingAfterPhotos[bookingForm.id]) return "after_photos";
+        const hasCompletedEntry = ownTimeEntries.some(e =>
+            e.bookingId === bookingForm.id && e.status !== "active" && e.status !== "deleted"
+        );
+        if (hasCompletedEntry) return "after_photos";
+        const isToday = bookingForm.date === getCurrentTorontoDateKey(jobsNow ? new Date(jobsNow) : new Date());
+        if (isToday) return "before_start";
+        return "read_only";
+    }, [bookingForm, editRequests, activeTimeEntry, pendingAfterPhotos, ownTimeEntries, isCleanerSelfServiceView, jobsNow]);
 
     const selectedStaffAvailability = useMemo(() => {
         return buildAvailabilitySnapshot(activeStaffProfileDraft?.availability);
@@ -2349,7 +2416,7 @@ export default function Home() {
 
     const ensureCleanerJobDraft = useCallback((booking) => {
         if (!booking?.id) return null;
-        const tasks = buildCleanerTaskList(booking, pricingRates);
+        const tasks = buildCleanerTaskList(booking, pricingRates, v2Catalog);
         const nextDraft = {
             bookingId: booking.id,
             tasks: tasks.map(task => ({
@@ -2369,7 +2436,7 @@ export default function Home() {
         });
 
         return cleanerJobDrafts[booking.id] || nextDraft;
-    }, [cleanerJobDrafts, pricingRates]);
+    }, [cleanerJobDrafts, pricingRates, v2Catalog]);
 
     const updateCleanerJobPhotos = useCallback(async (bookingId, taskId, phase, files) => {
         const fileArray = Array.from(files || []);
@@ -2578,7 +2645,67 @@ export default function Home() {
     const handleEndCleanerJob = useCallback(async (booking) => {
         if (!booking || !activeTimeEntry || activeTimeEntry.bookingId !== booking.id) return;
         await handleClockOutOfJob();
+        setPendingAfterPhotos(prev => ({ ...prev, [booking.id]: true }));
     }, [activeTimeEntry, handleClockOutOfJob]);
+
+    const handleSubmitJobForReview = useCallback(async (booking) => {
+        if (!booking?.id) return;
+        setTimeEntrySaving(true);
+        setJobsFeedback("");
+        try {
+            const headers = await getAuthHeaders();
+            const draft = cleanerJobDrafts[booking.id];
+            const cleanerChecklist = {
+                submittedAt: new Date().toISOString(),
+                tasks: (draft?.tasks || []).map(task => ({
+                    id: task.id,
+                    label: task.label,
+                    completed: task.completed || false,
+                    beforePhotos: (task.beforePhotos || []).filter(p => p.url).map(p => ({ id: p.id, name: p.name, url: p.url })),
+                    afterPhotos: (task.afterPhotos || []).filter(p => p.url).map(p => ({ id: p.id, name: p.name, url: p.url }))
+                }))
+            };
+            const res = await fetch("/api/bookings", {
+                method: "PUT",
+                headers,
+                body: JSON.stringify({ id: booking.id, status: booking.status, cleanerChecklist })
+            });
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.error || "Failed to submit job for review.");
+            }
+            setPendingAfterPhotos(prev => { const next = { ...prev }; delete next[booking.id]; return next; });
+            setBookingModalOpen(false);
+            syncDatabaseData(currentUser);
+        } catch (err) {
+            setJobsFeedback(err.message || "Failed to submit job.");
+        } finally {
+            setTimeEntrySaving(false);
+        }
+    }, [cleanerJobDrafts, currentUser, getAuthHeaders, syncDatabaseData]);
+
+    const addCleanerExtraTask = useCallback((bookingId) => {
+        const label = prompt("Describe the extra task:");
+        if (!label?.trim()) return;
+        setCleanerJobDrafts(prev => {
+            const draft = prev[bookingId];
+            if (!draft) return prev;
+            return {
+                ...prev,
+                [bookingId]: {
+                    ...draft,
+                    tasks: [...draft.tasks, {
+                        id: `extra-${Date.now()}`,
+                        label: label.trim(),
+                        requiresPhoto: false,
+                        completed: false,
+                        beforePhotos: [],
+                        afterPhotos: []
+                    }]
+                }
+            };
+        });
+    }, []);
 
     const handleAdminClockInFor = useCallback(async ({ cleanerUid, bookingId, startedAt }) => {
         setTimeEntrySaving(true);
@@ -2753,6 +2880,29 @@ export default function Home() {
                     delete next[requestId];
                     return next;
                 });
+                syncDatabaseData(currentUser);
+            } else {
+                const err = await res.json();
+                alert(`Failed: ${err.error}`);
+            }
+        } catch (err) {
+            alert(`Error: ${err.message}`);
+        }
+    };
+
+    const handleResolveJobCompletion = async (requestId, action) => {
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch("/api/edit-requests", {
+                method: "POST",
+                headers,
+                body: JSON.stringify({
+                    requestId,
+                    action,
+                    finalStatus: action === "approve" ? "Completed" : undefined
+                })
+            });
+            if (res.ok) {
                 syncDatabaseData(currentUser);
             } else {
                 const err = await res.json();
@@ -3877,6 +4027,7 @@ export default function Home() {
                         editRequestResolutions={editRequestResolutions}
                         setEditRequestResolutions={setEditRequestResolutions}
                         handleResolveEdit={handleResolveEdit}
+                        handleResolveJobCompletion={handleResolveJobCompletion}
                     />
                 )}
 
@@ -4820,286 +4971,254 @@ export default function Home() {
                                 <div className="modal-body flex flex-col gap-4 text-xs p-6">
                                     {isCleanerBookingEditor ? (
                                         <>
-                                            {/* Clock in/out strip */}
-                                            {(() => {
-                                                const jobEntry = activeTimeEntry?.bookingId === bookingForm.id ? activeTimeEntry : null;
-                                                const isToday = bookingForm.date === getCurrentTorontoDateKey(new Date());
-                                                if (!isToday && !jobEntry) return null;
-                                                return (
-                                                    <div className={`flex items-center justify-between gap-3 rounded-2xl p-3 ${jobEntry ? "bg-emerald-50 border border-emerald-200" : "bg-blue-50 border border-blue-100"}`}>
-                                                        <div>
-                                                            <strong className={`text-sm ${jobEntry ? "text-emerald-700" : "text-blue-700"}`}>
-                                                                {jobEntry ? `🟢 In Progress — started ${new Date(jobEntry.startedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}` : "⏰ Clock in when you arrive"}
-                                                            </strong>
-                                                            {jobEntry && <div className="text-[11px] text-emerald-600 mt-0.5">{formatRuntime(jobEntry.startedAt, jobsNow)} elapsed</div>}
-                                                        </div>
-                                                        {jobEntry
-                                                            ? <button type="button" onClick={() => handleEndCleanerJob(bookingForm)} disabled={timeEntrySaving} className="btn btn-sm" style={{ background: "#ef4444", color: "#fff", border: "none" }}>End Job</button>
-                                                            : <button type="button" onClick={() => handleStartCleanerJob(bookingForm)} disabled={timeEntrySaving} className="btn btn-primary btn-sm">Start Job</button>
-                                                        }
+                                            {/* ── CLEANER JOB WIZARD ── */}
+                                            {cleanerWizardPhase !== "submitted" && cleanerWizardPhase !== "read_only" && (
+                                                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "4px 0 12px" }}>
+                                                    {[["Check In", 0], ["Working", 1], ["Submit", 2]].map(([label, i]) => {
+                                                        const phases = ["before_start", "in_progress", "after_photos"];
+                                                        const cur = phases.indexOf(cleanerWizardPhase);
+                                                        const active = cur >= i;
+                                                        return (
+                                                            <div key={label} style={{ display: "flex", alignItems: "center" }}>
+                                                                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                                                                    <div style={{ width: 26, height: 26, borderRadius: "50%", background: active ? "#3b82f6" : "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                                                        {cur > i
+                                                                            ? <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 6.5l3.5 3.5 5.5-6" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                                                            : <span style={{ fontSize: 11, fontWeight: 800, color: active ? "#fff" : "#94a3b8" }}>{i + 1}</span>
+                                                                        }
+                                                                    </div>
+                                                                    <span style={{ fontSize: 9, fontWeight: 700, color: active ? "#3b82f6" : "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</span>
+                                                                </div>
+                                                                {i < 2 && <div style={{ width: 28, height: 2, background: cur > i ? "#3b82f6" : "#e2e8f0", margin: "0 4px", marginBottom: 14 }} />}
+                                                            </div>
+                                                        );
+                                                    })}
+
+                                                </div>
+                                            )}
+
+                                            {/* ── SUBMITTED ── */}
+                                            {cleanerWizardPhase === "submitted" && (
+                                                <div style={{ textAlign: "center", padding: "40px 16px" }}>
+                                                    <div style={{ width: 72, height: 72, borderRadius: "50%", background: "#d1fae5", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}>
+                                                        <svg width="36" height="36" viewBox="0 0 36 36" fill="none"><path d="M6 18l9 9 15-15" stroke="#059669" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                                                     </div>
-                                                );
-                                            })()}
+                                                    <div style={{ fontSize: 20, fontWeight: 900, color: "#064e3b", marginBottom: 8 }}>Job Submitted!</div>
+                                                    <div style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.6 }}>Your work has been submitted for admin review. You will be notified once it is approved.</div>
+                                                </div>
+                                            )}
 
-                                            {/* Tab bar — 4 tabs */}
-                                            <div className="flex gap-1 overflow-x-auto rounded-full bg-slate-100 p-1">
-                                                {[
-                                                    { key: "overview", label: "Overview" },
-                                                    { key: "tasks", label: "Tasks" },
-                                                    { key: "schedule", label: "Schedule" },
-                                                    { key: "hours", label: "Hours" },
-                                                ].map(tab => (
-                                                    <button key={tab.key} type="button" className={`btn btn-sm whitespace-nowrap flex-shrink-0 ${cleanerJobTab === tab.key ? "btn-primary" : "btn-secondary"}`} onClick={() => setCleanerJobTab(tab.key)}>
-                                                        {tab.label}
-                                                    </button>
-                                                ))}
-                                            </div>
-
-                                            {/* ── OVERVIEW TAB ── */}
-                                            {cleanerJobTab === "overview" && (
+                                            {/* ── READ ONLY (past/future job) ── */}
+                                            {cleanerWizardPhase === "read_only" && (
                                                 <>
                                                     <div className="detail-card">
                                                         <div className="detail-card-title">🧹 Job Overview</div>
                                                         <div className="detail-card-grid">
-                                                            <div className="detail-row">
-                                                                <span className="detail-label">Service Type</span>
-                                                                <span className="detail-value detail-value-brand bold">{bookingForm.service}</span>
-                                                            </div>
-                                                            <div className="detail-row">
-                                                                <span className="detail-label">Customer</span>
-                                                                <span className="detail-value bold">{bookingForm.firstName || "Client"}</span>
-                                                            </div>
-                                                            <div className="detail-row">
-                                                                <span className="detail-label">Frequency</span>
-                                                                <span className="detail-value">{bookingForm.frequency || "One-Time"}</span>
-                                                            </div>
-                                                            <div className="detail-row">
-                                                                <span className="detail-label">Duration</span>
-                                                                <span className="detail-value">{bookingForm.duration} hours</span>
-                                                            </div>
-                                                            <div className="detail-row">
-                                                                <span className="detail-label">Date</span>
-                                                                <span className="detail-value bold">{bookingForm.date}</span>
-                                                            </div>
-                                                            <div className="detail-row">
-                                                                <span className="detail-label">Time Window</span>
-                                                                <span className="detail-value">{formatTimeWindow(bookingForm.time, bookingForm.duration)}</span>
-                                                            </div>
+                                                            <div className="detail-row"><span className="detail-label">Service</span><span className="detail-value bold">{bookingForm.service}</span></div>
+                                                            <div className="detail-row"><span className="detail-label">Date</span><span className="detail-value bold">{bookingForm.date}</span></div>
+                                                            <div className="detail-row"><span className="detail-label">Time</span><span className="detail-value">{bookingForm.time}</span></div>
+                                                            <div className="detail-row"><span className="detail-label">Duration</span><span className="detail-value">{bookingForm.duration} hrs</span></div>
                                                         </div>
                                                     </div>
-
                                                     <a href={getGoogleMapsDirectionsUrl(bookingForm)} target="_blank" rel="noreferrer" className="detail-card block no-underline">
                                                         <div className="detail-card-title">📍 Address — Tap for Directions</div>
                                                         <div className="detail-card-grid">
-                                                            <div className="detail-row full-width">
-                                                                <span className="detail-value font-semibold text-blue-600">{formatAddress(bookingForm)}</span>
-                                                            </div>
+                                                            <div className="detail-row full-width"><span className="detail-value font-semibold text-blue-600">{formatAddress(bookingForm)}</span></div>
                                                         </div>
                                                     </a>
-
-                                                    {(bookingForm.accessMode || bookingForm.accessDetails || bookingForm.specialNotes) && (
-                                                        <div className="detail-card" style={{ background: "#fffbeb", borderColor: "#fde68a" }}>
-                                                            <div className="detail-card-title">🔑 Access &amp; Instructions</div>
-                                                            <div className="detail-card-grid">
-                                                                {bookingForm.accessMode && <div className="detail-row"><span className="detail-label">Access</span><span className="detail-value font-semibold">{bookingForm.accessMode}</span></div>}
-                                                                {bookingForm.freeParking !== undefined && <div className="detail-row"><span className="detail-label">Parking</span><span className="detail-value">{bookingForm.freeParking ? "Free parking available" : "Street / paid parking"}</span></div>}
-                                                                {bookingForm.accessDetails && <div className="detail-row full-width"><span className="detail-label">Access Notes</span><span className="detail-value whitespace-pre-wrap">{bookingForm.accessDetails}</span></div>}
-                                                                {bookingForm.specialNotes && <div className="detail-row full-width"><span className="detail-label">Special Instructions</span><span className="detail-value whitespace-pre-wrap">{bookingForm.specialNotes}</span></div>}
-                                                            </div>
-                                                        </div>
-                                                    )}
-
-                                                    {Object.entries(bookingForm.extras || {}).some(([, qty]) => qty) && (
-                                                        <div className="detail-card">
-                                                            <div className="detail-card-title">✨ Add-ons</div>
-                                                            <div className="detail-extras-list">
-                                                                {Object.entries(bookingForm.extras || {}).map(([key, qty]) => {
-                                                                    if (!qty) return null;
-                                                                    const extra = pricingRates.extras[key];
-                                                                    if (!extra) return null;
-                                                                    const qtyVal = typeof qty === "boolean" ? 1 : qty;
-                                                                    return (
-                                                                        <div key={key} className="detail-extra-row">
-                                                                            <span className="detail-extra-name">• {extra.name}{qtyVal > 1 ? ` × ${qtyVal}` : ""}</span>
-                                                                        </div>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                        </div>
-                                                    )}
-
-                                                    <div className="detail-card">
-                                                        <div className="detail-card-title">📞 Need Help?</div>
-                                                        <div className="detail-card-grid">
-                                                            <div className="detail-row full-width">
-                                                                <span className="detail-label">Support</span>
-                                                                <a href="tel:6134165001" className="detail-value text-blue-600 font-semibold">613-416-5001</a>
-                                                            </div>
-                                                        </div>
-                                                    </div>
                                                 </>
                                             )}
 
-                                            {/* ── TASKS TAB ── */}
-                                            {cleanerJobTab === "tasks" && (
-                                                <div className="flex flex-col gap-3">
-                                                    <div className="text-[11px] text-slate-400 uppercase tracking-widest font-bold">
-                                                        {(activeCleanerJobDraft?.tasks || []).filter(t => t.completed).length} / {(activeCleanerJobDraft?.tasks || []).length} tasks done
-                                                    </div>
-                                                    {(activeCleanerJobDraft?.tasks || []).map(task => (
-                                                        <div key={task.id} className={`rounded-2xl border p-3 transition-colors ${task.completed ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-white"}`}>
-                                                            {/* Task header with checkbox */}
-                                                            <div className="flex items-center gap-3">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => toggleCleanerTaskComplete(bookingForm.id, task.id)}
-                                                                    className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center flex-shrink-0 transition-colors ${task.completed ? "bg-emerald-500 border-emerald-500" : "border-slate-300 bg-white"}`}
-                                                                    title="Mark complete"
-                                                                >
-                                                                    {task.completed && <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                                                                </button>
-                                                                <strong className={`text-sm flex-1 ${task.completed ? "text-emerald-700 line-through" : "text-slate-800"}`}>{task.label}</strong>
-                                                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                                                    {task.beforePhotos.length}B · {task.afterPhotos.length}A
-                                                                </span>
-                                                            </div>
-
-                                                            {/* Photo sections */}
-                                                            <div className="mt-3 grid grid-cols-2 gap-2">
-                                                                {["beforePhotos", "afterPhotos"].map(phase => (
-                                                                    <div key={phase} className="rounded-xl border border-slate-200 p-2">
-                                                                        <div className="text-[11px] font-bold text-slate-600 mb-1">{phase === "beforePhotos" ? "📷 Before" : "✅ After"}</div>
-                                                                        {/* Thumbnails */}
-                                                                        {task[phase].length > 0 && (
-                                                                            <div className="flex flex-wrap gap-1 mb-2">
-                                                                                {task[phase].map(photo => (
-                                                                                    <div key={photo.id} className="relative group">
-                                                                                        {photo.url
-                                                                                            ? <img src={photo.url} alt={photo.name} className="w-12 h-12 rounded-lg object-cover" />
-                                                                                            : <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center text-[10px] text-slate-400">{photo.uploading ? "…" : photo.name?.slice(0, 6)}</div>
-                                                                                        }
-                                                                                        {!photo.uploading && (
-                                                                                            <button type="button" onClick={() => removeCleanerJobPhoto(bookingForm.id, task.id, phase, photo.id)} className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] flex items-center justify-center opacity-0 group-hover:opacity-100">×</button>
-                                                                                        )}
-                                                                                    </div>
-                                                                                ))}
-                                                                            </div>
-                                                                        )}
-                                                                        <label className="flex items-center gap-1 text-[11px] text-blue-600 font-semibold cursor-pointer">
-                                                                            <span>+ Add photo</span>
-                                                                            <input type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={e => updateCleanerJobPhotos(bookingForm.id, task.id, phase, e.target.files)} />
-                                                                        </label>
-                                                                    </div>
-                                                                ))}
+                                            {/* ── BEFORE START ── */}
+                                            {cleanerWizardPhase === "before_start" && (() => {
+                                                const tasks = activeCleanerJobDraft?.tasks || [];
+                                                const reqTasks = tasks.filter(t => t.requiresPhoto);
+                                                const beforeDone = reqTasks.every(t => (t.beforePhotos || []).some(p => p.url));
+                                                return (
+                                                    <>
+                                                        <div className="detail-card">
+                                                            <div className="detail-card-title">🧹 {bookingForm.service}</div>
+                                                            <div className="detail-card-grid">
+                                                                <div className="detail-row"><span className="detail-label">Client</span><span className="detail-value bold">{bookingForm.firstName || "Client"}</span></div>
+                                                                <div className="detail-row"><span className="detail-label">Date &amp; Time</span><span className="detail-value bold">{bookingForm.date} · {bookingForm.time}</span></div>
+                                                                <div className="detail-row"><span className="detail-label">Duration</span><span className="detail-value">{bookingForm.duration} hrs</span></div>
+                                                                <div className="detail-row"><span className="detail-label">Frequency</span><span className="detail-value">{bookingForm.frequency || "One-Time"}</span></div>
                                                             </div>
                                                         </div>
-                                                    ))}
-                                                    {jobsFeedback && <div className="people-profile-message">{jobsFeedback}</div>}
-                                                </div>
-                                            )}
-
-                                            {/* ── SCHEDULE TAB ── */}
-                                            {cleanerJobTab === "schedule" && (
-                                                <div className="flex flex-col gap-3">
-                                                    <div className="text-[11px] text-slate-400 uppercase tracking-widest font-bold">Your upcoming jobs</div>
-                                                    {cleanerAssignedJobs.filter(job => {
-                                                        const d = new Date(`${job.date}T00:00:00`);
-                                                        const today = new Date(); today.setHours(0,0,0,0);
-                                                        const cutoff = new Date(today); cutoff.setDate(cutoff.getDate() + 14);
-                                                        return d >= today && d <= cutoff;
-                                                    }).length === 0
-                                                        ? <div className="admin-cart-empty">No jobs scheduled in the next 14 days.</div>
-                                                        : cleanerAssignedJobs.filter(job => {
-                                                            const d = new Date(`${job.date}T00:00:00`);
-                                                            const today = new Date(); today.setHours(0,0,0,0);
-                                                            const cutoff = new Date(today); cutoff.setDate(cutoff.getDate() + 14);
-                                                            return d >= today && d <= cutoff;
-                                                        }).map(job => {
-                                                            const isCurrentJob = job.id === bookingForm.id;
-                                                            const hasActiveEntry = ownTimeEntries.some(e => e.bookingId === job.id && e.status === "active");
-                                                            return (
-                                                                <div key={job.id} className={`rounded-2xl border p-3 ${isCurrentJob ? "border-blue-300 bg-blue-50" : "border-slate-200 bg-white"}`}>
-                                                                    <div className="flex items-start justify-between gap-2">
-                                                                        <div>
-                                                                            <div className="font-semibold text-sm text-slate-800">{job.service}</div>
-                                                                            <div className="text-[11px] text-slate-500 mt-0.5">{getBookingCustomerFirstName(job)} · {getBookingLocationLabel(job)}</div>
-                                                                            <div className="text-[11px] text-slate-500">{job.date} · {job.time}</div>
-                                                                        </div>
-                                                                        <div className="flex flex-col items-end gap-1">
-                                                                            <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${job.status === "Confirmed" ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"}`}>{job.status}</span>
-                                                                            {hasActiveEntry && <span className="text-[10px] font-bold text-emerald-600">🟢 Active</span>}
-                                                                        </div>
-                                                                    </div>
-                                                                    {!isCurrentJob && (
-                                                                        <button type="button" onClick={() => { setBookingModalOpen(false); setTimeout(() => handleOpenCleanerJob(job, "overview"), 50); }} className="mt-2 text-[11px] text-blue-600 font-semibold">
-                                                                            Open this job →
-                                                                        </button>
-                                                                    )}
+                                                        <a href={getGoogleMapsDirectionsUrl(bookingForm)} target="_blank" rel="noreferrer" className="detail-card block no-underline">
+                                                            <div className="detail-card-title">📍 Address — Tap for Directions</div>
+                                                            <div className="detail-card-grid">
+                                                                <div className="detail-row full-width"><span className="detail-value font-semibold text-blue-600">{formatAddress(bookingForm)}</span></div>
+                                                            </div>
+                                                        </a>
+                                                        {(bookingForm.accessMode || bookingForm.accessDetails || bookingForm.specialNotes) && (
+                                                            <div className="detail-card" style={{ background: "#fffbeb", borderColor: "#fde68a" }}>
+                                                                <div className="detail-card-title">🔑 Access &amp; Instructions</div>
+                                                                <div className="detail-card-grid">
+                                                                    {bookingForm.accessMode && <div className="detail-row"><span className="detail-label">Access</span><span className="detail-value font-semibold">{bookingForm.accessMode}</span></div>}
+                                                                    {bookingForm.accessDetails && <div className="detail-row full-width"><span className="detail-label">Access Notes</span><span className="detail-value whitespace-pre-wrap">{bookingForm.accessDetails}</span></div>}
+                                                                    {bookingForm.specialNotes && <div className="detail-row full-width"><span className="detail-label">Special Instructions</span><span className="detail-value whitespace-pre-wrap">{bookingForm.specialNotes}</span></div>}
                                                                 </div>
-                                                            );
-                                                        })
-                                                    }
-                                                </div>
-                                            )}
-
-                                            {/* ── HOURS TAB ── */}
-                                            {cleanerJobTab === "hours" && (() => {
-                                                const jobEntries = ownTimeEntries.filter(e => e.bookingId === bookingForm.id);
-                                                const completedEntry = jobEntries.find(e => e.status !== "active");
-                                                const activeEntry = jobEntries.find(e => e.status === "active");
-                                                const entry = completedEntry || activeEntry;
-                                                return (
-                                                    <div className="flex flex-col gap-3">
-                                                        <div className="text-[11px] text-slate-400 uppercase tracking-widest font-bold">Time for this job</div>
-                                                        {!entry ? (
-                                                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center text-slate-400 text-sm">No time tracked for this job yet.</div>
-                                                        ) : (
-                                                            <div className={`rounded-2xl border p-4 ${activeEntry ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-white"}`}>
-                                                                <div className="flex items-center justify-between mb-3">
-                                                                    <strong className="text-slate-800">Time Entry</strong>
-                                                                    <span className={`text-[11px] font-bold uppercase px-2 py-0.5 rounded-full ${
-                                                                        entry.status === "active" ? "bg-emerald-100 text-emerald-700" :
-                                                                        entry.status === "approved" ? "bg-blue-100 text-blue-700" :
-                                                                        entry.status === "pending_approval" ? "bg-amber-100 text-amber-700" :
-                                                                        "bg-slate-100 text-slate-500"
-                                                                    }`}>{entry.status.replace("_", " ")}</span>
-                                                                </div>
-                                                                <div className="grid grid-cols-2 gap-2 text-sm">
-                                                                    <div><span className="text-[11px] text-slate-400 block">Clock In</span><strong>{entry.startedAt ? new Date(entry.startedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : "—"}</strong></div>
-                                                                    <div><span className="text-[11px] text-slate-400 block">Clock Out</span><strong>{entry.endedAt ? new Date(entry.endedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : activeEntry ? <span className="text-emerald-600">In Progress</span> : "—"}</strong></div>
-                                                                    <div><span className="text-[11px] text-slate-400 block">Duration</span><strong>{entry.status === "active" ? formatRuntime(entry.startedAt, jobsNow) : formatDurationMinutes(entry.durationMinutes || 0)}</strong></div>
-                                                                    <div><span className="text-[11px] text-slate-400 block">Est. Pay</span><strong className="text-blue-700">${Number(entry.grossPayEstimate || 0).toFixed(2)}</strong></div>
-                                                                    {entry.payRate && <div><span className="text-[11px] text-slate-400 block">Rate</span><strong>${entry.payRate}/hr</strong></div>}
-                                                                    {entry.payrollBreakdown?.overtimeHours > 0 && <div><span className="text-[11px] text-slate-400 block">Overtime</span><strong className="text-amber-600">{entry.payrollBreakdown.overtimeHours}h @ ${entry.overtimeRate}/hr</strong></div>}
-                                                                </div>
-                                                                {entry.source?.includes("admin_override") && (
-                                                                    <div className="mt-2 text-[10px] text-slate-400 italic">⚙ Clock time entered by admin</div>
-                                                                )}
                                                             </div>
                                                         )}
-
-                                                        <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                                                            <div className="text-[11px] text-slate-400 uppercase tracking-widest font-bold mb-2">Pay Period Summary</div>
-                                                            <div className="grid grid-cols-2 gap-2 text-sm">
-                                                                <div><span className="text-[11px] text-slate-400 block">Period</span><strong>{cleanerPayPeriod.label}</strong></div>
-                                                                <div><span className="text-[11px] text-slate-400 block">Total Hours</span><strong>{formatDurationMinutes(weeklyTimeSummary.totalMinutes)}</strong></div>
-                                                                <div><span className="text-[11px] text-slate-400 block">Est. Gross Pay</span><strong className="text-blue-700">${weeklyTimeSummary.grossPay.toFixed(2)}</strong></div>
-                                                                <div><span className="text-[11px] text-slate-400 block">Pay Date</span><strong>{cleanerPayPeriod.payDateLabel}</strong></div>
-                                                            </div>
+                                                        <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 16, padding: 16 }}>
+                                                            <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>📸 Before Photos</div>
+                                                            {tasks.length === 0
+                                                                ? <div style={{ color: "#94a3b8", fontSize: 13, textAlign: "center", padding: "12px 0" }}>No tasks defined for this service.</div>
+                                                                : tasks.map((task, idx) => (
+                                                                    <div key={task.id} style={{ paddingBottom: idx < tasks.length - 1 ? 12 : 0, marginBottom: idx < tasks.length - 1 ? 12 : 0, borderBottom: idx < tasks.length - 1 ? "1px solid #f1f5f9" : "none" }}>
+                                                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                                                            <span style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>{task.label}</span>
+                                                                            {task.requiresPhoto && <span style={{ fontSize: 10, fontWeight: 700, color: "#dc2626", background: "#fef2f2", padding: "2px 7px", borderRadius: 99 }}>Required</span>}
+                                                                        </div>
+                                                                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+                                                                            {(task.beforePhotos || []).map(photo => (
+                                                                                <div key={photo.id} style={{ position: "relative" }}>
+                                                                                    {photo.url
+                                                                                        ? <img src={photo.url} alt="" style={{ width: 54, height: 54, borderRadius: 10, objectFit: "cover" }} />
+                                                                                        : <div style={{ width: 54, height: 54, borderRadius: 10, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#94a3b8" }}>{photo.uploading ? "…" : "?"}</div>
+                                                                                    }
+                                                                                    {!photo.uploading && <button type="button" onClick={() => removeCleanerJobPhoto(bookingForm.id, task.id, "beforePhotos", photo.id)} style={{ position: "absolute", top: -4, right: -4, width: 18, height: 18, borderRadius: "50%", background: "#ef4444", border: "none", color: "#fff", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>}
+                                                                                </div>
+                                                                            ))}
+                                                                            <label style={{ width: 54, height: 54, borderRadius: 10, border: "2px dashed #94a3b8", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: "#f8fafc", flexShrink: 0 }}>
+                                                                                <span style={{ fontSize: 22, color: "#94a3b8", lineHeight: 1 }}>+</span>
+                                                                                <input type="file" accept="image/*" capture="environment" multiple style={{ display: "none" }} onChange={e => updateCleanerJobPhotos(bookingForm.id, task.id, "beforePhotos", e.target.files)} />
+                                                                            </label>
+                                                                        </div>
+                                                                    </div>
+                                                                ))
+                                                            }
                                                         </div>
-                                                    </div>
+                                                        {reqTasks.length > 0 && !beforeDone && (
+                                                            <div style={{ fontSize: 12, color: "#d97706", textAlign: "center", fontWeight: 600 }}>Upload required before photos to unlock Start Job</div>
+                                                        )}
+                                                        <button type="button" onClick={() => handleStartCleanerJob(bookingForm)} disabled={!beforeDone || timeEntrySaving}
+                                                            style={{ width: "100%", padding: 15, borderRadius: 14, border: "none", background: beforeDone ? "#3b82f6" : "#e2e8f0", color: beforeDone ? "#fff" : "#94a3b8", fontSize: 15, fontWeight: 800, cursor: beforeDone ? "pointer" : "not-allowed" }}>
+                                                            {timeEntrySaving ? "Starting…" : "▶  Start Job"}
+                                                        </button>
+                                                        {jobsFeedback && <div className="people-profile-message">{jobsFeedback}</div>}
+                                                    </>
                                                 );
                                             })()}
 
-                                            <div className="form-group flex flex-col gap-1">
-                                                <label className="font-bold text-slate-700">Job Status</label>
-                                                <select value={bookingForm.status} onChange={e => setBookingForm(prev => ({ ...prev, status: e.target.value }))} required className="border border-slate-200 rounded-lg p-2">
-                                                    <option value="Pending">Pending</option>
-                                                    <option value="Confirmed">Confirmed</option>
-                                                    <option value="Completed">Completed</option>
-                                                    <option value="Cancelled">Cancelled</option>
-                                                </select>
-                                            </div>
+                                            {/* ── IN PROGRESS ── */}
+                                            {cleanerWizardPhase === "in_progress" && (() => {
+                                                const tasks = activeCleanerJobDraft?.tasks || [];
+                                                const completedCount = tasks.filter(t => t.completed).length;
+                                                return (
+                                                    <>
+                                                        <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 16, padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                                            <div>
+                                                                <div style={{ fontSize: 11, fontWeight: 700, color: "#16a34a", textTransform: "uppercase", letterSpacing: "0.08em" }}>🟢 Job in Progress</div>
+                                                                <div style={{ fontSize: 13, color: "#166534", fontWeight: 600, marginTop: 2 }}>
+                                                                    {activeTimeEntry?.startedAt ? formatRuntime(activeTimeEntry.startedAt, jobsNow) : "—"}
+                                                                </div>
+                                                            </div>
+                                                            <div style={{ fontSize: 22, fontWeight: 900, color: "#16a34a" }}>{completedCount}/{tasks.length}</div>
+                                                        </div>
+
+                                                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                                            <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em" }}>Your Tasks</div>
+                                                            {tasks.map(task => (
+                                                                <div key={task.id} style={{ background: task.completed ? "#f0fdf4" : "#fff", border: `1px solid ${task.completed ? "#bbf7d0" : "#e2e8f0"}`, borderRadius: 16, padding: "12px 14px" }}>
+                                                                    <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                                                                        <button type="button" onClick={() => toggleCleanerTaskComplete(bookingForm.id, task.id)}
+                                                                            style={{ width: 26, height: 26, borderRadius: 8, border: `2px solid ${task.completed ? "#22c55e" : "#cbd5e1"}`, background: task.completed ? "#22c55e" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, cursor: "pointer" }}>
+                                                                            {task.completed && <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2.5 6.5l3 3 5-5" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                                                                        </button>
+                                                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                                                            <div style={{ fontSize: 13, fontWeight: 700, color: task.completed ? "#15803d" : "#1e293b", textDecoration: task.completed ? "line-through" : "none" }}>{task.label}</div>
+                                                                            {task.requiresPhoto && <span style={{ fontSize: 10, fontWeight: 700, color: "#d97706", background: "#fffbeb", padding: "1px 6px", borderRadius: 99, marginTop: 3, display: "inline-block" }}>📷 Photo needed</span>}
+                                                                            {((task.beforePhotos || []).length > 0 || (task.afterPhotos || []).length > 0) && (
+                                                                                <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 6 }}>
+                                                                                    {[...(task.beforePhotos || []), ...(task.afterPhotos || [])].map(photo => (
+                                                                                        <div key={photo.id}>
+                                                                                            {photo.url
+                                                                                                ? <img src={photo.url} alt="" style={{ width: 40, height: 40, borderRadius: 8, objectFit: "cover" }} />
+                                                                                                : <div style={{ width: 40, height: 40, borderRadius: 8, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#94a3b8" }}>{photo.uploading ? "…" : "?"}</div>
+                                                                                            }
+                                                                                        </div>
+                                                                                    ))}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                            <button type="button" onClick={() => addCleanerExtraTask(bookingForm.id)} style={{ border: "2px dashed #94a3b8", borderRadius: 14, padding: "10px 0", background: "transparent", color: "#64748b", fontSize: 13, fontWeight: 700, cursor: "pointer", width: "100%" }}>
+                                                                + Add extra task
+                                                            </button>
+                                                        </div>
+
+                                                        <button type="button" onClick={() => handleEndCleanerJob(bookingForm)} disabled={timeEntrySaving}
+                                                            style={{ width: "100%", padding: 15, borderRadius: 14, border: "none", background: "#ef4444", color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer" }}>
+                                                            {timeEntrySaving ? "Saving…" : "⏹  End Job & Add After Photos"}
+                                                        </button>
+                                                        {jobsFeedback && <div className="people-profile-message">{jobsFeedback}</div>}
+                                                    </>
+                                                );
+                                            })()}
+
+                                            {/* ── AFTER PHOTOS ── */}
+                                            {cleanerWizardPhase === "after_photos" && (() => {
+                                                const tasks = activeCleanerJobDraft?.tasks || [];
+                                                const reqTasks = tasks.filter(t => t.requiresPhoto);
+                                                const afterDone = reqTasks.every(t => (t.afterPhotos || []).some(p => p.url));
+                                                return (
+                                                    <>
+                                                        <div style={{ background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 16, padding: "12px 16px" }}>
+                                                            <div style={{ fontSize: 13, fontWeight: 800, color: "#9a3412" }}>Almost done!</div>
+                                                            <div style={{ fontSize: 12, color: "#7c3aed", marginTop: 4 }}>
+                                                                Tasks: {tasks.filter(t => t.completed).length}/{tasks.length} completed · Upload after photos then submit for review.
+                                                            </div>
+                                                        </div>
+
+                                                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                                            <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em" }}>📸 After Photos & Task Review</div>
+                                                            {tasks.map(task => (
+                                                                <div key={task.id} style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 16, padding: "12px 14px" }}>
+                                                                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                                                                        <button type="button" onClick={() => toggleCleanerTaskComplete(bookingForm.id, task.id)}
+                                                                            style={{ width: 24, height: 24, borderRadius: 7, border: `2px solid ${task.completed ? "#22c55e" : "#cbd5e1"}`, background: task.completed ? "#22c55e" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, cursor: "pointer" }}>
+                                                                            {task.completed && <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                                                                        </button>
+                                                                        <span style={{ fontSize: 13, fontWeight: 700, color: task.completed ? "#15803d" : "#1e293b", flex: 1 }}>{task.label}</span>
+                                                                        {task.requiresPhoto && <span style={{ fontSize: 10, fontWeight: 700, color: "#dc2626", background: "#fef2f2", padding: "2px 6px", borderRadius: 99 }}>Required</span>}
+                                                                    </div>
+                                                                    <div style={{ paddingLeft: 34 }}>
+                                                                        <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 6 }}>After Photos</div>
+                                                                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                                                                            {(task.afterPhotos || []).map(photo => (
+                                                                                <div key={photo.id} style={{ position: "relative" }}>
+                                                                                    {photo.url
+                                                                                        ? <img src={photo.url} alt="" style={{ width: 54, height: 54, borderRadius: 10, objectFit: "cover" }} />
+                                                                                        : <div style={{ width: 54, height: 54, borderRadius: 10, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#94a3b8" }}>{photo.uploading ? "…" : "?"}</div>
+                                                                                    }
+                                                                                    {!photo.uploading && <button type="button" onClick={() => removeCleanerJobPhoto(bookingForm.id, task.id, "afterPhotos", photo.id)} style={{ position: "absolute", top: -4, right: -4, width: 18, height: 18, borderRadius: "50%", background: "#ef4444", border: "none", color: "#fff", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>}
+                                                                                </div>
+                                                                            ))}
+                                                                            <label style={{ width: 54, height: 54, borderRadius: 10, border: "2px dashed #94a3b8", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: "#f8fafc", flexShrink: 0 }}>
+                                                                                <span style={{ fontSize: 22, color: "#94a3b8", lineHeight: 1 }}>+</span>
+                                                                                <input type="file" accept="image/*" capture="environment" multiple style={{ display: "none" }} onChange={e => updateCleanerJobPhotos(bookingForm.id, task.id, "afterPhotos", e.target.files)} />
+                                                                            </label>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+
+                                                        {reqTasks.length > 0 && !afterDone && (
+                                                            <div style={{ fontSize: 12, color: "#d97706", textAlign: "center", fontWeight: 600 }}>Upload required after photos to submit for review</div>
+                                                        )}
+                                                        <button type="button" onClick={() => handleSubmitJobForReview(bookingForm)} disabled={!afterDone || timeEntrySaving}
+                                                            style={{ width: "100%", padding: 15, borderRadius: 14, border: "none", background: afterDone ? "#059669" : "#e2e8f0", color: afterDone ? "#fff" : "#94a3b8", fontSize: 15, fontWeight: 800, cursor: afterDone ? "pointer" : "not-allowed" }}>
+                                                            {timeEntrySaving ? "Submitting…" : "✅  Submit Job for Review"}
+                                                        </button>
+                                                        {jobsFeedback && <div className="people-profile-message">{jobsFeedback}</div>}
+                                                    </>
+                                                );
+                                            })()}
                                         </>
                                     ) : (
                                         <>
@@ -5350,22 +5469,7 @@ export default function Home() {
                                     <button type="button" onClick={() => setBookingModalOpen(false)} className="btn btn-secondary btn-sm rounded-lg font-bold">
                                         Cancel
                                     </button>
-                                    {isCleanerBookingEditor ? (
-                                        <>
-                                            <button type="submit" className="btn btn-secondary btn-sm rounded-lg font-bold">
-                                                Save Status
-                                            </button>
-                                            {activeTimeEntry?.bookingId === bookingForm.id ? (
-                                                <button type="button" onClick={() => handleEndCleanerJob(bookingForm)} className="btn btn-primary btn-sm rounded-lg text-white font-bold">
-                                                    End Job
-                                                </button>
-                                            ) : (
-                                                <button type="button" onClick={() => handleStartCleanerJob(bookingForm)} className="btn btn-primary btn-sm rounded-lg text-white font-bold">
-                                                    Start Job
-                                                </button>
-                                            )}
-                                        </>
-                                    ) : (
+                                    {!isCleanerBookingEditor && (
                                         <button type="submit" className="btn btn-primary btn-sm rounded-lg text-white font-bold">
                                             Save Changes
                                         </button>

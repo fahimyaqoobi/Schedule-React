@@ -164,6 +164,40 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
         }));
     };
 
+    const addTask = () => {
+        const newTask = { id: createLocalId("task"), label: "New Task", requiresPhoto: false };
+        setCatalog(prev => ({
+            ...prev,
+            categories: prev.categories.map(cat =>
+                cat.id === activeTab
+                    ? { ...cat, tasks: [...(cat.tasks || []), newTask] }
+                    : cat
+            )
+        }));
+    };
+
+    const updateTask = (taskId, field, value) => {
+        setCatalog(prev => ({
+            ...prev,
+            categories: prev.categories.map(cat =>
+                cat.id === activeTab
+                    ? { ...cat, tasks: (cat.tasks || []).map(t => t.id === taskId ? { ...t, [field]: value } : t) }
+                    : cat
+            )
+        }));
+    };
+
+    const deleteTask = (taskId) => {
+        setCatalog(prev => ({
+            ...prev,
+            categories: prev.categories.map(cat =>
+                cat.id === activeTab
+                    ? { ...cat, tasks: (cat.tasks || []).filter(t => t.id !== taskId) }
+                    : cat
+            )
+        }));
+    };
+
     if (!activeCategory) return null;
 
     return (
@@ -480,6 +514,58 @@ export default function V2SettingsManager({ catalog, setCatalog, onSave }) {
                                 </details>
                             ))
                         )}
+                    </div>
+                </section>
+
+                {/* ── TASK CHECKLIST ── */}
+                <section className="rounded-brand-lg border border-brand-mist bg-white shadow-sm overflow-hidden">
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 24px", borderBottom: "1px solid #e2e8f0" }}>
+                        <div>
+                            <p className="catalog-studio-eyebrow">Cleaner Workflow</p>
+                            <h4 className="catalog-studio-section-title">Task Checklist</h4>
+                        </div>
+                        <button type="button" onClick={addTask} className={secondaryButtonClass}>
+                            + Add Task
+                        </button>
+                    </div>
+                    <div style={{ padding: "16px 24px", display: "flex", flexDirection: "column", gap: 8 }}>
+                        {(activeCategory.tasks || []).length === 0 ? (
+                            <div style={{ padding: "32px 0", textAlign: "center", color: "#94a3b8", fontSize: 13, fontWeight: 600, border: "2px dashed #e2e8f0", borderRadius: 12 }}>
+                                No tasks yet. Add tasks to guide cleaners step by step.
+                            </div>
+                        ) : (
+                            (activeCategory.tasks || []).map((task, idx) => (
+                                <div key={task.id} style={{ display: "flex", alignItems: "center", gap: 10, background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 12, padding: "10px 14px" }}>
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", minWidth: 20 }}>{idx + 1}</span>
+                                    <input
+                                        type="text"
+                                        value={task.label}
+                                        onChange={e => updateTask(task.id, "label", e.target.value)}
+                                        placeholder="Task description…"
+                                        style={{ flex: 1, border: "1px solid #e2e8f0", borderRadius: 8, padding: "6px 10px", fontSize: 12, fontWeight: 600, color: "#1e293b", background: "#fff" }}
+                                    />
+                                    <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 11, fontWeight: 700, color: "#64748b", whiteSpace: "nowrap" }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={task.requiresPhoto}
+                                            onChange={e => updateTask(task.id, "requiresPhoto", e.target.checked)}
+                                            style={{ width: 15, height: 15, accentColor: "#3b82f6", cursor: "pointer" }}
+                                        />
+                                        📷 Photo required
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={() => deleteTask(task.id)}
+                                        style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid #fca5a5", background: "#fef2f2", color: "#dc2626", fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                            ))
+                        )}
+                        <p style={{ fontSize: 10, color: "#94a3b8", marginTop: 4 }}>
+                            Tasks marked "Photo required" will gate the Start Job and Submit for Review buttons in the cleaner workflow.
+                        </p>
                     </div>
                 </section>
             </div>

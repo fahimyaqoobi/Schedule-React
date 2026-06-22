@@ -5,126 +5,209 @@ export default function EditRequestsTab({
     editRequestResolutions,
     setEditRequestResolutions,
     handleResolveEdit,
+    handleResolveJobCompletion,
 }) {
     const pending = editRequests.filter(r => r.status === "Pending");
+    const jobCompletions = pending.filter(r => r.requestedData?.cleanerChecklist?.tasks?.length > 0);
+    const bookingEdits = pending.filter(r => !r.requestedData?.cleanerChecklist?.tasks?.length);
 
     return (
-        <div className="animate-fade flex flex-col gap-6">
-            {pending.length === 0 ? (
-                <div className="panel-card p-12 text-center text-slate-400 text-sm">Review Inbox is clean. No cleaner modification requests pending.</div>
-            ) : (
-                pending.map(req => {
-                    const orig = req.originalData || {};
-                    const reqd = req.requestedData || {};
-                    const resolution = editRequestResolutions[req.id] || {
-                        finalStatus: reqd.status || orig.status || "Confirmed",
-                        paymentStatus: reqd.paymentStatus || orig.paymentStatus || "unpaid",
-                    };
-                    return (
-                        <div key={req.id} className="panel-card border-l-4 border-amber-500 p-6 flex flex-col gap-4 bg-white shadow rounded-2xl">
-                            <div className="flex justify-between items-start border-b border-slate-100 pb-3">
-                                <div>
-                                    <h4 className="font-extrabold text-sm text-slate-800">Booking Edit Request for {req.clientName}</h4>
-                                    <span className="text-[10px] text-slate-400 block mt-1">Submitted by: <strong>{req.requestedBy}</strong> • {req.createdAt.split("T")[0]}</span>
-                                </div>
-                                <div className="flex gap-2">
-                                    <button onClick={() => handleResolveEdit(req.id, "approve")} className="btn btn-primary btn-sm">Approve &amp; Merge</button>
-                                    <button onClick={() => handleResolveEdit(req.id, "reject")} className="btn btn-danger btn-sm">Reject Request</button>
-                                </div>
-                            </div>
+        <div className="animate-fade flex flex-col gap-8">
 
-                            <div className="comparison-grid grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="comparison-column bg-slate-50 p-4 rounded-xl border border-slate-200">
-                                    <div className="comparison-title text-[9px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200 pb-1 mb-2">Original dispatch Details</div>
-                                    <div className="flex flex-col gap-1.5 text-xs text-slate-700">
-                                        <div><strong>Client:</strong> {orig.clientName}</div>
-                                        <div><strong>Phone:</strong> {orig.phone}</div>
-                                        <div><strong>Email:</strong> {orig.email}</div>
-                                        <div><strong>Address 1:</strong> {orig.address1}</div>
-                                        <div><strong>Address 2:</strong> {orig.address2 || "None"}</div>
-                                        <div><strong>City:</strong> {orig.city} ({orig.postalCode})</div>
-                                        <div><strong>Service:</strong> {orig.service}</div>
-                                        <div><strong>Price / Duration:</strong> ${orig.price} / {orig.duration} hrs</div>
-                                        {orig.customDiscountAmount > 0 && <div className="text-green-600 font-semibold"><strong>Special Discount:</strong> -${parseFloat(orig.customDiscountAmount).toFixed(2)}</div>}
-                                        <div><strong>Schedule Date:</strong> {orig.date} • {orig.time}</div>
-                                        <div><strong>Assigned Team:</strong> {orig.team}</div>
-                                        <div><strong>Status:</strong> <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${orig.status === "Completed" ? "bg-green-100 text-green-700" : orig.status === "Cancelled" ? "bg-red-100 text-red-700" : orig.status === "Confirmed" ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"}`}>{orig.status || "Pending"}</span></div>
-                                        <div><strong>Payment:</strong> {orig.paymentStatus || "unpaid"}</div>
-                                    </div>
-                                </div>
-
-                                <div className="comparison-column bg-amber-50 bg-opacity-30 border border-amber-200 p-4 rounded-xl">
-                                    <div className="comparison-title text-[9px] font-bold text-amber-700 uppercase tracking-widest border-b border-amber-200 pb-1 mb-2">Requested Updates</div>
-                                    <div className="flex flex-col gap-1.5 text-xs text-slate-700">
-                                        <div><strong>Client:</strong> <span className={orig.clientName !== reqd.clientName ? "diff-highlight font-bold" : ""}>{reqd.clientName}</span></div>
-                                        <div><strong>Phone:</strong> <span className={orig.phone !== reqd.phone ? "diff-highlight font-bold" : ""}>{reqd.phone}</span></div>
-                                        <div><strong>Email:</strong> <span className={orig.email !== reqd.email ? "diff-highlight font-bold" : ""}>{reqd.email}</span></div>
-                                        <div><strong>Address 1:</strong> <span className={orig.address1 !== reqd.address1 ? "diff-highlight font-bold" : ""}>{reqd.address1}</span></div>
-                                        <div><strong>Address 2:</strong> <span className={orig.address2 !== reqd.address2 ? "diff-highlight font-bold" : ""}>{reqd.address2 || "None"}</span></div>
-                                        <div><strong>City:</strong> <span className={(orig.city !== reqd.city || orig.postalCode !== reqd.postalCode) ? "diff-highlight font-bold" : ""}>{reqd.city} ({reqd.postalCode})</span></div>
-                                        <div><strong>Service:</strong> <span className={orig.service !== reqd.service ? "diff-highlight font-bold" : ""}>{reqd.service}</span></div>
-                                        <div><strong>Price / Duration:</strong> <span className={(orig.price !== reqd.price || orig.duration !== reqd.duration) ? "diff-highlight font-bold" : ""}>${reqd.price} / {reqd.duration} hrs</span></div>
-                                        {reqd.customDiscountAmount > 0 && <div className="text-green-600 font-semibold"><strong>Special Discount:</strong> <span className={orig.customDiscountAmount !== reqd.customDiscountAmount ? "diff-highlight font-bold text-green-700" : ""}>-${parseFloat(reqd.customDiscountAmount).toFixed(2)}</span></div>}
-                                        <div><strong>Schedule Date:</strong> <span className={(orig.date !== reqd.date || orig.time !== reqd.time) ? "diff-highlight font-bold" : ""}>{reqd.date} • {reqd.time}</span></div>
-                                        <div><strong>Assigned Team:</strong> <span className={orig.team !== reqd.team ? "diff-highlight font-bold" : ""}>{reqd.team}</span></div>
-                                        <div><strong>Status:</strong> <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${orig.status !== reqd.status ? "diff-highlight" : ""} ${reqd.status === "Completed" ? "bg-green-100 text-green-700" : reqd.status === "Cancelled" ? "bg-red-100 text-red-700" : reqd.status === "Confirmed" ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"}`}>{reqd.status || "Pending"}</span></div>
-                                        <div><strong>Payment:</strong> <span className={orig.paymentStatus !== reqd.paymentStatus ? "diff-highlight font-bold" : ""}>{reqd.paymentStatus || "unpaid"}</span></div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="comparison-column bg-slate-50 p-4 rounded-xl border border-slate-200">
-                                    <div className="comparison-title text-[9px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200 pb-1 mb-2">Admin Final Decision</div>
-                                    <div className="flex flex-col gap-3 text-xs text-slate-700">
-                                        <label className="flex flex-col gap-1">
-                                            <strong>Final Job Status</strong>
-                                            <select
-                                                value={resolution.finalStatus}
-                                                onChange={e => setEditRequestResolutions(prev => ({ ...prev, [req.id]: { ...resolution, finalStatus: e.target.value } }))}
-                                                className="border border-slate-200 rounded-lg p-2"
-                                            >
-                                                <option value="Pending">Pending</option>
-                                                <option value="Confirmed">Confirmed</option>
-                                                <option value="Completed">Completed</option>
-                                                <option value="Cancelled">Cancelled</option>
-                                            </select>
-                                        </label>
-                                        <label className="flex flex-col gap-1">
-                                            <strong>Payment Status</strong>
-                                            <select
-                                                value={resolution.paymentStatus}
-                                                onChange={e => setEditRequestResolutions(prev => ({ ...prev, [req.id]: { ...resolution, paymentStatus: e.target.value } }))}
-                                                className="border border-slate-200 rounded-lg p-2"
-                                            >
-                                                <option value="unpaid">Unpaid</option>
-                                                <option value="paid">Paid</option>
-                                            </select>
-                                        </label>
-                                        <p className="text-[11px] text-slate-500">Payment is admin-only and does not have to match the operational job status.</p>
-                                    </div>
-                                </div>
-
-                                {reqd.cleanerChecklist?.tasks?.length > 0 && (
-                                    <div className="comparison-column bg-amber-50 bg-opacity-30 border border-amber-200 p-4 rounded-xl">
-                                        <div className="comparison-title text-[9px] font-bold text-amber-700 uppercase tracking-widest border-b border-amber-200 pb-1 mb-2">Cleaner Completion Review</div>
-                                        <div className="flex flex-col gap-2 text-xs text-slate-700">
-                                            {reqd.cleanerChecklist.tasks.map(task => (
-                                                <div key={task.id} className="rounded-xl border border-amber-200 bg-white p-3">
-                                                    <strong>{task.label}</strong>
-                                                    <div className="mt-2"><strong>Before photos:</strong> {(task.beforePhotos || []).length ? task.beforePhotos.join(", ") : "None submitted"}</div>
-                                                    <div><strong>After photos:</strong> {(task.afterPhotos || []).length ? task.afterPhotos.join(", ") : "None submitted"}</div>
-                                                </div>
-                                            ))}
-                                            <p className="text-[11px] text-slate-500">Photo files are not persistently reviewable across accounts yet until storage-backed uploads are completed.</p>
+            {/* ── JOB COMPLETION REVIEWS ── */}
+            <section>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+                    <div style={{ width: 4, height: 22, background: "#059669", borderRadius: 99 }} />
+                    <h3 style={{ fontSize: 13, fontWeight: 800, color: "#064e3b", margin: 0 }}>Job Completion Reviews</h3>
+                    {jobCompletions.length > 0 && (
+                        <span style={{ fontSize: 11, fontWeight: 700, background: "#d1fae5", color: "#059669", padding: "2px 9px", borderRadius: 99 }}>{jobCompletions.length}</span>
+                    )}
+                </div>
+                {jobCompletions.length === 0 ? (
+                    <div className="panel-card p-8 text-center text-slate-400 text-sm">No job completion reviews pending.</div>
+                ) : (
+                    <div className="flex flex-col gap-6">
+                        {jobCompletions.map(req => {
+                            const checklist = req.requestedData.cleanerChecklist;
+                            const submittedDate = checklist.submittedAt ? new Date(checklist.submittedAt).toLocaleDateString("en-CA", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : req.createdAt?.split("T")[0];
+                            const totalTasks = checklist.tasks.length;
+                            const completedTasks = checklist.tasks.filter(t => t.completed).length;
+                            return (
+                                <div key={req.id} style={{ background: "#fff", border: "1px solid #d1fae5", borderLeft: "4px solid #059669", borderRadius: 18, padding: 20, display: "flex", flexDirection: "column", gap: 16, boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
+                                    {/* Header */}
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+                                        <div>
+                                            <div style={{ fontSize: 14, fontWeight: 900, color: "#1e293b" }}>Job Review — {req.clientName}</div>
+                                            <div style={{ fontSize: 11, color: "#64748b", marginTop: 3 }}>
+                                                Submitted by <strong>{req.requestedBy}</strong> · {submittedDate} · <span style={{ color: completedTasks === totalTasks ? "#059669" : "#d97706", fontWeight: 700 }}>{completedTasks}/{totalTasks} tasks done</span>
+                                            </div>
+                                        </div>
+                                        <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                                            <button onClick={() => handleResolveJobCompletion(req.id, "approve")} style={{ padding: "8px 16px", borderRadius: 10, border: "none", background: "#059669", color: "#fff", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
+                                                ✓ Approve &amp; Complete
+                                            </button>
+                                            <button onClick={() => handleResolveJobCompletion(req.id, "reject")} style={{ padding: "8px 16px", borderRadius: 10, border: "1px solid #fca5a5", background: "#fef2f2", color: "#dc2626", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
+                                                Reject
+                                            </button>
                                         </div>
                                     </div>
-                                )}
-                            </div>
-                        </div>
-                    );
-                })
-            )}
+
+                                    {/* Task cards */}
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                                        {checklist.tasks.map(task => (
+                                            <div key={task.id} style={{ background: task.completed ? "#f0fdf4" : "#f8fafc", border: `1px solid ${task.completed ? "#bbf7d0" : "#e2e8f0"}`, borderRadius: 14, padding: "12px 14px" }}>
+                                                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                                                    <div style={{ width: 22, height: 22, borderRadius: 7, background: task.completed ? "#22c55e" : "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                                        {task.completed && <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M1.5 5.5l3 3 5-5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                                                    </div>
+                                                    <span style={{ fontSize: 12, fontWeight: 700, color: task.completed ? "#15803d" : "#1e293b", flex: 1 }}>{task.label}</span>
+                                                    <span style={{ fontSize: 10, fontWeight: 700, color: task.completed ? "#059669" : "#94a3b8", background: task.completed ? "#d1fae5" : "#f1f5f9", padding: "2px 8px", borderRadius: 99 }}>
+                                                        {task.completed ? "Done" : "Skipped"}
+                                                    </span>
+                                                </div>
+
+                                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                                                    {[["Before", task.beforePhotos || []], ["After", task.afterPhotos || []]].map(([label, photos]) => (
+                                                        <div key={label}>
+                                                            <div style={{ fontSize: 10, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+                                                                {label === "Before" ? "📷 Before" : "✅ After"}
+                                                            </div>
+                                                            {photos.length === 0 ? (
+                                                                <div style={{ fontSize: 11, color: "#94a3b8", fontStyle: "italic" }}>No photos</div>
+                                                            ) : (
+                                                                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                                                                    {photos.map(photo => (
+                                                                        photo.url ? (
+                                                                            <a key={photo.id} href={photo.url} target="_blank" rel="noreferrer">
+                                                                                <img src={photo.url} alt={photo.name || label} style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 10, border: "1px solid #e2e8f0", cursor: "pointer" }} />
+                                                                            </a>
+                                                                        ) : (
+                                                                            <div key={photo.id} style={{ width: 64, height: 64, borderRadius: 10, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#94a3b8" }}>No URL</div>
+                                                                        )
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </section>
+
+            {/* ── BOOKING EDIT REQUESTS ── */}
+            <section>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+                    <div style={{ width: 4, height: 22, background: "#f59e0b", borderRadius: 99 }} />
+                    <h3 style={{ fontSize: 13, fontWeight: 800, color: "#78350f", margin: 0 }}>Booking Edit Requests</h3>
+                    {bookingEdits.length > 0 && (
+                        <span style={{ fontSize: 11, fontWeight: 700, background: "#fef3c7", color: "#b45309", padding: "2px 9px", borderRadius: 99 }}>{bookingEdits.length}</span>
+                    )}
+                </div>
+                {bookingEdits.length === 0 ? (
+                    <div className="panel-card p-8 text-center text-slate-400 text-sm">No booking edit requests pending.</div>
+                ) : (
+                    <div className="flex flex-col gap-6">
+                        {bookingEdits.map(req => {
+                            const orig = req.originalData || {};
+                            const reqd = req.requestedData || {};
+                            const resolution = editRequestResolutions[req.id] || {
+                                finalStatus: reqd.status || orig.status || "Confirmed",
+                                paymentStatus: reqd.paymentStatus || orig.paymentStatus || "unpaid",
+                            };
+                            return (
+                                <div key={req.id} style={{ background: "#fff", border: "1px solid #fde68a", borderLeft: "4px solid #f59e0b", borderRadius: 18, padding: 20, display: "flex", flexDirection: "column", gap: 16, boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
+                                    {/* Header */}
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+                                        <div>
+                                            <div style={{ fontSize: 14, fontWeight: 900, color: "#1e293b" }}>Edit Request — {req.clientName}</div>
+                                            <div style={{ fontSize: 11, color: "#64748b", marginTop: 3 }}>
+                                                Submitted by <strong>{req.requestedBy}</strong> · {req.createdAt?.split("T")[0]}
+                                            </div>
+                                        </div>
+                                        <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                                            <button onClick={() => handleResolveEdit(req.id, "approve")} style={{ padding: "8px 16px", borderRadius: 10, border: "none", background: "#1d4ed8", color: "#fff", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
+                                                ✓ Approve &amp; Merge
+                                            </button>
+                                            <button onClick={() => handleResolveEdit(req.id, "reject")} style={{ padding: "8px 16px", borderRadius: 10, border: "1px solid #fca5a5", background: "#fef2f2", color: "#dc2626", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
+                                                Reject
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Before / After comparison */}
+                                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                                        {/* Original */}
+                                        <div style={{ background: "#f8fafc", borderRadius: 12, padding: "12px 14px", border: "1px solid #e2e8f0" }}>
+                                            <div style={{ fontSize: 9, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Original</div>
+                                            <div style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, color: "#334155" }}>
+                                                <div><strong>Client:</strong> {orig.clientName}</div>
+                                                <div><strong>Service:</strong> {orig.service}</div>
+                                                <div><strong>Date:</strong> {orig.date} · {orig.time}</div>
+                                                <div><strong>Price:</strong> ${orig.price} / {orig.duration}h</div>
+                                                <div><strong>Status:</strong> {orig.status}</div>
+                                                <div><strong>Address:</strong> {orig.address1}, {orig.city}</div>
+                                                <div><strong>Team:</strong> {orig.team}</div>
+                                            </div>
+                                        </div>
+
+                                        {/* Requested */}
+                                        <div style={{ background: "#fffbeb", borderRadius: 12, padding: "12px 14px", border: "1px solid #fde68a" }}>
+                                            <div style={{ fontSize: 9, fontWeight: 700, color: "#b45309", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Requested Changes</div>
+                                            <div style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, color: "#334155" }}>
+                                                {[
+                                                    ["Client", orig.clientName, reqd.clientName],
+                                                    ["Service", orig.service, reqd.service],
+                                                    ["Date", `${orig.date} · ${orig.time}`, `${reqd.date} · ${reqd.time}`],
+                                                    ["Price", `$${orig.price} / ${orig.duration}h`, `$${reqd.price} / ${reqd.duration}h`],
+                                                    ["Status", orig.status, reqd.status],
+                                                    ["Address", `${orig.address1}, ${orig.city}`, `${reqd.address1}, ${reqd.city}`],
+                                                    ["Team", orig.team, reqd.team],
+                                                ].map(([field, oldVal, newVal]) => (
+                                                    <div key={field}>
+                                                        <strong>{field}:</strong>{" "}
+                                                        <span style={oldVal !== newVal ? { fontWeight: 700, background: "#fef08a", padding: "0 3px", borderRadius: 4 } : {}}>
+                                                            {newVal}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Admin Decision */}
+                                    <div style={{ background: "#f8fafc", borderRadius: 12, padding: "12px 14px", border: "1px solid #e2e8f0" }}>
+                                        <div style={{ fontSize: 9, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Admin Final Decision</div>
+                                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                                            <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11 }}>
+                                                <strong>Final Job Status</strong>
+                                                <select value={resolution.finalStatus} onChange={e => setEditRequestResolutions(prev => ({ ...prev, [req.id]: { ...resolution, finalStatus: e.target.value } }))} className="border border-slate-200 rounded-lg p-2">
+                                                    <option value="Pending">Pending</option>
+                                                    <option value="Confirmed">Confirmed</option>
+                                                    <option value="Completed">Completed</option>
+                                                    <option value="Cancelled">Cancelled</option>
+                                                </select>
+                                            </label>
+                                            <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11 }}>
+                                                <strong>Payment Status</strong>
+                                                <select value={resolution.paymentStatus} onChange={e => setEditRequestResolutions(prev => ({ ...prev, [req.id]: { ...resolution, paymentStatus: e.target.value } }))} className="border border-slate-200 rounded-lg p-2">
+                                                    <option value="unpaid">Unpaid</option>
+                                                    <option value="paid">Paid</option>
+                                                </select>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </section>
         </div>
     );
 }
