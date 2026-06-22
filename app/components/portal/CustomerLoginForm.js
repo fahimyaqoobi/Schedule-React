@@ -16,17 +16,25 @@ export default function CustomerLoginForm() {
     const router = useRouter();
     const [step, setStep] = useState("phone");
     const [phone, setPhone] = useState("");
-    const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+    const [otp, setOtp] = useState("");          // single string, not array
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [cooldown, setCooldown] = useState(0);
-    const otpRefs = useRef([]);
+    const otpInputRef = useRef(null);
 
     useEffect(() => {
         if (cooldown <= 0) return;
         const t = setTimeout(() => setCooldown(c => c - 1), 1000);
         return () => clearTimeout(t);
     }, [cooldown]);
+
+    // Focus the hidden input whenever the OTP step is shown
+    useEffect(() => {
+        if (step === "otp") {
+            const t = setTimeout(() => otpInputRef.current?.focus(), 120);
+            return () => clearTimeout(t);
+        }
+    }, [step]);
 
     async function sendOtp() {
         const digits = phone.replace(/\D/g, "");
@@ -40,49 +48,21 @@ export default function CustomerLoginForm() {
             });
             const data = await res.json();
             if (!data.ok) throw new Error(data.error || "Failed to send code.");
+            setOtp("");
             setStep("otp");
             setCooldown(60);
-            setTimeout(() => otpRefs.current[0]?.focus(), 100);
         } catch (e) { setError(e.message); }
         finally { setLoading(false); }
     }
 
-    function handleOtpChange(i, e) {
-        const rawVal = e.target.value.replace(/\D/g, "");
-        // iOS SMS autofill delivers all 6 digits into the focused box at once
-        if (rawVal.length > 1) {
-            const next = otp.map((_, j) => rawVal[j] || "");
-            setOtp(next);
-            otpRefs.current[Math.min(rawVal.length - 1, 5)]?.focus();
-            return;
-        }
-        const val = rawVal.slice(0, 1);
-        const next = [...otp]; next[i] = val; setOtp(next);
-        if (val && i < 5) otpRefs.current[i + 1]?.focus();
-    }
-
-    function handleOtpKey(i, e) {
-        if (e.key === "Backspace" && !otp[i] && i > 0) otpRefs.current[i - 1]?.focus();
-    }
-
-    function handleOtpPaste(e) {
-        e.preventDefault();
-        const pasted = (e.clipboardData?.getData("text") || "").replace(/\D/g, "").slice(0, 6);
-        if (!pasted) return;
-        const next = otp.map((_, j) => pasted[j] || "");
-        setOtp(next);
-        otpRefs.current[Math.min(pasted.length - 1, 5)]?.focus();
-    }
-
     async function verifyOtp() {
-        const code = otp.join("");
-        if (code.length !== 6) { setError("Please enter the 6-digit code."); return; }
+        if (otp.length !== 6) { setError("Please enter the 6-digit code."); return; }
         setLoading(true); setError("");
         try {
             const res = await fetch("/api/customer/verify-otp", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ phone: phone.replace(/\D/g, ""), code }),
+                body: JSON.stringify({ phone: phone.replace(/\D/g, ""), code: otp }),
             });
             const data = await res.json();
             if (!data.ok) throw new Error(data.error || "Verification failed.");
@@ -101,8 +81,6 @@ export default function CustomerLoginForm() {
         input: { width: "100%", border: "1.5px solid #e2e8f0", borderRadius: 14, padding: "14px 16px", fontSize: 18, outline: "none", boxSizing: "border-box", fontFamily: "inherit", color: "#0f172a" },
         btn: { width: "100%", background: ACTION, color: "#fff", border: "none", borderRadius: 14, padding: "15px 0", fontSize: 16, fontWeight: 700, cursor: "pointer", marginTop: 18, letterSpacing: "0.02em" },
         error: { color: "#dc2626", fontSize: 13, marginTop: 12, textAlign: "center" },
-        otpRow: { display: "flex", gap: 8, justifyContent: "center", margin: "20px 0" },
-        otpBox: { width: 46, height: 54, border: "1.5px solid #e2e8f0", borderRadius: 12, textAlign: "center", fontSize: 26, fontWeight: 700, color: BRAND, outline: "none", fontFamily: "inherit", boxSizing: "border-box" },
         ghost: { background: "none", border: "none", color: ACTION, fontSize: 13, cursor: "pointer", fontWeight: 600, padding: 0 },
     };
 
@@ -137,30 +115,67 @@ export default function CustomerLoginForm() {
                         <p style={{ textAlign: "center", fontSize: 14, color: "#475569", marginBottom: 6 }}>
                             Code sent to <strong>{phone}</strong>
                         </p>
-                        <div style={S.otpRow}>
-                            {otp.map((v, i) => (
-                                <input
+
+                        {/* OTP entry — single hidden input overlaid over 6 visual boxes */}
+                        <div
+                            style={{ position: "relative", display: "flex", gap: 8, justifyContent: "center", margin: "20px 0", cursor: "text" }}
+                            onClick={() => otpInputRef.current?.focus()}
+                        >
+                            {/* Visual boxes */}
+                            {Array.from({ length: 6 }, (_, i) => (
+                                <div
                                     key={i}
-                                    ref={el => { otpRefs.current[i] = el; }}
-                                    style={S.otpBox}
-                                    type="tel"
-                                    inputMode="numeric"
-                                    autoComplete={i === 0 ? "one-time-code" : "off"}
-                                    value={v}
-                                    onChange={e => handleOtpChange(i, e)}
-                                    onKeyDown={e => handleOtpKey(i, e)}
-                                    onPaste={handleOtpPaste}
-                                />
+                                    style={{
+                                        width: 46, height: 54, borderRadius: 12, textAlign: "center",
+                                        lineHeight: "54px", fontSize: 26, fontWeight: 700, color: BRAND,
+                                        background: "#fff", flexShrink: 0,
+                                        border: `1.5px solid ${otp[i] ? ACTION : i === otp.length ? "#94a3b8" : "#e2e8f0"}`,
+                                        transition: "border-color 0.15s",
+                                    }}
+                                >
+                                    {otp[i] || ""}
+                                </div>
                             ))}
+
+                            {/* Single invisible input covering the whole row — captures all input */}
+                            <input
+                                ref={otpInputRef}
+                                type="tel"
+                                inputMode="numeric"
+                                autoComplete="one-time-code"
+                                value={otp}
+                                onChange={e => {
+                                    const v = e.target.value.replace(/\D/g, "").slice(0, 6);
+                                    setOtp(v);
+                                    if (v.length === 6) verifyOtp();
+                                }}
+                                onKeyDown={e => e.key === "Enter" && verifyOtp()}
+                                maxLength={6}
+                                style={{
+                                    position: "absolute",
+                                    inset: 0,
+                                    width: "100%",
+                                    height: "100%",
+                                    opacity: 0,
+                                    border: "none",
+                                    outline: "none",
+                                    fontSize: 16,   // prevents iOS auto-zoom
+                                    cursor: "text",
+                                    zIndex: 2,
+                                    WebkitTapHighlightColor: "transparent",
+                                }}
+                            />
                         </div>
-                        <button style={{ ...S.btn, opacity: loading ? 0.7 : 1 }} onClick={verifyOtp} disabled={loading}>
+
+                        <button style={{ ...S.btn, opacity: loading || otp.length !== 6 ? 0.7 : 1 }} onClick={verifyOtp} disabled={loading || otp.length !== 6}>
                             {loading ? "Verifying…" : "Verify & Sign In"}
                         </button>
+
                         <div style={{ textAlign: "center", marginTop: 16 }}>
                             {cooldown > 0 ? (
                                 <span style={{ fontSize: 13, color: "#94a3b8" }}>Resend code in {cooldown}s</span>
                             ) : (
-                                <button style={S.ghost} onClick={() => { setStep("phone"); setOtp(["", "", "", "", "", ""]); setError(""); }}>
+                                <button style={S.ghost} onClick={() => { setStep("phone"); setOtp(""); setError(""); }}>
                                     ← Change number or resend
                                 </button>
                             )}
