@@ -9,7 +9,18 @@ export async function POST(request) {
         const body = await request.json();
         const profile = await getCustomerProfile(phone) || {};
 
-        const { service, date, time, address1, address2, city, province, postalCode, notes, promoCode, extras } = body;
+        const {
+            service,
+            cartItems,
+            date,
+            time,
+            address1, address2, city, province, postalCode,
+            notes,
+            promoCode, promoDiscount, promoName,
+            rewardPointsUsed, rewardPointsDiscount,
+            subtotal, tax, total,
+        } = body;
+
         if (!service || !date) throw new Error("Service and date are required.");
 
         const booking = {
@@ -17,6 +28,7 @@ export async function POST(request) {
             clientName: profile.name || "",
             email: profile.email || "",
             service,
+            cartItems: Array.isArray(cartItems) ? cartItems : [],
             date,
             time: time || "Morning (8am–12pm)",
             address1: address1 || profile.address || "",
@@ -26,20 +38,35 @@ export async function POST(request) {
             postalCode: postalCode || profile.postalCode || "",
             notes: notes || "",
             promoCode: promoCode || "",
-            extras: extras || [],
+            promoDiscount: Number(promoDiscount || 0),
+            promoName: promoName || "",
+            rewardPointsUsed: Number(rewardPointsUsed || 0),
+            rewardPointsDiscount: Number(rewardPointsDiscount || 0),
             status: "Pending",
             customerConfirmed: false,
             paymentStatus: "unpaid",
             source: "customer_portal",
             createdAt: Date.now(),
-            price: 0,
-            subtotal: 0,
-            tax: 0,
+            // Estimates — admin sets final price when confirming
+            subtotal: Number(subtotal || 0),
+            tax: Number(tax || 0),
+            price: Number(total || 0),
             assignedStaff: [],
             team: "",
         };
 
         const ref = await adminDb.collection("bookings").add(booking);
+
+        // Deduct reward points if used
+        if (Number(rewardPointsUsed) > 0) {
+            const custRef = adminDb.collection("customers").doc(phone);
+            const snap = await custRef.get();
+            if (snap.exists) {
+                const current = Number(snap.data().rewardPoints || 0);
+                await custRef.update({ rewardPoints: Math.max(0, current - Number(rewardPointsUsed)) });
+            }
+        }
+
         return NextResponse.json({ ok: true, bookingId: ref.id });
     } catch (err) {
         const status = err.message === "Unauthorized" ? 401 : 400;
