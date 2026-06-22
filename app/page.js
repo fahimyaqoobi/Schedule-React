@@ -259,30 +259,56 @@ function buildCleanerTaskList(booking = {}, pricingRates = {}, v2Catalog = {}) {
         cat.name === booking.service || cat.id === booking.serviceId
     );
 
-    const baseTasks = serviceCategory?.tasks?.length > 0
-        ? serviceCategory.tasks.map(t => ({
-            id: t.id,
-            label: t.label,
-            requiresPhoto: !!t.requiresPhoto,
-            completed: false
-        }))
-        : [
+    // Prefer service-type task list (new bookings); fall back to category tasks (old bookings)
+    let baseTasks;
+    if (booking.serviceTypeId && serviceCategory?.serviceTypes?.length > 0) {
+        const svcType = serviceCategory.serviceTypes.find(st => st.id === booking.serviceTypeId);
+        baseTasks = (svcType?.tasks || serviceCategory.tasks || []).map(t => ({
+            id: t.id, label: t.label, requiresPhoto: !!t.requiresPhoto, completed: false
+        }));
+    } else if (serviceCategory?.tasks?.length > 0) {
+        baseTasks = serviceCategory.tasks.map(t => ({
+            id: t.id, label: t.label, requiresPhoto: !!t.requiresPhoto, completed: false
+        }));
+    } else {
+        baseTasks = [
             { id: "main-service", label: booking.service || "Assigned service", requiresPhoto: true, completed: false },
             ...(booking.bathrooms ? [{ id: "bathrooms", label: booking.bathrooms, requiresPhoto: false, completed: false }] : [])
         ];
+    }
 
-    Object.entries(booking.extras || {}).forEach(([key, qty]) => {
+    // Inject tasks from catalog addons that have their own task list
+    (booking.addons || []).forEach(addon => {
+        const qty = Number(addon.qty || 0);
         if (!qty) return;
-        const extra = pricingRates.extras?.[key];
-        if (!extra) return;
-        const qtyVal = typeof qty === "boolean" ? 1 : Number(qty || 0);
-        baseTasks.push({
-            id: `extra-${key}`,
-            label: qtyVal > 1 ? `${extra.name} x${qtyVal}` : extra.name,
-            requiresPhoto: false,
-            completed: false
-        });
+        const catalogAddon = (serviceCategory?.addons || []).find(a => a.id === addon.id);
+        if (catalogAddon?.tasks?.length > 0) {
+            catalogAddon.tasks.forEach(t => {
+                const label = qty > 1 ? `${t.label} (×${qty})` : t.label;
+                baseTasks.push({ id: `adn-${addon.id}-${t.id}`, label, requiresPhoto: !!t.requiresPhoto, completed: false });
+            });
+        } else {
+            // Fall back to old extras style
+            const label = qty > 1 ? `${addon.name} ×${qty}` : addon.name;
+            baseTasks.push({ id: `adn-${addon.id}`, label, requiresPhoto: false, completed: false });
+        }
     });
+
+    // Legacy extras (old bookings that use booking.extras instead of booking.addons)
+    if (!booking.addons) {
+        Object.entries(booking.extras || {}).forEach(([key, qty]) => {
+            if (!qty) return;
+            const extra = pricingRates.extras?.[key];
+            if (!extra) return;
+            const qtyVal = typeof qty === "boolean" ? 1 : Number(qty || 0);
+            baseTasks.push({
+                id: `extra-${key}`,
+                label: qtyVal > 1 ? `${extra.name} x${qtyVal}` : extra.name,
+                requiresPhoto: false,
+                completed: false
+            });
+        });
+    }
 
     return baseTasks;
 }
@@ -386,14 +412,85 @@ const DEFAULT_PRICES = {
 };
 
 // --- V1.02 DYNAMIC SERVICE CATALOG SCHEMA ---
-// This isolates the new dynamic cart engine from the old v1 system during development.
+// Universal model: serviceTypes + sizes on all services; property/bedroom/bathroom only for house cleaning.
 const INITIAL_V2_CATALOG = {
     categories: [
         {
             id: 'house_cleaning',
             name: 'House Cleaning (Interior)',
-            pricingModel: 'size_based', // flat_rate, size_based, hourly, flat_plus_unit
+            pricingModel: 'size_based',
             baseRate: 0,
+            sizeLabel: 'Property & Bedrooms',
+            hasPropertyType: true,
+            hasBedrooms: true,
+            hasBathrooms: true,
+            serviceTypes: [
+                {
+                    id: 'standard', name: 'Standard Clean', multiplier: 1.0,
+                    tasks: [
+                        { id: 'st_t1', label: 'Walk-through — check access & note special instructions', requiresPhoto: true },
+                        { id: 'st_t2', label: 'Dust all surfaces, furniture & baseboards', requiresPhoto: false },
+                        { id: 'st_t3', label: 'Vacuum all carpets, rugs & upholstered furniture', requiresPhoto: false },
+                        { id: 'st_t4', label: 'Mop all hard floors', requiresPhoto: false },
+                        { id: 'st_t5', label: 'Clean kitchen — counters, stovetop, sink & faucet', requiresPhoto: false },
+                        { id: 'st_t6', label: 'Clean all bathroom(s) — toilet, sink, shower/tub & mirror', requiresPhoto: false },
+                        { id: 'st_t7', label: 'Empty & reline all trash bins', requiresPhoto: false },
+                        { id: 'st_t8', label: 'Final walk-through & review', requiresPhoto: true },
+                    ]
+                },
+                {
+                    id: 'deep', name: 'Deep Clean', multiplier: 1.35,
+                    tasks: [
+                        { id: 'dc_t1', label: 'Walk-through — document condition & photograph all rooms', requiresPhoto: true },
+                        { id: 'dc_t2', label: 'Dust & wipe all surfaces, furniture, baseboards & blinds', requiresPhoto: false },
+                        { id: 'dc_t3', label: 'Scrub tile grout, shower tracks & bathtub edges', requiresPhoto: false },
+                        { id: 'dc_t4', label: 'Vacuum all carpets, rugs, upholstered furniture & under cushions', requiresPhoto: false },
+                        { id: 'dc_t5', label: 'Mop all hard floors including edges & corners', requiresPhoto: false },
+                        { id: 'dc_t6', label: 'Clean inside all kitchen cabinets & drawers', requiresPhoto: false },
+                        { id: 'dc_t7', label: 'Clean kitchen — counters, backsplash, stovetop, sink & faucet', requiresPhoto: false },
+                        { id: 'dc_t8', label: 'Deep scrub all bathroom(s) — toilet, sink, shower/tub & mirror', requiresPhoto: false },
+                        { id: 'dc_t9', label: 'Wipe all light switches, outlet covers & door handles', requiresPhoto: false },
+                        { id: 'dc_t10', label: 'Empty & reline all trash bins', requiresPhoto: false },
+                        { id: 'dc_t11', label: 'Final walk-through & review', requiresPhoto: true },
+                    ]
+                },
+                {
+                    id: 'move_in_out', name: 'Move In / Move Out', multiplier: 1.50,
+                    tasks: [
+                        { id: 'mo_t1', label: 'Walk-through — photograph all rooms & document condition', requiresPhoto: true },
+                        { id: 'mo_t2', label: 'Wipe all walls, baseboards & light switches', requiresPhoto: false },
+                        { id: 'mo_t3', label: 'Clean inside all cabinets, drawers & closet shelves', requiresPhoto: false },
+                        { id: 'mo_t4', label: 'Deep clean oven, stovetop, range hood & microwave interior', requiresPhoto: false },
+                        { id: 'mo_t5', label: 'Clean inside refrigerator & freezer', requiresPhoto: false },
+                        { id: 'mo_t6', label: 'Scrub all bathrooms — toilet, sink, tub/shower, tiles & mirror', requiresPhoto: false },
+                        { id: 'mo_t7', label: 'Vacuum & mop all floors including closets', requiresPhoto: false },
+                        { id: 'mo_t8', label: 'Wipe all window sills, blinds & interior window frames', requiresPhoto: false },
+                        { id: 'mo_t9', label: 'Empty & reline all trash bins', requiresPhoto: false },
+                        { id: 'mo_t10', label: 'Final walk-through — photograph all rooms', requiresPhoto: true },
+                    ]
+                }
+            ],
+            propertyTypes: [
+                { id: 'apartment', name: 'Apartment',    sizeIds: ['hc_studio', 'hc_apt_1b', 'hc_apt_2b', 'hc_apt_3b'] },
+                { id: 'townhouse', name: 'Townhouse',    sizeIds: ['hc_th_2b', 'hc_th_3b', 'hc_th_4b'] },
+                { id: 'house',     name: 'Single House', sizeIds: ['hc_h_3b', 'hc_h_4b', 'hc_h_5b', 'hc_h_2000', 'hc_h_2500', 'hc_h_3000', 'hc_h_3500'] },
+            ],
+            sizes: [
+                { id: 'hc_studio',  name: 'Studio',                     propertyTypeId: 'apartment', price: 80.00,  durationHrs: 1.5 },
+                { id: 'hc_apt_1b',  name: '1 Bedroom',                  propertyTypeId: 'apartment', price: 87.50,  durationHrs: 2 },
+                { id: 'hc_apt_2b',  name: '2 Bedrooms',                 propertyTypeId: 'apartment', price: 101.50, durationHrs: 2.5 },
+                { id: 'hc_apt_3b',  name: '3 Bedrooms',                 propertyTypeId: 'apartment', price: 115.50, durationHrs: 3 },
+                { id: 'hc_th_2b',   name: '2 Bedrooms',                 propertyTypeId: 'townhouse', price: 115.50, durationHrs: 3 },
+                { id: 'hc_th_3b',   name: '3 Bedrooms',                 propertyTypeId: 'townhouse', price: 130.00, durationHrs: 3.5 },
+                { id: 'hc_th_4b',   name: '4 Bedrooms',                 propertyTypeId: 'townhouse', price: 143.50, durationHrs: 3.5 },
+                { id: 'hc_h_3b',    name: '3 Bedrooms',                 propertyTypeId: 'house',     price: 143.50, durationHrs: 3.5 },
+                { id: 'hc_h_4b',    name: '4 Bedrooms',                 propertyTypeId: 'house',     price: 157.50, durationHrs: 4 },
+                { id: 'hc_h_5b',    name: '5 Bedrooms',                 propertyTypeId: 'house',     price: 175.00, durationHrs: 4.5 },
+                { id: 'hc_h_2000',  name: '5+ Bed / 2000–2499 sqft',   propertyTypeId: 'house',     price: 208.60, durationHrs: 5 },
+                { id: 'hc_h_2500',  name: '5+ Bed / 2500–2999 sqft',   propertyTypeId: 'house',     price: 243.60, durationHrs: 5.5 },
+                { id: 'hc_h_3000',  name: '5+ Bed / 3000–3499 sqft',   propertyTypeId: 'house',     price: 280.00, durationHrs: 6 },
+                { id: 'hc_h_3500',  name: '5+ Bed / 3500+ sqft',       propertyTypeId: 'house',     price: 315.00, durationHrs: 6.5 },
+            ],
             tasks: [
                 { id: 'hc_t1', label: 'Walk-through — check access & note special instructions', requiresPhoto: true },
                 { id: 'hc_t2', label: 'Dust all surfaces, furniture & baseboards', requiresPhoto: false },
@@ -404,108 +501,227 @@ const INITIAL_V2_CATALOG = {
                 { id: 'hc_t7', label: 'Empty & reline all trash bins', requiresPhoto: false },
                 { id: 'hc_t8', label: 'Final walk-through & review', requiresPhoto: true },
             ],
-            sizes: [
-                { id: 'hc_1bed', name: 'Studio or 1 Bedroom', price: 87.50, durationHrs: 2 },
-                { id: 'hc_2bed', name: '2 bedroom apartment', price: 101.50, durationHrs: 2.5 },
-                { id: 'hc_3bed_apt', name: '3 bedroom apartment or townhouse', price: 115.50, durationHrs: 3 },
-                { id: 'hc_3bed_house', name: '3 or 4 bedroom house (or between 1700 to 1999 sqft)', price: 143.50, durationHrs: 3.5 },
-                { id: 'hc_2000sqft', name: 'between 2000 to 2499 sq ft', price: 150.50, durationHrs: 4 },
-                { id: 'hc_2500sqft', name: 'between 2500 to 2999 sq ft', price: 175.00, durationHrs: 4.5 },
-                { id: 'hc_3000sqft', name: 'between 3000 to 3499 sq ft', price: 208.60, durationHrs: 5 },
-                { id: 'hc_3500sqft', name: 'between 3500 to 3999 sq ft', price: 243.60, durationHrs: 5.5 }
-            ],
             addons: [
-                { id: 'firstTimeClean', name: 'First Time Clean Upgrade', price: 87.50, qtySelector: false },
-                { id: 'moveInOut', name: 'Move In/Out Upgrade', price: 87.50, qtySelector: false },
-                { id: 'havePets', name: 'I Have Pets Premium', price: 17.50, qtySelector: false },
-                { id: 'insideOven', name: 'Inside the Oven', price: 31.50, qtySelector: true },
-                { id: 'insideEmptyFridge', name: 'Inside an Empty Fridge', price: 17.50, qtySelector: true },
-                { id: 'insideFullFridge', name: 'Inside a Full Fridge', price: 31.50, qtySelector: true },
-                { id: 'secondKitchen', name: 'Second Kitchen', price: 35.00, qtySelector: false },
-                { id: 'walls', name: 'Walls ($14 per room)', price: 14.00, qtySelector: true },
-                { id: 'shedPoolHouse', name: 'Shed/Pool House', price: 52.50, qtySelector: false },
-                { id: 'insideCabinets', name: 'Inside Cabinets (emptied)', price: 35.00, qtySelector: false },
-                { id: 'interiorWindows', name: 'Interior Windows ($7 per window)', price: 7.00, qtySelector: true },
-                { id: 'slidingDoorWindow', name: 'Sliding Door Interior Window', price: 14.00, qtySelector: true },
-                { id: 'garageSweep', name: 'Garage Sweep', price: 21.00, qtySelector: false },
-                { id: 'balconySweep', name: 'Balcony Sweep', price: 14.00, qtySelector: true },
-                { id: 'homeConcierge', name: 'Home Concierge ($35/hr, min 2 hrs)', price: 35.00, qtySelector: true, minQty: 2 },
-                { id: 'organization', name: 'Organization ($56/hr, min 3 hrs)', price: 56.00, qtySelector: true, minQty: 3 },
-                { id: 'laundryWashFold', name: 'Laundry - Wash & Fold (per load)', price: 17.50, qtySelector: true }
+                { id: 'firstTimeClean',    name: 'First Time Clean Upgrade',             price: 87.50, qtySelector: false },
+                { id: 'moveInOut',         name: 'Move In/Out Upgrade',                 price: 87.50, qtySelector: false },
+                { id: 'havePets',          name: 'I Have Pets Premium',                 price: 17.50, qtySelector: false },
+                { id: 'insideOven',        name: 'Inside the Oven',                     price: 31.50, qtySelector: true,  tasks: [
+                    { id: 'adn_oven_1', label: 'Degrease & scrub oven interior, walls & floor', requiresPhoto: false },
+                    { id: 'adn_oven_2', label: 'Clean oven racks, door seal & glass panel',     requiresPhoto: false },
+                ]},
+                { id: 'insideEmptyFridge', name: 'Inside an Empty Fridge',              price: 17.50, qtySelector: true,  tasks: [
+                    { id: 'adn_fridge_e1', label: 'Wipe & sanitize all fridge shelves, drawers & door seals', requiresPhoto: false },
+                ]},
+                { id: 'insideFullFridge',  name: 'Inside a Full Fridge',                price: 31.50, qtySelector: true,  tasks: [
+                    { id: 'adn_fridge_f1', label: 'Remove all items & wipe all shelves, drawers & walls', requiresPhoto: false },
+                    { id: 'adn_fridge_f2', label: 'Clean door seals, return items & wipe exterior',       requiresPhoto: false },
+                ]},
+                { id: 'secondKitchen',     name: 'Second Kitchen',                      price: 35.00, qtySelector: false, tasks: [
+                    { id: 'adn_k2_1', label: 'Clean second kitchen — counters, stovetop, sink & faucet', requiresPhoto: false },
+                ]},
+                { id: 'walls',             name: 'Walls ($14 per room)',                price: 14.00, qtySelector: true  },
+                { id: 'shedPoolHouse',     name: 'Shed/Pool House',                    price: 52.50, qtySelector: false },
+                { id: 'insideCabinets',    name: 'Inside Cabinets (emptied)',           price: 35.00, qtySelector: false, tasks: [
+                    { id: 'adn_cab_1', label: 'Wipe inside all emptied cabinets & drawers', requiresPhoto: false },
+                ]},
+                { id: 'interiorWindows',   name: 'Interior Windows ($7 per window)',   price: 7.00,  qtySelector: true  },
+                { id: 'slidingDoorWindow', name: 'Sliding Door Interior Window',       price: 14.00, qtySelector: true  },
+                { id: 'garageSweep',       name: 'Garage Sweep',                       price: 21.00, qtySelector: false },
+                { id: 'balconySweep',      name: 'Balcony Sweep',                      price: 14.00, qtySelector: true  },
+                { id: 'homeConcierge',     name: 'Home Concierge ($35/hr, min 2 hrs)', price: 35.00, qtySelector: true,  minQty: 2 },
+                { id: 'organization',      name: 'Organization ($56/hr, min 3 hrs)',   price: 56.00, qtySelector: true,  minQty: 3 },
+                { id: 'laundryWashFold',   name: 'Laundry - Wash & Fold (per load)',   price: 17.50, qtySelector: true  }
             ]
         },
         {
             id: 'window_washing',
             name: 'Window Washing (Exterior)',
-            pricingModel: 'flat_plus_unit',
-            baseRate: 150.00,
-            durationHrs: 2,
-            unitName: 'Additional Pane',
-            unitPrice: 5.00,
-            tasks: [
-                { id: 'ww_t1', label: 'Inspect windows — note damage or difficult areas', requiresPhoto: true },
-                { id: 'ww_t2', label: 'Remove & set aside screens (if screen cleaning included)', requiresPhoto: false },
-                { id: 'ww_t3', label: 'Clean all exterior panes — scrub & squeegee', requiresPhoto: false },
-                { id: 'ww_t4', label: 'Wipe all window frames & sills', requiresPhoto: false },
-                { id: 'ww_t5', label: 'Reattach screens', requiresPhoto: false },
-                { id: 'ww_t6', label: 'Final streak inspection from ground', requiresPhoto: true },
+            pricingModel: 'size_based',
+            baseRate: 0,
+            sizeLabel: 'Number of Panels',
+            hasPropertyType: false,
+            hasBedrooms: false,
+            hasBathrooms: false,
+            serviceTypes: [
+                {
+                    id: 'standard', name: 'Standard Wash', multiplier: 1.0,
+                    tasks: [
+                        { id: 'ww_t1', label: 'Inspect windows — note damage or difficult areas',       requiresPhoto: true  },
+                        { id: 'ww_t2', label: 'Remove & set aside screens',                             requiresPhoto: false },
+                        { id: 'ww_t3', label: 'Clean all exterior panes — scrub & squeegee',            requiresPhoto: false },
+                        { id: 'ww_t4', label: 'Wipe all window frames & sills',                         requiresPhoto: false },
+                        { id: 'ww_t5', label: 'Reattach screens',                                       requiresPhoto: false },
+                        { id: 'ww_t6', label: 'Final streak inspection from ground',                    requiresPhoto: true  },
+                    ]
+                },
+                {
+                    id: 'premium', name: 'Premium (frames + screens)', multiplier: 1.25,
+                    tasks: [
+                        { id: 'ww_p_t1', label: 'Inspect windows, frames & screens — note any damage', requiresPhoto: true  },
+                        { id: 'ww_p_t2', label: 'Remove all screens — wash, rinse & dry',              requiresPhoto: false },
+                        { id: 'ww_p_t3', label: 'Clean all exterior panes — scrub & squeegee',         requiresPhoto: false },
+                        { id: 'ww_p_t4', label: 'Scrub & wipe all window frames & sills inside & out', requiresPhoto: false },
+                        { id: 'ww_p_t5', label: 'Reattach all screens',                                requiresPhoto: false },
+                        { id: 'ww_p_t6', label: 'Final streak & frame inspection',                     requiresPhoto: true  },
+                    ]
+                },
             ],
-            sizes: [],
+            sizes: [
+                { id: 'ww_10',  name: 'Up to 10 panels', price: 120.00, durationHrs: 1.5 },
+                { id: 'ww_20',  name: '11–20 panels',    price: 170.00, durationHrs: 2   },
+                { id: 'ww_30',  name: '21–30 panels',    price: 220.00, durationHrs: 2.5 },
+                { id: 'ww_40',  name: '31–40 panels',    price: 270.00, durationHrs: 3   },
+                { id: 'ww_50p', name: '41+ panels',      price: 320.00, durationHrs: 3.5 },
+            ],
+            tasks: [
+                { id: 'ww_t1', label: 'Inspect windows — note damage or difficult areas', requiresPhoto: true  },
+                { id: 'ww_t2', label: 'Remove & set aside screens',                       requiresPhoto: false },
+                { id: 'ww_t3', label: 'Clean all exterior panes — scrub & squeegee',      requiresPhoto: false },
+                { id: 'ww_t4', label: 'Wipe all window frames & sills',                   requiresPhoto: false },
+                { id: 'ww_t5', label: 'Reattach screens',                                 requiresPhoto: false },
+                { id: 'ww_t6', label: 'Final streak inspection from ground',              requiresPhoto: true  },
+            ],
             addons: [
-                { id: 'screenCleaning', name: 'Screen Cleaning', price: 20.00, qtySelector: false },
-                { id: 'hardWaterStain', name: 'Hard Water Stain Removal', price: 35.00, qtySelector: false }
+                { id: 'screenCleaning',  name: 'Screen Cleaning',           price: 20.00, qtySelector: false },
+                { id: 'hardWaterStain',  name: 'Hard Water Stain Removal',  price: 35.00, qtySelector: false }
             ]
         },
         {
             id: 'pressure_washing_siding',
             name: 'Pressure Washing (Siding)',
-            pricingModel: 'flat_plus_sqft',
-            baseRate: 200.00,
-            durationHrs: 2.5,
-            unitName: 'Per Sq Ft over 1000',
-            unitPrice: 0.20,
-            tasks: [
-                { id: 'pws_t1', label: 'Protect plants, electrical outlets & nearby surfaces', requiresPhoto: true },
-                { id: 'pws_t2', label: 'Pre-rinse entire siding with water', requiresPhoto: false },
-                { id: 'pws_t3', label: 'Apply cleaning solution to all siding surfaces', requiresPhoto: false },
-                { id: 'pws_t4', label: 'Pressure wash all siding sections top to bottom', requiresPhoto: false },
-                { id: 'pws_t5', label: 'Rinse clean & inspect for remaining stains', requiresPhoto: true },
+            pricingModel: 'size_based',
+            baseRate: 0,
+            sizeLabel: 'Siding Area (sq ft)',
+            hasPropertyType: false,
+            hasBedrooms: false,
+            hasBathrooms: false,
+            serviceTypes: [
+                {
+                    id: 'standard', name: 'Standard Wash', multiplier: 1.0,
+                    tasks: [
+                        { id: 'pws_t1', label: 'Protect plants, electrical outlets & nearby surfaces', requiresPhoto: true  },
+                        { id: 'pws_t2', label: 'Pre-rinse entire siding with water',                   requiresPhoto: false },
+                        { id: 'pws_t3', label: 'Apply cleaning solution to all siding surfaces',       requiresPhoto: false },
+                        { id: 'pws_t4', label: 'Pressure wash all siding sections top to bottom',      requiresPhoto: false },
+                        { id: 'pws_t5', label: 'Rinse clean & inspect for remaining stains',           requiresPhoto: true  },
+                    ]
+                },
+                {
+                    id: 'premium', name: 'Premium (chemical treatment)', multiplier: 1.30,
+                    tasks: [
+                        { id: 'pws_p_t1', label: 'Protect plants, electrical outlets & nearby surfaces',    requiresPhoto: true  },
+                        { id: 'pws_p_t2', label: 'Pre-rinse entire siding with water',                      requiresPhoto: false },
+                        { id: 'pws_p_t3', label: 'Apply premium chemical solution — let dwell 10 min',      requiresPhoto: false },
+                        { id: 'pws_p_t4', label: 'Soft wash or pressure wash all sections top to bottom',   requiresPhoto: false },
+                        { id: 'pws_p_t5', label: 'Apply mildewcide treatment to problem areas',             requiresPhoto: false },
+                        { id: 'pws_p_t6', label: 'Final rinse & full siding inspection',                    requiresPhoto: true  },
+                    ]
+                }
             ],
-            sizes: [],
+            sizes: [
+                { id: 'pws_1000',  name: 'Under 1,000 sqft',  price: 200.00, durationHrs: 2.5 },
+                { id: 'pws_1500',  name: '1,000–1,500 sqft',  price: 260.00, durationHrs: 3   },
+                { id: 'pws_2000',  name: '1,500–2,000 sqft',  price: 320.00, durationHrs: 3.5 },
+                { id: 'pws_2500',  name: '2,000–2,500 sqft',  price: 380.00, durationHrs: 4   },
+                { id: 'pws_3000p', name: '2,500+ sqft',       price: 450.00, durationHrs: 5   },
+            ],
+            tasks: [
+                { id: 'pws_t1', label: 'Protect plants, electrical outlets & nearby surfaces', requiresPhoto: true  },
+                { id: 'pws_t2', label: 'Pre-rinse entire siding with water',                   requiresPhoto: false },
+                { id: 'pws_t3', label: 'Apply cleaning solution to all siding surfaces',       requiresPhoto: false },
+                { id: 'pws_t4', label: 'Pressure wash all siding sections top to bottom',      requiresPhoto: false },
+                { id: 'pws_t5', label: 'Rinse clean & inspect for remaining stains',           requiresPhoto: true  },
+            ],
             addons: []
         },
         {
             id: 'pressure_washing_deck',
             name: 'Pressure Washing (Deck, Sidewalk, Concrete)',
-            pricingModel: 'flat_rate',
-            baseRate: 150.00,
-            durationHrs: 2,
-            tasks: [
-                { id: 'pwd_t1', label: 'Clear furniture & obstacles from the area', requiresPhoto: true },
-                { id: 'pwd_t2', label: 'Apply pre-treatment cleaning solution', requiresPhoto: false },
-                { id: 'pwd_t3', label: 'Pressure wash surface in sections', requiresPhoto: false },
-                { id: 'pwd_t4', label: 'Rinse clean & check for stubborn stains', requiresPhoto: false },
-                { id: 'pwd_t5', label: 'Return furniture & tidy area', requiresPhoto: true },
+            pricingModel: 'size_based',
+            baseRate: 0,
+            sizeLabel: 'Surface Area',
+            hasPropertyType: false,
+            hasBedrooms: false,
+            hasBathrooms: false,
+            serviceTypes: [
+                {
+                    id: 'standard', name: 'Standard Wash', multiplier: 1.0,
+                    tasks: [
+                        { id: 'pwd_t1', label: 'Clear furniture & obstacles from the area',    requiresPhoto: true  },
+                        { id: 'pwd_t2', label: 'Apply pre-treatment cleaning solution',         requiresPhoto: false },
+                        { id: 'pwd_t3', label: 'Pressure wash surface in sections',             requiresPhoto: false },
+                        { id: 'pwd_t4', label: 'Rinse clean & check for stubborn stains',       requiresPhoto: false },
+                        { id: 'pwd_t5', label: 'Return furniture & tidy area',                  requiresPhoto: true  },
+                    ]
+                },
+                {
+                    id: 'premium', name: 'Premium (stain treatment)', multiplier: 1.30,
+                    tasks: [
+                        { id: 'pwd_p_t1', label: 'Clear furniture & obstacles, photograph condition', requiresPhoto: true  },
+                        { id: 'pwd_p_t2', label: 'Apply heavy-duty degreaser to stained areas',       requiresPhoto: false },
+                        { id: 'pwd_p_t3', label: 'Let treatment dwell — scrub stubborn spots',        requiresPhoto: false },
+                        { id: 'pwd_p_t4', label: 'Pressure wash entire surface in sections',          requiresPhoto: false },
+                        { id: 'pwd_p_t5', label: 'Return furniture & final inspection',               requiresPhoto: true  },
+                    ]
+                }
             ],
-            sizes: [],
+            sizes: [
+                { id: 'pwd_small',  name: 'Small (under 200 sqft)',    price: 150.00, durationHrs: 2   },
+                { id: 'pwd_med',    name: 'Medium (200–500 sqft)',     price: 220.00, durationHrs: 2.5 },
+                { id: 'pwd_large',  name: 'Large (500–1000 sqft)',     price: 300.00, durationHrs: 3.5 },
+                { id: 'pwd_xlarge', name: 'Extra Large (1000+ sqft)', price: 400.00, durationHrs: 4.5 },
+            ],
+            tasks: [
+                { id: 'pwd_t1', label: 'Clear furniture & obstacles from the area', requiresPhoto: true  },
+                { id: 'pwd_t2', label: 'Apply pre-treatment cleaning solution',      requiresPhoto: false },
+                { id: 'pwd_t3', label: 'Pressure wash surface in sections',          requiresPhoto: false },
+                { id: 'pwd_t4', label: 'Rinse clean & check for stubborn stains',    requiresPhoto: false },
+                { id: 'pwd_t5', label: 'Return furniture & tidy area',               requiresPhoto: true  },
+            ],
             addons: []
         },
         {
             id: 'gutter_cleaning',
             name: 'Gutter & Downspout Cleaning',
-            pricingModel: 'flat_rate',
-            baseRate: 150.00,
-            durationHrs: 1.5,
-            tasks: [
-                { id: 'gc_t1', label: 'Set up ladder safely & inspect gutters from ground', requiresPhoto: true },
-                { id: 'gc_t2', label: 'Clear all debris from gutters section by section', requiresPhoto: false },
-                { id: 'gc_t3', label: 'Flush gutters with water to confirm flow', requiresPhoto: false },
-                { id: 'gc_t4', label: 'Clear all downspout blockages', requiresPhoto: false },
-                { id: 'gc_t5', label: 'Bag & remove all debris from ground', requiresPhoto: true },
+            pricingModel: 'size_based',
+            baseRate: 0,
+            sizeLabel: 'Home Stories',
+            hasPropertyType: false,
+            hasBedrooms: false,
+            hasBathrooms: false,
+            serviceTypes: [
+                {
+                    id: 'standard', name: 'Standard Clean', multiplier: 1.0,
+                    tasks: [
+                        { id: 'gc_t1', label: 'Set up ladder safely & inspect gutters from ground', requiresPhoto: true  },
+                        { id: 'gc_t2', label: 'Clear all debris from gutters section by section',   requiresPhoto: false },
+                        { id: 'gc_t3', label: 'Flush gutters with water to confirm flow',           requiresPhoto: false },
+                        { id: 'gc_t4', label: 'Clear all downspout blockages',                      requiresPhoto: false },
+                        { id: 'gc_t5', label: 'Bag & remove all debris from ground',                requiresPhoto: true  },
+                    ]
+                },
+                {
+                    id: 'full_flush', name: 'Full Flush (downspout pressure)', multiplier: 1.25,
+                    tasks: [
+                        { id: 'gc_f_t1', label: 'Set up ladder safely & photograph gutter condition',    requiresPhoto: true  },
+                        { id: 'gc_f_t2', label: 'Clear all debris from gutters section by section',      requiresPhoto: false },
+                        { id: 'gc_f_t3', label: 'Flush gutters with water to confirm flow',              requiresPhoto: false },
+                        { id: 'gc_f_t4', label: 'Pressure-flush all downspouts to clear blockages',      requiresPhoto: false },
+                        { id: 'gc_f_t5', label: 'Check all joints, hangers & end caps for leaks',        requiresPhoto: false },
+                        { id: 'gc_f_t6', label: 'Bag & remove all debris, photograph final result',      requiresPhoto: true  },
+                    ]
+                }
             ],
             sizes: [
                 { id: 'gc_1story', name: '1-Story Home', price: 150.00, durationHrs: 1.5 },
                 { id: 'gc_2story', name: '2-Story Home', price: 250.00, durationHrs: 2.5 }
+            ],
+            tasks: [
+                { id: 'gc_t1', label: 'Set up ladder safely & inspect gutters from ground', requiresPhoto: true  },
+                { id: 'gc_t2', label: 'Clear all debris from gutters section by section',   requiresPhoto: false },
+                { id: 'gc_t3', label: 'Flush gutters with water to confirm flow',           requiresPhoto: false },
+                { id: 'gc_t4', label: 'Clear all downspout blockages',                      requiresPhoto: false },
+                { id: 'gc_t5', label: 'Bag & remove all debris from ground',                requiresPhoto: true  },
             ],
             addons: [
                 { id: 'downspoutFlush', name: 'Downspout Flushing', price: 50.00, qtySelector: false }
@@ -514,23 +730,49 @@ const INITIAL_V2_CATALOG = {
         {
             id: 'lawn_mowing',
             name: 'Lawn Mower Mowing',
-            pricingModel: 'flat_rate',
-            baseRate: 60.00,
-            durationHrs: 1,
-            tasks: [
-                { id: 'lm_t1', label: 'Walk the yard — remove obstacles & check for hazards', requiresPhoto: true },
-                { id: 'lm_t2', label: 'Mow grass to required height', requiresPhoto: false },
-                { id: 'lm_t3', label: 'Edge-trim borders, walkways & obstacles', requiresPhoto: false },
-                { id: 'lm_t4', label: 'Blow or rake clippings from paths & driveway', requiresPhoto: false },
-                { id: 'lm_t5', label: 'Final walkthrough inspection', requiresPhoto: true },
+            pricingModel: 'size_based',
+            baseRate: 0,
+            sizeLabel: 'Yard Size',
+            hasPropertyType: false,
+            hasBedrooms: false,
+            hasBathrooms: false,
+            serviceTypes: [
+                {
+                    id: 'standard', name: 'Mow Only', multiplier: 1.0,
+                    tasks: [
+                        { id: 'lm_t1', label: 'Walk the yard — remove obstacles & check for hazards', requiresPhoto: true  },
+                        { id: 'lm_t2', label: 'Mow grass to required height',                          requiresPhoto: false },
+                        { id: 'lm_t3', label: 'Edge-trim borders, walkways & obstacles',               requiresPhoto: false },
+                        { id: 'lm_t4', label: 'Blow or rake clippings from paths & driveway',          requiresPhoto: false },
+                        { id: 'lm_t5', label: 'Final walkthrough inspection',                          requiresPhoto: true  },
+                    ]
+                },
+                {
+                    id: 'full_service', name: 'Full Service (mow + trim + blow)', multiplier: 1.30,
+                    tasks: [
+                        { id: 'lm_f_t1', label: 'Walk the yard — remove obstacles & photograph condition', requiresPhoto: true  },
+                        { id: 'lm_f_t2', label: 'Mow grass to required height',                            requiresPhoto: false },
+                        { id: 'lm_f_t3', label: 'String trim all edges, borders & around obstacles',       requiresPhoto: false },
+                        { id: 'lm_f_t4', label: 'Edge sidewalks & driveway borders',                       requiresPhoto: false },
+                        { id: 'lm_f_t5', label: 'Blow all clippings from paths, driveway & patio',         requiresPhoto: false },
+                        { id: 'lm_f_t6', label: 'Final walkthrough & photograph finished yard',             requiresPhoto: true  },
+                    ]
+                }
             ],
             sizes: [
-                { id: 'lm_small', name: 'Small Yard (Under 1/4 acre)', price: 60.00, durationHrs: 1 },
-                { id: 'lm_med', name: 'Medium Yard (1/4 to 1/2 acre)', price: 90.00, durationHrs: 1.5 },
-                { id: 'lm_large', name: 'Large Yard (Over 1/2 acre)', price: 140.00, durationHrs: 2 }
+                { id: 'lm_small', name: 'Small Yard (Under 1/4 acre)',   price: 60.00,  durationHrs: 1   },
+                { id: 'lm_med',   name: 'Medium Yard (1/4 to 1/2 acre)', price: 90.00,  durationHrs: 1.5 },
+                { id: 'lm_large', name: 'Large Yard (Over 1/2 acre)',    price: 140.00, durationHrs: 2   }
+            ],
+            tasks: [
+                { id: 'lm_t1', label: 'Walk the yard — remove obstacles & check for hazards', requiresPhoto: true  },
+                { id: 'lm_t2', label: 'Mow grass to required height',                          requiresPhoto: false },
+                { id: 'lm_t3', label: 'Edge-trim borders, walkways & obstacles',               requiresPhoto: false },
+                { id: 'lm_t4', label: 'Blow or rake clippings from paths & driveway',          requiresPhoto: false },
+                { id: 'lm_t5', label: 'Final walkthrough inspection',                          requiresPhoto: true  },
             ],
             addons: [
-                { id: 'edgeTrimming', name: 'Edge Trimming', price: 25.00, qtySelector: false },
+                { id: 'edgeTrimming',     name: 'Edge Trimming',     price: 25.00, qtySelector: false },
                 { id: 'clippingsRemoval', name: 'Clippings Removal', price: 30.00, qtySelector: false }
             ]
         }
@@ -545,16 +787,16 @@ const INITIAL_V2_CATALOG = {
         '7 Bathroom': 98.00
     },
     frequencies: {
-        'One-Time': { name: 'one time service', discount: 0 },
-        'Weekly': { name: 'Weekly 20% off', discount: 0.20 },
-        'Bi-Weekly': { name: 'Bi-Weekly 15% off', discount: 0.15 },
-        'Tri-Weekly': { name: 'Tri weekly 12% off', discount: 0.12 },
-        'Monthly': { name: 'Monthly 10% off', discount: 0.10 }
+        'One-Time':   { name: 'one time service',      discount: 0    },
+        'Weekly':     { name: 'Weekly 20% off',        discount: 0.20 },
+        'Bi-Weekly':  { name: 'Bi-Weekly 15% off',     discount: 0.15 },
+        'Tri-Weekly': { name: 'Tri weekly 12% off',    discount: 0.12 },
+        'Monthly':    { name: 'Monthly 10% off',       discount: 0.10 }
     },
     globalAddons: [
-        { id: 'downtownParking', name: 'Downtown Street Parking Fee', price: 14.00, qtySelector: false },
-        { id: 'nextDayBooking', name: 'Next Day Booking Fee', price: 52.50, qtySelector: false },
-        { id: 'sameDayCancellation', name: 'Same Day Cancellation Fee', price: 55.30, qtySelector: false }
+        { id: 'downtownParking',      name: 'Downtown Street Parking Fee', price: 14.00, qtySelector: false },
+        { id: 'nextDayBooking',       name: 'Next Day Booking Fee',        price: 52.50, qtySelector: false },
+        { id: 'sameDayCancellation',  name: 'Same Day Cancellation Fee',   price: 55.30, qtySelector: false }
     ],
     promotions: DEFAULT_PROMOTIONS
 };
@@ -726,6 +968,8 @@ export default function Home() {
     const [serviceConfigOpen, setServiceConfigOpen] = useState(false);
     const [serviceConfigTarget, setServiceConfigTarget] = useState("checkout");
     const [configCategory, setConfigCategory] = useState(null);
+    const [configServiceTypeId, setConfigServiceTypeId] = useState("");
+    const [configPropertyTypeId, setConfigPropertyTypeId] = useState("");
     const [configSizeId, setConfigSizeId] = useState("");
     const [configBathroomKey, setConfigBathroomKey] = useState("1 Bathroom");
     const [configAddons, setConfigAddons] = useState({});
@@ -2955,9 +3199,16 @@ export default function Home() {
     }, []);
 
     const openServiceConfigurator = useCallback((category, target = "checkout") => {
+        const firstServiceType = category.serviceTypes?.[0]?.id || "";
+        const firstPropertyType = category.propertyTypes?.[0]?.id || "";
+        const firstSizeForPropType = firstPropertyType
+            ? (category.sizes || []).find(s => s.propertyTypeId === firstPropertyType)?.id
+            : category.sizes?.[0]?.id;
         setServiceConfigTarget(target);
         setConfigCategory(category);
-        setConfigSizeId(category.sizes?.[0]?.id || "base");
+        setConfigServiceTypeId(firstServiceType);
+        setConfigPropertyTypeId(firstPropertyType);
+        setConfigSizeId(firstSizeForPropType || category.sizes?.[0]?.id || "base");
         setConfigBathroomKey("1 Bathroom");
         setConfigAddons({});
         setConfigEditingCartId("");
@@ -2980,8 +3231,12 @@ export default function Home() {
         (item.addons || []).forEach(addon => {
             addonMap[addon.id] = Number(addon.qty || 1);
         });
+        const restoredServiceTypeId = item.serviceTypeId || category.serviceTypes?.[0]?.id || "";
+        const restoredPropertyTypeId = item.propertyTypeId || category.propertyTypes?.[0]?.id || "";
         setServiceConfigTarget(target);
         setConfigCategory(category);
+        setConfigServiceTypeId(restoredServiceTypeId);
+        setConfigPropertyTypeId(restoredPropertyTypeId);
         setConfigSizeId(item.optionId || category.sizes?.[0]?.id || "base");
         setConfigBathroomKey(item.bathroomKey || "1 Bathroom");
         setConfigAddons(addonMap);
@@ -3005,10 +3260,20 @@ export default function Home() {
     const addConfiguredServiceToCart = useCallback(() => {
         if (!configCategory) return;
         const selectedSize = configCategory.sizes?.find(size => size.id === configSizeId);
-        const basePrice = selectedSize ? parseFloat(selectedSize.price || 0) : getCategoryBasePrice(configCategory);
+        const rawBasePrice = selectedSize ? parseFloat(selectedSize.price || 0) : getCategoryBasePrice(configCategory);
         const baseDuration = selectedSize ? parseFloat(selectedSize.durationHrs || 0) : getCategoryDuration(configCategory);
-        const isHouseCleaning = configCategory.id === "house_cleaning";
+
+        // Service type multiplier
+        const selectedServiceType = (configCategory.serviceTypes || []).find(st => st.id === configServiceTypeId);
+        const serviceTypeMultiplier = parseFloat(selectedServiceType?.multiplier || 1.0);
+        const basePrice = rawBasePrice * serviceTypeMultiplier;
+
+        const isHouseCleaning = configCategory.hasBathrooms === true;
         const bathroomPrice = isHouseCleaning ? parseFloat(v2Catalog.bathrooms?.[configBathroomKey] || 0) : 0;
+
+        // Property type name for display
+        const selectedPropertyType = (configCategory.propertyTypes || []).find(pt => pt.id === configPropertyTypeId);
+
         const selectedAddons = (configCategory.addons || [])
             .map(addon => {
                 const qty = Number(configAddons[addon.id] || 0);
@@ -3036,6 +3301,11 @@ export default function Home() {
             categoryId: configCategory.id,
             name: configCategory.name,
             pricingModel: configCategory.pricingModel,
+            serviceTypeId: selectedServiceType?.id || "",
+            serviceTypeName: selectedServiceType?.name || "",
+            serviceTypeMultiplier,
+            propertyTypeId: selectedPropertyType?.id || "",
+            propertyTypeName: selectedPropertyType?.name || "",
             optionId: selectedSize?.id || "base",
             optionName: selectedSize?.name || "Base service",
             basePrice,
@@ -3056,7 +3326,7 @@ export default function Home() {
         }
         setConfigEditingCartId("");
         setServiceConfigOpen(false);
-    }, [configAddons, configBathroomKey, configCategory, configEditingCartId, configSizeId, getCategoryBasePrice, getCategoryDuration, serviceConfigTarget, v2Catalog.bathrooms]);
+    }, [configAddons, configBathroomKey, configCategory, configEditingCartId, configPropertyTypeId, configServiceTypeId, configSizeId, getCategoryBasePrice, getCategoryDuration, serviceConfigTarget, v2Catalog.bathrooms]);
 
     const removeAdminCartItem = useCallback((cartId) => {
         setAdminServiceCart(prev => prev.filter(item => item.cartId !== cartId));
@@ -4222,19 +4492,29 @@ export default function Home() {
             )}
 
             {serviceConfigOpen && configCategory && (() => {
-                const selectedSize = configCategory.sizes?.find(size => size.id === configSizeId);
-                const basePrice = selectedSize ? parseFloat(selectedSize.price || 0) : getCategoryBasePrice(configCategory);
-                const isHouseCleaning = configCategory.id === "house_cleaning";
-                const bathroomPrice = isHouseCleaning ? parseFloat(v2Catalog.bathrooms?.[configBathroomKey] || 0) : 0;
+                const serviceTypes = configCategory.serviceTypes || [];
+                const selectedServiceType = serviceTypes.find(st => st.id === configServiceTypeId);
+                const serviceTypeMultiplier = parseFloat(selectedServiceType?.multiplier || 1.0);
+
+                const hasPropertyType = !!configCategory.hasPropertyType;
+                const hasBathrooms = !!configCategory.hasBathrooms;
+
+                // When property type is active, filter sizes to the selected group
+                const visibleSizes = hasPropertyType
+                    ? (configCategory.sizes || []).filter(s => s.propertyTypeId === configPropertyTypeId)
+                    : (configCategory.sizes || []);
+
+                const selectedSize = (configCategory.sizes || []).find(size => size.id === configSizeId);
+                const rawBasePrice = selectedSize ? parseFloat(selectedSize.price || 0) : getCategoryBasePrice(configCategory);
+                const basePrice = rawBasePrice * serviceTypeMultiplier;
+                const bathroomPrice = hasBathrooms ? parseFloat(v2Catalog.bathrooms?.[configBathroomKey] || 0) : 0;
                 const selectedAddonRows = (configCategory.addons || []).map(addon => {
                     const qty = Number(configAddons[addon.id] || 0);
-                    return {
-                        ...addon,
-                        qty,
-                        total: qty * parseFloat(addon.price || 0)
-                    };
+                    return { ...addon, qty, total: qty * parseFloat(addon.price || 0) };
                 });
-                const addonTotal = selectedAddonRows.reduce((sum, addon) => sum + addon.total, 0);
+                const addonTotal = selectedAddonRows.reduce((sum, a) => sum + a.total, 0);
+                const grandTotal = basePrice + bathroomPrice + addonTotal;
+
                 return (
                     <div className="modal-backdrop show">
                         <div className="modal-content modal-content-service-config animate-pop">
@@ -4248,24 +4528,83 @@ export default function Home() {
                                 </button>
                             </div>
                             <div className="service-config-body">
-                                <section className="service-config-section">
-                                    <div className="service-config-heading">
-                                        <h4>Subcategory</h4>
-                                        <span>{configCategory.pricingModel?.replaceAll("_", " ")}</span>
-                                    </div>
-                                    {configCategory.sizes?.length > 0 ? (
-                                        <div className="service-option-grid">
-                                            {configCategory.sizes.map(size => (
+
+                                {/* ── Service Type ── */}
+                                {serviceTypes.length > 0 && (
+                                    <section className="service-config-section">
+                                        <div className="service-config-heading">
+                                            <h4>Service Type</h4>
+                                            {selectedServiceType?.multiplier > 1 && (
+                                                <span style={{ color: "#7c3aed", fontWeight: 700 }}>×{serviceTypeMultiplier.toFixed(2)} multiplier</span>
+                                            )}
+                                        </div>
+                                        <div className="service-option-grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))" }}>
+                                            {serviceTypes.map(st => (
                                                 <button
-                                                    key={size.id}
-                                                    onClick={() => setConfigSizeId(size.id)}
+                                                    key={st.id}
                                                     type="button"
-                                                    className={`service-option-card ${configSizeId === size.id ? "active" : ""}`}
+                                                    onClick={() => setConfigServiceTypeId(st.id)}
+                                                    className={`service-option-card ${configServiceTypeId === st.id ? "active" : ""}`}
                                                 >
-                                                    <strong>{size.name}</strong>
-                                                    <span>${parseFloat(size.price || 0).toFixed(2)} • {size.durationHrs || 0} hrs</span>
+                                                    <strong>{st.name}</strong>
+                                                    <span style={{ color: st.multiplier > 1 ? "#7c3aed" : undefined }}>
+                                                        {st.multiplier === 1 ? "Base price" : `×${parseFloat(st.multiplier).toFixed(2)} price`}
+                                                    </span>
                                                 </button>
                                             ))}
+                                        </div>
+                                    </section>
+                                )}
+
+                                {/* ── Property Type (house cleaning only) ── */}
+                                {hasPropertyType && configCategory.propertyTypes?.length > 0 && (
+                                    <section className="service-config-section">
+                                        <div className="service-config-heading">
+                                            <h4>Property Type</h4>
+                                        </div>
+                                        <div className="service-option-grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))" }}>
+                                            {configCategory.propertyTypes.map(pt => (
+                                                <button
+                                                    key={pt.id}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setConfigPropertyTypeId(pt.id);
+                                                        // Auto-select first size in this property type
+                                                        const firstId = (configCategory.sizes || []).find(s => s.propertyTypeId === pt.id)?.id;
+                                                        if (firstId) setConfigSizeId(firstId);
+                                                    }}
+                                                    className={`service-option-card ${configPropertyTypeId === pt.id ? "active" : ""}`}
+                                                >
+                                                    <strong>{pt.name}</strong>
+                                                    <span>{pt.sizeIds?.length || 0} sizes</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </section>
+                                )}
+
+                                {/* ── Size / Scope ── */}
+                                <section className="service-config-section">
+                                    <div className="service-config-heading">
+                                        <h4>{configCategory.sizeLabel || "Subcategory"}</h4>
+                                        <span>{configCategory.pricingModel?.replaceAll("_", " ")}</span>
+                                    </div>
+                                    {visibleSizes.length > 0 ? (
+                                        <div className="service-option-grid">
+                                            {visibleSizes.map(size => {
+                                                const displayPrice = parseFloat(size.price || 0) * serviceTypeMultiplier;
+                                                return (
+                                                    <button
+                                                        key={size.id}
+                                                        onClick={() => setConfigSizeId(size.id)}
+                                                        type="button"
+                                                        className={`service-option-card ${configSizeId === size.id ? "active" : ""}`}
+                                                    >
+                                                        <strong>{size.name}</strong>
+                                                        <span>${displayPrice.toFixed(2)} • {size.durationHrs || 0} hrs</span>
+                                                    </button>
+                                                );
+                                            })}
                                         </div>
                                     ) : (
                                         <div className="service-option-card active">
@@ -4273,7 +4612,9 @@ export default function Home() {
                                             <span>${basePrice.toFixed(2)} • {getCategoryDuration(configCategory)} hrs</span>
                                         </div>
                                     )}
-                                    {isHouseCleaning && (
+
+                                    {/* Bathrooms */}
+                                    {hasBathrooms && (
                                         <div className="service-bathroom-picker">
                                             <label htmlFor="bathroom-price-tier">Bathrooms</label>
                                             <select
@@ -4292,6 +4633,7 @@ export default function Home() {
                                     )}
                                 </section>
 
+                                {/* ── Add-ons ── */}
                                 <section className="service-config-section">
                                     <div className="service-config-heading">
                                         <h4>Add-ons</h4>
@@ -4334,7 +4676,12 @@ export default function Home() {
                             <div className="service-config-footer">
                                 <div>
                                     <span>Configured total</span>
-                                    <strong>${(basePrice + bathroomPrice + addonTotal).toFixed(2)}</strong>
+                                    <strong>${grandTotal.toFixed(2)}</strong>
+                                    {selectedServiceType && selectedServiceType.multiplier > 1 && (
+                                        <span style={{ fontSize: 11, color: "#7c3aed", marginLeft: 8 }}>
+                                            {selectedServiceType.name} ×{serviceTypeMultiplier.toFixed(2)}
+                                        </span>
+                                    )}
                                 </div>
                                 <button onClick={addConfiguredServiceToCart} type="button" className="admin-primary-action">
                                     {configEditingCartId ? "Update Configured Service" : "Add Configured Service"}
