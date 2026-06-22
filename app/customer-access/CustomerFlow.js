@@ -61,62 +61,67 @@ const S = {
     errorBox: { color: "#c0392b", fontSize: 14, marginTop: 12, padding: "10px 14px", background: "#fff5f5", borderRadius: 10 },
 };
 
-function OtpBoxes({ value, onChange }) {
-    const refs = [useRef(), useRef(), useRef(), useRef(), useRef(), useRef()];
+function OtpBoxes({ value, onChange, onComplete }) {
+    const inputRef = useRef();
 
-    useEffect(() => { refs[0].current?.focus(); }, []);
+    useEffect(() => {
+        const t = setTimeout(() => inputRef.current?.focus(), 120);
+        return () => clearTimeout(t);
+    }, []);
 
-    function handleKeyDown(e, i) {
-        if (e.key === "Backspace") {
-            e.preventDefault();
-            const next = value.slice(0, i) + value.slice(i + 1);
-            onChange(next);
-            if (i > 0) refs[i - 1].current?.focus();
-            return;
-        }
-        const ch = e.key.replace(/[^0-9]/, "");
-        if (!ch) return;
-        e.preventDefault();
-        const next = (value.slice(0, i) + ch + value.slice(i + 1)).slice(0, 6);
-        onChange(next);
-        if (i < 5) refs[i + 1].current?.focus();
-    }
-
-    function handlePaste(e) {
-        const pasted = (e.clipboardData.getData("text") || "").replace(/\D/g, "").slice(0, 6);
-        if (pasted) {
-            onChange(pasted);
-            refs[Math.min(pasted.length, 5)].current?.focus();
-        }
-        e.preventDefault();
+    function handleChange(e) {
+        const v = e.target.value.replace(/\D/g, "").slice(0, 6);
+        onChange(v);
+        if (v.length === 6 && onComplete) onComplete(v);
     }
 
     return (
-        <div style={{ display: "flex", gap: 8, justifyContent: "center", margin: "20px 0" }}>
+        <div
+            style={{ position: "relative", display: "flex", gap: 8, justifyContent: "center", margin: "20px 0", cursor: "text" }}
+            onClick={() => inputRef.current?.focus()}
+        >
+            {/* Visual boxes */}
             {Array.from({ length: 6 }, (_, i) => {
                 const d = value[i] || "";
                 return (
-                    <input
+                    <div
                         key={i}
-                        ref={refs[i]}
-                        type="text"
-                        inputMode="numeric"
-                        maxLength={1}
-                        value={d}
-                        readOnly
-                        onKeyDown={(e) => handleKeyDown(e, i)}
-                        onPaste={handlePaste}
-                        onClick={() => refs[i].current?.focus()}
                         style={{
-                            width: 44, height: 54, textAlign: "center",
+                            width: 44, height: 54, textAlign: "center", lineHeight: "54px",
                             fontSize: 24, fontWeight: 700, fontFamily: "inherit",
-                            border: `2px solid ${d ? ACTION : "#d0dce8"}`,
+                            border: `2px solid ${d ? ACTION : i === value.length ? "#94a3b8" : "#d0dce8"}`,
                             borderRadius: 12, background: d ? "#f0f6fc" : "#fff",
-                            outline: "none", color: BRAND,
+                            color: BRAND, flexShrink: 0, transition: "border-color 0.15s",
                         }}
-                    />
+                    >
+                        {d}
+                    </div>
                 );
             })}
+
+            {/* Single invisible input covering the full row — handles all typing, SMS autofill, paste */}
+            <input
+                ref={inputRef}
+                type="tel"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={value}
+                onChange={handleChange}
+                maxLength={6}
+                style={{
+                    position: "absolute",
+                    inset: 0,
+                    width: "100%",
+                    height: "100%",
+                    opacity: 0,
+                    border: "none",
+                    outline: "none",
+                    fontSize: 16,
+                    cursor: "text",
+                    zIndex: 2,
+                    WebkitTapHighlightColor: "transparent",
+                }}
+            />
         </div>
     );
 }
