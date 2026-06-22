@@ -4008,7 +4008,7 @@ export default function Home() {
                         </button>
                     )}
                     {canViewAdministration && (
-                        <button onClick={() => setActiveTab("catalog")} className={`nav-item ${activeTab === "catalog" ? "active" : ""}`}>
+                        <button onClick={() => setActiveTab("catalog")} className={`nav-item hidden md:flex ${activeTab === "catalog" ? "active" : ""}`}>
                             {Icons.Catalog()}
                             <span>Catalog Studio</span>
                         </button>
