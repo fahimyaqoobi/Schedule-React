@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 
 export default function DashboardTab({
     currentUser,
@@ -30,6 +31,8 @@ export default function DashboardTab({
     handleResolveUserApproval,
     getRoleLabel,
 }) {
+    const [showMetrics, setShowMetrics] = useState(false);
+
     return (
         <div className="animate-fade">
             {currentUser.role === "customer" ? (
@@ -160,28 +163,39 @@ export default function DashboardTab({
                             </button>
                         </div>
 
-                        <div className="admin-metric-row">
-                            <div className="admin-metric-card">
-                                <span>Total Revenue</span>
-                                <strong>${adminCommandMetrics.revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-                                <small>Completed jobs/bookings only</small>
-                            </div>
-                            <div className="admin-metric-card">
-                                <span>Booked Clients</span>
-                                <strong>{adminCommandMetrics.uniqueClients}</strong>
-                                <small>{adminCommandMetrics.activeBookings} active bookings</small>
-                            </div>
-                            <div className="admin-metric-card">
-                                <span>Booked Services</span>
-                                <strong>{adminCommandMetrics.bookedServices}</strong>
-                                <small>Cart and legacy bookings</small>
-                            </div>
-                            <div className="admin-metric-card warning" style={{cursor: adminCommandMetrics.awaitingApproval > 0 ? "pointer" : "default"}} onClick={() => { if (adminCommandMetrics.awaitingApproval > 0) { setActiveTab("bookings"); setFilterStatus("awaiting_approval"); } }}>
-                                <span>Pending Work</span>
-                                <strong>{adminCommandMetrics.pending}</strong>
-                                <small>{adminCommandMetrics.awaitingApproval > 0 ? `⏳ ${adminCommandMetrics.awaitingApproval} need approval` : `${adminCommandMetrics.confirmed} confirmed jobs`}</small>
-                            </div>
+                        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: showMetrics ? "10px" : "0" }}>
+                            <button
+                                onClick={() => setShowMetrics(v => !v)}
+                                style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "12px", fontWeight: 700, cursor: "pointer", letterSpacing: "0.03em", padding: "4px 0", display: "flex", alignItems: "center", gap: "5px" }}
+                            >
+                                {showMetrics ? "Hide summary ▲" : "Show summary ▼"}
+                            </button>
                         </div>
+
+                        {showMetrics && (
+                            <div className="admin-metric-row" style={{ marginBottom: "24px" }}>
+                                <div className="admin-metric-card">
+                                    <span>Total Revenue</span>
+                                    <strong>${adminCommandMetrics.revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                                    <small>Completed jobs/bookings only</small>
+                                </div>
+                                <div className="admin-metric-card">
+                                    <span>Booked Clients</span>
+                                    <strong>{adminCommandMetrics.uniqueClients}</strong>
+                                    <small>{adminCommandMetrics.activeBookings} active bookings</small>
+                                </div>
+                                <div className="admin-metric-card">
+                                    <span>Booked Services</span>
+                                    <strong>{adminCommandMetrics.bookedServices}</strong>
+                                    <small>Cart and legacy bookings</small>
+                                </div>
+                                <div className="admin-metric-card warning" style={{cursor: adminCommandMetrics.awaitingApproval > 0 ? "pointer" : "default"}} onClick={() => { if (adminCommandMetrics.awaitingApproval > 0) { setActiveTab("bookings"); setFilterStatus("awaiting_approval"); } }}>
+                                    <span>Pending Work</span>
+                                    <strong>{adminCommandMetrics.pending}</strong>
+                                    <small>{adminCommandMetrics.awaitingApproval > 0 ? `⏳ ${adminCommandMetrics.awaitingApproval} need approval` : `${adminCommandMetrics.confirmed} confirmed jobs`}</small>
+                                </div>
+                            </div>
+                        )}
 
                         <div className="admin-booking-workspace">
                             <div ref={serviceCatalogRef} className="admin-service-panel" tabIndex="-1">

@@ -5184,9 +5184,9 @@ select option:disabled {
 
 .admin-service-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 18px;
-    padding: 20px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    padding: 16px;
 }
 
 .admin-service-card {
@@ -5205,7 +5205,7 @@ select option:disabled {
 
 .admin-service-visual {
     position: relative;
-    min-height: 140px;
+    min-height: 80px;
     background-position: center;
     background-size: cover;
 }
@@ -5256,7 +5256,7 @@ select option:disabled {
 }
 
 .admin-service-body {
-    padding: 16px;
+    padding: 12px;
 }
 
 .admin-service-title-row {
@@ -5270,7 +5270,7 @@ select option:disabled {
     margin: 0;
     color: #00426d;
     font-family: var(--font-heading);
-    font-size: 18px;
+    font-size: 14px;
     font-weight: 800;
     line-height: 1.25;
 }
@@ -5278,7 +5278,7 @@ select option:disabled {
 .admin-service-title-row strong {
     color: #006878;
     font-family: var(--font-heading);
-    font-size: 17px;
+    font-size: 13px;
 }
 
 .admin-service-body p {
@@ -5292,8 +5292,8 @@ select option:disabled {
 .admin-service-meta {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
-    margin: 14px 0;
+    gap: 6px;
+    margin: 8px 0;
 }
 
 .admin-service-meta span {
@@ -6208,9 +6208,12 @@ select option:disabled {
 
 @media (max-width: 1180px) {
     .admin-metric-row,
-    .admin-service-grid,
     .admin-ops-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .admin-service-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
     .admin-booking-workspace {
@@ -6291,13 +6294,17 @@ select option:disabled {
     }
 
     .admin-metric-row,
-    .admin-service-grid,
     .admin-ops-grid,
     .admin-hr-queue {
         grid-template-columns: 1fr;
     }
 
-    .admin-service-grid,
+    .admin-service-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        padding: 12px;
+        gap: 10px;
+    }
+
     .admin-section-heading,
     .admin-dispatch-list {
         padding: 14px;
@@ -6308,7 +6315,7 @@ select option:disabled {
     }
 
     .admin-service-visual {
-        min-height: 168px;
+        min-height: 64px;
     }
 
     .admin-cart-panel {
