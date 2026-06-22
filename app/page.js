@@ -50,6 +50,8 @@ import DepartmentsTab from "./components/admin/tabs/DepartmentsTab";
 import PermissionsTab from "./components/admin/tabs/PermissionsTab";
 import EditRequestsTab from "./components/admin/tabs/EditRequestsTab";
 import JobsPayrollTab from "./components/admin/tabs/JobsPayrollTab";
+import TimeCardsTab from "./components/admin/tabs/TimeCardsTab";
+import PayrollTab from "./components/admin/tabs/PayrollTab";
 import TeamsTab from "./components/admin/tabs/TeamsTab";
 import DashboardTab from "./components/admin/tabs/DashboardTab";
 import BookingsTab from "./components/admin/tabs/BookingsTab";
@@ -2688,6 +2690,44 @@ export default function Home() {
         }
     }, [currentUser, getAuthHeaders, manualTimeEntryForm, syncDatabaseData]);
 
+    const handleEditTimeEntry = useCallback(async (entryId, { startedAt, endedAt, unpaidBreakMinutes }) => {
+        setTimeEntrySaving(true);
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch("/api/time-entries", {
+                method: "PUT",
+                headers,
+                body: JSON.stringify({ action: "admin_edit", entryId, startedAt, endedAt, unpaidBreakMinutes })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || "Edit failed.");
+            setTimeEntryEditDrafts(prev => { const next = { ...prev }; delete next[entryId]; return next; });
+            setJobsFeedback("Time entry updated.");
+            syncDatabaseData(currentUser);
+        } catch (err) {
+            setJobsFeedback(`Error: ${err.message}`);
+        } finally {
+            setTimeEntrySaving(false);
+        }
+    }, [currentUser, getAuthHeaders, syncDatabaseData]);
+
+    const handleDeleteTimeEntry = useCallback(async (entryId) => {
+        if (!confirm("Soft-delete this time entry? It will be hidden from all views.")) return;
+        setTimeEntrySaving(true);
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch(`/api/time-entries?id=${encodeURIComponent(entryId)}`, { method: "DELETE", headers });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || "Delete failed.");
+            setJobsFeedback("Time entry deleted.");
+            syncDatabaseData(currentUser);
+        } catch (err) {
+            setJobsFeedback(`Error: ${err.message}`);
+        } finally {
+            setTimeEntrySaving(false);
+        }
+    }, [currentUser, getAuthHeaders, syncDatabaseData]);
+
     // ----------------------------------------------------
     // Admin Review Merges (Approvals / Rejections)
     // ----------------------------------------------------
@@ -3700,9 +3740,10 @@ export default function Home() {
                     />
                 )}
 
-                {(activeTab === "jobs" || activeTab === "payroll") && (
+                {/* Cleaner self-service: Jobs tab */}
+                {activeTab === "jobs" && isCleanerSelfServiceView && (
                     <JobsPayrollTab
-                        isCleanerSelfServiceView={isCleanerSelfServiceView}
+                        isCleanerSelfServiceView={true}
                         cleanerPayPeriod={cleanerPayPeriod}
                         weeklyTimeSummary={weeklyTimeSummary}
                         Icons={Icons}
@@ -3713,14 +3754,6 @@ export default function Home() {
                         jobsNow={jobsNow}
                         jobsFeedback={jobsFeedback}
                         recentOwnTimeEntries={recentOwnTimeEntries}
-                        payrollSummary={payrollSummary}
-                        payrollApprovedRows={payrollApprovedRows}
-                        payrollRejectedRows={payrollRejectedRows}
-                        timeEntryEditDrafts={timeEntryEditDrafts}
-                        setTimeEntryEditDrafts={setTimeEntryEditDrafts}
-                        manualTimeEntryForm={manualTimeEntryForm}
-                        setManualTimeEntryForm={setManualTimeEntryForm}
-                        employeePayrollRoster={employeePayrollRoster}
                         currentUser={currentUser}
                         formatDurationMinutes={formatDurationMinutes}
                         formatRuntime={formatRuntime}
@@ -3728,15 +3761,45 @@ export default function Home() {
                         getBookingLocationLabel={getBookingLocationLabel}
                         handleOpenCleanerJob={handleOpenCleanerJob}
                         syncDatabaseData={syncDatabaseData}
-                        handleReviewTimeEntry={handleReviewTimeEntry}
-                        handleCreateManualTimeEntry={handleCreateManualTimeEntry}
-                        handleAdminClockInFor={handleAdminClockInFor}
-                        handleAdminClockOutFor={handleAdminClockOutFor}
-                        activeTimeEntries={activeTimeEntries}
+                    />
+                )}
+
+                {/* Admin: Time Cards tab */}
+                {activeTab === "jobs" && !isCleanerSelfServiceView && (
+                    <TimeCardsTab
+                        isSuperAdmin={isSuperAdmin}
+                        timeEntries={timeEntries}
+                        timeEntrySaving={timeEntrySaving}
                         allFieldStaff={fieldStaff}
                         todayAllConfirmedJobs={todayAllConfirmedJobs}
                         adminClockForm={adminClockForm}
                         setAdminClockForm={setAdminClockForm}
+                        activeTimeEntries={activeTimeEntries}
+                        handleAdminClockInFor={handleAdminClockInFor}
+                        handleAdminClockOutFor={handleAdminClockOutFor}
+                        handleReviewTimeEntry={handleReviewTimeEntry}
+                        handleEditTimeEntry={handleEditTimeEntry}
+                        handleDeleteTimeEntry={handleDeleteTimeEntry}
+                        handleCreateManualTimeEntry={handleCreateManualTimeEntry}
+                        manualTimeEntryForm={manualTimeEntryForm}
+                        setManualTimeEntryForm={setManualTimeEntryForm}
+                        timeEntryEditDrafts={timeEntryEditDrafts}
+                        setTimeEntryEditDrafts={setTimeEntryEditDrafts}
+                        currentUser={currentUser}
+                        syncDatabaseData={syncDatabaseData}
+                        jobsFeedback={jobsFeedback}
+                    />
+                )}
+
+                {/* Admin: Payroll tab */}
+                {activeTab === "payroll" && (
+                    <PayrollTab
+                        timeEntries={timeEntries}
+                        allFieldStaff={fieldStaff}
+                        isSuperAdmin={isSuperAdmin}
+                        getAuthHeaders={getAuthHeaders}
+                        currentUser={currentUser}
+                        syncDatabaseData={syncDatabaseData}
                     />
                 )}
 

@@ -87,6 +87,7 @@ export async function GET(request) {
         const entries = [];
         snapshot.forEach((doc) => {
             const entry = doc.data();
+            if (entry.status === "deleted") return;
             if (!statusFilter || entry.status === statusFilter) {
                 entries.push(entry);
             }
@@ -117,10 +118,6 @@ export async function POST(request) {
                 return NextResponse.json({ error: "Employee not found." }, { status: 404 });
             }
             const cleaner = cleanerDoc.data();
-            const workerType = String(cleaner.staffProfile?.employment?.workerType || "").toLowerCase();
-            if (workerType === "subcontractor") {
-                return NextResponse.json({ error: "Manual time cards are currently limited to employees." }, { status: 400 });
-            }
             if (!userCanAccessBranch(user, cleaner.branchId || DEFAULT_BRANCH_ID)) {
                 return NextResponse.json({ error: "You cannot create time cards for this branch." }, { status: 403 });
             }
@@ -385,6 +382,40 @@ export async function PUT(request) {
             return NextResponse.json({ message: "Checked out successfully. Awaiting payroll approval.", entry: updatedEntry }, { status: 200 });
         }
 
+        if (action === "admin_edit") {
+            if (normalizeRole(user.role) !== "super-admin") {
+                return NextResponse.json({ error: "Only super admins can edit approved time entries." }, { status: 403 });
+            }
+            if (!entryId) return NextResponse.json({ error: "Entry ID required." }, { status: 400 });
+            const entryRef = adminDb.collection("timeEntries").doc(entryId);
+            const snap = await entryRef.get();
+            if (!snap.exists) return NextResponse.json({ error: "Time entry not found." }, { status: 404 });
+            const entry = snap.data();
+            const editStart = toIsoOrFallback(startedAt, entry.startedAt);
+            const editEnd = toIsoOrFallback(endedAt, entry.endedAt);
+            const editBreak = Math.max(0, Number(unpaidBreakMinutes ?? entry.unpaidBreakMinutes ?? 0));
+            const editDuration = Math.max(0, getDurationMinutes(editStart, editEnd) - editBreak);
+            const editBreakdown = calculatePayrollBreakdown(editDuration, {
+                hourlyRate: entry.payRate || DEFAULT_PAY_RATE,
+                overtimeRate: entry.overtimeRate,
+                overtimeAfterHours: entry.overtimeAfterHours,
+            });
+            const updated = {
+                ...entry,
+                startedAt: editStart,
+                endedAt: editEnd,
+                unpaidBreakMinutes: editBreak,
+                durationMinutes: editDuration,
+                grossPayEstimate: editBreakdown.grossPay,
+                payrollBreakdown: editBreakdown,
+                updatedAt: new Date().toISOString(),
+                reviewedAt: new Date().toISOString(),
+                reviewedBy: user.email || user.uid,
+            };
+            await entryRef.set(updated);
+            return NextResponse.json({ message: "Time entry updated.", entry: updated }, { status: 200 });
+        }
+
         if (action === "approve" || action === "reject") {
             if (!canManageBranch(user)) {
                 return NextResponse.json({ error: "Only admins can review payroll entries." }, { status: 403 });
@@ -435,5 +466,30 @@ export async function PUT(request) {
     } catch (error) {
         console.error("PUT time entry error:", error);
         return NextResponse.json({ error: error.message || "Failed to update time entry." }, { status: 500 });
+    }
+}
+
+export async function DELETE(request) {
+    try {
+        const user = await authenticateRequest(request);
+        if (normalizeRole(user.role) !== "super-admin") {
+            return NextResponse.json({ error: "Only super admins can delete time entries." }, { status: 403 });
+        }
+        const { searchParams } = new URL(request.url);
+        const entryId = searchParams.get("id");
+        if (!entryId) return NextResponse.json({ error: "Entry ID required." }, { status: 400 });
+        const entryRef = adminDb.collection("timeEntries").doc(entryId);
+        const snap = await entryRef.get();
+        if (!snap.exists) return NextResponse.json({ error: "Time entry not found." }, { status: 404 });
+        await entryRef.update({
+            status: "deleted",
+            deletedAt: new Date().toISOString(),
+            deletedBy: user.email || user.uid,
+            updatedAt: new Date().toISOString(),
+        });
+        return NextResponse.json({ message: "Time entry soft-deleted." }, { status: 200 });
+    } catch (error) {
+        console.error("DELETE time entry error:", error);
+        return NextResponse.json({ error: error.message || "Failed to delete time entry." }, { status: 500 });
     }
 }
