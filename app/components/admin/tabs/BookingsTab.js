@@ -212,27 +212,49 @@ export default function BookingsTab({
     const [dateFilter, setDateFilter] = useState("");
     const [saving, setSaving] = useState(null);
 
+    // today at local midnight — used for all date comparisons
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const parseDate = (str) => {
+    // Parse booking date strings (YYYY-MM-DD from <input type="date">) as local midnight.
+    // new Date("YYYY-MM-DD") is UTC midnight which shifts the calendar day in non-UTC zones.
+    const parseBookingDate = (str) => {
         if (!str) return null;
+        const iso = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (iso) return new Date(+iso[1], +iso[2] - 1, +iso[3]);
         const d = new Date(str);
         return isNaN(d) ? null : d;
     };
 
     const visibleBookings = (filteredBookings || []).filter(b => {
-        if (!dateFilter) return true;
-        const d = parseDate(b.date);
-        if (!d) return true;
-        if (dateFilter === "today") return d.toDateString() === today.toDateString();
+        if (!dateFilter) return true;                        // All Dates — no filter
+        const d = parseBookingDate(b.date);
+        if (!d) return true;                                 // unparseable date — show it
+
+        if (dateFilter === "today") {
+            // exact calendar-day match in local time
+            return d.getFullYear() === today.getFullYear() &&
+                   d.getMonth()    === today.getMonth()    &&
+                   d.getDate()     === today.getDate();
+        }
+
         if (dateFilter === "week") {
-            const end = new Date(today); end.setDate(today.getDate() + 7);
-            return d >= today && d <= end;
+            // Monday–Sunday of the current calendar week
+            const dow = today.getDay();                      // 0=Sun … 6=Sat
+            const monday = new Date(today);
+            monday.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1));
+            const sunday = new Date(monday);
+            sunday.setDate(monday.getDate() + 6);
+            sunday.setHours(23, 59, 59, 999);
+            return d >= monday && d <= sunday;
         }
+
         if (dateFilter === "month") {
-            return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
+            // any day in the current calendar month
+            return d.getMonth()    === today.getMonth() &&
+                   d.getFullYear() === today.getFullYear();
         }
+
         return true;
     });
 
@@ -379,6 +401,7 @@ export default function BookingsTab({
                 {visibleBookings.length === 0 ? (
                     <div className="text-center p-12 text-slate-400 text-sm">No scheduled cleanings match your filters.</div>
                 ) : (
+                <div className="table-scroll-wrapper">
                     <table className="bookings-table">
                         <thead>
                             <tr>
@@ -563,6 +586,7 @@ export default function BookingsTab({
                             })}
                         </tbody>
                     </table>
+                </div>
                 )}
             </div>
         </div>

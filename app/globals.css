@@ -1069,6 +1069,16 @@ label {
     box-shadow: var(--box-shadow);
 }
 
+.table-scroll-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+}
+
+.table-scroll-wrapper .bookings-table {
+    min-width: 900px;
+}
+
 .bookings-table {
     width: 100%;
     border-collapse: collapse;
