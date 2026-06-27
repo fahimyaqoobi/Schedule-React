@@ -392,175 +392,136 @@ export default function BookingsTab({
                     <table className="bookings-table">
                         <thead>
                             <tr>
-                                <th style={{ width: 32 }}>
+                                <th style={{ width: 36 }}>
                                     <input type="checkbox"
                                         checked={selectedIds.size === visibleBookings.length && visibleBookings.length > 0}
                                         onChange={toggleSelectAll} />
                                 </th>
-                                <th>Client</th>
-                                <th>Address</th>
-                                <th>Service</th>
-                                <th>
-                                    Schedule
-                                    <span style={{ fontSize: 9, color: "#94a3b8", fontWeight: 400, marginLeft: 4 }}>click to edit</span>
-                                </th>
-                                <th>
-                                    Staff
-                                    <span style={{ fontSize: 9, color: "#94a3b8", fontWeight: 400, marginLeft: 4 }}>click to edit</span>
-                                </th>
-                                <th>
-                                    Status
-                                    <span style={{ fontSize: 9, color: "#94a3b8", fontWeight: 400, marginLeft: 4 }}>click to edit</span>
-                                </th>
-                                <th>
-                                    Payment
-                                    <span style={{ fontSize: 9, color: "#94a3b8", fontWeight: 400, marginLeft: 4 }}>click to edit</span>
-                                </th>
-                                <th className="text-right">Actions</th>
+                                <th style={{ minWidth: 160 }}>Client</th>
+                                <th style={{ minWidth: 180 }}>Address</th>
+                                <th style={{ minWidth: 140 }}>Service</th>
+                                <th style={{ minWidth: 150 }}>Schedule ✏</th>
+                                <th style={{ minWidth: 120 }}>Staff ✏</th>
+                                <th style={{ minWidth: 130 }}>Status ✏</th>
+                                <th style={{ minWidth: 110 }}>Payment ✏</th>
+                                <th style={{ minWidth: 100, textAlign: "right" }}>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {visibleBookings.map(b => {
                                 const hasPendingEdit = editRequests.some(r => r.bookingId === b.id && r.status === "Pending");
-                                const rowBg = ROW_STATUS_BG[b.status] || "#fff";
                                 const isSaving = saving === b.id;
-
-                                // Enrich assignedStaff with photoURL from fieldStaff lookup
                                 const enrichedStaff = (b.assignedStaff || []).map(m => ({
-                                    ...m,
-                                    photoURL: m.photoURL || staffPhotoMap[m.uid] || "",
+                                    ...m, photoURL: m.photoURL || staffPhotoMap[m.uid] || "",
                                 }));
 
                                 return (
-                                    <tr key={b.id} style={{ background: rowBg, opacity: isSaving ? 0.55 : 1, transition: "opacity 0.2s" }}>
-                                        {/* Checkbox */}
-                                        <td style={{ width: 32 }}>
-                                            <input type="checkbox"
-                                                checked={selectedIds.has(b.id)}
+                                    <tr key={b.id} data-status={b.status} style={{ opacity: isSaving ? 0.5 : 1, transition: "opacity 0.15s" }}>
+
+                                        {/* ── Checkbox ── */}
+                                        <td style={{ width: 36 }}>
+                                            <input type="checkbox" checked={selectedIds.has(b.id)}
                                                 onChange={() => setSelectedIds(prev => {
-                                                    const next = new Set(prev);
-                                                    next.has(b.id) ? next.delete(b.id) : next.add(b.id);
-                                                    return next;
+                                                    const next = new Set(prev); next.has(b.id) ? next.delete(b.id) : next.add(b.id); return next;
                                                 })} />
                                         </td>
 
-                                        {/* Client */}
-                                        <td data-label="Client">
-                                            <div className="flex flex-col items-end md:items-start">
-                                                <div className="client-name-cell">{b.clientName}</div>
-                                                <div className="text-[10px] text-slate-400 mt-0.5">{b.phone}</div>
-                                                {b.customerConfirmed && b.status === "Pending" && (
-                                                    <div className="inline-block text-[9px] bg-green-50 border border-green-200 text-green-700 font-bold px-1.5 py-0.5 rounded-full mt-1">✓ Confirmed</div>
-                                                )}
-                                                {hasPendingEdit && (
-                                                    <div className="inline-block text-[9px] bg-amber-50 border border-amber-200 text-amber-700 font-bold px-1.5 py-0.5 rounded-full mt-1">Pending Review</div>
-                                                )}
+                                        {/* ── Client ── */}
+                                        <td>
+                                            <div style={{ fontWeight: 700, fontSize: 13, color: "#1e293b", whiteSpace: "nowrap" }}>{b.clientName}</div>
+                                            <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 1 }}>{b.phone}</div>
+                                            {(b.customerConfirmed && b.status === "Pending") && (
+                                                <span style={{ display:"inline-block", marginTop:3, fontSize:9, fontWeight:700, background:"#f0fdf4", color:"#16a34a", border:"1px solid #bbf7d0", borderRadius:99, padding:"1px 7px" }}>✓ Confirmed</span>
+                                            )}
+                                            {hasPendingEdit && (
+                                                <span style={{ display:"inline-block", marginTop:3, fontSize:9, fontWeight:700, background:"#fffbeb", color:"#d97706", border:"1px solid #fde68a", borderRadius:99, padding:"1px 7px" }}>● Review</span>
+                                            )}
+                                        </td>
+
+                                        {/* ── Address ── */}
+                                        <td>
+                                            <div style={{ fontSize: 12, color: "#475569", maxWidth: 200, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }} title={formatAddress(b)}>
+                                                {formatAddress(b)}
                                             </div>
                                         </td>
 
-                                        {/* Address */}
-                                        <td data-label="Address">
-                                            <div className="address-cell text-xs" title={formatAddress(b)}>{formatAddress(b)}</div>
+                                        {/* ── Service ── */}
+                                        <td>
+                                            <div style={{ fontWeight: 600, fontSize: 12, color: "#1e293b" }}>{b.service}</div>
+                                            <div style={{ fontSize: 12, fontWeight: 800, color: "#0891b2", marginTop: 1 }}>${parseFloat(b.price || 0).toFixed(2)}</div>
                                         </td>
 
-                                        {/* Service */}
-                                        <td data-label="Service" className="service-cell">
-                                            <div className="flex flex-col items-end md:items-start">
-                                                <div className="font-bold text-slate-700 text-xs">{b.service}</div>
-                                                <div className="price-text">${parseFloat(b.price || 0).toFixed(2)}</div>
-                                            </div>
-                                        </td>
-
-                                        {/* Schedule — click to edit */}
-                                        <td data-label="Schedule" className="datetime-cell" style={{ position: "relative" }}>
+                                        {/* ── Schedule ── click to edit */}
+                                        <td style={{ position: "relative" }}>
                                             {isEditing(b.id, "schedule") && (
-                                                <SchedulePopover
-                                                    booking={b}
-                                                    onSave={(fields) => quickUpdate(b.id, fields)}
-                                                    onClose={stopEditing}
-                                                />
+                                                <SchedulePopover booking={b} onSave={f => quickUpdate(b.id, f)} onClose={stopEditing} />
                                             )}
-                                            <div onClick={() => startEditing(b.id, "schedule")}
-                                                style={{ cursor: "pointer" }} title="Click to reschedule">
-                                                <div style={{ fontWeight: 700, fontSize: 12 }}>{b.date || "—"}</div>
+                                            <div onClick={() => startEditing(b.id, "schedule")} style={{ cursor: "pointer" }} title="Click to reschedule">
+                                                <div style={{ fontWeight: 700, fontSize: 12, color: "#1e293b" }}>{b.date || "—"}</div>
                                                 <div style={{ fontSize: 11, color: "#64748b" }}>{formatTimeWindow(b.time, b.duration)}</div>
-                                                <div style={{ fontSize: 9, color: "#cbd5e1", marginTop: 2 }}>✏ reschedule</div>
                                             </div>
                                         </td>
 
-                                        {/* Staff avatars — click to edit */}
-                                        <td data-label="Staff" style={{ position: "relative" }}>
+                                        {/* ── Staff avatars ── click to edit */}
+                                        <td style={{ position: "relative" }}>
                                             {isEditing(b.id, "staff") && (
-                                                <StaffPopover
-                                                    booking={b}
-                                                    fieldStaff={fieldStaff}
-                                                    onSave={(fields) => quickUpdate(b.id, fields)}
-                                                    onClose={stopEditing}
-                                                />
+                                                <StaffPopover booking={b} fieldStaff={fieldStaff} onSave={f => quickUpdate(b.id, f)} onClose={stopEditing} />
                                             )}
-                                            <div onClick={() => startEditing(b.id, "staff")}
-                                                style={{ cursor: "pointer" }} title="Click to assign staff">
+                                            <div onClick={() => startEditing(b.id, "staff")} style={{ cursor: "pointer" }} title="Click to assign staff">
                                                 {enrichedStaff.length > 0 ? (
-                                                    <div style={{ display: "flex", alignItems: "center", gap: -6 }}>
-                                                        {enrichedStaff.slice(0, 5).map((m, i) => (
-                                                            <div key={m.uid || m.email || i}
-                                                                style={{ marginLeft: i === 0 ? 0 : -8, zIndex: enrichedStaff.length - i }}>
-                                                                <StaffAvatar member={m} size={30} />
+                                                    <div style={{ display: "flex" }}>
+                                                        {enrichedStaff.slice(0, 4).map((m, i) => (
+                                                            <div key={m.uid || i} style={{ marginLeft: i === 0 ? 0 : -7, zIndex: 10 - i }}>
+                                                                <StaffAvatar member={m} size={28} />
                                                             </div>
                                                         ))}
-                                                        {enrichedStaff.length > 5 && (
-                                                            <div style={{
-                                                                marginLeft: -8, width: 30, height: 30, borderRadius: "50%",
-                                                                background: "#e2e8f0", border: "2px solid #fff",
-                                                                display: "flex", alignItems: "center", justifyContent: "center",
-                                                                fontSize: 10, fontWeight: 700, color: "#64748b",
-                                                            }}>+{enrichedStaff.length - 5}</div>
+                                                        {enrichedStaff.length > 4 && (
+                                                            <div style={{ marginLeft: -7, width: 28, height: 28, borderRadius: "50%", background: "#e2e8f0", border: "2px solid #fff", display:"flex", alignItems:"center", justifyContent:"center", fontSize: 9, fontWeight: 800, color: "#64748b" }}>
+                                                                +{enrichedStaff.length - 4}
+                                                            </div>
                                                         )}
                                                     </div>
                                                 ) : (
-                                                    <span style={{ fontSize: 11, color: "#94a3b8" }}>Unassigned</span>
+                                                    <span style={{ fontSize: 11, color: "#cbd5e1", fontStyle:"italic" }}>Unassigned</span>
                                                 )}
-                                                <div style={{ fontSize: 9, color: "#cbd5e1", marginTop: 3 }}>✏ assign</div>
                                             </div>
                                         </td>
 
-                                        {/* Status — click to edit */}
-                                        <td data-label="Status" style={{ position: "relative", minWidth: 130 }}>
+                                        {/* ── Status ── click to edit */}
+                                        <td style={{ position: "relative" }}>
                                             {isEditing(b.id, "status") ? (
                                                 <select autoFocus defaultValue={b.status}
-                                                    onChange={async (e) => { await quickUpdate(b.id, { status: e.target.value }); }}
+                                                    onChange={async e => { await quickUpdate(b.id, { status: e.target.value }); }}
                                                     onBlur={stopEditing}
-                                                    style={{ width: "100%", padding: "6px 8px", borderRadius: 8, border: "2px solid #0891b2", fontSize: 12, cursor: "pointer" }}>
+                                                    style={{ width:"100%", padding:"5px 7px", borderRadius:7, border:"2px solid #818cf8", fontSize:12, cursor:"pointer" }}>
                                                     {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                                                 </select>
                                             ) : (
                                                 <div onClick={() => startEditing(b.id, "status")} style={{ cursor: "pointer" }}>
                                                     <StatusBadge status={b.status} />
-                                                    <div style={{ fontSize: 9, color: "#cbd5e1", marginTop: 2 }}>✏ edit</div>
                                                 </div>
                                             )}
                                         </td>
 
-                                        {/* Payment — click to edit */}
-                                        <td data-label="Payment" style={{ position: "relative", minWidth: 110 }}>
+                                        {/* ── Payment ── click to edit */}
+                                        <td style={{ position: "relative" }}>
                                             {isEditing(b.id, "payment") ? (
                                                 <select autoFocus defaultValue={b.paymentStatus || "unpaid"}
-                                                    onChange={async (e) => { await quickUpdate(b.id, { paymentStatus: e.target.value }); }}
+                                                    onChange={async e => { await quickUpdate(b.id, { paymentStatus: e.target.value }); }}
                                                     onBlur={stopEditing}
-                                                    style={{ width: "100%", padding: "6px 8px", borderRadius: 8, border: "2px solid #16a34a", fontSize: 12, cursor: "pointer" }}>
+                                                    style={{ width:"100%", padding:"5px 7px", borderRadius:7, border:"2px solid #34d399", fontSize:12, cursor:"pointer" }}>
                                                     {PAYMENT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                                                 </select>
                                             ) : (
                                                 <div onClick={() => startEditing(b.id, "payment")} style={{ cursor: "pointer" }}>
                                                     <PaymentBadge status={b.paymentStatus} />
-                                                    <div style={{ fontSize: 9, color: "#cbd5e1", marginTop: 2 }}>✏ edit</div>
                                                 </div>
                                             )}
                                         </td>
 
-                                        {/* Actions */}
-                                        <td data-label="Actions" className="actions-cell text-right">
-                                            <div className="actions-cell-inner flex gap-2 justify-end">
+                                        {/* ── Actions ── */}
+                                        <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                                            <div style={{ display:"flex", gap:4, justifyContent:"flex-end" }}>
                                                 <button onClick={() => { setSelectedBooking(b); setDetailsModalOpen(true); }} className="action-btn btn-view" title="Details">{Icons.Eye()}</button>
                                                 <button onClick={() => openEditBookingModal(b)} className="action-btn btn-edit" title="Edit">{Icons.Edit()}</button>
                                                 {canManagePermissions && (

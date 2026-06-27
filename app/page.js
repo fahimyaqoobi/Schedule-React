@@ -836,6 +836,7 @@ export default function Home() {
     const [currentUser, setCurrentUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState("dashboard");
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [clockString, setClockString] = useState("");
 
     // Core Data collections loaded from Serverless APIs
@@ -3966,107 +3967,123 @@ export default function Home() {
     // Authorized approved Application dashboard
     // ----------------------------------------------------
     return (
-        <div className="app-container">
+        <div className={`app-container${sidebarCollapsed ? " sidebar-is-collapsed" : ""}`}>
             {/* Sidebar Navigation */}
-            <aside className="sidebar">
+            <aside className={`sidebar${sidebarCollapsed ? " collapsed" : ""}`}>
                 <div className="brand-logo">
-                    <img src="/logo-full.png" alt="SmarTouch Clean" className="brand-logo-img" />
+                    {!sidebarCollapsed && <img src="/logo-full.png" alt="SmarTouch Clean" className="brand-logo-img" />}
+                    <button onClick={() => setSidebarCollapsed(v => !v)} className="sidebar-toggle-btn" title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}>
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            {sidebarCollapsed
+                                ? <><polyline points="9 18 15 12 9 6"/></>
+                                : <><polyline points="15 18 9 12 15 6"/></>
+                            }
+                        </svg>
+                    </button>
                 </div>
 
                 <nav className="nav-links">
                     {!isPendingCleanerOnboarding && !isCleanerSelfServiceView && (
-                        <button onClick={() => setActiveTab("dashboard")} className={`nav-item ${activeTab === "dashboard" ? "active" : ""}`}>
+                        <button onClick={() => setActiveTab("dashboard")} className={`nav-item ${activeTab === "dashboard" ? "active" : ""}`} title="Dashboard">
                             {Icons.Dashboard()}
-                            <span>Dashboard</span>
+                            <span className="nav-label">Dashboard</span>
                         </button>
                     )}
                     {!isPendingCleanerOnboarding && !isCleanerSelfServiceView && (
-                        <button onClick={() => setActiveTab("bookings")} className={`nav-item ${activeTab === "bookings" ? "active" : ""}`}>
+                        <button onClick={() => setActiveTab("bookings")} className={`nav-item ${activeTab === "bookings" ? "active" : ""}`} title="Bookings">
                             {Icons.Bookings()}
-                            <span>Bookings</span>
+                            <span className="nav-label">Bookings</span>
                         </button>
                     )}
                     {canViewOperations && (
-                        <button onClick={() => setActiveTab("calendar")} className={`nav-item ${activeTab === "calendar" ? "active" : ""}`}>
+                        <button onClick={() => setActiveTab("calendar")} className={`nav-item ${activeTab === "calendar" ? "active" : ""}`} title={isCleanerSelfServiceView ? "Schedule" : "Calendar"}>
                             {Icons.Calendar()}
-                            <span>{isCleanerSelfServiceView ? "Schedule" : "Calendar"}</span>
+                            <span className="nav-label">{isCleanerSelfServiceView ? "Schedule" : "Calendar"}</span>
                         </button>
                     )}
                     {canViewOperations && (
-                        <button onClick={() => setActiveTab("jobs")} className={`nav-item ${activeTab === "jobs" ? "active" : ""}`}>
+                        <button onClick={() => setActiveTab("jobs")} className={`nav-item ${activeTab === "jobs" ? "active" : ""}`} title={isCleanerSelfServiceView ? "Jobs" : "Time Cards"}>
                             {Icons.Clock()}
-                            <span>{isCleanerSelfServiceView ? "Jobs" : "Time Cards"}</span>
+                            <span className="nav-label">{isCleanerSelfServiceView ? "Jobs" : "Time Cards"}</span>
                         </button>
                     )}
                     {canViewPeople && (
-                        <button onClick={() => setActiveTab("teams")} className={`nav-item ${activeTab === "teams" ? "active" : ""}`}>
+                        <button onClick={() => setActiveTab("teams")} className={`nav-item ${activeTab === "teams" ? "active" : ""}`} title={isCleanerSelfServiceView ? "Profile" : "Staff"}>
                             {Icons.Teams()}
-                            <span>{isCleanerSelfServiceView ? "Profile" : "Staff"}</span>
+                            <span className="nav-label">{isCleanerSelfServiceView ? "Profile" : "Staff"}</span>
                         </button>
                     )}
                     {canViewAdministration && (
-                        <button onClick={() => setActiveTab("departments")} className={`nav-item ${activeTab === "departments" ? "active" : ""}`}>
+                        <button onClick={() => setActiveTab("departments")} className={`nav-item ${activeTab === "departments" ? "active" : ""}`} title="Departments">
                             {Icons.Departments()}
-                            <span>Departments</span>
+                            <span className="nav-label">Departments</span>
                         </button>
                     )}
                     {canViewAdministration && (
-                        <button onClick={() => setActiveTab("edit-requests")} className={`nav-item ${activeTab === "edit-requests" ? "active" : ""}`}>
-                            <div className="flex items-center gap-3">
-                                {Icons.EditReview()}
-                                <span>Edit Review</span>
-                            </div>
+                        <button onClick={() => setActiveTab("edit-requests")} className={`nav-item ${activeTab === "edit-requests" ? "active" : ""}`} title="Edit Review">
+                            {Icons.EditReview()}
+                            <span className="nav-label">Edit Review</span>
                             {editRequests.filter(r => r.status === "Pending").length > 0 && (
                                 <span className="badge">{editRequests.filter(r => r.status === "Pending").length}</span>
                             )}
                         </button>
                     )}
                     {canViewAdministration && (
-                        <button onClick={() => setActiveTab("payroll")} className={`nav-item ${activeTab === "payroll" ? "active" : ""}`}>
+                        <button onClick={() => setActiveTab("payroll")} className={`nav-item ${activeTab === "payroll" ? "active" : ""}`} title="Payroll">
                             {Icons.Cash()}
-                            <span>Payroll</span>
+                            <span className="nav-label">Payroll</span>
                         </button>
                     )}
                     {canViewAdministration && (
-                        <button onClick={() => setActiveTab("catalog")} className={`nav-item hidden md:flex ${activeTab === "catalog" ? "active" : ""}`}>
+                        <button onClick={() => setActiveTab("catalog")} className={`nav-item hidden md:flex ${activeTab === "catalog" ? "active" : ""}`} title="Catalog Studio">
                             {Icons.Catalog()}
-                            <span>Catalog Studio</span>
+                            <span className="nav-label">Catalog Studio</span>
                         </button>
                     )}
                     {canViewAdministration && (
-                        <button onClick={() => setActiveTab("promotions")} className={`nav-item ${activeTab === "promotions" ? "active" : ""}`}>
+                        <button onClick={() => setActiveTab("promotions")} className={`nav-item ${activeTab === "promotions" ? "active" : ""}`} title="Promotions">
                             {Icons.Cash()}
-                            <span>Promotions</span>
+                            <span className="nav-label">Promotions</span>
                         </button>
                     )}
                     {canManagePermissions && (
-                        <button onClick={() => setActiveTab("permissions")} className={`nav-item ${activeTab === "permissions" ? "active" : ""}`}>
+                        <button onClick={() => setActiveTab("permissions")} className={`nav-item ${activeTab === "permissions" ? "active" : ""}`} title="Permissions">
                             {Icons.Shield()}
-                            <span>Permissions</span>
+                            <span className="nav-label">Permissions</span>
                         </button>
                     )}
                     {!isPendingCleanerOnboarding && (
-                        <button onClick={() => setActiveTab("settings")} className={`nav-item ${activeTab === "settings" ? "active" : ""}`}>
+                        <button onClick={() => setActiveTab("settings")} className={`nav-item ${activeTab === "settings" ? "active" : ""}`} title="Settings">
                             <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-                            <span>Settings</span>
+                            <span className="nav-label">Settings</span>
                         </button>
                     )}
                 </nav>
 
                 <div className="sidebar-footer">
-                    <div className="user-profile flex justify-between items-center w-full">
-                        <div className="flex items-center gap-2.5">
-                            <div className={`user-avatar text-white font-bold ${currentUser.photoURL ? "user-avatar-photo" : ""}`}>
+                    <div className={`user-profile ${sidebarCollapsed ? "justify-center" : "flex justify-between items-center w-full"}`}>
+                        {!sidebarCollapsed && (
+                            <div className="flex items-center gap-2.5">
+                                <div className={`user-avatar text-white font-bold ${currentUser.photoURL ? "user-avatar-photo" : ""}`}>
+                                    {currentUser.photoURL ? (
+                                        <img src={currentUser.photoURL} alt={currentUser.name} className="avatar-image" />
+                                    ) : getInitials(currentUser.name)}
+                                </div>
+                                <div className="user-details flex flex-col">
+                                    <span className="user-name text-slate-800 text-xs font-bold leading-tight">{currentUser.name}</span>
+                                    <span className="user-role text-[10px] text-slate-400 mt-0.5">{roleLabel}</span>
+                                </div>
+                            </div>
+                        )}
+                        {sidebarCollapsed ? (
+                            <div className={`user-avatar text-white font-bold ${currentUser.photoURL ? "user-avatar-photo" : ""}`} title={currentUser.name}>
                                 {currentUser.photoURL ? (
                                     <img src={currentUser.photoURL} alt={currentUser.name} className="avatar-image" />
                                 ) : getInitials(currentUser.name)}
                             </div>
-                            <div className="user-details flex flex-col">
-                                <span className="user-name text-slate-800 text-xs font-bold leading-tight">{currentUser.name}</span>
-                                <span className="user-role text-[10px] text-slate-400 mt-0.5">{roleLabel}{currentUser.teamId ? ` (${currentUser.teamId})` : ""}</span>
-                            </div>
-                        </div>
-                        <button onClick={handleSignout} className="action-btn" title="Log Out">{Icons.Logout()}</button>
+                        ) : (
+                            <button onClick={handleSignout} className="action-btn" title="Log Out">{Icons.Logout()}</button>
+                        )}
                     </div>
                 </div>
             </aside>
