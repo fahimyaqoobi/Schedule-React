@@ -205,6 +205,7 @@ export default function BookingsTab({
     handleDeleteBooking,
     fieldStaff,
     handleQuickBookingUpdate,
+    branchTimezone,
 }) {
     const [editingCell, setEditingCell] = useState(null);
     const [selectedIds, setSelectedIds] = useState(new Set());
@@ -212,49 +213,35 @@ export default function BookingsTab({
     const [dateFilter, setDateFilter] = useState("");
     const [saving, setSaving] = useState(null);
 
-    // today at local midnight — used for all date comparisons
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const tz = branchTimezone || "America/Toronto";
 
-    // Parse booking date strings (YYYY-MM-DD from <input type="date">) as local midnight.
-    // new Date("YYYY-MM-DD") is UTC midnight which shifts the calendar day in non-UTC zones.
-    const parseBookingDate = (str) => {
-        if (!str) return null;
-        const iso = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-        if (iso) return new Date(+iso[1], +iso[2] - 1, +iso[3]);
-        const d = new Date(str);
-        return isNaN(d) ? null : d;
-    };
+    // Get the current date string (YYYY-MM-DD) in the branch timezone.
+    // Using Intl so an admin in Europe or Asia sees Ottawa's calendar day, not their own.
+    const todayStr = new Intl.DateTimeFormat("en-CA", {
+        timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+    }).format(new Date()); // → "2026-06-26"
 
+    // Derive Monday and Sunday of the current branch-timezone week (Mon–Sun).
+    const [ty, tm, td] = todayStr.split("-").map(Number);
+    const todayJs = new Date(ty, tm - 1, td); // midnight, used only for day-of-week arithmetic
+    const dow = todayJs.getDay();              // 0=Sun … 6=Sat
+    const mondayJs = new Date(todayJs);
+    mondayJs.setDate(td - (dow === 0 ? 6 : dow - 1));
+    const sundayJs = new Date(mondayJs);
+    sundayJs.setDate(mondayJs.getDate() + 6);
+    const pad = n => String(n).padStart(2, "0");
+    const toDateStr = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const mondayStr = toDateStr(mondayJs);
+    const sundayStr = toDateStr(sundayJs);
+    const monthPrefix = todayStr.slice(0, 7); // "2026-06"
+
+    // All date comparisons use YYYY-MM-DD string order (lexicographic == chronological).
+    // Booking dates are stored as plain YYYY-MM-DD strings so no timezone conversion is needed.
     const visibleBookings = (filteredBookings || []).filter(b => {
-        if (!dateFilter) return true;                        // All Dates — no filter
-        const d = parseBookingDate(b.date);
-        if (!d) return true;                                 // unparseable date — show it
-
-        if (dateFilter === "today") {
-            // exact calendar-day match in local time
-            return d.getFullYear() === today.getFullYear() &&
-                   d.getMonth()    === today.getMonth()    &&
-                   d.getDate()     === today.getDate();
-        }
-
-        if (dateFilter === "week") {
-            // Monday–Sunday of the current calendar week
-            const dow = today.getDay();                      // 0=Sun … 6=Sat
-            const monday = new Date(today);
-            monday.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1));
-            const sunday = new Date(monday);
-            sunday.setDate(monday.getDate() + 6);
-            sunday.setHours(23, 59, 59, 999);
-            return d >= monday && d <= sunday;
-        }
-
-        if (dateFilter === "month") {
-            // any day in the current calendar month
-            return d.getMonth()    === today.getMonth() &&
-                   d.getFullYear() === today.getFullYear();
-        }
-
+        if (!dateFilter || !b.date) return true;
+        if (dateFilter === "today")  return b.date === todayStr;
+        if (dateFilter === "week")   return b.date >= mondayStr && b.date <= sundayStr;
+        if (dateFilter === "month")  return b.date.startsWith(monthPrefix);
         return true;
     });
 

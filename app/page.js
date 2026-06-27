@@ -4170,6 +4170,7 @@ export default function Home() {
                         setFilterTeam={setFilterTeam}
                         filterPayment={filterPayment}
                         setFilterPayment={setFilterPayment}
+                        branchTimezone={activeBranch?.timezone || "America/Toronto"}
                     />
                 )}
 
