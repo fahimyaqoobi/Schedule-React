@@ -838,6 +838,7 @@ export default function Home() {
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState("dashboard");
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [hrHubOpen, setHrHubOpen] = useState(true);
     const [clockString, setClockString] = useState("");
 
     // Core Data collections loaded from Serverless APIs
@@ -4000,16 +4001,58 @@ export default function Home() {
                             <span className="nav-label">{isCleanerSelfServiceView ? "Schedule" : "Calendar"}</span>
                         </button>
                     )}
-                    {canViewOperations && (
-                        <button onClick={() => setActiveTab("jobs")} className={`nav-item ${activeTab === "jobs" ? "active" : ""}`} title={isCleanerSelfServiceView ? "Jobs" : "Time Cards"}>
+                    {/* HR Hub group */}
+                    {(canViewOperations || canViewPeople || canViewAdministration) && !isCleanerSelfServiceView && (
+                        <div className={`nav-group${hrHubOpen ? " open" : ""}`}>
+                            <button
+                                className={`nav-group-header${["jobs","teams","payroll"].includes(activeTab) ? " has-active" : ""}`}
+                                onClick={() => setHrHubOpen(v => !v)}
+                                title="HR Hub"
+                            >
+                                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                                    <circle cx="9" cy="7" r="4"/>
+                                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                                </svg>
+                                <span className="nav-label">HR Hub</span>
+                                <svg className="nav-group-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <polyline points="6 9 12 15 18 9"/>
+                                </svg>
+                            </button>
+                            <div className="nav-group-items">
+                                {canViewOperations && (
+                                    <button onClick={() => setActiveTab("jobs")} className={`nav-item nav-sub-item ${activeTab === "jobs" ? "active" : ""}`} title="Time Cards">
+                                        {Icons.Clock()}
+                                        <span className="nav-label">Time Cards</span>
+                                    </button>
+                                )}
+                                {canViewPeople && (
+                                    <button onClick={() => setActiveTab("teams")} className={`nav-item nav-sub-item ${activeTab === "teams" ? "active" : ""}`} title="Staff">
+                                        {Icons.Teams()}
+                                        <span className="nav-label">Staff</span>
+                                    </button>
+                                )}
+                                {canViewAdministration && (
+                                    <button onClick={() => setActiveTab("payroll")} className={`nav-item nav-sub-item ${activeTab === "payroll" ? "active" : ""}`} title="Payroll">
+                                        {Icons.Cash()}
+                                        <span className="nav-label">Payroll</span>
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                    {/* Cleaner self-service: show Jobs & Profile outside group */}
+                    {isCleanerSelfServiceView && canViewOperations && (
+                        <button onClick={() => setActiveTab("jobs")} className={`nav-item ${activeTab === "jobs" ? "active" : ""}`} title="Jobs">
                             {Icons.Clock()}
-                            <span className="nav-label">{isCleanerSelfServiceView ? "Jobs" : "Time Cards"}</span>
+                            <span className="nav-label">Jobs</span>
                         </button>
                     )}
-                    {canViewPeople && (
-                        <button onClick={() => setActiveTab("teams")} className={`nav-item ${activeTab === "teams" ? "active" : ""}`} title={isCleanerSelfServiceView ? "Profile" : "Staff"}>
+                    {isCleanerSelfServiceView && canViewPeople && (
+                        <button onClick={() => setActiveTab("teams")} className={`nav-item ${activeTab === "teams" ? "active" : ""}`} title="Profile">
                             {Icons.Teams()}
-                            <span className="nav-label">{isCleanerSelfServiceView ? "Profile" : "Staff"}</span>
+                            <span className="nav-label">Profile</span>
                         </button>
                     )}
                     {canViewAdministration && (
@@ -4025,12 +4068,6 @@ export default function Home() {
                             {editRequests.filter(r => r.status === "Pending").length > 0 && (
                                 <span className="badge">{editRequests.filter(r => r.status === "Pending").length}</span>
                             )}
-                        </button>
-                    )}
-                    {canViewAdministration && (
-                        <button onClick={() => setActiveTab("payroll")} className={`nav-item ${activeTab === "payroll" ? "active" : ""}`} title="Payroll">
-                            {Icons.Cash()}
-                            <span className="nav-label">Payroll</span>
                         </button>
                     )}
                     {canViewAdministration && (
