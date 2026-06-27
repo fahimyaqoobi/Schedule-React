@@ -894,6 +894,7 @@ export default function Home() {
     const [filterService, setFilterService] = useState("");
     const [filterTeam, setFilterTeam] = useState("");
     const [filterStatus, setFilterStatus] = useState("");
+    const [filterPayment, setFilterPayment] = useState("");
     const [sortVal, setSortVal] = useState("date-asc");
 
     // Calendar state
@@ -3568,9 +3569,11 @@ export default function Home() {
             const matchStatus = !filterStatus ||
                 (filterStatus === "awaiting_approval" ? (b.customerConfirmed === true && b.status === "Pending") : b.status === filterStatus);
 
+            const matchPayment = !filterPayment || (b.paymentStatus || "unpaid") === filterPayment;
+
             const matchRoleAccess = currentUser?.role === "customer" ? b.email === currentUser?.email : true;
 
-            return matchSearch && matchService && matchTeam && matchStatus && matchRoleAccess;
+            return matchSearch && matchService && matchTeam && matchStatus && matchPayment && matchRoleAccess;
         }).sort((a, b) => {
             if (sortVal === "date-asc") {
                 return new Date(`${a.date} ${a.time}`) - new Date(`${b.date} ${b.time}`);
@@ -3583,7 +3586,7 @@ export default function Home() {
             }
             return 0;
         });
-    }, [bookings, searchVal, filterService, filterTeam, filterStatus, sortVal, currentUser]);
+    }, [bookings, searchVal, filterService, filterTeam, filterStatus, filterPayment, sortVal, currentUser]);
 
     // Stat metric computations
     const dashboardMetrics = useMemo(() => {
@@ -4163,6 +4166,10 @@ export default function Home() {
                         handleDeleteBooking={handleDeleteBooking}
                         fieldStaff={fieldStaff}
                         handleQuickBookingUpdate={handleQuickBookingUpdate}
+                        filterTeam={filterTeam}
+                        setFilterTeam={setFilterTeam}
+                        filterPayment={filterPayment}
+                        setFilterPayment={setFilterPayment}
                     />
                 )}
 
