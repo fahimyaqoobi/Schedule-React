@@ -55,6 +55,7 @@ import PayrollTab from "./components/admin/tabs/PayrollTab";
 import TeamsTab from "./components/admin/tabs/TeamsTab";
 import DashboardTab from "./components/admin/tabs/DashboardTab";
 import BookingsTab from "./components/admin/tabs/BookingsTab";
+import BookingWizard from "./components/admin/BookingWizard";
 import CalendarTab from "./components/admin/tabs/CalendarTab";
 
 const V2SettingsManager = dynamic(() => import("./components/V2SettingsManager"), {
@@ -967,6 +968,7 @@ export default function Home() {
     const [selectedBooking, setSelectedBooking] = useState(null);
     const [bookingModalOpen, setBookingModalOpen] = useState(false);
     const [adminServiceCart, setAdminServiceCart] = useState([]);
+    const [bookingWizardOpen, setBookingWizardOpen] = useState(false);
     const [serviceConfigOpen, setServiceConfigOpen] = useState(false);
     const [serviceConfigTarget, setServiceConfigTarget] = useState("checkout");
     const [configCategory, setConfigCategory] = useState(null);
@@ -1982,12 +1984,9 @@ export default function Home() {
     // ----------------------------------------------------
 
     const openNewBookingCommand = () => {
-        setActiveTab("dashboard");
         setAdminCheckoutOpen(false);
         setServiceConfigOpen(false);
-        requestAnimationFrame(() => {
-            serviceCatalogRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-        });
+        setBookingWizardOpen(true);
     };
 
     const openEditBookingModal = (b) => {
@@ -5073,6 +5072,17 @@ export default function Home() {
                         </form>
                     </div>
                 </div>
+            )}
+
+            {/* BOOKING WIZARD */}
+            {bookingWizardOpen && (
+                <BookingWizard
+                    v2Catalog={v2Catalog}
+                    promotionRules={promotionRules}
+                    onAddToCart={(item) => setAdminServiceCart(prev => [...prev, item])}
+                    onCheckout={() => { setBookingWizardOpen(false); checkoutAdminCart(); }}
+                    onClose={() => setBookingWizardOpen(false)}
+                />
             )}
 
             {/* MODAL 1: VIEW DETAILS MODAL */}
