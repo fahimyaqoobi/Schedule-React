@@ -2312,6 +2312,23 @@ export default function Home() {
         }
     }, [getAuthHeaders]);
 
+    const handleQuickBookingUpdate = useCallback(async (bookingId, fields) => {
+        try {
+            const headers = await getAuthHeaders();
+            const existing = bookings.find(b => b.id === bookingId) || {};
+            const res = await fetch("/api/bookings", {
+                method: "PUT",
+                headers,
+                body: JSON.stringify({ ...existing, id: bookingId, ...fields })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || "Update failed");
+            setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, ...fields } : b));
+        } catch (err) {
+            alert(`Quick update failed: ${err.message}`);
+        }
+    }, [bookings, getAuthHeaders]);
+
     // ----------------------------------------------------
     // Admin Crew Creation Actions
     // ----------------------------------------------------
@@ -4144,6 +4161,8 @@ export default function Home() {
                         setDetailsModalOpen={setDetailsModalOpen}
                         openEditBookingModal={openEditBookingModal}
                         handleDeleteBooking={handleDeleteBooking}
+                        fieldStaff={fieldStaff}
+                        handleQuickBookingUpdate={handleQuickBookingUpdate}
                     />
                 )}
 
