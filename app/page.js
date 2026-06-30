@@ -3421,8 +3421,16 @@ export default function Home() {
 
         return items.map((item, index) => ({
             cartId: item.cartId || item.id || `line-${Date.now()}-${index}`,
+            categoryId: item.categoryId || "",
+            pricingModel: item.pricingModel || "",
             name: item.name || fallbackService,
+            optionId: item.optionId || "",
             optionName: item.optionName || "Configured Service",
+            serviceTypeId: item.serviceTypeId || "",
+            serviceTypeName: item.serviceTypeName || "",
+            serviceTypeMultiplier: item.serviceTypeMultiplier || 1,
+            propertyTypeId: item.propertyTypeId || "",
+            propertyTypeName: item.propertyTypeName || "",
             bathroomKey: item.bathroomKey || "",
             durationHrs: Number(item.durationHrs || item.duration || 0),
             price: Number(item.price || 0),
@@ -4698,7 +4706,7 @@ export default function Home() {
                 const grandTotal = basePrice + bathroomPrice + addonTotal;
 
                 return (
-                    <div className="modal-backdrop show">
+                    <div className="modal-backdrop show" style={{ zIndex: 20000 }}>
                         <div className="modal-content modal-content-service-config animate-pop">
                             <div className="modal-header modal-header-brand">
                                 <div className="modal-title-stack">
