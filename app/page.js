@@ -3622,7 +3622,7 @@ export default function Home() {
         const confirmed = activeBookings.filter(b => b.status === "Confirmed").length;
         const pipeline = activeBookings.filter(b => ["Pending", "Lead", "Follow Up"].includes(b.status)).length;
         const awaitingApproval = activeBookings.filter(b => b.customerConfirmed === true && b.status === "Pending").length;
-        const pendingPaymentJobs = activeBookings.filter(b => b.paymentStatus !== "paid" && b.paymentStatus !== "Paid" && b.status !== "Cancelled");
+        const pendingPaymentJobs = activeBookings.filter(b => b.status === "Completed" && b.paymentStatus !== "paid" && b.paymentStatus !== "Paid");
         const pendingPaymentAmount = pendingPaymentJobs.reduce((sum, b) => sum + parseFloat(b.price || b.totalAmount || 0), 0);
 
         return {
