@@ -1,13 +1,126 @@
 "use client";
-import { useState } from "react";
+import { useState, useMemo } from "react";
+
+// --- Chart period helpers ---
+const CHART_FILTERS = [
+    { key: "7d", label: "Daily" },
+    { key: "4w", label: "Weekly" },
+    { key: "3m", label: "3 Months" },
+    { key: "6m", label: "6 Months" },
+    { key: "1y", label: "Annual" },
+];
+
+function getPeriods(filter) {
+    const now = new Date();
+    const fmt = d => d.toISOString().split("T")[0];
+    const periods = [];
+
+    if (filter === "7d") {
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date(now);
+            d.setDate(d.getDate() - i);
+            const ds = fmt(d);
+            periods.push({
+                label: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+                start: ds,
+                end: ds,
+            });
+        }
+    } else if (filter === "4w") {
+        for (let i = 3; i >= 0; i--) {
+            const endD = new Date(now);
+            endD.setDate(endD.getDate() - i * 7);
+            const startD = new Date(endD);
+            startD.setDate(startD.getDate() - 6);
+            periods.push({ label: `Wk ${4 - i}`, start: fmt(startD), end: fmt(endD) });
+        }
+    } else {
+        const months = filter === "3m" ? 3 : filter === "6m" ? 6 : 12;
+        const withYear = months > 6;
+        for (let i = months - 1; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const dEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
+            const label = withYear
+                ? d.toLocaleDateString("en-US", { month: "short", year: "2-digit" })
+                : d.toLocaleDateString("en-US", { month: "short" });
+            periods.push({ label, start: fmt(d), end: fmt(dEnd) });
+        }
+    }
+    return periods;
+}
+
+function inRange(rawDate, start, end) {
+    if (!rawDate) return false;
+    const d = String(rawDate).split("T")[0];
+    return d >= start && d <= end;
+}
+
+function RevenueWagesChart({ data }) {
+    const maxVal = Math.max(...data.map(d => Math.max(d.revenue, d.wages)), 1);
+    const roundedMax = Math.ceil(maxVal / 500) * 500 || 500;
+    const n = data.length;
+
+    const W = 560, H = 190;
+    const PL = 56, PR = 12, PT = 12, PB = 36;
+    const CW = W - PL - PR;
+    const CH = H - PT - PB;
+
+    const toY = v => PT + CH - (v / roundedMax) * CH;
+    const barW = Math.max(6, (CW / n) * 0.5);
+    const xCenter = i => PL + (i + 0.5) * (CW / n);
+
+    const linePoints = data.map((d, i) => `${xCenter(i).toFixed(1)},${toY(d.wages).toFixed(1)}`).join(" ");
+    const hasWages = data.some(d => d.wages > 0);
+
+    return (
+        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block", maxHeight: 220 }}>
+            {[0.25, 0.5, 0.75, 1.0].map((pct, i) => {
+                const y = toY(roundedMax * pct);
+                return (
+                    <g key={i}>
+                        <line x1={PL} y1={y.toFixed(1)} x2={W - PR} y2={y.toFixed(1)} stroke="#e2e8f0" strokeWidth="1" />
+                        <text x={PL - 6} y={(y + 4).toFixed(1)} textAnchor="end" fontSize="9" fill="#94a3b8">
+                            ${Math.round(roundedMax * pct).toLocaleString()}
+                        </text>
+                    </g>
+                );
+            })}
+            <line x1={PL} y1={(PT + CH).toFixed(1)} x2={W - PR} y2={(PT + CH).toFixed(1)} stroke="#cbd5e1" strokeWidth="1.5" />
+
+            {data.map((d, i) => {
+                const bH = Math.max(1, (d.revenue / roundedMax) * CH);
+                const bX = xCenter(i) - barW / 2;
+                const bY = PT + CH - bH;
+                return <rect key={i} x={bX.toFixed(1)} y={bY.toFixed(1)} width={barW.toFixed(1)} height={bH.toFixed(1)} fill="#1e3a5f" rx="3" opacity="0.85" />;
+            })}
+
+            {hasWages && (
+                <>
+                    <polyline points={linePoints} fill="none" stroke="#f97316" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+                    {data.map((d, i) =>
+                        d.wages > 0 && (
+                            <circle key={i} cx={xCenter(i).toFixed(1)} cy={toY(d.wages).toFixed(1)} r="3.5" fill="#f97316" stroke="#fff" strokeWidth="1.5" />
+                        )
+                    )}
+                </>
+            )}
+
+            {data.map((d, i) => (
+                <text key={i} x={xCenter(i).toFixed(1)} y={H - 6} textAnchor="middle" fontSize={n > 8 ? "8" : "9"} fill="#64748b">
+                    {d.label}
+                </text>
+            ))}
+        </svg>
+    );
+}
 
 export default function DashboardTab({
     currentUser,
     bookings,
+    timeEntries,
     customerRewards,
     promotionRules,
     adminCommandMetrics,
-    catalogServiceCards,
     adminServiceCart,
     adminCartTotals,
     activeBranch,
@@ -20,7 +133,6 @@ export default function DashboardTab({
     getPersonalReferralCode,
     getCustomerEligiblePromotions,
     openNewBookingCommand,
-    openServiceConfigurator,
     editAdminCartItem,
     removeAdminCartItem,
     checkoutAdminCart,
@@ -32,6 +144,28 @@ export default function DashboardTab({
     getRoleLabel,
 }) {
     const [showMetrics, setShowMetrics] = useState(false);
+    const [chartFilter, setChartFilter] = useState("7d");
+
+    const chartData = useMemo(() => {
+        const periods = getPeriods(chartFilter);
+        return periods.map(({ label, start, end }) => {
+            const revenue = (bookings || [])
+                .filter(b => {
+                    const ps = (b.paymentStatus || "").toLowerCase();
+                    return ps === "paid" && inRange(b.date, start, end);
+                })
+                .reduce((sum, b) => sum + parseFloat(b.price || b.totalAmount || 0), 0);
+
+            const wages = (timeEntries || [])
+                .filter(e => {
+                    const s = (e.status || "").toLowerCase();
+                    return s === "approved" && inRange(e.startedAt || e.createdAt, start, end);
+                })
+                .reduce((sum, e) => sum + parseFloat(e.grossPayEstimate || e.grossPay || 0), 0);
+
+            return { label, revenue, wages };
+        });
+    }, [bookings, timeEntries, chartFilter]);
 
     return (
         <div className="animate-fade">
@@ -142,24 +276,41 @@ export default function DashboardTab({
                 </div>
             ) : (
                 <>
-                    <section className="admin-command-shell">
+                    {/* Mobile-only CTA — only visible on phones */}
+                    <div className="dashboard-mobile-cta">
+                        <div className="dashboard-mobile-cta-inner">
+                            <div>
+                                <p className="admin-command-kicker">Admin</p>
+                                <h3>New Booking</h3>
+                            </div>
+                            <button onClick={openNewBookingCommand} className="admin-primary-action dashboard-mobile-new-booking">
+                                {Icons.Plus()}
+                                Start New Booking
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Desktop-only dashboard sections */}
+                    <section className="admin-command-shell dashboard-desktop-only">
                         <div className="admin-command-header">
                             <div>
                                 <p className="admin-command-kicker">Admin booking command</p>
-                                <h3>Start a booking from the service catalog</h3>
+                                <h3>Create a new booking</h3>
                                 <p>
-                                    Choose a core service, configure the subcategory and add-ons, add it to the cart, then repeat for multiple services before checkout.
+                                    Use the step-by-step booking wizard to select a service, configure size and add-ons, set frequency, and apply promotions — all in one guided flow.
                                 </p>
                                 <div className="admin-workflow-steps" aria-label="Booking workflow">
-                                    <span><strong>1</strong> Select service</span>
-                                    <span><strong>2</strong> Configure details</span>
-                                    <span><strong>3</strong> Add to cart</span>
-                                    <span><strong>4</strong> Checkout</span>
+                                    <span><strong>1</strong> Choose type</span>
+                                    <span><strong>2</strong> Select service</span>
+                                    <span><strong>3</strong> Configure</span>
+                                    <span><strong>4</strong> Add-ons</span>
+                                    <span><strong>5</strong> Frequency</span>
+                                    <span><strong>6</strong> Review</span>
                                 </div>
                             </div>
                             <button onClick={openNewBookingCommand} className="admin-primary-action">
                                 {Icons.Plus()}
-                                Start Service Cart
+                                New Booking
                             </button>
                         </div>
 
@@ -175,64 +326,63 @@ export default function DashboardTab({
                         {showMetrics && (
                             <div className="admin-metric-row" style={{ marginBottom: "24px" }}>
                                 <div className="admin-metric-card">
-                                    <span>Total Revenue</span>
-                                    <strong>${adminCommandMetrics.revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-                                    <small>Completed jobs/bookings only</small>
+                                    <span>Payments Collected</span>
+                                    <strong>${adminCommandMetrics.paidRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                                    <small>Paid jobs only</small>
+                                </div>
+                                <div className="admin-metric-card warning" style={{cursor: adminCommandMetrics.pendingPaymentCount > 0 ? "pointer" : "default"}} onClick={() => { if (adminCommandMetrics.pendingPaymentCount > 0) { setActiveTab("bookings"); setFilterStatus("unpaid"); } }}>
+                                    <span>Payments Pending</span>
+                                    <strong>${adminCommandMetrics.pendingPaymentAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                                    <small>{adminCommandMetrics.pendingPaymentCount} unpaid job{adminCommandMetrics.pendingPaymentCount !== 1 ? "s" : ""}</small>
                                 </div>
                                 <div className="admin-metric-card">
-                                    <span>Booked Clients</span>
-                                    <strong>{adminCommandMetrics.uniqueClients}</strong>
-                                    <small>{adminCommandMetrics.activeBookings} active bookings</small>
+                                    <span>Completed Jobs</span>
+                                    <strong>{adminCommandMetrics.completedCount}</strong>
+                                    <small>{adminCommandMetrics.activeBookings} total active</small>
                                 </div>
                                 <div className="admin-metric-card">
-                                    <span>Booked Services</span>
-                                    <strong>{adminCommandMetrics.bookedServices}</strong>
-                                    <small>Cart and legacy bookings</small>
+                                    <span>Confirmed</span>
+                                    <strong>{adminCommandMetrics.confirmed}</strong>
+                                    <small>Upcoming confirmed jobs</small>
                                 </div>
-                                <div className="admin-metric-card warning" style={{cursor: adminCommandMetrics.awaitingApproval > 0 ? "pointer" : "default"}} onClick={() => { if (adminCommandMetrics.awaitingApproval > 0) { setActiveTab("bookings"); setFilterStatus("awaiting_approval"); } }}>
-                                    <span>Pending Work</span>
-                                    <strong>{adminCommandMetrics.pending}</strong>
-                                    <small>{adminCommandMetrics.awaitingApproval > 0 ? `⏳ ${adminCommandMetrics.awaitingApproval} need approval` : `${adminCommandMetrics.confirmed} confirmed jobs`}</small>
+                                <div className="admin-metric-card" style={{cursor: adminCommandMetrics.pipeline > 0 ? "pointer" : "default"}} onClick={() => { if (adminCommandMetrics.pipeline > 0) { setActiveTab("bookings"); setFilterStatus("Pending"); } }}>
+                                    <span>Pipeline</span>
+                                    <strong>{adminCommandMetrics.pipeline}</strong>
+                                    <small>{adminCommandMetrics.awaitingApproval > 0 ? `⏳ ${adminCommandMetrics.awaitingApproval} awaiting approval` : "Pending · leads · follow-ups"}</small>
                                 </div>
                             </div>
                         )}
 
-                        <div className="admin-booking-workspace">
-                            <div ref={serviceCatalogRef} className="admin-service-panel" tabIndex="-1">
-                                <div className="admin-section-heading">
-                                    <div>
-                                        <h4>Service Catalog</h4>
-                                        <p>Core services from your V2 Dynamic Service Manager.</p>
+                        {/* Revenue & Wages Chart */}
+                        <div className="dashboard-chart-section">
+                            <div className="dashboard-chart-header">
+                                <div>
+                                    <h4 className="dashboard-chart-title">Revenue &amp; Wages</h4>
+                                    <div className="dashboard-chart-legend">
+                                        <span className="legend-revenue">Revenue (paid bookings)</span>
+                                        <span className="legend-wages">Wages (payroll)</span>
                                     </div>
-                                    <span>{catalogServiceCards.length} Services</span>
                                 </div>
-                                <div className="admin-service-grid">
-                                    {catalogServiceCards.map(service => (
-                                        <article key={service.id} className="admin-service-card">
-                                            <div className={`admin-service-visual ${service.visualClass}`}>
-                                                <span>{service.count} booked</span>
-                                            </div>
-                                            <div className="admin-service-body">
-                                                <div className="admin-service-title-row">
-                                                    <h5>{service.name}</h5>
-                                                    <strong>${service.basePrice.toFixed(2)}</strong>
-                                                </div>
-                                                <p>{service.pricingModel.replaceAll("_", " ")} • {service.durationHrs || "Custom"} hrs baseline</p>
-                                                <div className="admin-service-meta">
-                                                    <span>{service.sizes?.length || 0} subcategories</span>
-                                                    <span>{service.addons?.length || 0} add-ons</span>
-                                                </div>
-                                                <button onClick={() => openServiceConfigurator(service)} type="button" className="admin-add-service-btn">
-                                                    {Icons.Plus()}
-                                                    Configure
-                                                </button>
-                                            </div>
-                                        </article>
+                                <div className="dashboard-chart-filters">
+                                    {CHART_FILTERS.map(f => (
+                                        <button
+                                            key={f.key}
+                                            type="button"
+                                            className={`chart-filter-btn${chartFilter === f.key ? " active" : ""}`}
+                                            onClick={() => setChartFilter(f.key)}
+                                        >
+                                            {f.label}
+                                        </button>
                                     ))}
                                 </div>
                             </div>
+                            <div className="dashboard-chart-body">
+                                <RevenueWagesChart data={chartData} />
+                            </div>
+                        </div>
 
-                            <aside className="admin-cart-panel">
+                        <div className="admin-booking-workspace" ref={serviceCatalogRef}>
+                            <aside className="admin-cart-panel admin-cart-panel--wide">
                                 <div className="admin-section-heading">
                                     <div>
                                         <h4>Client Service Cart</h4>
@@ -243,7 +393,7 @@ export default function DashboardTab({
                                 {adminServiceCart.length === 0 ? (
                                     <div className="admin-cart-empty">
                                         <strong>No services selected yet.</strong>
-                                        <p>Tap Configure on any core service, choose the tier and add-ons, then add it to this cart.</p>
+                                        <p>Click <em>New Booking</em> above to build a service quote using the booking wizard.</p>
                                     </div>
                                 ) : (
                                     <div className="admin-cart-list">
@@ -344,7 +494,7 @@ export default function DashboardTab({
                             <div className="admin-live-panel">
                                 <div className="admin-section-heading">
                                     <div>
-                                        <h4>HR & Compliance Queue</h4>
+                                        <h4>HR &amp; Compliance Queue</h4>
                                         <p>Employee/subcontractor readiness.</p>
                                     </div>
                                     <span>{pendingUsers.length} Pending</span>
@@ -363,7 +513,7 @@ export default function DashboardTab({
 
                     {/* Permissioned pending user approvals table in Dashboard */}
                     {canManagePermissions && pendingUsers.length > 0 && (
-                        <div className="panel-card mt-6">
+                        <div className="panel-card mt-6 dashboard-desktop-only">
                             <div className="panel-header">
                                 <h4>Awaiting operational registration approvals</h4>
                                 <span className="badge badge-warning">{pendingUsers.length} Pending</span>

@@ -955,6 +955,7 @@ export default function Home() {
         assignedStaffIds: [],
         status: "Pending",
         paymentStatus: "unpaid",
+        paymentMethod: "",
         serviceDescription: "",
         accessDescription: "",
         cartItems: [],
@@ -1003,6 +1004,7 @@ export default function Home() {
         assignedStaffIds: [],
         bookingStatus: "Pending",
         paymentStatus: "unpaid",
+        paymentMethod: "",
         customerLoggedIn: false,
         promoCode: "",
         giftCardCode: "",
@@ -2029,6 +2031,7 @@ export default function Home() {
             assignedStaffIds: b.assignedStaffIds || [],
             status: b.status,
             paymentStatus: b.paymentStatus || "unpaid",
+            paymentMethod: b.paymentMethod || "",
             serviceDescription: b.serviceDescription || "",
             accessDescription: b.accessDescription || "",
             cartItems: editableCartItems,
@@ -3494,6 +3497,7 @@ export default function Home() {
                 assignedStaffIds: assignedStaff.map(member => member.uid),
                 status: adminCheckoutForm.bookingStatus || "Pending",
                 paymentStatus: adminCheckoutForm.paymentStatus || "unpaid",
+                paymentMethod: adminCheckoutForm.paymentMethod || "",
                 service: adminServiceCart.map(item => item.name).join(" + "),
                 bathrooms: "N/A",
                 frequency: "One-Time",
@@ -3612,27 +3616,24 @@ export default function Home() {
 
     const adminCommandMetrics = useMemo(() => {
         const activeBookings = bookings.filter(b => b.status !== "Cancelled");
-        const completedBookings = activeBookings.filter(booking => booking.status === "Completed");
-        const uniqueClients = new Set(activeBookings.map(b => (b.email || b.phone || b.clientName || "").toLowerCase()).filter(Boolean));
-        const bookedServices = activeBookings.reduce((total, booking) => {
-            if (Array.isArray(booking.cartItems) && booking.cartItems.length > 0) return total + booking.cartItems.length;
-            return total + 1;
-        }, 0);
-        const revenue = completedBookings.reduce((total, booking) => total + parseFloat(booking.price || booking.totalAmount || 0), 0);
-        const pending = activeBookings.filter(booking => booking.status === "Pending").length;
-        const confirmed = activeBookings.filter(booking => booking.status === "Confirmed").length;
-        const awaitingApproval = activeBookings.filter(booking => booking.customerConfirmed === true && booking.status === "Pending").length;
-        const paidInvoices = activeBookings.filter(booking => booking.paymentStatus === "paid").length;
+        const paidBookings = activeBookings.filter(b => b.paymentStatus === "paid" || b.paymentStatus === "Paid");
+        const paidRevenue = paidBookings.reduce((sum, b) => sum + parseFloat(b.price || b.totalAmount || 0), 0);
+        const completedCount = activeBookings.filter(b => b.status === "Completed").length;
+        const confirmed = activeBookings.filter(b => b.status === "Confirmed").length;
+        const pipeline = activeBookings.filter(b => ["Pending", "Lead", "Follow Up"].includes(b.status)).length;
+        const awaitingApproval = activeBookings.filter(b => b.customerConfirmed === true && b.status === "Pending").length;
+        const pendingPaymentJobs = activeBookings.filter(b => b.paymentStatus !== "paid" && b.paymentStatus !== "Paid" && b.status !== "Cancelled");
+        const pendingPaymentAmount = pendingPaymentJobs.reduce((sum, b) => sum + parseFloat(b.price || b.totalAmount || 0), 0);
 
         return {
             activeBookings: activeBookings.length,
-            uniqueClients: uniqueClients.size,
-            bookedServices,
-            revenue,
-            pending,
+            paidRevenue,
+            completedCount,
             confirmed,
+            pipeline,
             awaitingApproval,
-            paidInvoices
+            pendingPaymentAmount,
+            pendingPaymentCount: pendingPaymentJobs.length,
         };
     }, [bookings]);
 
@@ -4166,6 +4167,7 @@ export default function Home() {
                     <DashboardTab
                         currentUser={currentUser}
                         bookings={bookings}
+                        timeEntries={timeEntries}
                         customerRewards={customerRewards}
                         promotionRules={promotionRules}
                         adminCommandMetrics={adminCommandMetrics}
@@ -4866,6 +4868,17 @@ export default function Home() {
                                                 <option value="redo">Redo</option>
                                             </select>
                                         </label>
+                                        <label>
+                                            <span>Payment Method</span>
+                                            <select value={adminCheckoutForm.paymentMethod} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, paymentMethod: e.target.value }))}>
+                                                <option value="">— Not specified —</option>
+                                                <option value="cash">Cash</option>
+                                                <option value="e-transfer">E-Transfer</option>
+                                                <option value="credit-card">Credit Card</option>
+                                                <option value="direct-deposit">Direct Deposit</option>
+                                                <option value="cheque">Cheque</option>
+                                            </select>
+                                        </label>
                                         <div className="span-2 admin-staff-assignment">
                                             <span>Assign Field Staff</span>
                                             <div className="admin-staff-picker">
@@ -5246,6 +5259,19 @@ export default function Home() {
                                             <div className="detail-row">
                                                 <span className="detail-label">Payment Status</span>
                                                 <span className="detail-value">{b.paymentStatus === "paid" ? "💳 Paid" : b.paymentStatus || "unpaid"}</span>
+                                            </div>
+                                        )}
+                                        {!isCleanerSelfServiceView && (
+                                            <div className="detail-row">
+                                                <span className="detail-label">Payment Method</span>
+                                                <span className="detail-value">
+                                                    {b.paymentMethod === "cash" ? "💵 Cash" :
+                                                     b.paymentMethod === "e-transfer" ? "📲 E-Transfer" :
+                                                     b.paymentMethod === "credit-card" ? "💳 Credit Card" :
+                                                     b.paymentMethod === "direct-deposit" ? "🏦 Direct Deposit" :
+                                                     b.paymentMethod === "cheque" ? "📄 Cheque" :
+                                                     "—"}
+                                                </span>
                                             </div>
                                         )}
                                         {!isCleanerSelfServiceView && b.customerConfirmed && (
@@ -5874,6 +5900,17 @@ export default function Home() {
                                                         <option value="unpaid">Unpaid</option>
                                                         <option value="paid">Paid</option>
                                                         <option value="redo">Redo</option>
+                                                    </select>
+                                                </div>
+                                                <div className="form-group flex flex-col gap-1">
+                                                    <label className="font-bold text-slate-700">Payment Method</label>
+                                                    <select value={bookingForm.paymentMethod || ""} onChange={e => setBookingForm(prev => ({ ...prev, paymentMethod: e.target.value }))} className="border border-slate-200 rounded-lg p-2">
+                                                        <option value="">— Not specified —</option>
+                                                        <option value="cash">Cash</option>
+                                                        <option value="e-transfer">E-Transfer</option>
+                                                        <option value="credit-card">Credit Card</option>
+                                                        <option value="direct-deposit">Direct Deposit</option>
+                                                        <option value="cheque">Cheque</option>
                                                     </select>
                                                 </div>
                                                 <div className="form-group flex flex-col gap-1">

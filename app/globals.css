@@ -5247,8 +5247,8 @@ select option:disabled {
 
 .admin-metric-row {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 24px;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 16px;
 }
 
 .admin-metric-card,
@@ -5322,6 +5322,15 @@ select option:disabled {
     grid-template-columns: minmax(0, 1fr) 360px;
     gap: 24px;
     align-items: start;
+}
+
+/* When catalog is removed, cart spans the full workspace */
+.admin-booking-workspace:has(.admin-cart-panel--wide:only-child) {
+    grid-template-columns: 1fr;
+}
+
+.admin-cart-panel--wide {
+    max-width: 680px;
 }
 
 .admin-section-heading {
@@ -9285,4 +9294,127 @@ textarea:focus-visible {
     .wizard-frequency-grid { grid-template-columns: 1fr; }
     .wizard-step-label { display: none; }
     .wizard-step-dot { width: 20px; height: 20px; font-size: 9px; }
+}
+
+/* ─── Revenue & Wages Chart ─────────────────────────────────────────────── */
+.dashboard-chart-section {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+}
+.dashboard-chart-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+.dashboard-chart-title {
+    font-size: 14px;
+    font-weight: 800;
+    color: #1e293b;
+    margin: 0 0 6px 0;
+}
+.dashboard-chart-legend {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+.legend-revenue,
+.legend-wages {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748b;
+}
+.legend-revenue::before {
+    content: "";
+    display: inline-block;
+    width: 14px;
+    height: 10px;
+    background: #1e3a5f;
+    border-radius: 2px;
+    opacity: 0.85;
+}
+.legend-wages::before {
+    content: "";
+    display: inline-block;
+    width: 20px;
+    height: 3px;
+    background: #f97316;
+    border-radius: 2px;
+    position: relative;
+}
+.dashboard-chart-filters {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+.chart-filter-btn {
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 5px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+.chart-filter-btn:hover {
+    background: #e2e8f0;
+    color: #1e293b;
+}
+.chart-filter-btn.active {
+    background: #062b63;
+    border-color: #062b63;
+    color: #fff;
+}
+.dashboard-chart-body {
+    overflow: hidden;
+    border-radius: 8px;
+}
+
+/* ─── Dashboard mobile: show only New Booking CTA on phones ─────────────── */
+.dashboard-mobile-cta {
+    display: none;
+}
+.dashboard-desktop-only {
+    display: block;
+}
+
+@media (max-width: 767px) {
+    .dashboard-mobile-cta {
+        display: block;
+        padding: 0;
+    }
+    .dashboard-mobile-cta-inner {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        padding: 24px 0 8px;
+    }
+    .dashboard-mobile-cta-inner h3 {
+        font-size: 24px;
+        font-weight: 900;
+        color: #1e293b;
+        margin: 0;
+    }
+    .dashboard-mobile-new-booking {
+        width: 100%;
+        justify-content: center;
+        font-size: 16px;
+        padding: 16px 24px;
+        border-radius: 14px;
+    }
+    .dashboard-desktop-only {
+        display: none !important;
+    }
 }
