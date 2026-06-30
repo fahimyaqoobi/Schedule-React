@@ -9418,3 +9418,57 @@ textarea:focus-visible {
         display: none !important;
     }
 }
+
+/* ─── Dashboard pie charts row ──────────────────────────────────────────── */
+.dashboard-pies-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+.dashboard-pie-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 18px 20px;
+}
+.dashboard-pie-title {
+    font-size: 13px;
+    font-weight: 800;
+    color: #1e293b;
+    margin: 0 0 14px 0;
+}
+.dashboard-pie-body {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+.dashboard-pie-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+}
+.pie-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+.pie-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.pie-legend-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #475569;
+    flex: 1;
+}
+.pie-legend-val {
+    font-size: 12px;
+    font-weight: 800;
+    color: #1e293b;
+}

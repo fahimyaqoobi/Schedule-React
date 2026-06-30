@@ -194,6 +194,7 @@ export default function BookingsTab({
     sortVal, setSortVal,
     pricingRates,
     filteredBookings,
+    leadSources,
     editRequests,
     canManagePermissions,
     Icons,
@@ -212,6 +213,14 @@ export default function BookingsTab({
     const [bulkStatus, setBulkStatus] = useState("");
     const [dateFilter, setDateFilter] = useState("");
     const [saving, setSaving] = useState(null);
+    const [sortCol, setSortCol] = useState(null);
+    const [sortDir, setSortDir] = useState("asc");
+
+    const handleColSort = (col) => {
+        if (sortCol === col) setSortDir(d => d === "asc" ? "desc" : "asc");
+        else { setSortCol(col); setSortDir("asc"); }
+    };
+    const SortArrow = ({ col }) => sortCol !== col ? <span style={{ opacity: 0.3, fontSize: 9 }}>⇅</span> : sortDir === "asc" ? <span style={{ fontSize: 9 }}>▲</span> : <span style={{ fontSize: 9 }}>▼</span>;
 
     const tz = branchTimezone || "America/Toronto";
 
@@ -237,13 +246,31 @@ export default function BookingsTab({
 
     // All date comparisons use YYYY-MM-DD string order (lexicographic == chronological).
     // Booking dates are stored as plain YYYY-MM-DD strings so no timezone conversion is needed.
-    const visibleBookings = (filteredBookings || []).filter(b => {
-        if (!dateFilter || !b.date) return true;
-        if (dateFilter === "today")  return b.date === todayStr;
-        if (dateFilter === "week")   return b.date >= mondayStr && b.date <= sundayStr;
-        if (dateFilter === "month")  return b.date.startsWith(monthPrefix);
-        return true;
-    });
+    const visibleBookings = (() => {
+        const filtered = (filteredBookings || []).filter(b => {
+            if (!dateFilter || !b.date) return true;
+            if (dateFilter === "today")  return b.date === todayStr;
+            if (dateFilter === "week")   return b.date >= mondayStr && b.date <= sundayStr;
+            if (dateFilter === "month")  return b.date.startsWith(monthPrefix);
+            return true;
+        });
+        if (!sortCol) return filtered;
+        return [...filtered].sort((a, b) => {
+            let av, bv;
+            if (sortCol === "client")      { av = (a.clientName || "").toLowerCase(); bv = (b.clientName || "").toLowerCase(); }
+            else if (sortCol === "date")   { av = a.date || ""; bv = b.date || ""; }
+            else if (sortCol === "service"){ av = (a.service || "").toLowerCase(); bv = (b.service || "").toLowerCase(); }
+            else if (sortCol === "amount") { av = parseFloat(a.price || 0); bv = parseFloat(b.price || 0); }
+            else if (sortCol === "status") { av = a.status || ""; bv = b.status || ""; }
+            else if (sortCol === "payment"){ av = a.paymentStatus || ""; bv = b.paymentStatus || ""; }
+            else if (sortCol === "method") { av = (a.paymentMethod || "").toLowerCase(); bv = (b.paymentMethod || "").toLowerCase(); }
+            else if (sortCol === "source") { av = (a.leadSource || "").toLowerCase(); bv = (b.leadSource || "").toLowerCase(); }
+            else return 0;
+            if (av < bv) return sortDir === "asc" ? -1 : 1;
+            if (av > bv) return sortDir === "asc" ? 1 : -1;
+            return 0;
+        });
+    })();
 
     // Build a map of uid → photoURL from fieldStaff for avatar lookups
     const staffPhotoMap = {};
@@ -397,13 +424,15 @@ export default function BookingsTab({
                                         checked={selectedIds.size === visibleBookings.length && visibleBookings.length > 0}
                                         onChange={toggleSelectAll} />
                                 </th>
-                                <th style={{ minWidth: 160 }}>Client</th>
+                                <th style={{ minWidth: 160, cursor: "pointer", userSelect: "none" }} onClick={() => handleColSort("client")}>Client <SortArrow col="client" /></th>
                                 <th style={{ minWidth: 180 }}>Address</th>
-                                <th style={{ minWidth: 140 }}>Service</th>
-                                <th style={{ minWidth: 150 }}>Schedule ✏</th>
+                                <th style={{ minWidth: 140, cursor: "pointer", userSelect: "none" }} onClick={() => handleColSort("service")}>Service <SortArrow col="service" /></th>
+                                <th style={{ minWidth: 150, cursor: "pointer", userSelect: "none" }} onClick={() => handleColSort("date")}>Schedule ✏ <SortArrow col="date" /></th>
                                 <th style={{ minWidth: 120 }}>Staff ✏</th>
-                                <th style={{ minWidth: 130 }}>Status ✏</th>
-                                <th style={{ minWidth: 110 }}>Payment ✏</th>
+                                <th style={{ minWidth: 130, cursor: "pointer", userSelect: "none" }} onClick={() => handleColSort("status")}>Status ✏ <SortArrow col="status" /></th>
+                                <th style={{ minWidth: 110, cursor: "pointer", userSelect: "none" }} onClick={() => handleColSort("payment")}>Payment ✏ <SortArrow col="payment" /></th>
+                                <th style={{ minWidth: 110, cursor: "pointer", userSelect: "none" }} onClick={() => handleColSort("method")}>Method <SortArrow col="method" /></th>
+                                <th style={{ minWidth: 110, cursor: "pointer", userSelect: "none" }} onClick={() => handleColSort("source")}>Lead Source <SortArrow col="source" /></th>
                                 <th style={{ minWidth: 100, textAlign: "right" }}>Actions</th>
                             </tr>
                         </thead>
@@ -516,6 +545,33 @@ export default function BookingsTab({
                                                 <div onClick={() => startEditing(b.id, "payment")} style={{ cursor: "pointer" }}>
                                                     <PaymentBadge status={b.paymentStatus} />
                                                 </div>
+                                            )}
+                                        </td>
+
+                                        {/* ── Payment Method ── */}
+                                        <td>
+                                            {b.paymentMethod ? (
+                                                <span style={{ fontSize: 11, fontWeight: 600, color: "#475569", whiteSpace: "nowrap" }}>
+                                                    {b.paymentMethod === "cash" ? "💵 Cash" :
+                                                     b.paymentMethod === "e-transfer" ? "📲 E-Transfer" :
+                                                     b.paymentMethod === "credit-card" ? "💳 Card" :
+                                                     b.paymentMethod === "direct-deposit" ? "🏦 Direct Dep." :
+                                                     b.paymentMethod === "cheque" ? "📄 Cheque" :
+                                                     b.paymentMethod}
+                                                </span>
+                                            ) : (
+                                                <span style={{ fontSize: 11, color: "#cbd5e1" }}>—</span>
+                                            )}
+                                        </td>
+
+                                        {/* ── Lead Source ── */}
+                                        <td>
+                                            {b.leadSource ? (
+                                                <span style={{ fontSize: 11, fontWeight: 600, color: "#6366f1", background: "#eef2ff", border: "1px solid #c7d2fe", borderRadius: 99, padding: "2px 8px", whiteSpace: "nowrap" }}>
+                                                    {b.leadSource}
+                                                </span>
+                                            ) : (
+                                                <span style={{ fontSize: 11, color: "#cbd5e1" }}>—</span>
                                             )}
                                         </td>
 

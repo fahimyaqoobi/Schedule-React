@@ -919,6 +919,7 @@ export default function Home() {
     const [customerRewards, setCustomerRewards] = useState(null);
     const [documentCopy, setDocumentCopy] = useState(DEFAULT_DOCUMENT_COPY);
     const [promotionSaving, setPromotionSaving] = useState(false);
+    const [leadSources, setLeadSources] = useState(["bark.com", "EZi App", "internal.com", "Google", "Instagram", "Referral", "Other"]);
 
     // Form inputs for scheduling modal
     const [bookingForm, setBookingForm] = useState({
@@ -956,6 +957,7 @@ export default function Home() {
         status: "Pending",
         paymentStatus: "unpaid",
         paymentMethod: "",
+        leadSource: "",
         serviceDescription: "",
         accessDescription: "",
         cartItems: [],
@@ -1005,6 +1007,7 @@ export default function Home() {
         bookingStatus: "Pending",
         paymentStatus: "unpaid",
         paymentMethod: "",
+        leadSource: "",
         customerLoggedIn: false,
         promoCode: "",
         giftCardCode: "",
@@ -1379,6 +1382,9 @@ export default function Home() {
                         }
                         if (data.documentCopy) {
                             setDocumentCopy(normalizeDocumentCopy(data.documentCopy));
+                        }
+                        if (data.leadSources && Array.isArray(data.leadSources) && data.leadSources.length > 0) {
+                            setLeadSources(data.leadSources);
                         }
                         setPricingRates(prev => {
                             const mergedServices = { ...DEFAULT_PRICES.services, ...data.services };
@@ -2032,6 +2038,7 @@ export default function Home() {
             status: b.status,
             paymentStatus: b.paymentStatus || "unpaid",
             paymentMethod: b.paymentMethod || "",
+            leadSource: b.leadSource || "",
             serviceDescription: b.serviceDescription || "",
             accessDescription: b.accessDescription || "",
             cartItems: editableCartItems,
@@ -2581,6 +2588,21 @@ export default function Home() {
             alert(`Promotion save failed: ${error.message}`);
         } finally {
             setPromotionSaving(false);
+        }
+    };
+
+    const handleSaveLeadSources = async (sources) => {
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch("/api/settings", {
+                method: "POST",
+                headers,
+                body: JSON.stringify({ leadSources: sources })
+            });
+            if (!res.ok) throw new Error("Failed to save lead sources.");
+            setLeadSources(sources);
+        } catch (err) {
+            alert(`Save failed: ${err.message}`);
         }
     };
 
@@ -3498,6 +3520,7 @@ export default function Home() {
                 status: adminCheckoutForm.bookingStatus || "Pending",
                 paymentStatus: adminCheckoutForm.paymentStatus || "unpaid",
                 paymentMethod: adminCheckoutForm.paymentMethod || "",
+                leadSource: adminCheckoutForm.leadSource || "",
                 service: adminServiceCart.map(item => item.name).join(" + "),
                 bathrooms: "N/A",
                 frequency: "One-Time",
@@ -3625,9 +3648,20 @@ export default function Home() {
         const pendingPaymentJobs = activeBookings.filter(b => b.status === "Completed" && b.paymentStatus !== "paid" && b.paymentStatus !== "Paid");
         const pendingPaymentAmount = pendingPaymentJobs.reduce((sum, b) => sum + parseFloat(b.price || b.totalAmount || 0), 0);
 
+        const METHOD_LABELS = { cash: "Cash", "e-transfer": "E-Transfer", "credit-card": "Card", "direct-deposit": "Direct Deposit", cheque: "Cheque" };
+        const paidByMethod = {};
+        paidBookings.forEach(b => {
+            const m = b.paymentMethod || "unspecified";
+            paidByMethod[m] = (paidByMethod[m] || 0) + parseFloat(b.price || b.totalAmount || 0);
+        });
+        const paidByMethodLabeled = Object.entries(paidByMethod).map(([key, amt]) => ({
+            key, label: METHOD_LABELS[key] || key, amount: amt,
+        })).sort((a, b) => b.amount - a.amount);
+
         return {
             activeBookings: activeBookings.length,
             paidRevenue,
+            paidByMethodLabeled,
             completedCount,
             confirmed,
             pipeline,
@@ -4226,6 +4260,7 @@ export default function Home() {
                         filterPayment={filterPayment}
                         setFilterPayment={setFilterPayment}
                         branchTimezone={activeBranch?.timezone || "America/Toronto"}
+                        leadSources={leadSources}
                     />
                 )}
 
@@ -4424,6 +4459,8 @@ export default function Home() {
                         securityLoading={securityLoading}
                         handlePasswordChange={handlePasswordChange}
                         getInitials={getInitials}
+                        leadSources={leadSources}
+                        handleSaveLeadSources={handleSaveLeadSources}
                     />
                 )}
             </main>
@@ -4879,6 +4916,13 @@ export default function Home() {
                                                 <option value="cheque">Cheque</option>
                                             </select>
                                         </label>
+                                        <label>
+                                            <span>Lead Source</span>
+                                            <select value={adminCheckoutForm.leadSource || ""} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, leadSource: e.target.value }))}>
+                                                <option value="">— Not specified —</option>
+                                                {leadSources.map(src => <option key={src} value={src}>{src}</option>)}
+                                            </select>
+                                        </label>
                                         <div className="span-2 admin-staff-assignment">
                                             <span>Assign Field Staff</span>
                                             <div className="admin-staff-picker">
@@ -5272,6 +5316,12 @@ export default function Home() {
                                                      b.paymentMethod === "cheque" ? "📄 Cheque" :
                                                      "—"}
                                                 </span>
+                                            </div>
+                                        )}
+                                        {!isCleanerSelfServiceView && b.leadSource && (
+                                            <div className="detail-row">
+                                                <span className="detail-label">Lead Source</span>
+                                                <span className="detail-value">📍 {b.leadSource}</span>
                                             </div>
                                         )}
                                         {!isCleanerSelfServiceView && b.customerConfirmed && (
@@ -5911,6 +5961,13 @@ export default function Home() {
                                                         <option value="credit-card">Credit Card</option>
                                                         <option value="direct-deposit">Direct Deposit</option>
                                                         <option value="cheque">Cheque</option>
+                                                    </select>
+                                                </div>
+                                                <div className="form-group flex flex-col gap-1">
+                                                    <label className="font-bold text-slate-700">Lead Source</label>
+                                                    <select value={bookingForm.leadSource || ""} onChange={e => setBookingForm(prev => ({ ...prev, leadSource: e.target.value }))} className="border border-slate-200 rounded-lg p-2">
+                                                        <option value="">— Not specified —</option>
+                                                        {leadSources.map(src => <option key={src} value={src}>{src}</option>)}
                                                     </select>
                                                 </div>
                                                 <div className="form-group flex flex-col gap-1">

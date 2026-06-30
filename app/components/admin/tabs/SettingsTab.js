@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 
 const LogoutIcon = () => (
     <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
@@ -25,7 +26,23 @@ export default function SettingsTab({
     securityLoading,
     handlePasswordChange,
     getInitials,
+    leadSources,
+    handleSaveLeadSources,
 }) {
+    const [localSources, setLocalSources] = useState(leadSources || []);
+    const [newSource, setNewSource] = useState("");
+
+    const addSource = () => {
+        const trimmed = newSource.trim();
+        if (!trimmed || localSources.includes(trimmed)) return;
+        setLocalSources(prev => [...prev, trimmed]);
+        setNewSource("");
+    };
+
+    const removeSource = (src) => setLocalSources(prev => prev.filter(s => s !== src));
+
+    const saveLeadSources = () => handleSaveLeadSources?.(localSources);
+
     return (
         <div className="animate-fade">
             <div className="settings-container">
@@ -134,6 +151,40 @@ export default function SettingsTab({
                         </button>
                     </form>
                 </div>
+
+                {canManagePermissions && (
+                    <div className="settings-card">
+                        <div className="panel-header border-b border-slate-100 pb-3">
+                            <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">Lead Sources</h4>
+                            <p className="text-slate-500 text-xs mt-1">Manage the lead source options available when creating or editing bookings.</p>
+                        </div>
+                        <div style={{ padding: "16px 0 8px" }}>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+                                {localSources.map(src => (
+                                    <div key={src} style={{ display: "flex", alignItems: "center", gap: 6, background: "#eef2ff", border: "1px solid #c7d2fe", borderRadius: 99, padding: "4px 10px 4px 12px" }}>
+                                        <span style={{ fontSize: 12, fontWeight: 700, color: "#4f46e5" }}>{src}</span>
+                                        <button type="button" onClick={() => removeSource(src)} style={{ background: "none", border: "none", cursor: "pointer", color: "#a5b4fc", fontSize: 14, lineHeight: 1, padding: 0 }}>×</button>
+                                    </div>
+                                ))}
+                            </div>
+                            <div style={{ display: "flex", gap: 8 }}>
+                                <input
+                                    type="text"
+                                    value={newSource}
+                                    onChange={e => setNewSource(e.target.value)}
+                                    onKeyDown={e => e.key === "Enter" && addSource()}
+                                    placeholder="e.g. Google, bark.com, Instagram…"
+                                    className="border border-slate-200 rounded-lg p-2"
+                                    style={{ flex: 1, fontSize: 13 }}
+                                />
+                                <button type="button" onClick={addSource} className="btn btn-secondary btn-sm">Add</button>
+                            </div>
+                            <button type="button" onClick={saveLeadSources} className="btn btn-primary mt-4" style={{ marginTop: 12 }}>
+                                Save Lead Sources
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

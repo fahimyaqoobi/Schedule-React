@@ -55,6 +55,39 @@ function inRange(rawDate, start, end) {
     return d >= start && d <= end;
 }
 
+// ─── SVG Pie chart ──────────────────────────────────────────────────────────
+function PieChart({ segments, size = 110 }) {
+    const total = segments.reduce((s, g) => s + (g.value || 0), 0);
+    if (total === 0) return (
+        <svg viewBox={`0 0 ${size} ${size}`} style={{ width: size, height: size }}>
+            <circle cx={size / 2} cy={size / 2} r={size * 0.42} fill="#f1f5f9" />
+            <circle cx={size / 2} cy={size / 2} r={size * 0.25} fill="#fff" />
+        </svg>
+    );
+
+    const cx = size / 2, cy = size / 2, r = size * 0.42, inner = r * 0.55;
+    let angle = -Math.PI / 2;
+    const slices = segments.map(seg => {
+        const sweep = (seg.value / total) * 2 * Math.PI;
+        const end = angle + sweep;
+        const x1 = cx + r * Math.cos(angle), y1 = cy + r * Math.sin(angle);
+        const x2 = cx + r * Math.cos(end),   y2 = cy + r * Math.sin(end);
+        const large = sweep > Math.PI ? 1 : 0;
+        const path = sweep >= 2 * Math.PI - 0.001
+            ? `M ${cx} ${cy - r} A ${r} ${r} 0 1 1 ${cx - 0.001} ${cy - r} Z`
+            : `M ${cx} ${cy} L ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} Z`;
+        angle = end;
+        return { ...seg, path, pct: Math.round((seg.value / total) * 100) };
+    });
+
+    return (
+        <svg viewBox={`0 0 ${size} ${size}`} style={{ width: size, height: size }}>
+            {slices.map((s, i) => <path key={i} d={s.path} fill={s.color} />)}
+            <circle cx={cx} cy={cy} r={inner} fill="#fff" />
+        </svg>
+    );
+}
+
 function RevenueWagesChart({ data }) {
     const maxVal = Math.max(...data.map(d => Math.max(d.revenue, d.wages)), 1);
     const roundedMax = Math.ceil(maxVal / 500) * 500 || 500;
@@ -328,7 +361,17 @@ export default function DashboardTab({
                                 <div className="admin-metric-card">
                                     <span>Payments Collected</span>
                                     <strong>${adminCommandMetrics.paidRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-                                    <small>Paid jobs only</small>
+                                    {adminCommandMetrics.paidByMethodLabeled && adminCommandMetrics.paidByMethodLabeled.length > 0 ? (
+                                        <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginTop: "4px" }}>
+                                            {adminCommandMetrics.paidByMethodLabeled.map(m => (
+                                                <span key={m.key} style={{ fontSize: 10, fontWeight: 700, background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0", borderRadius: 99, padding: "1px 7px", whiteSpace: "nowrap" }}>
+                                                    {m.label} ${m.amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <small>Paid jobs only</small>
+                                    )}
                                 </div>
                                 <div className="admin-metric-card warning" style={{cursor: adminCommandMetrics.pendingPaymentCount > 0 ? "pointer" : "default"}} onClick={() => { if (adminCommandMetrics.pendingPaymentCount > 0) { setActiveTab("bookings"); setFilterStatus("unpaid"); } }}>
                                     <span>Payments Pending</span>
@@ -378,6 +421,55 @@ export default function DashboardTab({
                             </div>
                             <div className="dashboard-chart-body">
                                 <RevenueWagesChart data={chartData} />
+                            </div>
+                        </div>
+
+                        {/* Status & Payment pie charts */}
+                        <div className="dashboard-pies-row">
+                            <div className="dashboard-pie-card">
+                                <h4 className="dashboard-pie-title">Booking Status</h4>
+                                <div className="dashboard-pie-body">
+                                    <PieChart size={110} segments={[
+                                        { label: "Completed", value: adminCommandMetrics.completedCount, color: "#16a34a" },
+                                        { label: "Confirmed", value: adminCommandMetrics.confirmed, color: "#0891b2" },
+                                        { label: "Pipeline",  value: adminCommandMetrics.pipeline,   color: "#6366f1" },
+                                    ]} />
+                                    <div className="dashboard-pie-legend">
+                                        {[
+                                            { label: "Completed", color: "#16a34a", value: adminCommandMetrics.completedCount },
+                                            { label: "Confirmed", color: "#0891b2", value: adminCommandMetrics.confirmed },
+                                            { label: "Pipeline",  color: "#6366f1", value: adminCommandMetrics.pipeline },
+                                        ].map(s => (
+                                            <div key={s.label} className="pie-legend-item">
+                                                <span className="pie-dot" style={{ background: s.color }} />
+                                                <span className="pie-legend-label">{s.label}</span>
+                                                <span className="pie-legend-val">{s.value}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="dashboard-pie-card">
+                                <h4 className="dashboard-pie-title">Payment Overview</h4>
+                                <div className="dashboard-pie-body">
+                                    <PieChart size={110} segments={[
+                                        { label: "Collected", value: adminCommandMetrics.paidRevenue,          color: "#16a34a" },
+                                        { label: "Pending",   value: adminCommandMetrics.pendingPaymentAmount, color: "#f59e0b" },
+                                    ]} />
+                                    <div className="dashboard-pie-legend">
+                                        {[
+                                            { label: "Collected", color: "#16a34a", value: `$${adminCommandMetrics.paidRevenue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` },
+                                            { label: "Pending",   color: "#f59e0b", value: `$${adminCommandMetrics.pendingPaymentAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` },
+                                        ].map(s => (
+                                            <div key={s.label} className="pie-legend-item">
+                                                <span className="pie-dot" style={{ background: s.color }} />
+                                                <span className="pie-legend-label">{s.label}</span>
+                                                <span className="pie-legend-val">{s.value}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
