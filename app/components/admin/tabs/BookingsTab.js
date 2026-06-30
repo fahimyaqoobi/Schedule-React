@@ -16,6 +16,15 @@ const PAYMENT_OPTIONS = [
     { value: "pending", label: "Pending",   color: "#6366f1", bg: "#eef2ff", border: "#c7d2fe" },
 ];
 
+const METHOD_OPTIONS = [
+    { value: "",               label: "— None —" },
+    { value: "cash",           label: "💵 Cash" },
+    { value: "e-transfer",     label: "📲 E-Transfer" },
+    { value: "credit-card",    label: "💳 Card" },
+    { value: "direct-deposit", label: "🏦 Direct Deposit" },
+    { value: "cheque",         label: "📄 Cheque" },
+];
+
 const ROW_STATUS_BG = {
     awaiting_approval: "#fffdf5",
     Pending:           "#f8f8ff",
@@ -548,30 +557,48 @@ export default function BookingsTab({
                                             )}
                                         </td>
 
-                                        {/* ── Payment Method ── */}
-                                        <td>
-                                            {b.paymentMethod ? (
-                                                <span style={{ fontSize: 11, fontWeight: 600, color: "#475569", whiteSpace: "nowrap" }}>
-                                                    {b.paymentMethod === "cash" ? "💵 Cash" :
-                                                     b.paymentMethod === "e-transfer" ? "📲 E-Transfer" :
-                                                     b.paymentMethod === "credit-card" ? "💳 Card" :
-                                                     b.paymentMethod === "direct-deposit" ? "🏦 Direct Dep." :
-                                                     b.paymentMethod === "cheque" ? "📄 Cheque" :
-                                                     b.paymentMethod}
-                                                </span>
+                                        {/* ── Payment Method ── click to edit */}
+                                        <td style={{ position: "relative" }}>
+                                            {isEditing(b.id, "method") ? (
+                                                <select autoFocus defaultValue={b.paymentMethod || ""}
+                                                    onChange={async e => { await quickUpdate(b.id, { paymentMethod: e.target.value }); }}
+                                                    onBlur={stopEditing}
+                                                    style={{ width: "100%", padding: "5px 7px", borderRadius: 7, border: "2px solid #818cf8", fontSize: 12, cursor: "pointer" }}>
+                                                    {METHOD_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                                </select>
                                             ) : (
-                                                <span style={{ fontSize: 11, color: "#cbd5e1" }}>—</span>
+                                                <div onClick={() => startEditing(b.id, "method")} style={{ cursor: "pointer" }}>
+                                                    {b.paymentMethod ? (
+                                                        <span style={{ fontSize: 11, fontWeight: 600, color: "#475569", whiteSpace: "nowrap" }}>
+                                                            {METHOD_OPTIONS.find(o => o.value === b.paymentMethod)?.label || b.paymentMethod}
+                                                        </span>
+                                                    ) : (
+                                                        <span style={{ fontSize: 11, color: "#cbd5e1" }}>— set</span>
+                                                    )}
+                                                </div>
                                             )}
                                         </td>
 
-                                        {/* ── Lead Source ── */}
-                                        <td>
-                                            {b.leadSource ? (
-                                                <span style={{ fontSize: 11, fontWeight: 600, color: "#6366f1", background: "#eef2ff", border: "1px solid #c7d2fe", borderRadius: 99, padding: "2px 8px", whiteSpace: "nowrap" }}>
-                                                    {b.leadSource}
-                                                </span>
+                                        {/* ── Lead Source ── click to edit */}
+                                        <td style={{ position: "relative" }}>
+                                            {isEditing(b.id, "source") ? (
+                                                <select autoFocus defaultValue={b.leadSource || ""}
+                                                    onChange={async e => { await quickUpdate(b.id, { leadSource: e.target.value }); }}
+                                                    onBlur={stopEditing}
+                                                    style={{ width: "100%", padding: "5px 7px", borderRadius: 7, border: "2px solid #818cf8", fontSize: 12, cursor: "pointer" }}>
+                                                    <option value="">— None —</option>
+                                                    {leadSources.map(src => <option key={src} value={src}>{src}</option>)}
+                                                </select>
                                             ) : (
-                                                <span style={{ fontSize: 11, color: "#cbd5e1" }}>—</span>
+                                                <div onClick={() => startEditing(b.id, "source")} style={{ cursor: "pointer" }}>
+                                                    {b.leadSource ? (
+                                                        <span style={{ fontSize: 11, fontWeight: 600, color: "#6366f1", background: "#eef2ff", border: "1px solid #c7d2fe", borderRadius: 99, padding: "2px 8px", whiteSpace: "nowrap" }}>
+                                                            {b.leadSource}
+                                                        </span>
+                                                    ) : (
+                                                        <span style={{ fontSize: 11, color: "#cbd5e1" }}>— set</span>
+                                                    )}
+                                                </div>
                                             )}
                                         </td>
 
