@@ -213,6 +213,33 @@ function getBookingDocumentLabel(status = "Pending") {
     return getBookingDocumentType({ status });
 }
 
+const SHIFTS = [
+    { id: "morning",   label: "Morning",   icon: "🌅", hours: "7:00 AM – 12:00 PM", startTime: "07:00 AM" },
+    { id: "afternoon", label: "Afternoon", icon: "☀️", hours: "12:00 PM – 6:00 PM",  startTime: "12:00 PM" },
+    { id: "evening",   label: "Evening",   icon: "🌆", hours: "6:00 PM – 8:00 PM",   startTime: "06:00 PM" },
+];
+
+function shiftStartTime(shifts = []) {
+    for (const s of SHIFTS) {
+        if (shifts.includes(s.id)) return s.startTime;
+    }
+    return "07:00 AM";
+}
+
+function timeToShift(timeStr = "") {
+    const parts = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+    if (!parts) return null;
+    let h = parseInt(parts[1]);
+    const ampm = parts[3].toUpperCase();
+    if (ampm === "PM" && h !== 12) h += 12;
+    if (ampm === "AM" && h === 12) h = 0;
+    const min = h * 60 + parseInt(parts[2]);
+    if (min >= 420  && min < 720)  return "morning";
+    if (min >= 720  && min < 1080) return "afternoon";
+    if (min >= 1080 && min < 1200) return "evening";
+    return null;
+}
+
 function validateAdminCheckoutStep(step, form = {}) {
     if (step === 0) {
         return Boolean(
@@ -227,7 +254,7 @@ function validateAdminCheckoutStep(step, form = {}) {
     }
 
     if (step === 1) {
-        return Boolean(form.date && form.time && form.bookingStatus && form.paymentStatus);
+        return Boolean(form.date && form.shifts?.length > 0 && form.bookingStatus && form.paymentStatus);
     }
 
     return true;
@@ -950,7 +977,8 @@ export default function Home() {
         price: 87.50,
         duration: 2,
         date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' }),
-        time: "09:00 AM",
+        time: "07:00 AM",
+        shifts: [],
         team: "",
         assignedStaff: [],
         assignedStaffIds: [],
@@ -1002,7 +1030,8 @@ export default function Home() {
         country: "Canada",
         location: null,
         date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' }),
-        time: "09:00 AM",
+        time: "07:00 AM",
+        shifts: [],
         assignedStaffIds: [],
         bookingStatus: "Pending",
         paymentStatus: "unpaid",
@@ -2031,7 +2060,8 @@ export default function Home() {
             price: b.price || 87.50,
             duration: b.duration || editableCartItems.reduce((sum, item) => sum + Number(item.durationHrs || 0), 0) || 2,
             date: b.date,
-            time: b.time,
+            time: b.time || "07:00 AM",
+            shifts: b.shifts || (b.time ? [timeToShift(b.time)].filter(Boolean) : []),
             team: "",
             assignedStaff: b.assignedStaff || [],
             assignedStaffIds: b.assignedStaffIds || [],
@@ -3513,7 +3543,8 @@ export default function Home() {
                 country: adminCheckoutForm.country,
                 location: adminCheckoutForm.location || null,
                 date: adminCheckoutForm.date,
-                time: adminCheckoutForm.time,
+                shifts: adminCheckoutForm.shifts || [],
+                time: shiftStartTime(adminCheckoutForm.shifts),
                 team: "",
                 assignedStaff,
                 assignedStaffIds: assignedStaff.map(member => member.uid),
@@ -3823,16 +3854,48 @@ export default function Home() {
 
     const adminCheckoutDuration = useMemo(() => adminCartTotals.duration || 2, [adminCartTotals.duration]);
 
+    const getCleanerShiftConflict = useCallback((member, bookingDate, selectedShifts = [], excludeBookingId = null) => {
+        if (!member) return { available: false, reason: "No cleaner selected" };
+        if (!bookingDate) return { available: false, reason: "Pick a date first" };
+        if (!selectedShifts.length) return { available: false, reason: "Select a shift first" };
+
+        const profile = normalizeStaffProfile(member.staffProfileRequest?.requestedProfile || member.staffProfile);
+        const availability = profile.availability || {};
+        const blockedDates = new Set(availability.blockedDates || []);
+        if (blockedDates.has(bookingDate)) return { available: false, reason: "Blocked date" };
+
+        const weekday = availability.weekdays?.[getWeekdayIndexForSchedule(bookingDate)];
+        if (weekday && weekday.enabled === false) return { available: false, reason: "Off day" };
+
+        const assignedThatDay = bookings.filter(b =>
+            b.id !== excludeBookingId &&
+            b.status !== "Cancelled" &&
+            b.date === bookingDate &&
+            b.assignedStaffIds?.includes(member.uid)
+        );
+
+        for (const b of assignedThatDay) {
+            const bShifts = b.shifts?.length > 0 ? b.shifts : [timeToShift(b.time)].filter(Boolean);
+            const conflict = selectedShifts.find(s => bShifts.includes(s));
+            if (conflict) {
+                const shiftLabel = SHIFTS.find(s => s.id === conflict)?.label || conflict;
+                return { available: false, reason: `${shiftLabel} shift taken` };
+            }
+        }
+
+        return { available: true, reason: assignedThatDay.length ? `${assignedThatDay.length} job(s) that day` : "Available" };
+    }, [bookings, getWeekdayIndexForSchedule, normalizeStaffProfile]);
+
     const adminStaffAvailabilityCards = useMemo(() => {
         return fieldStaff.map((member) => ({
             member,
-            status: getCleanerDayAvailability(
+            status: getCleanerShiftConflict(
                 member,
                 adminCheckoutForm.date,
-                adminCheckoutDuration
+                adminCheckoutForm.shifts || [],
             )
         }));
-    }, [adminCheckoutDuration, adminCheckoutForm.date, fieldStaff, getCleanerDayAvailability]);
+    }, [adminCheckoutForm.date, adminCheckoutForm.shifts, fieldStaff, getCleanerShiftConflict]);
 
     const adminSlotStates = useMemo(() => {
         return buildCombinedSlotStatus(
@@ -3872,14 +3935,14 @@ export default function Home() {
     const bookingStaffAvailabilityCards = useMemo(() => {
         return fieldStaff.map((member) => ({
             member,
-            status: getCleanerDayAvailability(
+            status: getCleanerShiftConflict(
                 member,
                 bookingForm.date,
-                bookingForm.duration,
+                bookingForm.shifts || [],
                 bookingForm.id || null
             )
         }));
-    }, [bookingForm.date, bookingForm.duration, bookingForm.id, fieldStaff, getCleanerDayAvailability]);
+    }, [bookingForm.date, bookingForm.shifts, bookingForm.id, fieldStaff, getCleanerShiftConflict]);
 
     const bookingSlotStates = useMemo(() => {
         return buildCombinedSlotStatus(
@@ -4884,9 +4947,26 @@ export default function Home() {
                                             <span>Date</span>
                                             <input type="date" required value={adminCheckoutForm.date} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, date: e.target.value }))} />
                                         </label>
-                                        <label>
-                                            <span>Time</span>
-                                            <input value={adminCheckoutForm.time} readOnly className="bg-slate-50" />
+                                        <label className="span-2">
+                                            <span>Shift(s) — select all that apply</span>
+                                            <div className="shift-selector">
+                                                {SHIFTS.map(s => {
+                                                    const isOn = (adminCheckoutForm.shifts || []).includes(s.id);
+                                                    return (
+                                                        <button key={s.id} type="button"
+                                                            className={`shift-btn${isOn ? " selected" : ""}`}
+                                                            onClick={() => setAdminCheckoutForm(prev => {
+                                                                const cur = prev.shifts || [];
+                                                                const next = isOn ? cur.filter(x => x !== s.id) : [...cur, s.id];
+                                                                return { ...prev, shifts: next, time: shiftStartTime(next) };
+                                                            })}>
+                                                            <span className="shift-icon">{s.icon}</span>
+                                                            <span className="shift-label">{s.label}</span>
+                                                            <span className="shift-hours">{s.hours}</span>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
                                         </label>
                                         <label>
                                             <span>Booking Status</span>
@@ -4958,30 +5038,6 @@ export default function Home() {
                                                         );
                                                     })
                                                 )}
-                                            </div>
-                                        </div>
-                                        <div className="span-2 admin-time-slot-field">
-                                            <span>Cleaner Schedule Window (7:00 AM - 7:00 PM)</span>
-                                            <p className="admin-schedule-hint">{adminScheduleHint || "Pick an open 30-minute start time. Each booking also keeps a 30-minute buffer before the next job."}</p>
-                                            <div className="admin-time-slot-grid">
-                                                {adminSlotStates.map((slot) => (
-                                                    <button
-                                                        key={slot.time}
-                                                        type="button"
-                                                        className={`admin-time-slot ${adminCheckoutForm.time === slot.time ? "selected" : ""} ${slot.available ? "available" : slot.tone === "busy" ? "busy" : slot.tone === "blocked" ? "blocked" : "pending"}`}
-                                                        aria-disabled={!slot.available}
-                                                        onMouseEnter={() => setAdminScheduleHint(slot.reason)}
-                                                        onMouseLeave={() => setAdminScheduleHint("")}
-                                                        onClick={() => {
-                                                            if (!slot.available) return;
-                                                            setAdminCheckoutForm(prev => ({ ...prev, time: slot.time }));
-                                                        }}
-                                                        title={slot.reason}
-                                                    >
-                                                        <strong>{slot.time}</strong>
-                                                        <small>{slot.reason}</small>
-                                                    </button>
-                                                ))}
                                             </div>
                                         </div>
                                         <label>
@@ -5861,9 +5917,26 @@ export default function Home() {
                                                     <label className="font-bold text-slate-700">Scheduled Date</label>
                                                     <input type="date" value={bookingForm.date} onChange={e => setBookingForm(prev => ({ ...prev, date: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
                                                 </div>
-                                                <div className="form-group flex flex-col gap-1">
-                                                    <label className="font-bold text-slate-700">Scheduled Time</label>
-                                                    <input type="text" value={bookingForm.time} readOnly required className="border border-slate-200 rounded-lg p-2 bg-slate-50" />
+                                                <div className="form-group flex flex-col gap-1 md:col-span-2">
+                                                    <label className="font-bold text-slate-700">Shift(s)</label>
+                                                    <div className="shift-selector">
+                                                        {SHIFTS.map(s => {
+                                                            const isOn = (bookingForm.shifts || []).includes(s.id);
+                                                            return (
+                                                                <button key={s.id} type="button"
+                                                                    className={`shift-btn${isOn ? " selected" : ""}`}
+                                                                    onClick={() => setBookingForm(prev => {
+                                                                        const cur = prev.shifts || [];
+                                                                        const next = isOn ? cur.filter(x => x !== s.id) : [...cur, s.id];
+                                                                        return { ...prev, shifts: next, time: shiftStartTime(next) };
+                                                                    })}>
+                                                                    <span className="shift-icon">{s.icon}</span>
+                                                                    <span className="shift-label">{s.label}</span>
+                                                                    <span className="shift-hours">{s.hours}</span>
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
                                                 </div>
                                                 <div className="form-group flex flex-col gap-1">
                                                     <label className="font-bold text-slate-700">Estimated Hours</label>
@@ -5913,24 +5986,6 @@ export default function Home() {
                                                                 </label>
                                                             );
                                                         })}
-                                                    </div>
-                                                </div>
-                                                <div className="form-group flex flex-col gap-1 md:col-span-3">
-                                                    <label className="font-bold text-slate-700">Cleaner Schedule Window (7:00 AM - 7:00 PM)</label>
-                                                    <div className="admin-time-slot-grid">
-                                                        {bookingSlotStates.map((slot) => (
-                                                            <button
-                                                                key={slot.time}
-                                                                type="button"
-                                                                className={`admin-time-slot ${bookingForm.time === slot.time ? "selected" : ""} ${slot.available ? "available" : slot.tone === "busy" ? "busy" : slot.tone === "blocked" ? "blocked" : "pending"}`}
-                                                                disabled={!slot.available}
-                                                                onClick={() => setBookingForm(prev => ({ ...prev, time: slot.time }))}
-                                                                title={slot.reason}
-                                                            >
-                                                                <strong>{slot.time}</strong>
-                                                                <small>{slot.reason}</small>
-                                                            </button>
-                                                        ))}
                                                     </div>
                                                 </div>
                                                 <div className="form-group flex flex-col gap-1">

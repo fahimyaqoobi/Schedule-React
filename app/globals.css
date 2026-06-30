@@ -6128,83 +6128,62 @@ select option:disabled {
     box-shadow: 0 0 0 3px rgba(0, 50, 125, 0.1);
 }
 
-.admin-time-slot-field {
-    display: grid;
-    grid-column: 1 / -1;
+/* ── Shift selector ── */
+.shift-selector {
+    display: flex;
     gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 4px;
 }
 
-.admin-schedule-hint {
-    margin: 0;
-    border: 1px solid #dbe7ff;
-    border-radius: 10px;
-    background: #f8fbff;
-    padding: 10px 12px;
-    color: #33517f;
-    font-size: 12px;
-    font-weight: 700;
-    line-height: 1.45;
-}
-
-.admin-time-slot-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
-    gap: 10px;
-}
-
-.admin-time-slot {
-    display: grid;
-    gap: 4px;
-    min-height: 68px;
-    border: 1px solid #dbe7ff;
+.shift-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    flex: 1 1 140px;
+    min-width: 130px;
+    padding: 12px 14px;
+    border: 2px solid #e2e8f0;
     border-radius: 12px;
-    background: #ffffff;
-    padding: 10px 12px;
+    background: #f8fafc;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
     text-align: left;
-    transition: 0.2s ease;
 }
 
-.admin-time-slot strong {
-    color: #0f172a;
-    font-size: 13px;
-    font-weight: 900;
-}
-
-.admin-time-slot small {
-    color: #64748b;
-    font-size: 11px;
-    font-weight: 700;
-}
-
-.admin-time-slot.available {
-    border-color: #bfdbfe;
+.shift-btn:hover {
+    border-color: #93c5fd;
     background: #eff6ff;
 }
 
-.admin-time-slot.busy,
-.admin-time-slot.blocked {
-    border-color: #fecaca;
-    background: #fef2f2;
+.shift-icon {
+    font-size: 20px;
+    line-height: 1;
+    margin-bottom: 2px;
 }
 
-.admin-time-slot.pending {
-    border-color: #e2e8f0;
-    background: #f8fafc;
+.shift-label {
+    font-size: 13px;
+    font-weight: 800;
+    color: #1e293b;
 }
 
-.admin-time-slot.selected {
+.shift-hours {
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748b;
+}
+
+.shift-btn.selected {
     border-color: #00426d;
     background: #00426d;
+    box-shadow: 0 2px 8px rgba(0,66,109,0.18);
 }
 
-.admin-time-slot.selected strong,
-.admin-time-slot.selected small {
+.shift-btn.selected .shift-label,
+.shift-btn.selected .shift-hours {
     color: #ffffff;
-}
-
-.admin-time-slot:disabled {
-    cursor: not-allowed;
-    opacity: 0.88;
 }
 
 .admin-checkout-summary {
@@ -6677,10 +6656,6 @@ select option:disabled {
 
     .admin-checkout-grid label.span-2,
     .admin-staff-assignment,
-    .admin-time-slot-field {
-        grid-column: 1;
-    }
-
     .admin-checkout-review-top,
     .admin-checkout-review-line {
         grid-template-columns: 1fr;
@@ -9496,4 +9471,52 @@ textarea:focus-visible {
     font-size: 12px;
     font-weight: 800;
     color: #1e293b;
+}
+
+/* ── Mobile modal scroll fix ── */
+body:has(.modal-backdrop.show) {
+    overflow: hidden;
+    position: fixed;
+    width: 100%;
+}
+
+@media (max-width: 767px) {
+    .modal-backdrop {
+        align-items: flex-start !important;
+        padding: 0 !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        overscroll-behavior: contain !important;
+    }
+
+    .modal-content-admin-checkout {
+        width: 100% !important;
+        max-width: 100% !important;
+        border-radius: 0 !important;
+        min-height: 100vh !important;
+        max-height: none !important;
+        overflow: visible !important;
+        margin: 0 !important;
+    }
+
+    .admin-checkout-form {
+        overflow: visible !important;
+    }
+
+    .shift-selector {
+        flex-direction: column;
+    }
+
+    .shift-btn {
+        flex-direction: row;
+        align-items: center;
+        gap: 10px;
+        flex: none;
+        width: 100%;
+    }
+
+    .shift-icon {
+        font-size: 24px;
+        margin-bottom: 0;
+    }
 }
