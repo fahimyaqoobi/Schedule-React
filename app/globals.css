@@ -9476,47 +9476,92 @@ textarea:focus-visible {
 /* ── Mobile modal scroll fix ── */
 body:has(.modal-backdrop.show) {
     overflow: hidden;
-    position: fixed;
-    width: 100%;
 }
 
 @media (max-width: 767px) {
+    /* Backdrop is the scroll container */
     .modal-backdrop {
         align-items: flex-start !important;
         padding: 0 !important;
         overflow-y: auto !important;
+        overflow-x: hidden !important;
         -webkit-overflow-scrolling: touch !important;
         overscroll-behavior: contain !important;
     }
 
+    /* Admin checkout: full-screen, scrolls inside backdrop */
     .modal-content-admin-checkout {
         width: 100% !important;
-        max-width: 100% !important;
+        max-width: 100vw !important;
         border-radius: 0 !important;
-        min-height: 100vh !important;
+        min-height: 100% !important;
         max-height: none !important;
         overflow: visible !important;
         margin: 0 !important;
+        align-self: flex-start !important;
     }
 
+    /* Inner form layout: single column, no overflow clipping */
     .admin-checkout-form {
+        grid-template-columns: 1fr !important;
+        overflow: visible !important;
+        padding: 14px 14px calc(24px + env(safe-area-inset-bottom)) !important;
+        gap: 12px !important;
+    }
+
+    .admin-checkout-grid {
+        grid-template-columns: 1fr !important;
         overflow: visible !important;
     }
 
+    .admin-checkout-grid label.span-2,
+    .admin-staff-assignment {
+        grid-column: 1 !important;
+    }
+
+    .admin-checkout-review-top {
+        grid-template-columns: 1fr !important;
+    }
+
+    .admin-checkout-actions {
+        position: sticky;
+        bottom: 0;
+        z-index: 10;
+        background: #f8f9fa;
+        padding: 12px 14px calc(12px + env(safe-area-inset-bottom)) !important;
+        border-top: 1px solid #dbe7ff;
+    }
+
+    .admin-checkout-actions .btn {
+        width: 100%;
+        min-height: 48px;
+        justify-content: center;
+    }
+
+    /* Shift buttons: horizontal row on mobile */
     .shift-selector {
         flex-direction: column;
+        gap: 8px;
     }
 
     .shift-btn {
         flex-direction: row;
         align-items: center;
-        gap: 10px;
+        gap: 12px;
         flex: none;
         width: 100%;
+        padding: 12px 16px;
     }
 
     .shift-icon {
-        font-size: 24px;
+        font-size: 22px;
         margin-bottom: 0;
+    }
+
+    /* Staff picker: single column on mobile */
+    .admin-staff-picker {
+        grid-template-columns: 1fr !important;
+        max-height: none !important;
+        overflow: visible !important;
     }
 }

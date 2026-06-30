@@ -4947,6 +4947,12 @@ export default function Home() {
                                             <span>Date</span>
                                             <input type="date" required value={adminCheckoutForm.date} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, date: e.target.value }))} />
                                         </label>
+                                        <label>
+                                            <span>Estimated Arrival <span style={{ fontSize: 10, fontWeight: 600, color: "#94a3b8" }}>(reference only)</span></span>
+                                            <select value={adminCheckoutForm.time} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, time: e.target.value }))}>
+                                                {["07:00 AM","07:30 AM","08:00 AM","08:30 AM","09:00 AM","09:30 AM","10:00 AM","10:30 AM","11:00 AM","11:30 AM","12:00 PM","12:30 PM","01:00 PM","01:30 PM","02:00 PM","02:30 PM","03:00 PM","03:30 PM","04:00 PM","04:30 PM","05:00 PM","05:30 PM","06:00 PM","06:30 PM","07:00 PM"].map(t => <option key={t} value={t}>{t}</option>)}
+                                            </select>
+                                        </label>
                                         <label className="span-2">
                                             <span>Shift(s) — select all that apply</span>
                                             <div className="shift-selector">
