@@ -89,57 +89,93 @@ function PieChart({ segments, size = 110 }) {
 }
 
 function RevenueWagesChart({ data }) {
-    const maxVal = Math.max(...data.map(d => Math.max(d.revenue, d.wages)), 1);
+    const hasAnyData = data.some(d => d.revenue > 0 || d.wages > 0);
+    const maxVal = Math.max(...data.map(d => Math.max(d.revenue, d.wages)), 100);
     const roundedMax = Math.ceil(maxVal / 500) * 500 || 500;
     const n = data.length;
 
-    const W = 560, H = 190;
-    const PL = 56, PR = 12, PT = 12, PB = 36;
+    const W = 580, H = 230;
+    const PL = 64, PR = 16, PT = 16, PB = 40;
     const CW = W - PL - PR;
     const CH = H - PT - PB;
 
     const toY = v => PT + CH - (v / roundedMax) * CH;
-    const barW = Math.max(6, (CW / n) * 0.5);
-    const xCenter = i => PL + (i + 0.5) * (CW / n);
+    const slot = CW / n;
+    const barW = Math.max(10, slot * 0.55);
+    const xCenter = i => PL + (i + 0.5) * slot;
 
-    const linePoints = data.map((d, i) => `${xCenter(i).toFixed(1)},${toY(d.wages).toFixed(1)}`).join(" ");
     const hasWages = data.some(d => d.wages > 0);
+    const linePoints = data.map((d, i) => `${xCenter(i).toFixed(1)},${toY(d.wages).toFixed(1)}`).join(" ");
+
+    const gridVals = [0.25, 0.5, 0.75, 1.0];
+
+    if (!hasAnyData) {
+        return (
+            <div style={{ height: 180, display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8", fontSize: 13, fontWeight: 600, flexDirection: "column", gap: 6 }}>
+                <svg viewBox="0 0 40 32" width="40" height="32" fill="none">
+                    <rect x="2" y="16" width="8" height="14" rx="2" fill="#e2e8f0" />
+                    <rect x="16" y="8" width="8" height="22" rx="2" fill="#e2e8f0" />
+                    <rect x="30" y="20" width="8" height="10" rx="2" fill="#e2e8f0" />
+                </svg>
+                No paid bookings in this period
+            </div>
+        );
+    }
 
     return (
-        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block", maxHeight: 220 }}>
-            {[0.25, 0.5, 0.75, 1.0].map((pct, i) => {
+        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
+            {/* Grid lines */}
+            {gridVals.map((pct, i) => {
                 const y = toY(roundedMax * pct);
                 return (
                     <g key={i}>
-                        <line x1={PL} y1={y.toFixed(1)} x2={W - PR} y2={y.toFixed(1)} stroke="#e2e8f0" strokeWidth="1" />
-                        <text x={PL - 6} y={(y + 4).toFixed(1)} textAnchor="end" fontSize="9" fill="#94a3b8">
+                        <line x1={PL} y1={y.toFixed(1)} x2={W - PR} y2={y.toFixed(1)} stroke={pct === 1.0 ? "#cbd5e1" : "#e9eef5"} strokeWidth={pct === 1.0 ? "1.5" : "1"} strokeDasharray={pct < 1.0 ? "4 3" : "none"} />
+                        <text x={(PL - 8).toFixed(1)} y={(y + 4).toFixed(1)} textAnchor="end" fontSize="11" fill="#94a3b8" fontWeight="600">
                             ${Math.round(roundedMax * pct).toLocaleString()}
                         </text>
                     </g>
                 );
             })}
-            <line x1={PL} y1={(PT + CH).toFixed(1)} x2={W - PR} y2={(PT + CH).toFixed(1)} stroke="#cbd5e1" strokeWidth="1.5" />
 
+            {/* Baseline */}
+            <line x1={PL} y1={(PT + CH).toFixed(1)} x2={W - PR} y2={(PT + CH).toFixed(1)} stroke="#cbd5e1" strokeWidth="2" />
+
+            {/* Revenue bars */}
             {data.map((d, i) => {
-                const bH = Math.max(1, (d.revenue / roundedMax) * CH);
+                const minH = d.revenue > 0 ? Math.max(4, (d.revenue / roundedMax) * CH) : 0;
                 const bX = xCenter(i) - barW / 2;
-                const bY = PT + CH - bH;
-                return <rect key={i} x={bX.toFixed(1)} y={bY.toFixed(1)} width={barW.toFixed(1)} height={bH.toFixed(1)} fill="#1e3a5f" rx="3" opacity="0.85" />;
+                const bY = PT + CH - minH;
+                return (
+                    <g key={i}>
+                        {/* Ghost bar so structure is always visible */}
+                        <rect x={bX.toFixed(1)} y={PT.toFixed(1)} width={barW.toFixed(1)} height={CH.toFixed(1)} fill="#f1f5f9" rx="4" />
+                        {d.revenue > 0 && (
+                            <>
+                                <rect x={bX.toFixed(1)} y={bY.toFixed(1)} width={barW.toFixed(1)} height={minH.toFixed(1)} fill="#1e3a5f" rx="4" opacity="0.9" />
+                                {minH > 18 && (
+                                    <text x={xCenter(i).toFixed(1)} y={(bY - 4).toFixed(1)} textAnchor="middle" fontSize="9" fill="#1e3a5f" fontWeight="700">
+                                        ${d.revenue >= 1000 ? `${(d.revenue / 1000).toFixed(1)}k` : Math.round(d.revenue)}
+                                    </text>
+                                )}
+                            </>
+                        )}
+                    </g>
+                );
             })}
 
+            {/* Wages line */}
             {hasWages && (
                 <>
-                    <polyline points={linePoints} fill="none" stroke="#f97316" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
-                    {data.map((d, i) =>
-                        d.wages > 0 && (
-                            <circle key={i} cx={xCenter(i).toFixed(1)} cy={toY(d.wages).toFixed(1)} r="3.5" fill="#f97316" stroke="#fff" strokeWidth="1.5" />
-                        )
-                    )}
+                    <polyline points={linePoints} fill="none" stroke="#f97316" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
+                    {data.map((d, i) => (
+                        <circle key={i} cx={xCenter(i).toFixed(1)} cy={toY(d.wages).toFixed(1)} r="5" fill={d.wages > 0 ? "#f97316" : "#fed7aa"} stroke="#fff" strokeWidth="2" />
+                    ))}
                 </>
             )}
 
+            {/* X-axis labels */}
             {data.map((d, i) => (
-                <text key={i} x={xCenter(i).toFixed(1)} y={H - 6} textAnchor="middle" fontSize={n > 8 ? "8" : "9"} fill="#64748b">
+                <text key={i} x={xCenter(i).toFixed(1)} y={(H - 10).toFixed(1)} textAnchor="middle" fontSize={n > 8 ? "9" : "10"} fill="#64748b" fontWeight="600">
                     {d.label}
                 </text>
             ))}
@@ -177,7 +213,7 @@ export default function DashboardTab({
     getRoleLabel,
 }) {
     const [showMetrics, setShowMetrics] = useState(false);
-    const [chartFilter, setChartFilter] = useState("7d");
+    const [chartFilter, setChartFilter] = useState("6m");
 
     const chartData = useMemo(() => {
         const periods = getPeriods(chartFilter);
@@ -396,85 +432,147 @@ export default function DashboardTab({
                             </div>
                         )}
 
-                        {/* Revenue & Wages Chart */}
-                        <div className="dashboard-chart-section">
-                            <div className="dashboard-chart-header">
-                                <div>
-                                    <h4 className="dashboard-chart-title">Revenue &amp; Wages</h4>
-                                    <div className="dashboard-chart-legend">
-                                        <span className="legend-revenue">Revenue (paid bookings)</span>
-                                        <span className="legend-wages">Wages (payroll)</span>
+                        {/* Two-column layout: main content left, cart right */}
+                        <div className="dashboard-two-col" ref={serviceCatalogRef}>
+                            <div className="dashboard-main-col">
+
+                                {/* Revenue & Wages Chart */}
+                                <div className="dashboard-chart-section">
+                                    <div className="dashboard-chart-header">
+                                        <div>
+                                            <h4 className="dashboard-chart-title">Revenue &amp; Wages</h4>
+                                            <div className="dashboard-chart-legend" style={{ display: "flex", gap: 16, marginTop: 4 }}>
+                                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                                    <span style={{ display: "inline-block", width: 14, height: 14, borderRadius: 3, background: "#1e3a5f" }}></span>
+                                                    <span style={{ fontSize: 12, fontWeight: 700, color: "#1e3a5f" }}>Revenue (paid bookings)</span>
+                                                </div>
+                                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                                    <svg width="22" height="14" viewBox="0 0 22 14" style={{ display: "block" }}>
+                                                        <line x1="0" y1="7" x2="22" y2="7" stroke="#f97316" strokeWidth="3" strokeLinecap="round" />
+                                                        <circle cx="11" cy="7" r="4" fill="#f97316" stroke="#fff" strokeWidth="1.5" />
+                                                    </svg>
+                                                    <span style={{ fontSize: 12, fontWeight: 700, color: "#f97316" }}>Wages (payroll)</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="dashboard-chart-filters">
+                                            {CHART_FILTERS.map(f => (
+                                                <button
+                                                    key={f.key}
+                                                    type="button"
+                                                    className={`chart-filter-btn${chartFilter === f.key ? " active" : ""}`}
+                                                    onClick={() => setChartFilter(f.key)}
+                                                >
+                                                    {f.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="dashboard-chart-body">
+                                        <RevenueWagesChart data={chartData} />
                                     </div>
                                 </div>
-                                <div className="dashboard-chart-filters">
-                                    {CHART_FILTERS.map(f => (
-                                        <button
-                                            key={f.key}
-                                            type="button"
-                                            className={`chart-filter-btn${chartFilter === f.key ? " active" : ""}`}
-                                            onClick={() => setChartFilter(f.key)}
-                                        >
-                                            {f.label}
+
+                                {/* Status & Payment pie charts */}
+                                <div className="dashboard-pies-row">
+                                    <div className="dashboard-pie-card">
+                                        <h4 className="dashboard-pie-title">Booking Status</h4>
+                                        <div className="dashboard-pie-body">
+                                            <PieChart size={110} segments={[
+                                                { label: "Completed", value: adminCommandMetrics.completedCount, color: "#16a34a" },
+                                                { label: "Confirmed", value: adminCommandMetrics.confirmed, color: "#0891b2" },
+                                                { label: "Pipeline",  value: adminCommandMetrics.pipeline,   color: "#6366f1" },
+                                            ]} />
+                                            <div className="dashboard-pie-legend">
+                                                {[
+                                                    { label: "Completed", color: "#16a34a", value: adminCommandMetrics.completedCount },
+                                                    { label: "Confirmed", color: "#0891b2", value: adminCommandMetrics.confirmed },
+                                                    { label: "Pipeline",  color: "#6366f1", value: adminCommandMetrics.pipeline },
+                                                ].map(s => (
+                                                    <div key={s.label} className="pie-legend-item">
+                                                        <span className="pie-dot" style={{ background: s.color }} />
+                                                        <span className="pie-legend-label">{s.label}</span>
+                                                        <span className="pie-legend-val">{s.value}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="dashboard-pie-card">
+                                        <h4 className="dashboard-pie-title">Payment Overview</h4>
+                                        <div className="dashboard-pie-body">
+                                            <PieChart size={110} segments={[
+                                                { label: "Collected", value: adminCommandMetrics.paidRevenue,          color: "#16a34a" },
+                                                { label: "Pending",   value: adminCommandMetrics.pendingPaymentAmount, color: "#f59e0b" },
+                                            ]} />
+                                            <div className="dashboard-pie-legend">
+                                                {[
+                                                    { label: "Collected", color: "#16a34a", value: `$${adminCommandMetrics.paidRevenue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` },
+                                                    { label: "Pending",   color: "#f59e0b", value: `$${adminCommandMetrics.pendingPaymentAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` },
+                                                ].map(s => (
+                                                    <div key={s.label} className="pie-legend-item">
+                                                        <span className="pie-dot" style={{ background: s.color }} />
+                                                        <span className="pie-legend-label">{s.label}</span>
+                                                        <span className="pie-legend-val">{s.value}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Today's Dispatch + HR Queue */}
+                                <div className="admin-ops-grid">
+                                    <div className="admin-live-panel">
+                                        <div className="admin-section-heading">
+                                            <div>
+                                                <h4>Today&apos;s Dispatches</h4>
+                                                <p>{new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                                            </div>
+                                            <span>{todayBookings.length} Jobs</span>
+                                        </div>
+                                        {todayBookings.length === 0 ? (
+                                            <div className="admin-cart-empty">No dispatches scheduled for today.</div>
+                                        ) : (
+                                            <div className="admin-dispatch-list">
+                                                {todayBookings.slice(0, 5).map(b => (
+                                                    <button key={b.id} onClick={() => { setSelectedBooking(b); setDetailsModalOpen(true); }} className="admin-dispatch-item" type="button">
+                                                        <span>{b.time}</span>
+                                                        <div>
+                                                            <strong>{b.clientName}</strong>
+                                                            <small>{b.service} • {b.team}</small>
+                                                        </div>
+                                                        <em>{b.status}</em>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="admin-live-panel">
+                                        <div className="admin-section-heading">
+                                            <div>
+                                                <h4>HR &amp; Compliance Queue</h4>
+                                                <p>Employee/subcontractor readiness.</p>
+                                            </div>
+                                            <span>{pendingUsers.length} Pending</span>
+                                        </div>
+                                        <div className="admin-hr-queue">
+                                            <div><strong>{fieldStaff.length}</strong><span>Approved field staff</span></div>
+                                            <div><strong>{pendingUsers.length}</strong><span>Pending approvals</span></div>
+                                            <div><strong>{bookings.filter(b => b.assignedStaffIds?.length > 0).length}</strong><span>Assigned jobs</span></div>
+                                        </div>
+                                        <button onClick={() => setActiveTab("departments")} className="admin-secondary-action" type="button">
+                                            Open HR modules
                                         </button>
-                                    ))}
-                                </div>
-                            </div>
-                            <div className="dashboard-chart-body">
-                                <RevenueWagesChart data={chartData} />
-                            </div>
-                        </div>
-
-                        {/* Status & Payment pie charts */}
-                        <div className="dashboard-pies-row">
-                            <div className="dashboard-pie-card">
-                                <h4 className="dashboard-pie-title">Booking Status</h4>
-                                <div className="dashboard-pie-body">
-                                    <PieChart size={110} segments={[
-                                        { label: "Completed", value: adminCommandMetrics.completedCount, color: "#16a34a" },
-                                        { label: "Confirmed", value: adminCommandMetrics.confirmed, color: "#0891b2" },
-                                        { label: "Pipeline",  value: adminCommandMetrics.pipeline,   color: "#6366f1" },
-                                    ]} />
-                                    <div className="dashboard-pie-legend">
-                                        {[
-                                            { label: "Completed", color: "#16a34a", value: adminCommandMetrics.completedCount },
-                                            { label: "Confirmed", color: "#0891b2", value: adminCommandMetrics.confirmed },
-                                            { label: "Pipeline",  color: "#6366f1", value: adminCommandMetrics.pipeline },
-                                        ].map(s => (
-                                            <div key={s.label} className="pie-legend-item">
-                                                <span className="pie-dot" style={{ background: s.color }} />
-                                                <span className="pie-legend-label">{s.label}</span>
-                                                <span className="pie-legend-val">{s.value}</span>
-                                            </div>
-                                        ))}
                                     </div>
                                 </div>
-                            </div>
 
-                            <div className="dashboard-pie-card">
-                                <h4 className="dashboard-pie-title">Payment Overview</h4>
-                                <div className="dashboard-pie-body">
-                                    <PieChart size={110} segments={[
-                                        { label: "Collected", value: adminCommandMetrics.paidRevenue,          color: "#16a34a" },
-                                        { label: "Pending",   value: adminCommandMetrics.pendingPaymentAmount, color: "#f59e0b" },
-                                    ]} />
-                                    <div className="dashboard-pie-legend">
-                                        {[
-                                            { label: "Collected", color: "#16a34a", value: `$${adminCommandMetrics.paidRevenue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` },
-                                            { label: "Pending",   color: "#f59e0b", value: `$${adminCommandMetrics.pendingPaymentAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` },
-                                        ].map(s => (
-                                            <div key={s.label} className="pie-legend-item">
-                                                <span className="pie-dot" style={{ background: s.color }} />
-                                                <span className="pie-legend-label">{s.label}</span>
-                                                <span className="pie-legend-val">{s.value}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                            </div>{/* end dashboard-main-col */}
 
-                        <div className="admin-booking-workspace" ref={serviceCatalogRef}>
-                            <aside className="admin-cart-panel admin-cart-panel--wide">
+                            {/* RIGHT: Client Service Cart sidebar */}
+                            <aside className="admin-cart-panel dashboard-cart-col">
                                 <div className="admin-section-heading">
                                     <div>
                                         <h4>Client Service Cart</h4>
@@ -554,53 +652,8 @@ export default function DashboardTab({
                                     Continue to Checkout
                                 </button>
                             </aside>
-                        </div>
 
-                        <div className="admin-ops-grid">
-                            <div className="admin-live-panel">
-                                <div className="admin-section-heading">
-                                    <div>
-                                        <h4>Today&apos;s Dispatches</h4>
-                                        <p>{new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                                    </div>
-                                    <span>{todayBookings.length} Jobs</span>
-                                </div>
-                                {todayBookings.length === 0 ? (
-                                    <div className="admin-cart-empty">No dispatches scheduled for today.</div>
-                                ) : (
-                                    <div className="admin-dispatch-list">
-                                        {todayBookings.slice(0, 5).map(b => (
-                                            <button key={b.id} onClick={() => { setSelectedBooking(b); setDetailsModalOpen(true); }} className="admin-dispatch-item" type="button">
-                                                <span>{b.time}</span>
-                                                <div>
-                                                    <strong>{b.clientName}</strong>
-                                                    <small>{b.service} • {b.team}</small>
-                                                </div>
-                                                <em>{b.status}</em>
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="admin-live-panel">
-                                <div className="admin-section-heading">
-                                    <div>
-                                        <h4>HR &amp; Compliance Queue</h4>
-                                        <p>Employee/subcontractor readiness.</p>
-                                    </div>
-                                    <span>{pendingUsers.length} Pending</span>
-                                </div>
-                                <div className="admin-hr-queue">
-                                    <div><strong>{fieldStaff.length}</strong><span>Approved field staff</span></div>
-                                    <div><strong>{pendingUsers.length}</strong><span>Pending approvals</span></div>
-                                    <div><strong>{bookings.filter(b => b.assignedStaffIds?.length > 0).length}</strong><span>Assigned jobs</span></div>
-                                </div>
-                                <button onClick={() => setActiveTab("departments")} className="admin-secondary-action" type="button">
-                                    Open HR modules
-                                </button>
-                            </div>
-                        </div>
+                        </div>{/* end dashboard-two-col */}
                     </section>
 
                     {/* Permissioned pending user approvals table in Dashboard */}

@@ -9419,6 +9419,31 @@ textarea:focus-visible {
     }
 }
 
+/* ─── Dashboard two-column layout ───────────────────────────────────────── */
+.dashboard-two-col {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 20px;
+    align-items: start;
+}
+.dashboard-main-col {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    min-width: 0;
+}
+.dashboard-cart-col {
+    position: sticky;
+    top: 20px;
+}
+/* override the chart section margin since gap handles spacing now */
+.dashboard-main-col .dashboard-chart-section {
+    margin-bottom: 0;
+}
+.dashboard-main-col .dashboard-pies-row {
+    margin-bottom: 0;
+}
+
 /* ─── Dashboard pie charts row ──────────────────────────────────────────── */
 .dashboard-pies-row {
     display: grid;
