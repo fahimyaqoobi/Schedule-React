@@ -232,42 +232,6 @@ export default function BookingsTab({
     };
     const SortArrow = ({ col }) => sortCol !== col ? <span style={{ opacity: 0.3, fontSize: 9 }}>⇅</span> : sortDir === "asc" ? <span style={{ fontSize: 9 }}>▲</span> : <span style={{ fontSize: 9 }}>▼</span>;
 
-    const exportToExcel = useCallback(() => {
-        const METHOD_LABELS = { cash: "Cash", "e-transfer": "E-Transfer", "credit-card": "Card", "direct-deposit": "Direct Deposit", cheque: "Cheque" };
-        const rows = visibleBookings.map(b => ({
-            "Booking #":      b.bookingNumber || b.id || "",
-            "Date":           b.date || "",
-            "Shift(s)":       (b.shifts || []).join(", ") || b.time || "",
-            "Client Name":    b.clientName || `${b.firstName || ""} ${b.lastName || ""}`.trim(),
-            "Phone":          b.phone || "",
-            "Email":          b.email || "",
-            "Address":        [b.address1, b.address2, b.city, b.state, b.postalCode].filter(Boolean).join(", "),
-            "Service":        b.service || "",
-            "Duration (hrs)": b.duration || "",
-            "Frequency":      b.frequency || "",
-            "Status":         b.status || "",
-            "Payment Status": b.paymentStatus || "",
-            "Payment Method": METHOD_LABELS[b.paymentMethod] || b.paymentMethod || "",
-            "Lead Source":    b.leadSource || "",
-            "Subtotal":       parseFloat(b.subtotal || b.price || 0).toFixed(2),
-            "Tax":            parseFloat(b.tax || 0).toFixed(2),
-            "Total":          parseFloat(b.price || b.subtotal || 0).toFixed(2),
-            "Discount $":     parseFloat(b.customDiscountAmount || 0).toFixed(2),
-            "Promo Code":     b.promoCode || "",
-            "Assigned Staff": (b.assignedStaff || []).map(s => s.name || s).join(", "),
-            "Notes":          b.specialNotes || b.notes || "",
-            "Created":        b.createdAt ? new Date(b.createdAt).toLocaleString() : "",
-        }));
-
-        const ws = XLSX.utils.json_to_sheet(rows);
-        const colWidths = Object.keys(rows[0] || {}).map(key => ({ wch: Math.max(key.length, 14) }));
-        ws["!cols"] = colWidths;
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Bookings");
-        const dateStr = new Date().toISOString().slice(0, 10);
-        XLSX.writeFile(wb, `SmarTouch_Bookings_${dateStr}.xlsx`);
-    }, [visibleBookings]);
-
     const tz = branchTimezone || "America/Toronto";
 
     // Get the current date string (YYYY-MM-DD) in the branch timezone.
@@ -317,6 +281,41 @@ export default function BookingsTab({
             return 0;
         });
     })();
+
+    const exportToExcel = useCallback(() => {
+        const METHOD_LABELS = { cash: "Cash", "e-transfer": "E-Transfer", "credit-card": "Card", "direct-deposit": "Direct Deposit", cheque: "Cheque" };
+        const rows = visibleBookings.map(b => ({
+            "Booking #":      b.bookingNumber || b.id || "",
+            "Date":           b.date || "",
+            "Shift(s)":       (b.shifts || []).join(", ") || b.time || "",
+            "Client Name":    b.clientName || `${b.firstName || ""} ${b.lastName || ""}`.trim(),
+            "Phone":          b.phone || "",
+            "Email":          b.email || "",
+            "Address":        [b.address1, b.address2, b.city, b.state, b.postalCode].filter(Boolean).join(", "),
+            "Service":        b.service || "",
+            "Duration (hrs)": b.duration || "",
+            "Frequency":      b.frequency || "",
+            "Status":         b.status || "",
+            "Payment Status": b.paymentStatus || "",
+            "Payment Method": METHOD_LABELS[b.paymentMethod] || b.paymentMethod || "",
+            "Lead Source":    b.leadSource || "",
+            "Subtotal":       parseFloat(b.subtotal || b.price || 0).toFixed(2),
+            "Tax":            parseFloat(b.tax || 0).toFixed(2),
+            "Total":          parseFloat(b.price || b.subtotal || 0).toFixed(2),
+            "Discount $":     parseFloat(b.customDiscountAmount || 0).toFixed(2),
+            "Promo Code":     b.promoCode || "",
+            "Assigned Staff": (b.assignedStaff || []).map(s => s.name || s).join(", "),
+            "Notes":          b.specialNotes || b.notes || "",
+            "Created":        b.createdAt ? new Date(b.createdAt).toLocaleString() : "",
+        }));
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const colWidths = Object.keys(rows[0] || {}).map(key => ({ wch: Math.max(key.length, 14) }));
+        ws["!cols"] = colWidths;
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Bookings");
+        const dateStr = new Date().toISOString().slice(0, 10);
+        XLSX.writeFile(wb, `SmarTouch_Bookings_${dateStr}.xlsx`);
+    }, [visibleBookings]);
 
     // Build a map of uid → photoURL from fieldStaff for avatar lookups
     const staffPhotoMap = {};
