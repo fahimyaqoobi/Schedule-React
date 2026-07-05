@@ -20,7 +20,8 @@
     "react-dom": "19.2.4",
     "stripe": "^22.2.2",
     "twilio": "^6.0.2",
-    "use-places-autocomplete": "^4.0.1"
+    "use-places-autocomplete": "^4.0.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

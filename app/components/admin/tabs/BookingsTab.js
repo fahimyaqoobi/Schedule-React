@@ -1,5 +1,6 @@
 "use client";
 import { useState, useRef, useEffect, useCallback } from "react";
+import * as XLSX from "xlsx";
 
 const STATUS_OPTIONS = [
     { value: "awaiting_approval", label: "⏳ Awaiting Approval", color: "#f59e0b", bg: "#fffbeb", border: "#fde68a" },
@@ -231,6 +232,42 @@ export default function BookingsTab({
     };
     const SortArrow = ({ col }) => sortCol !== col ? <span style={{ opacity: 0.3, fontSize: 9 }}>⇅</span> : sortDir === "asc" ? <span style={{ fontSize: 9 }}>▲</span> : <span style={{ fontSize: 9 }}>▼</span>;
 
+    const exportToExcel = useCallback(() => {
+        const METHOD_LABELS = { cash: "Cash", "e-transfer": "E-Transfer", "credit-card": "Card", "direct-deposit": "Direct Deposit", cheque: "Cheque" };
+        const rows = visibleBookings.map(b => ({
+            "Booking #":      b.bookingNumber || b.id || "",
+            "Date":           b.date || "",
+            "Shift(s)":       (b.shifts || []).join(", ") || b.time || "",
+            "Client Name":    b.clientName || `${b.firstName || ""} ${b.lastName || ""}`.trim(),
+            "Phone":          b.phone || "",
+            "Email":          b.email || "",
+            "Address":        [b.address1, b.address2, b.city, b.state, b.postalCode].filter(Boolean).join(", "),
+            "Service":        b.service || "",
+            "Duration (hrs)": b.duration || "",
+            "Frequency":      b.frequency || "",
+            "Status":         b.status || "",
+            "Payment Status": b.paymentStatus || "",
+            "Payment Method": METHOD_LABELS[b.paymentMethod] || b.paymentMethod || "",
+            "Lead Source":    b.leadSource || "",
+            "Subtotal":       parseFloat(b.subtotal || b.price || 0).toFixed(2),
+            "Tax":            parseFloat(b.tax || 0).toFixed(2),
+            "Total":          parseFloat(b.price || b.subtotal || 0).toFixed(2),
+            "Discount $":     parseFloat(b.customDiscountAmount || 0).toFixed(2),
+            "Promo Code":     b.promoCode || "",
+            "Assigned Staff": (b.assignedStaff || []).map(s => s.name || s).join(", "),
+            "Notes":          b.specialNotes || b.notes || "",
+            "Created":        b.createdAt ? new Date(b.createdAt).toLocaleString() : "",
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const colWidths = Object.keys(rows[0] || {}).map(key => ({ wch: Math.max(key.length, 14) }));
+        ws["!cols"] = colWidths;
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Bookings");
+        const dateStr = new Date().toISOString().slice(0, 10);
+        XLSX.writeFile(wb, `SmarTouch_Bookings_${dateStr}.xlsx`);
+    }, [visibleBookings]);
+
     const tz = branchTimezone || "America/Toronto";
 
     // Get the current date string (YYYY-MM-DD) in the branch timezone.
@@ -391,9 +428,31 @@ export default function BookingsTab({
                         }}>{opt.label}</button>
                     ))}
                 </div>
-                <span style={{ marginLeft: "auto", fontSize: 11, color: "#94a3b8" }}>
-                    Showing <strong>{visibleBookings.length}</strong> of <strong>{(filteredBookings || []).length}</strong> bookings
-                </span>
+                <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 11, color: "#94a3b8" }}>
+                        Showing <strong>{visibleBookings.length}</strong> of <strong>{(filteredBookings || []).length}</strong> bookings
+                    </span>
+                    <button
+                        onClick={exportToExcel}
+                        disabled={visibleBookings.length === 0}
+                        style={{
+                            display: "flex", alignItems: "center", gap: 6,
+                            padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 700,
+                            border: "1.5px solid #16a34a", background: "#f0fdf4", color: "#16a34a",
+                            cursor: visibleBookings.length === 0 ? "not-allowed" : "pointer",
+                            opacity: visibleBookings.length === 0 ? 0.5 : 1,
+                            whiteSpace: "nowrap",
+                        }}
+                        title="Export visible bookings to Excel"
+                    >
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+                            <path d="M2 12l4-4 3 3 5-6" stroke="#16a34a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            <rect x="1" y="1" width="14" height="14" rx="2" stroke="#16a34a" strokeWidth="1.5"/>
+                            <path d="M5 8l2 2 4-4" stroke="#16a34a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                        Export Excel
+                    </button>
+                </div>
             </div>
 
             {/* Bulk action bar */}
