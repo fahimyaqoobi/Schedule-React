@@ -9565,3 +9565,70 @@ body:has(.modal-backdrop.show) {
         overflow: visible !important;
     }
 }
+
+/* ── Recurring booking toggle ── */
+.recurring-toggle-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 2px dashed #c7d2fe;
+    border-radius: 12px;
+    background: #f8faff;
+}
+.recurring-toggle {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    padding: 0;
+    text-align: left;
+}
+.recurring-toggle-track {
+    display: inline-flex;
+    align-items: center;
+    width: 44px;
+    height: 24px;
+    border-radius: 99px;
+    background: #cbd5e1;
+    padding: 3px;
+    transition: background 0.15s;
+    flex-shrink: 0;
+}
+.recurring-toggle.on .recurring-toggle-track { background: #00426d; }
+.recurring-toggle-knob {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    transition: transform 0.15s;
+}
+.recurring-toggle.on .recurring-toggle-knob { transform: translateX(20px); }
+.recurring-toggle-text { display: flex; flex-direction: column; gap: 1px; }
+.recurring-toggle-text strong { font-size: 13px; font-weight: 800; color: #1e293b; }
+.recurring-toggle-text small { font-size: 11px; font-weight: 600; color: #64748b; }
+.recurring-freq-picker { display: flex; gap: 8px; margin-left: auto; }
+.recurring-freq-btn {
+    padding: 7px 14px;
+    border-radius: 99px;
+    border: 2px solid #e2e8f0;
+    background: #ffffff;
+    font-size: 12px;
+    font-weight: 700;
+    color: #475569;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.recurring-freq-btn.selected {
+    border-color: #00426d;
+    background: #00426d;
+    color: #ffffff;
+}
+@media (max-width: 767px) {
+    .recurring-freq-picker { margin-left: 0; width: 100%; }
+    .recurring-freq-btn { flex: 1; }
+}

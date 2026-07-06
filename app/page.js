@@ -57,6 +57,7 @@ import DashboardTab from "./components/admin/tabs/DashboardTab";
 import BookingsTab from "./components/admin/tabs/BookingsTab";
 import BookingWizard from "./components/admin/BookingWizard";
 import CalendarTab from "./components/admin/tabs/CalendarTab";
+import RecurringTab from "./components/admin/tabs/RecurringTab";
 
 const V2SettingsManager = dynamic(() => import("./components/V2SettingsManager"), {
     ssr: false,
@@ -238,6 +239,50 @@ function timeToShift(timeStr = "") {
     if (min >= 720  && min < 1080) return "afternoon";
     if (min >= 1080 && min < 1200) return "evening";
     return null;
+}
+
+// ── Recurring bookings ──
+// Generate the follow-up occurrence dates (YYYY-MM-DD) for a recurring series,
+// covering the next `months` months after startDateStr (start date excluded).
+const RECURRING_FREQUENCIES = ["Weekly", "Bi-Weekly", "Monthly"];
+
+function addMonthsClamped(date, n) {
+    const d = new Date(date);
+    const day = d.getDate();
+    d.setDate(1);
+    d.setMonth(d.getMonth() + n);
+    const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    d.setDate(Math.min(day, lastDay));
+    return d;
+}
+
+function toLocalDateStr(d) {
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function generateRecurringDates(startDateStr, frequency, months = 3) {
+    if (!startDateStr) return [];
+    const start = new Date(`${startDateStr}T00:00:00`);
+    if (Number.isNaN(start.getTime())) return [];
+    const end = addMonthsClamped(start, months);
+    const dates = [];
+    if (frequency === "Monthly") {
+        for (let i = 1; ; i++) {
+            const d = addMonthsClamped(start, i);
+            if (d > end) break;
+            dates.push(toLocalDateStr(d));
+        }
+    } else {
+        const step = frequency === "Bi-Weekly" ? 14 : 7;
+        const d = new Date(start);
+        for (;;) {
+            d.setDate(d.getDate() + step);
+            if (d > end) break;
+            dates.push(toLocalDateStr(d));
+        }
+    }
+    return dates;
 }
 
 function validateAdminCheckoutStep(step, form = {}) {
@@ -979,6 +1024,8 @@ export default function Home() {
         date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' }),
         time: "07:00 AM",
         shifts: [],
+        isRecurring: false,
+        recurringSeriesId: "",
         team: "",
         assignedStaff: [],
         assignedStaffIds: [],
@@ -1032,6 +1079,8 @@ export default function Home() {
         date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' }),
         time: "07:00 AM",
         shifts: [],
+        isRecurring: false,
+        recurringFrequency: "Weekly",
         assignedStaffIds: [],
         bookingStatus: "Pending",
         paymentStatus: "unpaid",
@@ -2062,6 +2111,9 @@ export default function Home() {
             date: b.date,
             time: b.time || "07:00 AM",
             shifts: b.shifts || (b.time ? [timeToShift(b.time)].filter(Boolean) : []),
+            isRecurring: Boolean(b.isRecurring),
+            recurringSeriesId: b.recurringSeriesId || "",
+            recurringIndex: b.recurringIndex || 0,
             team: "",
             assignedStaff: b.assignedStaff || [],
             assignedStaffIds: b.assignedStaffIds || [],
@@ -2186,6 +2238,14 @@ export default function Home() {
                     duration: bookingCartTotals.duration || durationNum
                 };
 
+            // Recurring turned on for a booking that isn't in a series yet:
+            // stamp a series id now so the children link back to this booking.
+            const startsNewSeries = !isCleanerBookingEditor && payload.isRecurring && !payload.recurringSeriesId;
+            if (startsNewSeries) {
+                payload.recurringSeriesId = `rec-${Date.now()}`;
+                payload.recurringIndex = 0;
+            }
+
             const res = await fetch("/api/bookings", {
                 method: "PUT",
                 headers,
@@ -2194,7 +2254,16 @@ export default function Home() {
 
             if (res.ok) {
                 const data = await res.json();
-                alert(data.message);
+                let recurringMessage = "";
+                if (startsNewSeries) {
+                    const frequency = RECURRING_FREQUENCIES.includes(payload.frequency) ? payload.frequency : "Weekly";
+                    const dates = generateRecurringDates(payload.date, frequency, 3);
+                    const created = await createRecurringChildren(payload, dates, 1);
+                    recurringMessage = ` ${created} ${frequency.toLowerCase()} occurrence(s) booked for the next 3 months.`;
+                } else if (!isCleanerBookingEditor && payload.status === "Completed") {
+                    await maybeExtendRecurringSeries(payload);
+                }
+                alert(`${data.message || "Booking updated."}${recurringMessage}`);
                 setBookingModalOpen(false);
                 syncDatabaseData(currentUser);
             } else {
@@ -2354,6 +2423,69 @@ export default function Home() {
         }
     }, [getAuthHeaders]);
 
+    // Create the future occurrences of a recurring series by cloning a source
+    // booking. Per-occurrence fields (numbers, promos, checklists, audit) are
+    // stripped so the server issues fresh ones. Runs sequentially so booking
+    // order numbers are generated without racing.
+    const createRecurringChildren = useCallback(async (source, dates = [], startIndex = 1) => {
+        const {
+            id: _id, orderNumber: _orderNumber, estimateNumber: _estimateNumber, invoiceNumber: _invoiceNumber,
+            auditLog: _auditLog, cleanerChecklist: _cleanerChecklist, createdAt: _createdAt, createdBy: _createdBy,
+            documentLastSentAt: _sentAt, documentLastSentBy: _sentBy, customerConfirmed: _confirmed,
+            promoCode: _promoCode, promoName: _promoName, promoType: _promoType, promoDiscount: _promoDiscount,
+            referredByCode: _referredByCode, documentStage: _documentStage,
+            ...base
+        } = source;
+        const headers = await getAuthHeaders();
+        let created = 0;
+        for (let i = 0; i < dates.length; i++) {
+            const res = await fetch("/api/bookings", {
+                method: "POST",
+                headers,
+                body: JSON.stringify({
+                    ...base,
+                    id: `bk-${Date.now()}-r${startIndex + i}`,
+                    date: dates[i],
+                    isRecurring: true,
+                    recurringIndex: startIndex + i,
+                    paymentStatus: "unpaid",
+                    promoCode: "",
+                    giftCardCode: ""
+                })
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || `Failed to create occurrence for ${dates[i]} (${created} of ${dates.length} created).`);
+            }
+            created++;
+        }
+        return created;
+    }, [getAuthHeaders]);
+
+    // When the LAST occurrence of a recurring series closes out, book the next
+    // 3 months automatically so recurring clients never fall off the schedule.
+    const maybeExtendRecurringSeries = useCallback(async (booking) => {
+        try {
+            if (!booking?.isRecurring || !booking.recurringSeriesId || !booking.date) return;
+            const frequency = RECURRING_FREQUENCIES.includes(booking.frequency) ? booking.frequency : "Weekly";
+            const hasLaterOccurrence = bookings.some(b =>
+                b.recurringSeriesId === booking.recurringSeriesId &&
+                b.id !== booking.id &&
+                b.status !== "Cancelled" &&
+                (b.date || "") > booking.date
+            );
+            if (hasLaterOccurrence) return;
+            const dates = generateRecurringDates(booking.date, frequency, 3);
+            if (!dates.length) return;
+            const nextIndex = (Number(booking.recurringIndex) || 0) + 1;
+            const created = await createRecurringChildren({ ...booking, status: "Confirmed" }, dates, nextIndex);
+            syncDatabaseData(currentUser);
+            alert(`Recurring series extended: ${created} new ${frequency.toLowerCase()} booking(s) added for the next 3 months.`);
+        } catch (err) {
+            alert(`Could not auto-extend the recurring series: ${err.message}`);
+        }
+    }, [bookings, createRecurringChildren, currentUser, syncDatabaseData]);
+
     const handleQuickBookingUpdate = useCallback(async (bookingId, fields) => {
         try {
             const headers = await getAuthHeaders();
@@ -2366,10 +2498,13 @@ export default function Home() {
             const data = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(data.error || "Update failed");
             setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, ...fields } : b));
+            if (fields.status === "Completed") {
+                await maybeExtendRecurringSeries({ ...existing, ...fields, id: bookingId });
+            }
         } catch (err) {
             alert(`Quick update failed: ${err.message}`);
         }
-    }, [bookings, getAuthHeaders]);
+    }, [bookings, getAuthHeaders, maybeExtendRecurringSeries]);
 
     // ----------------------------------------------------
     // Admin Crew Creation Actions
@@ -3528,6 +3663,10 @@ export default function Home() {
                     role: member.role,
                     branchId: member.branchId || matchedBranch.id
                 }));
+            const recurringOn = Boolean(adminCheckoutForm.isRecurring);
+            const recurringFrequency = RECURRING_FREQUENCIES.includes(adminCheckoutForm.recurringFrequency)
+                ? adminCheckoutForm.recurringFrequency
+                : "Weekly";
             const payload = {
                 id: `bk-${Date.now()}`,
                 isV2Booking: true,
@@ -3562,7 +3701,10 @@ export default function Home() {
                 leadSource: adminCheckoutForm.leadSource || "",
                 service: adminServiceCart.map(item => item.name).join(" + "),
                 bathrooms: "N/A",
-                frequency: "One-Time",
+                frequency: recurringOn ? recurringFrequency : "One-Time",
+                isRecurring: recurringOn,
+                recurringSeriesId: recurringOn ? `rec-${Date.now()}` : "",
+                recurringIndex: 0,
                 duration: adminCartTotals.duration,
                 price: finalTotal,
                 subtotal: adminCartTotals.subtotal,
@@ -3596,15 +3738,21 @@ export default function Home() {
                 const errorData = await res.json().catch(() => ({}));
                 throw new Error(errorData.error || "Failed to create cart booking.");
             }
+            let recurringMessage = "";
+            if (recurringOn) {
+                const dates = generateRecurringDates(payload.date, recurringFrequency, 3);
+                const created = await createRecurringChildren(payload, dates, 1);
+                recurringMessage = ` ${created} ${recurringFrequency.toLowerCase()} occurrence(s) booked for the next 3 months.`;
+            }
             setAdminCheckoutOpen(false);
             setAdminCheckoutStep(0);
             setAdminServiceCart([]);
             syncDatabaseData(currentUser);
-            alert(`${getBookingDocumentLabel(adminCheckoutForm.bookingStatus)} created successfully.`);
+            alert(`${getBookingDocumentLabel(adminCheckoutForm.bookingStatus)} created successfully.${recurringMessage}`);
         } catch (err) {
             alert(`Checkout failed: ${err.message}`);
         }
-    }, [activeBranch, adminCartTotals, adminCheckoutForm, adminServiceCart, currentUser, documentCopy, fieldStaff, getAuthHeaders, promotionRules, syncDatabaseData]);
+    }, [activeBranch, adminCartTotals, adminCheckoutForm, adminServiceCart, createRecurringChildren, currentUser, documentCopy, fieldStaff, getAuthHeaders, promotionRules, syncDatabaseData]);
 
     const handleAdminCheckoutNext = useCallback(() => {
         if (!validateAdminCheckoutStep(adminCheckoutStep, adminCheckoutForm)) {
@@ -4101,6 +4249,17 @@ export default function Home() {
                             <span className="nav-label">Bookings</span>
                         </button>
                     )}
+                    {!isPendingCleanerOnboarding && !isCleanerSelfServiceView && (
+                        <button onClick={() => setActiveTab("recurring")} className={`nav-item ${activeTab === "recurring" ? "active" : ""}`} title="Recurring">
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="17 1 21 5 17 9"/>
+                                <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+                                <polyline points="7 23 3 19 7 15"/>
+                                <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+                            </svg>
+                            <span className="nav-label">Recurring</span>
+                        </button>
+                    )}
                     {canViewOperations && (
                         <button onClick={() => setActiveTab("calendar")} className={`nav-item ${activeTab === "calendar" ? "active" : ""}`} title={isCleanerSelfServiceView ? "Schedule" : "Calendar"}>
                             {Icons.Calendar()}
@@ -4237,6 +4396,7 @@ export default function Home() {
                         <h2 className="view-title text-xl font-extrabold text-slate-800 uppercase tracking-tight">
                             {activeTab === "dashboard" ? "Dashboard Overview" :
                                 activeTab === "bookings" ? "Client Booking Manager" :
+                                    activeTab === "recurring" ? "Recurring Bookings" :
                                     activeTab === "calendar" ? (isCleanerSelfServiceView ? "Schedule" : "Scheduling Calendar") :
                                         activeTab === "jobs" ? (isCleanerSelfServiceView ? "Jobs" : "Time Cards") :
                                             activeTab === "payroll" ? "Payroll & Time Hub" :
@@ -4332,6 +4492,18 @@ export default function Home() {
                         setFilterPayment={setFilterPayment}
                         branchTimezone={activeBranch?.timezone || "America/Toronto"}
                         leadSources={leadSources}
+                    />
+                )}
+
+                {/* RECURRING BOOKINGS: Outlook-style day/week/month calendar */}
+                {activeTab === "recurring" && !isCleanerSelfServiceView && (
+                    <RecurringTab
+                        bookings={bookings}
+                        Icons={Icons}
+                        setSelectedBooking={setSelectedBooking}
+                        setDetailsModalOpen={setDetailsModalOpen}
+                        openEditBookingModal={openEditBookingModal}
+                        branchTimezone={activeBranch?.timezone || "America/Toronto"}
                     />
                 )}
 
@@ -4548,6 +4720,17 @@ export default function Home() {
                     <button onClick={() => setActiveTab("bookings")} className={`mobile-nav-item ${activeTab === "bookings" ? "active" : ""}`}>
                         {Icons.Bookings()}
                         <span>Bookings</span>
+                    </button>
+                )}
+                {!isPendingCleanerOnboarding && !isCleanerSelfServiceView && (
+                    <button onClick={() => setActiveTab("recurring")} className={`mobile-nav-item ${activeTab === "recurring" ? "active" : ""}`}>
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="17 1 21 5 17 9"/>
+                            <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+                            <polyline points="7 23 3 19 7 15"/>
+                            <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+                        </svg>
+                        <span>Recurring</span>
                     </button>
                 )}
                 {canViewOperations && (
@@ -4982,6 +5165,30 @@ export default function Home() {
                                                 })}
                                             </div>
                                         </label>
+                                        <div className="span-2 recurring-toggle-row">
+                                            <button type="button"
+                                                className={`recurring-toggle${adminCheckoutForm.isRecurring ? " on" : ""}`}
+                                                onClick={() => setAdminCheckoutForm(prev => ({ ...prev, isRecurring: !prev.isRecurring }))}>
+                                                <span className="recurring-toggle-track"><span className="recurring-toggle-knob" /></span>
+                                                <span className="recurring-toggle-text">
+                                                    <strong>🔁 Recurring Booking</strong>
+                                                    <small>{adminCheckoutForm.isRecurring
+                                                        ? "The next 3 months will be booked automatically."
+                                                        : "One-time job. Turn on to auto-book the next 3 months."}</small>
+                                                </span>
+                                            </button>
+                                            {adminCheckoutForm.isRecurring && (
+                                                <div className="recurring-freq-picker">
+                                                    {RECURRING_FREQUENCIES.map(freq => (
+                                                        <button key={freq} type="button"
+                                                            className={`recurring-freq-btn${adminCheckoutForm.recurringFrequency === freq ? " selected" : ""}`}
+                                                            onClick={() => setAdminCheckoutForm(prev => ({ ...prev, recurringFrequency: freq }))}>
+                                                            {freq}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
                                         <label>
                                             <span>Booking Status</span>
                                             <select value={adminCheckoutForm.bookingStatus} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, bookingStatus: e.target.value }))}>
@@ -5956,6 +6163,39 @@ export default function Home() {
                                                     <label className="font-bold text-slate-700">Estimated Hours</label>
                                                     <input type="number" step="0.5" value={bookingForm.duration} readOnly required className="border border-slate-200 rounded-lg bg-slate-50 p-2 text-slate-600" />
                                                 </div>
+                                            </div>
+
+                                            <div className="recurring-toggle-row">
+                                                <button type="button"
+                                                    className={`recurring-toggle${bookingForm.isRecurring ? " on" : ""}`}
+                                                    onClick={() => setBookingForm(prev => ({
+                                                        ...prev,
+                                                        isRecurring: !prev.isRecurring,
+                                                        frequency: !prev.isRecurring
+                                                            ? (RECURRING_FREQUENCIES.includes(prev.frequency) ? prev.frequency : "Weekly")
+                                                            : "One-Time"
+                                                    }))}>
+                                                    <span className="recurring-toggle-track"><span className="recurring-toggle-knob" /></span>
+                                                    <span className="recurring-toggle-text">
+                                                        <strong>🔁 Recurring Booking</strong>
+                                                        <small>{bookingForm.isRecurring
+                                                            ? (bookingForm.recurringSeriesId
+                                                                ? "Part of a recurring series — extends automatically when the last visit completes."
+                                                                : "Saving will book the next 3 months automatically.")
+                                                            : "One-time job. Turn on to auto-book the next 3 months."}</small>
+                                                    </span>
+                                                </button>
+                                                {bookingForm.isRecurring && (
+                                                    <div className="recurring-freq-picker">
+                                                        {RECURRING_FREQUENCIES.map(freq => (
+                                                            <button key={freq} type="button"
+                                                                className={`recurring-freq-btn${bookingForm.frequency === freq ? " selected" : ""}`}
+                                                                onClick={() => setBookingForm(prev => ({ ...prev, frequency: freq }))}>
+                                                                {freq}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                )}
                                             </div>
 
                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
