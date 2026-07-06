@@ -6371,6 +6371,13 @@ select option:disabled {
     font-size: 22px;
 }
 
+.admin-checkout-review-totals-note {
+    margin-top: 8px;
+    font-size: 11px;
+    font-style: italic;
+    color: #64748b;
+}
+
 @media (max-width: 1180px) {
     .admin-metric-row,
     .admin-ops-grid {

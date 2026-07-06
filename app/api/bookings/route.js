@@ -11,6 +11,7 @@ import {
 } from "../../../lib/branches";
 import { generateReferralCode, ensurePromotionList, normalizePromoCode, applyPromotion } from "../../../lib/promotions";
 import { getCustomerPromoContext, getPersonalReferralCode } from "../../../lib/customerRewards";
+import { computeBookingPricing } from "../../../lib/pricing";
 
 const BOOKING_STATUS_FLOW = ["Lead", "Follow Up", "Pending", "Confirmed", "Completed", "Cancelled"];
 const PAYMENT_STATUS_FLOW = ["unpaid", "paid", "redo"];
@@ -250,11 +251,6 @@ export async function POST(request) {
         const bookingStatus = normalizeBookingStatus(bookingData.status || "Lead");
         const paymentStatus = normalizePaymentStatus(bookingData.paymentStatus || "unpaid");
         const subtotal = parseFloat(bookingData.subtotal || bookingData.price || 0);
-        const tax = paymentStatus === "redo"
-            ? 0
-            : bookingData.tax !== undefined
-                ? parseFloat(bookingData.tax || 0)
-                : subtotal * matchedBranch.taxRate;
         const customerPortalPhone = bookingData.customerPortalPhone || bookingData.phone || "";
 
         // ---- Server-authoritative promo + referral reward application ----
@@ -292,8 +288,17 @@ export async function POST(request) {
                 appliedPromo = promoResult.promo;
             }
         }
-        const baseTotal = paymentStatus === "redo" ? 0 : parseFloat(bookingData.price || subtotal + tax);
-        const total = paymentStatus === "redo" ? 0 : Math.max(0, Number((baseTotal - promoDiscount).toFixed(2)));
+        // Server is the single source of truth for tax/total — see lib/pricing.js.
+        // Discounts (manual $, manual %, promo) all reduce the subtotal before tax.
+        const pricing = computeBookingPricing({
+            subtotal,
+            customDiscountAmount: bookingData.customDiscountAmount,
+            customDiscountPercent: bookingData.customDiscountPercent,
+            promoDiscount,
+            taxRate: matchedBranch.taxRate
+        });
+        const tax = paymentStatus === "redo" ? 0 : Number(pricing.taxAmount.toFixed(2));
+        const total = paymentStatus === "redo" ? 0 : Number(pricing.total.toFixed(2));
         // Only credit a referrer if a *different* customer's code was supplied.
         const validReferredByCode = requestedReferralCode && requestedReferralCode !== personalReferralCode
             ? requestedReferralCode
@@ -422,11 +427,20 @@ export async function PUT(request) {
                 : ["Lead", "Follow Up", "Pending"].includes(nextStatus)
                     ? "estimate"
                     : "booking";
-            const fixedDiscount = Math.max(0, Number(bookingData.customDiscountAmount ?? originalData.customDiscountAmount ?? 0));
-            const percentDiscount = Math.min(100, Math.max(0, Number(bookingData.customDiscountPercent ?? originalData.customDiscountPercent ?? 0)));
-            const percentDiscountValue = protectedSubtotal * (percentDiscount / 100);
-            const totalDiscount = Math.min(protectedSubtotal, fixedDiscount + percentDiscountValue);
-            const nextPrice = nextPaymentStatus === "redo" ? 0 : Math.max(0, protectedSubtotal + protectedTax - totalDiscount);
+            // Server is the single source of truth for tax/total — see lib/pricing.js.
+            // Preserve any promo discount already on the booking; editing a booking
+            // must never silently drop a promo that was applied at checkout.
+            const preservedPromoDiscount = Math.max(0, Number(bookingData.promoDiscount ?? originalData.promoDiscount ?? 0));
+            const taxRateForEdit = Number(originalData.companySnapshot?.taxRate ?? originalData.taxRate ?? 0.13);
+            const editPricing = computeBookingPricing({
+                subtotal: protectedSubtotal,
+                customDiscountAmount: bookingData.customDiscountAmount ?? originalData.customDiscountAmount,
+                customDiscountPercent: bookingData.customDiscountPercent ?? originalData.customDiscountPercent,
+                promoDiscount: preservedPromoDiscount,
+                taxRate: taxRateForEdit
+            });
+            protectedTax = editPricing.taxAmount;
+            const nextPrice = nextPaymentStatus === "redo" ? 0 : Number(editPricing.total.toFixed(2));
             const safeBookingData = { ...bookingData };
             delete safeBookingData.priceOverride;
             delete safeBookingData.servicesChanged;
@@ -446,6 +460,11 @@ export async function PUT(request) {
                 paymentStatus: nextPaymentStatus,
                 tax: nextPaymentStatus === "redo" ? 0 : protectedTax,
                 subtotal: nextPaymentStatus === "redo" ? 0 : protectedSubtotal,
+                // Always explicit (never rely on the client having threaded these
+                // through) so an edit can never silently wipe an applied promo.
+                promoDiscount: preservedPromoDiscount,
+                promoCode: bookingData.promoCode ?? originalData.promoCode ?? "",
+                promoName: bookingData.promoName ?? originalData.promoName ?? "",
                 documentStage: nextDocumentStage,
                 estimateNumber: nextDocumentStage === "estimate"
                     ? (originalData.estimateNumber || originalData.orderNumber || "")

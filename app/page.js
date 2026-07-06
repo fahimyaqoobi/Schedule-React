@@ -36,12 +36,14 @@ import {
 import { calculatePayrollBreakdown } from "../lib/payroll";
 import {
     buildBookingDocumentHtml,
+    buildDocumentPricingBreakdown,
     getBookingDocumentLabel as getBookingDocumentType,
     getBookingDocumentNumber
 } from "../lib/bookingDocuments";
 import { DEFAULT_PROMOTIONS, ensurePromotionList, getCustomerEligiblePromotions } from "../lib/promotions";
 import { getPersonalReferralCode } from "../lib/customerRewards";
 import { DEFAULT_DOCUMENT_COPY, normalizeDocumentCopy } from "../lib/documentCopy";
+import { computeBookingPricing } from "../lib/pricing";
 
 import CatalogTab from "./components/admin/tabs/CatalogTab";
 import PromotionsTab from "./components/admin/tabs/PromotionsTab";
@@ -1039,6 +1041,8 @@ export default function Home() {
         subtotal: 87.50,
         tax: 11.38,
         promoCode: "",
+        promoName: "",
+        promoDiscount: 0,
         giftCardCode: ""
     });
 
@@ -2127,6 +2131,8 @@ export default function Home() {
             subtotal: Number(b.subtotal || editableCartItems.reduce((sum, item) => sum + Number(item.price || 0), 0)),
             tax: Number(b.tax || 0),
             promoCode: b.promoCode || "",
+            promoName: b.promoName || "",
+            promoDiscount: Number(b.promoDiscount || 0),
             giftCardCode: b.giftCardCode || ""
         });
         setBookingServicesChanged(false);
@@ -2142,14 +2148,22 @@ export default function Home() {
         }
     };
 
-    const calculateBookingCartTotals = useCallback((cartItems = [], taxRate = 0, discountAmount = 0, discountPercent = 0) => {
+    // Delegates to the single canonical formula (lib/pricing.js) so the edit
+    // modal's live preview always matches what gets saved and what the PDF
+    // shows. promoDiscount defaults to 0 for a fresh cart calc, but callers
+    // editing an existing booking should pass its already-applied promo so
+    // saving the edit doesn't silently drop it.
+    const calculateBookingCartTotals = useCallback((cartItems = [], taxRate = 0, discountAmount = 0, discountPercent = 0, promoDiscount = 0) => {
         const subtotal = cartItems.reduce((sum, item) => sum + Number(item.price || 0), 0);
         const duration = cartItems.reduce((sum, item) => sum + Number(item.durationHrs || 0), 0);
-        const tax = subtotal * Number(taxRate || 0);
-        const percentDiscountValue = subtotal * (Number(discountPercent || 0) / 100);
-        const totalDiscount = Math.min(subtotal, Number(discountAmount || 0) + percentDiscountValue);
-        const total = Math.max(0, subtotal + tax - totalDiscount);
-        return { subtotal, tax, total, duration };
+        const pricing = computeBookingPricing({
+            subtotal,
+            customDiscountAmount: discountAmount,
+            customDiscountPercent: discountPercent,
+            promoDiscount,
+            taxRate
+        });
+        return { subtotal, tax: pricing.taxAmount, total: pricing.total, duration };
     }, []);
 
     const syncBookingFormCartTotals = useCallback((draft) => {
@@ -2157,7 +2171,8 @@ export default function Home() {
             draft.cartItems || [],
             activeBranch.taxRate,
             draft.customDiscountAmount || 0,
-            draft.customDiscountPercent || 0
+            draft.customDiscountPercent || 0,
+            draft.promoDiscount || 0
         );
         return {
             ...draft,
@@ -2210,7 +2225,8 @@ export default function Home() {
                 bookingForm.cartItems || [],
                 activeBranch.taxRate,
                 bookingForm.customDiscountAmount || 0,
-                bookingForm.customDiscountPercent || 0
+                bookingForm.customDiscountPercent || 0,
+                bookingForm.promoDiscount || 0
             );
             const payload = isCleanerBookingEditor
                 ? {
@@ -3646,9 +3662,17 @@ export default function Home() {
         try {
             const discountAmount = parseFloat(adminCheckoutForm.discountAmount || 0);
             const discountPercent = parseFloat(adminCheckoutForm.discountPercent || 0);
-            const percentDiscountValue = adminCartTotals.subtotal * (discountPercent / 100);
-            const totalDiscount = Math.min(adminCartTotals.subtotal, discountAmount + percentDiscountValue);
-            const finalTotal = Math.max(0, adminCartTotals.total - totalDiscount);
+            // Same canonical formula everywhere (lib/pricing.js) — promo isn't
+            // known yet (the server validates it), so this preview excludes it;
+            // the server will fold it in and it'll show as its own line item.
+            const checkoutPricing = computeBookingPricing({
+                subtotal: adminCartTotals.subtotal,
+                customDiscountAmount: discountAmount,
+                customDiscountPercent: discountPercent,
+                promoDiscount: 0,
+                taxRate: activeBranch.taxRate
+            });
+            const finalTotal = checkoutPricing.total;
             const matchedBranch = findBranchForAddress({
                 city: adminCheckoutForm.city,
                 country: adminCheckoutForm.country,
@@ -3708,8 +3732,12 @@ export default function Home() {
                 duration: adminCartTotals.duration,
                 price: finalTotal,
                 subtotal: adminCartTotals.subtotal,
-                tax: adminCartTotals.tax,
-                customDiscountAmount: totalDiscount,
+                tax: checkoutPricing.taxAmount,
+                // Store the RAW admin-entered discount inputs only — never the
+                // already-combined total. Re-editing recombines these two
+                // fields, so if this ever stores a combined value the percent
+                // gets re-applied on top of itself on every subsequent save.
+                customDiscountAmount: discountAmount,
                 customDiscountPercent: discountPercent,
                 promoCode: adminCheckoutForm.promoCode,
                 giftCardCode: adminCheckoutForm.giftCardCode,
@@ -4074,19 +4102,24 @@ export default function Home() {
             };
         });
 
-        const fixedDiscount = Number(adminCheckoutForm.discountAmount || 0);
-        const percentDiscountValue = adminCartTotals.subtotal * (Number(adminCheckoutForm.discountPercent || 0) / 100);
-        const combinedDiscount = Math.min(adminCartTotals.subtotal, fixedDiscount + percentDiscountValue);
-        const finalTotal = Math.max(0, adminCartTotals.total - combinedDiscount);
+        const pricing = computeBookingPricing({
+            subtotal: adminCartTotals.subtotal,
+            customDiscountAmount: adminCheckoutForm.discountAmount,
+            customDiscountPercent: adminCheckoutForm.discountPercent,
+            promoDiscount: 0,
+            taxRate: activeBranch.taxRate
+        });
 
         return {
             serviceLines,
-            fixedDiscount,
-            percentDiscountValue,
-            combinedDiscount,
-            finalTotal
+            fixedDiscount: pricing.fixedDiscount,
+            percentDiscountValue: pricing.percentDiscountValue,
+            combinedDiscount: pricing.manualDiscount,
+            subtotalAfterDiscounts: pricing.subtotalAfterDiscounts,
+            taxAmount: pricing.taxAmount,
+            finalTotal: pricing.total
         };
-    }, [adminCartTotals.subtotal, adminCartTotals.total, adminCheckoutForm.discountAmount, adminCheckoutForm.discountPercent, adminServiceCart]);
+    }, [activeBranch.taxRate, adminCartTotals.subtotal, adminCheckoutForm.discountAmount, adminCheckoutForm.discountPercent, adminServiceCart]);
 
     const bookingStaffAvailabilityCards = useMemo(() => {
         return fieldStaff.map((member) => ({
@@ -5367,22 +5400,6 @@ export default function Home() {
                                                 <span>Subtotal</span>
                                                 <strong>${adminCartTotals.subtotal.toFixed(2)}</strong>
                                             </div>
-                                            <div className="admin-checkout-review-totals-row">
-                                                <span>{activeBranch.taxLabel}</span>
-                                                <strong>${adminCartTotals.tax.toFixed(2)}</strong>
-                                            </div>
-                                            {adminCheckoutForm.promoCode ? (
-                                                <div className="admin-checkout-review-totals-row">
-                                                    <span>Promo Code</span>
-                                                    <strong>{adminCheckoutForm.promoCode}</strong>
-                                                </div>
-                                            ) : null}
-                                            {adminCheckoutForm.giftCardCode ? (
-                                                <div className="admin-checkout-review-totals-row">
-                                                    <span>Gift Card</span>
-                                                    <strong>{adminCheckoutForm.giftCardCode}</strong>
-                                                </div>
-                                            ) : null}
                                             {adminCheckoutPricing.fixedDiscount > 0 ? (
                                                 <div className="admin-checkout-review-totals-row">
                                                     <span>Manual Discount ($)</span>
@@ -5395,14 +5412,37 @@ export default function Home() {
                                                     <strong>-${adminCheckoutPricing.percentDiscountValue.toFixed(2)}</strong>
                                                 </div>
                                             ) : null}
+                                            {adminCheckoutForm.promoCode ? (
+                                                <div className="admin-checkout-review-totals-row">
+                                                    <span>Promo Code (validated on save)</span>
+                                                    <strong>{adminCheckoutForm.promoCode}</strong>
+                                                </div>
+                                            ) : null}
+                                            {adminCheckoutForm.giftCardCode ? (
+                                                <div className="admin-checkout-review-totals-row">
+                                                    <span>Gift Card</span>
+                                                    <strong>{adminCheckoutForm.giftCardCode}</strong>
+                                                </div>
+                                            ) : null}
+                                            {adminCheckoutPricing.combinedDiscount > 0 ? (
+                                                <div className="admin-checkout-review-totals-row">
+                                                    <span>Subtotal after discounts</span>
+                                                    <strong>${adminCheckoutPricing.subtotalAfterDiscounts.toFixed(2)}</strong>
+                                                </div>
+                                            ) : null}
                                             <div className="admin-checkout-review-totals-row">
-                                                <span>Total Discounts</span>
-                                                <strong>-${adminCheckoutPricing.combinedDiscount.toFixed(2)}</strong>
+                                                <span>{activeBranch.taxLabel}</span>
+                                                <strong>${adminCheckoutPricing.taxAmount.toFixed(2)}</strong>
                                             </div>
                                             <div className="admin-checkout-review-totals-row total">
                                                 <span>Estimated Total</span>
                                                 <strong>${adminCheckoutPricing.finalTotal.toFixed(2)}</strong>
                                             </div>
+                                            {adminCheckoutForm.promoCode && (
+                                                <div className="admin-checkout-review-totals-note">
+                                                    A validated promo code will reduce this further and appear as its own line once saved.
+                                                </div>
+                                            )}
                                         </div>
                                         </div>
                                     </div>
@@ -5418,8 +5458,8 @@ export default function Home() {
                                 ))}
                                 <div className="admin-checkout-total">
                                     <span>Subtotal</span><strong>${adminCartTotals.subtotal.toFixed(2)}</strong>
-                                    <span>{activeBranch.taxLabel}</span><strong>${adminCartTotals.tax.toFixed(2)}</strong>
-                                    <span>Total before discounts</span><strong>${adminCartTotals.total.toFixed(2)}</strong>
+                                    <span>{activeBranch.taxLabel}</span><strong>${adminCheckoutPricing.taxAmount.toFixed(2)}</strong>
+                                    <span>Estimated Total</span><strong>${adminCheckoutPricing.finalTotal.toFixed(2)}</strong>
                                 </div>
                             </aside>
                             <div className="admin-checkout-actions">
@@ -5461,8 +5501,8 @@ export default function Home() {
                 const b = selectedBooking;
                 const extrasEntries = Object.entries(b.extras || {}).filter(([, qty]) => qty);
                 const hasExtras = extrasEntries.length > 0;
-                const price = parseFloat(b.price || 0);
-                const discount = parseFloat(b.customDiscountAmount || 0);
+                // Same breakdown builder the PDF uses — identical numbers everywhere.
+                const priceBreakdown = buildDocumentPricingBreakdown(b, b.companySnapshot || {});
                 return (
                     <div className="modal-backdrop show">
                         <div className="modal-content modal-content-details animate-pop">
@@ -5650,15 +5690,45 @@ export default function Home() {
                                         <div className="detail-card-title">💰 Pricing</div>
                                         <div className="detail-pricing-list">
                                             <div className="detail-row">
-                                                <span className="detail-label">Total Price (incl. HST)</span>
-                                                <span className="detail-value detail-price-total bold">${price.toFixed(2)}</span>
+                                                <span className="detail-label">Subtotal</span>
+                                                <span className="detail-value">${priceBreakdown.subtotal.toFixed(2)}</span>
                                             </div>
-                                            {discount > 0 && (
+                                            {priceBreakdown.fixedDiscount > 0 && (
                                                 <div className="detail-row">
-                                                    <span className="detail-label">Special Discount</span>
-                                                    <span className="detail-value detail-discount-value">-${discount.toFixed(2)}</span>
+                                                    <span className="detail-label">Discount (fixed)</span>
+                                                    <span className="detail-value detail-discount-value">-${priceBreakdown.fixedDiscount.toFixed(2)}</span>
                                                 </div>
                                             )}
+                                            {priceBreakdown.percentDiscountValue > 0 && (
+                                                <div className="detail-row">
+                                                    <span className="detail-label">Discount (%)</span>
+                                                    <span className="detail-value detail-discount-value">-${priceBreakdown.percentDiscountValue.toFixed(2)}</span>
+                                                </div>
+                                            )}
+                                            {priceBreakdown.promoDiscount > 0 && (
+                                                <div className="detail-row">
+                                                    <span className="detail-label">
+                                                        Promo{priceBreakdown.promoCode ? ` (${priceBreakdown.promoCode})` : ""}
+                                                    </span>
+                                                    <span className="detail-value detail-discount-value">-${priceBreakdown.promoDiscount.toFixed(2)}</span>
+                                                </div>
+                                            )}
+                                            {priceBreakdown.totalDiscount > 0 && (
+                                                <div className="detail-row">
+                                                    <span className="detail-label">Subtotal after discounts</span>
+                                                    <span className="detail-value">${priceBreakdown.subtotalAfterDiscounts.toFixed(2)}</span>
+                                                </div>
+                                            )}
+                                            {priceBreakdown.showTaxAmount && (
+                                                <div className="detail-row">
+                                                    <span className="detail-label">{priceBreakdown.taxLabel} ({priceBreakdown.taxRatePercent}%)</span>
+                                                    <span className="detail-value">${priceBreakdown.taxAmount.toFixed(2)}</span>
+                                                </div>
+                                            )}
+                                            <div className="detail-row">
+                                                <span className="detail-label">Total Price{priceBreakdown.showTaxAmount ? "" : ` + ${priceBreakdown.taxLabel} (${priceBreakdown.taxRatePercent}%)`}</span>
+                                                <span className="detail-value detail-price-total bold">${(priceBreakdown.showTaxAmount ? priceBreakdown.total : priceBreakdown.subtotalAfterDiscounts).toFixed(2)}</span>
+                                            </div>
                                             {b.frequency && b.frequency !== 'One-Time' && (() => {
                                                 const freqConfig = pricingRates.frequencies[b.frequency];
                                                 const pct = freqConfig ? Math.round((freqConfig.discount > 1 ? freqConfig.discount / 100 : freqConfig.discount) * 100) : 0;
@@ -6306,9 +6376,28 @@ export default function Home() {
                                                 </div>
                                                 <div className="rounded-2xl border border-blue-100 bg-blue-50 p-3">
                                                     <div className="text-xs font-bold uppercase tracking-wider text-blue-700">Live Totals</div>
-                                                    <div className="mt-2 text-sm text-slate-700">Subtotal: <strong>${Number(bookingForm.subtotal || 0).toFixed(2)}</strong></div>
-                                                    <div className="text-sm text-slate-700">{activeBranch.taxLabel}: <strong>${Number(bookingForm.tax || 0).toFixed(2)}</strong></div>
-                                                    <div className="text-sm text-slate-900">Total: <strong>${Number(bookingForm.price || 0).toFixed(2)}</strong></div>
+                                                    {(() => {
+                                                        const livePricing = computeBookingPricing({
+                                                            subtotal: bookingForm.subtotal || 0,
+                                                            customDiscountAmount: bookingForm.customDiscountAmount || 0,
+                                                            customDiscountPercent: bookingForm.customDiscountPercent || 0,
+                                                            promoDiscount: bookingForm.promoDiscount || 0,
+                                                            taxRate: activeBranch.taxRate
+                                                        });
+                                                        return (
+                                                            <>
+                                                                <div className="mt-2 text-sm text-slate-700">Subtotal: <strong>${livePricing.subtotal.toFixed(2)}</strong></div>
+                                                                {livePricing.manualDiscount > 0 && (
+                                                                    <div className="text-sm text-rose-600">Manual discount: <strong>-${livePricing.manualDiscount.toFixed(2)}</strong></div>
+                                                                )}
+                                                                {livePricing.promoDiscount > 0 && (
+                                                                    <div className="text-sm text-rose-600">Promo{bookingForm.promoCode ? ` (${bookingForm.promoCode})` : ""}: <strong>-${livePricing.promoDiscount.toFixed(2)}</strong></div>
+                                                                )}
+                                                                <div className="text-sm text-slate-700">{activeBranch.taxLabel}: <strong>${livePricing.taxAmount.toFixed(2)}</strong></div>
+                                                                <div className="text-sm text-slate-900">Total: <strong>${livePricing.total.toFixed(2)}</strong></div>
+                                                            </>
+                                                        );
+                                                    })()}
                                                 </div>
                                             </div>
 
