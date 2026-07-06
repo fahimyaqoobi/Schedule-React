@@ -4822,7 +4822,7 @@ export default function Home() {
             </div>
 
             {bookingServiceCartOpen && (
-                <div className="modal-backdrop show">
+                <div className="modal-backdrop show" style={{ zIndex: 15000 }}>
                     <div className="modal-content modal-content-service-config animate-pop">
                         <div className="modal-header modal-header-brand">
                             <div className="modal-title-stack">
