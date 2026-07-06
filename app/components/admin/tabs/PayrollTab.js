@@ -180,7 +180,7 @@ export default function PayrollTab({
     });
 
     return (
-        <div className="animate-fade" style={{ padding: "24px 32px", maxWidth: "1440px", margin: "0 auto" }}>
+        <div className="animate-fade tc-page" style={{ padding: "24px 32px", maxWidth: "1440px", margin: "0 auto" }}>
 
             {/* ── HEADER ── */}
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "24px", flexWrap: "wrap", gap: "12px" }}>
@@ -266,7 +266,7 @@ export default function PayrollTab({
             ) : (
                 <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: "16px", overflow: "hidden" }}>
                     {/* Table header */}
-                    <div style={{ display: "grid", gridTemplateColumns: COLS, gap: "16px", padding: "11px 20px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0", fontSize: "10px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.07em" }}>
+                    <div className="pr-head" style={{ display: "grid", gridTemplateColumns: COLS, gap: "16px", padding: "11px 20px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0", fontSize: "10px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.07em" }}>
                         <span>Staff</span>
                         <span style={{ textAlign: "right" }}>Reg Hrs</span>
                         <span style={{ textAlign: "right" }}>OT Hrs</span>
@@ -284,26 +284,27 @@ export default function PayrollTab({
                             <div key={row.uid} style={{ borderBottom: i < rows.length - 1 ? "1px solid #e2e8f0" : "none" }}>
                                 {/* Row */}
                                 <div
+                                    className="pr-row"
                                     style={{ display: "grid", gridTemplateColumns: COLS, gap: "16px", padding: "15px 20px", alignItems: "center", cursor: "pointer", transition: "background 0.1s" }}
                                     onMouseEnter={e => e.currentTarget.style.background = "#f8fafc"}
                                     onMouseLeave={e => e.currentTarget.style.background = ""}
                                     onClick={() => toggleExpand(row.uid)}
                                 >
-                                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                    <div className="pr-staff" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                                         <span style={{ color: "#94a3b8", fontSize: "11px", transform: isExp ? "rotate(90deg)" : "none", transition: "transform 0.15s", display: "inline-block", minWidth: "10px" }}>▶</span>
                                         <div>
                                             <div style={{ fontWeight: 600, fontSize: "14px", color: "#0f172a" }}>{row.name}</div>
                                             <div style={{ fontSize: "11px", color: "#64748b" }}>{fmtMin(row.totalMinutes)} total</div>
                                         </div>
                                     </div>
-                                    <span style={{ textAlign: "right", fontWeight: 600, fontSize: "14px", color: "#0f172a" }}>{row.breakdown.regularHours.toFixed(1)}h</span>
-                                    <span style={{ textAlign: "right", fontWeight: 600, fontSize: "14px", color: row.breakdown.overtimeHours > 0 ? "#d97706" : "#0f172a" }}>
+                                    <span className="pr-reg" style={{ textAlign: "right", fontWeight: 600, fontSize: "14px", color: "#0f172a" }}>{row.breakdown.regularHours.toFixed(1)}h</span>
+                                    <span className="pr-ot" style={{ textAlign: "right", fontWeight: 600, fontSize: "14px", color: row.breakdown.overtimeHours > 0 ? "#d97706" : "#0f172a" }}>
                                         {row.breakdown.overtimeHours.toFixed(1)}h
                                     </span>
-                                    <span style={{ textAlign: "right", fontSize: "13px", color: "#64748b" }}>${row.payRate.toFixed(2)}/h</span>
-                                    <span style={{ textAlign: "right", fontWeight: 700, fontSize: "16px", color: "#0f172a" }}>${row.breakdown.grossPay.toFixed(2)}</span>
+                                    <span className="pr-rate" style={{ textAlign: "right", fontSize: "13px", color: "#64748b" }}>${row.payRate.toFixed(2)}/h</span>
+                                    <span className="pr-gross" style={{ textAlign: "right", fontWeight: 700, fontSize: "16px", color: "#0f172a" }}>${row.breakdown.grossPay.toFixed(2)}</span>
 
-                                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }} onClick={e => e.stopPropagation()}>
+                                    <div className="pr-actions" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }} onClick={e => e.stopPropagation()}>
                                         <span style={{ background: sc.bg, color: sc.color, border: `1px solid ${sc.border}`, borderRadius: "20px", padding: "3px 10px", fontSize: "11px", fontWeight: 700 }}>
                                             {sc.label}
                                         </span>
@@ -350,13 +351,13 @@ export default function PayrollTab({
                     })}
 
                     {/* Footer totals */}
-                    <div style={{ display: "grid", gridTemplateColumns: COLS, gap: "16px", padding: "14px 20px", background: "#f8fafc", borderTop: "2px solid #e2e8f0" }}>
-                        <span style={{ fontSize: "12px", fontWeight: 700, color: "#475569" }}>TOTAL — {totals.headcount} staff</span>
-                        <span />
-                        <span />
-                        <span />
-                        <span style={{ textAlign: "right", fontWeight: 700, fontSize: "16px", color: "#0ea5e9" }}>${totals.totalGross.toFixed(2)}</span>
-                        <span />
+                    <div className="pr-foot" style={{ display: "grid", gridTemplateColumns: COLS, gap: "16px", padding: "14px 20px", background: "#f8fafc", borderTop: "2px solid #e2e8f0" }}>
+                        <span className="pr-foot-label" style={{ fontSize: "12px", fontWeight: 700, color: "#475569" }}>TOTAL — {totals.headcount} staff</span>
+                        <span className="pr-foot-spacer" />
+                        <span className="pr-foot-spacer" />
+                        <span className="pr-foot-spacer" />
+                        <span className="pr-foot-gross" style={{ textAlign: "right", fontWeight: 700, fontSize: "16px", color: "#0ea5e9" }}>${totals.totalGross.toFixed(2)}</span>
+                        <span className="pr-foot-spacer" />
                     </div>
                 </div>
             )}

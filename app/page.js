@@ -6138,7 +6138,17 @@ export default function Home() {
                                                     <label className="font-bold text-slate-700">Scheduled Date</label>
                                                     <input type="date" value={bookingForm.date} onChange={e => setBookingForm(prev => ({ ...prev, date: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
                                                 </div>
-                                                <div className="form-group flex flex-col gap-1 md:col-span-2">
+                                                <div className="form-group flex flex-col gap-1">
+                                                    <label className="font-bold text-slate-700">Estimated Arrival <span style={{ fontWeight: 600, color: "#94a3b8", fontSize: 10 }}>(reference only)</span></label>
+                                                    <select value={bookingForm.time} onChange={e => setBookingForm(prev => ({ ...prev, time: e.target.value }))} className="border border-slate-200 rounded-lg p-2 bg-white">
+                                                        {["07:00 AM","07:30 AM","08:00 AM","08:30 AM","09:00 AM","09:30 AM","10:00 AM","10:30 AM","11:00 AM","11:30 AM","12:00 PM","12:30 PM","01:00 PM","01:30 PM","02:00 PM","02:30 PM","03:00 PM","03:30 PM","04:00 PM","04:30 PM","05:00 PM","05:30 PM","06:00 PM","06:30 PM","07:00 PM"].map(t => <option key={t} value={t}>{t}</option>)}
+                                                    </select>
+                                                </div>
+                                                <div className="form-group flex flex-col gap-1">
+                                                    <label className="font-bold text-slate-700">Estimated Hours</label>
+                                                    <input type="number" step="0.5" value={bookingForm.duration} readOnly required className="border border-slate-200 rounded-lg bg-slate-50 p-2 text-slate-600" />
+                                                </div>
+                                                <div className="form-group flex flex-col gap-1 md:col-span-3">
                                                     <label className="font-bold text-slate-700">Shift(s)</label>
                                                     <div className="shift-selector">
                                                         {SHIFTS.map(s => {
@@ -6158,10 +6168,6 @@ export default function Home() {
                                                             );
                                                         })}
                                                     </div>
-                                                </div>
-                                                <div className="form-group flex flex-col gap-1">
-                                                    <label className="font-bold text-slate-700">Estimated Hours</label>
-                                                    <input type="number" step="0.5" value={bookingForm.duration} readOnly required className="border border-slate-200 rounded-lg bg-slate-50 p-2 text-slate-600" />
                                                 </div>
                                             </div>
 

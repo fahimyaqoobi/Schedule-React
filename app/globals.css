@@ -9632,3 +9632,254 @@ body:has(.modal-backdrop.show) {
     .recurring-freq-picker { margin-left: 0; width: 100%; }
     .recurring-freq-btn { flex: 1; }
 }
+
+/* ── Admin checkout alignment pass ── */
+/* Uniform label row: every field's caption occupies exactly one 16px line so
+   the inputs in a 2-column row always sit on the same baseline. */
+.admin-checkout-grid label {
+    grid-template-rows: 16px auto;
+    align-content: start;
+}
+.admin-checkout-grid label > span:first-child {
+    display: block;
+    min-height: 16px;
+    line-height: 16px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.admin-checkout-grid label.span-2 {
+    grid-template-rows: 16px auto;
+}
+/* Consistent control rendering across iOS/Android/desktop */
+.admin-checkout-grid input,
+.admin-checkout-grid select {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 42px;
+}
+.admin-checkout-grid textarea {
+    -webkit-appearance: none;
+    appearance: none;
+}
+.admin-checkout-grid select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23434653' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 34px;
+}
+.admin-checkout-grid input[type="date"] {
+    display: flex;
+    align-items: center;
+    text-align: left;
+}
+.admin-checkout-grid input[type="date"]::-webkit-date-and-time-value {
+    text-align: left;
+}
+@media (max-width: 767px) {
+    .admin-checkout-grid { gap: 12px; }
+    .admin-checkout-grid input,
+    .admin-checkout-grid select {
+        height: 46px;
+        font-size: 16px; /* prevents iOS zoom-on-focus */
+    }
+    .admin-checkout-grid textarea { font-size: 16px; }
+    .recurring-toggle-row { padding: 12px; }
+}
+
+/* ── Edit Review tab ── */
+.edit-req-diff-row {
+    display: grid;
+    grid-template-columns: 110px minmax(0, 1fr) 18px minmax(0, 1fr);
+    gap: 8px;
+    align-items: center;
+    font-size: 12px;
+}
+.edit-req-diff-label {
+    font-weight: 800;
+    color: #78350f;
+    font-size: 11px;
+}
+.edit-req-diff-from {
+    color: #991b1b;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 7px;
+    padding: 4px 8px;
+    text-decoration: line-through;
+    overflow-wrap: anywhere;
+}
+.edit-req-diff-arrow {
+    color: #b45309;
+    font-weight: 800;
+    text-align: center;
+}
+.edit-req-diff-to {
+    color: #15803d;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 7px;
+    padding: 4px 8px;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+.edit-req-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+}
+.edit-req-photo-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+.edit-req-decision-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+@media (max-width: 640px) {
+    .edit-req-diff-row {
+        grid-template-columns: minmax(0, 1fr) 18px minmax(0, 1fr);
+        grid-template-areas: "label label label" "from arrow to";
+        row-gap: 3px;
+    }
+    .edit-req-diff-label { grid-area: label; }
+    .edit-req-diff-from { grid-area: from; }
+    .edit-req-diff-arrow { grid-area: arrow; }
+    .edit-req-diff-to { grid-area: to; }
+    .edit-req-photo-grid { grid-template-columns: 1fr; }
+    .edit-req-decision-grid { grid-template-columns: 1fr; }
+    .edit-req-actions { width: 100%; }
+    .edit-req-actions button { flex: 1; }
+}
+
+/* ── Admin tables: mobile-friendly layouts ── */
+@media (max-width: 767px) {
+    /* Shared page container (Time Cards + Payroll) */
+    .tc-page { padding: 14px 12px !important; }
+
+    /* Time Cards: column headers hidden, each entry becomes a card */
+    .tc-head { display: none !important; }
+    .tc-row {
+        grid-template-columns: minmax(0, 1fr) auto !important;
+        grid-template-areas:
+            "name    status"
+            "service service"
+            "date    dur"
+            "in      out"
+            "actions actions" !important;
+        gap: 6px 12px !important;
+        padding: 14px 14px !important;
+    }
+    .tc-name    { grid-area: name; font-size: 14px !important; }
+    .tc-status  { grid-area: status; justify-self: end; }
+    .tc-service { grid-area: service; white-space: normal !important; }
+    .tc-date    { grid-area: date; }
+    .tc-dur     { grid-area: dur; text-align: right; }
+    .tc-in      { grid-area: in; }
+    .tc-out     { grid-area: out; text-align: right; }
+    .tc-date::before,
+    .tc-in::before,
+    .tc-out::before,
+    .tc-dur::before {
+        font-size: 9px;
+        font-weight: 800;
+        color: #94a3b8;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        display: block;
+    }
+    .tc-date::before { content: "Date"; }
+    .tc-in::before   { content: "Clock In"; }
+    .tc-out::before  { content: "Clock Out"; }
+    .tc-dur::before  { content: "Duration"; }
+    .tc-actions {
+        grid-area: actions;
+        border-top: 1px dashed #e2e8f0;
+        padding-top: 10px !important;
+        margin-top: 4px;
+    }
+    .tc-actions button { flex: 1; }
+
+    /* Stack fixed-width form grids (clock-in, manual entry, adjust drawers) */
+    .tc-form-grid { grid-template-columns: 1fr !important; }
+    .tc-form-grid > button,
+    .tc-form-grid > div { justify-self: stretch; }
+    .tc-form-grid button { width: 100%; }
+
+    /* Payroll: rows become cards */
+    .pr-head { display: none !important; }
+    .pr-row {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        grid-template-areas:
+            "staff staff gross"
+            "reg   ot    rate"
+            "actions actions actions" !important;
+        gap: 8px 10px !important;
+        padding: 14px !important;
+    }
+    .pr-staff { grid-area: staff; }
+    .pr-gross { grid-area: gross; align-self: start; }
+    .pr-reg   { grid-area: reg; text-align: left !important; }
+    .pr-ot    { grid-area: ot; text-align: left !important; }
+    .pr-rate  { grid-area: rate; text-align: left !important; }
+    .pr-reg::before,
+    .pr-ot::before,
+    .pr-rate::before,
+    .pr-gross::before {
+        font-size: 9px;
+        font-weight: 800;
+        color: #94a3b8;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        display: block;
+    }
+    .pr-reg::before   { content: "Reg Hrs"; }
+    .pr-ot::before    { content: "OT Hrs"; }
+    .pr-rate::before  { content: "Rate"; }
+    .pr-gross::before { content: "Gross"; text-align: right; }
+    .pr-actions {
+        grid-area: actions;
+        justify-content: flex-start !important;
+        border-top: 1px dashed #e2e8f0;
+        padding-top: 10px;
+        flex-wrap: wrap;
+    }
+    .pr-foot {
+        grid-template-columns: minmax(0, 1fr) auto !important;
+        gap: 8px !important;
+    }
+    .pr-foot-spacer { display: none; }
+    .pr-foot-gross { text-align: right; }
+
+    /* Bookings table: smooth scroll + sticky client column */
+    .table-scroll-wrapper {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-x: contain;
+    }
+    .bookings-table th:first-child,
+    .bookings-table td:first-child { display: none; }
+    .bookings-table th:nth-child(2),
+    .bookings-table td:nth-child(2) {
+        position: sticky;
+        left: 0;
+        z-index: 2;
+        background: #ffffff;
+        box-shadow: 4px 0 8px -4px rgba(15, 23, 42, 0.15);
+        min-width: 128px !important;
+        max-width: 150px;
+    }
+    .bookings-table thead th:nth-child(2) {
+        background: #f8fafc;
+        z-index: 3;
+    }
+    .bookings-table th,
+    .bookings-table td {
+        padding: 8px 10px;
+        font-size: 12px;
+    }
+}
+

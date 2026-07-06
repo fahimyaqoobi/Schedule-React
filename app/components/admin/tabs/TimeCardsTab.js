@@ -112,7 +112,7 @@ export default function TimeCardsTab({
 
     function TableHead() {
         return (
-            <div style={{ display: "grid", gridTemplateColumns: COLS, gap: "12px", padding: "10px 20px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+            <div className="tc-head" style={{ display: "grid", gridTemplateColumns: COLS, gap: "12px", padding: "10px 20px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
                 {["Staff", "Date", "Job / Project", "In", "Out", "Duration", "Status", "Actions"].map(h => (
                     <span key={h} style={S.thCell}>{h}</span>
                 ))}
@@ -121,7 +121,7 @@ export default function TimeCardsTab({
     }
 
     return (
-        <div className="animate-fade" style={{ padding: "24px 32px", maxWidth: "1440px", margin: "0 auto" }}>
+        <div className="animate-fade tc-page" style={{ padding: "24px 32px", maxWidth: "1440px", margin: "0 auto" }}>
 
             {/* ── PAGE HEADER ── */}
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
@@ -203,7 +203,7 @@ export default function TimeCardsTab({
                         <div style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#94a3b8", marginBottom: "12px" }}>
                             Clock In for a Staff Member
                         </div>
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 180px auto", gap: "12px", alignItems: "end" }}>
+                        <div className="tc-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 180px auto", gap: "12px", alignItems: "end" }}>
                             <label style={S.label}>
                                 <span>Staff Member</span>
                                 <select value={adminClockForm?.cleanerUid || ""} onChange={e => setAdminClockForm(p => ({ ...p, cleanerUid: e.target.value }))} style={S.input}>
@@ -259,17 +259,17 @@ export default function TimeCardsTab({
                             const draft = timeEntryEditDrafts[entry.id] || {};
                             return (
                                 <div key={entry.id} style={{ borderBottom: i < pendingEntries.length - 1 ? "1px solid #f1f5f9" : "none" }}>
-                                    <div style={{ display: "grid", gridTemplateColumns: COLS, gap: "12px", padding: "13px 20px", alignItems: "center", background: "#fffbeb" }}>
-                                        <span style={{ fontWeight: 600, fontSize: "13px", color: "#0f172a" }}>{entry.cleanerName}</span>
-                                        <span style={{ fontSize: "12px", color: "#64748b" }}>{fmtDate(entry.startedAt)}</span>
-                                        <span style={{ fontSize: "12px", color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={`${entry.serviceName}${entry.locationLabel ? " · " + entry.locationLabel : ""}`}>
+                                    <div className="tc-row" style={{ display: "grid", gridTemplateColumns: COLS, gap: "12px", padding: "13px 20px", alignItems: "center", background: "#fffbeb" }}>
+                                        <span className="tc-name" style={{ fontWeight: 600, fontSize: "13px", color: "#0f172a" }}>{entry.cleanerName}</span>
+                                        <span className="tc-date" style={{ fontSize: "12px", color: "#64748b" }}>{fmtDate(entry.startedAt)}</span>
+                                        <span className="tc-service" style={{ fontSize: "12px", color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={`${entry.serviceName}${entry.locationLabel ? " · " + entry.locationLabel : ""}`}>
                                             {entry.serviceName}{entry.locationLabel ? ` · ${entry.locationLabel}` : ""}
                                         </span>
-                                        <span style={{ fontSize: "12px", color: "#475569" }}>{fmtTime(entry.startedAt)}</span>
-                                        <span style={{ fontSize: "12px", color: "#475569" }}>{fmtTime(entry.endedAt)}</span>
-                                        <span style={{ fontSize: "13px", fontWeight: 600, color: "#0f172a" }}>{fmtMin(entry.durationMinutes)}</span>
-                                        <StatusBadge status={entry.status} />
-                                        <div style={{ display: "flex", gap: "5px", flexWrap: "wrap" }}>
+                                        <span className="tc-in" style={{ fontSize: "12px", color: "#475569" }}>{fmtTime(entry.startedAt)}</span>
+                                        <span className="tc-out" style={{ fontSize: "12px", color: "#475569" }}>{fmtTime(entry.endedAt)}</span>
+                                        <span className="tc-dur" style={{ fontSize: "13px", fontWeight: 600, color: "#0f172a" }}>{fmtMin(entry.durationMinutes)}</span>
+                                        <span className="tc-status"><StatusBadge status={entry.status} /></span>
+                                        <div className="tc-actions" style={{ display: "flex", gap: "5px", flexWrap: "wrap" }}>
                                             <button onClick={() => handleReviewTimeEntry(entry.id, "approve")} disabled={timeEntrySaving} style={{ ...S.primaryBtn, padding: "5px 12px", fontSize: "11px" }}>Approve</button>
                                             <button onClick={() => handleReviewTimeEntry(entry.id, "reject")} disabled={timeEntrySaving} style={{ ...S.dangerBtn, padding: "5px 10px", fontSize: "11px" }}>Reject</button>
                                             <button onClick={() => toggleEdit(`p-${entry.id}`)} style={{ ...S.ghostBtn, padding: "5px 10px", fontSize: "11px" }}>{isOpen ? "▲" : "Edit ▼"}</button>
@@ -277,7 +277,7 @@ export default function TimeCardsTab({
                                     </div>
                                     {isOpen && (
                                         <div style={{ padding: "14px 20px 16px", background: "#fafafa", borderTop: "1px solid #f1f5f9" }}>
-                                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 140px", gap: "12px" }}>
+                                            <div className="tc-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 140px", gap: "12px" }}>
                                                 <label style={S.label}>
                                                     <span>Adjust Start Time</span>
                                                     <input type="datetime-local" style={S.input}
@@ -348,17 +348,17 @@ export default function TimeCardsTab({
                         const draft   = timeEntryEditDrafts[entry.id] || {};
                         return (
                             <div key={entry.id} style={{ borderBottom: i < allCards.length - 1 ? "1px solid #f1f5f9" : "none" }}>
-                                <div style={{ display: "grid", gridTemplateColumns: COLS, gap: "12px", padding: "12px 20px", alignItems: "center" }}>
-                                    <span style={{ fontWeight: 600, fontSize: "13px", color: "#0f172a" }}>{entry.cleanerName}</span>
-                                    <span style={{ fontSize: "12px", color: "#64748b" }}>{fmtDate(entry.startedAt)}</span>
-                                    <span style={{ fontSize: "12px", color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={`${entry.serviceName}${entry.locationLabel ? " · " + entry.locationLabel : ""}`}>
+                                <div className="tc-row" style={{ display: "grid", gridTemplateColumns: COLS, gap: "12px", padding: "12px 20px", alignItems: "center" }}>
+                                    <span className="tc-name" style={{ fontWeight: 600, fontSize: "13px", color: "#0f172a" }}>{entry.cleanerName}</span>
+                                    <span className="tc-date" style={{ fontSize: "12px", color: "#64748b" }}>{fmtDate(entry.startedAt)}</span>
+                                    <span className="tc-service" style={{ fontSize: "12px", color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={`${entry.serviceName}${entry.locationLabel ? " · " + entry.locationLabel : ""}`}>
                                         {entry.serviceName}{entry.locationLabel ? ` · ${entry.locationLabel}` : ""}
                                     </span>
-                                    <span style={{ fontSize: "12px", color: "#475569" }}>{fmtTime(entry.startedAt)}</span>
-                                    <span style={{ fontSize: "12px", color: "#475569" }}>{fmtTime(entry.endedAt)}</span>
-                                    <span style={{ fontSize: "13px", fontWeight: 600, color: "#0f172a" }}>{fmtMin(entry.durationMinutes)}</span>
-                                    <StatusBadge status={entry.status} />
-                                    <div style={{ display: "flex", gap: "5px", flexWrap: "wrap" }}>
+                                    <span className="tc-in" style={{ fontSize: "12px", color: "#475569" }}>{fmtTime(entry.startedAt)}</span>
+                                    <span className="tc-out" style={{ fontSize: "12px", color: "#475569" }}>{fmtTime(entry.endedAt)}</span>
+                                    <span className="tc-dur" style={{ fontSize: "13px", fontWeight: 600, color: "#0f172a" }}>{fmtMin(entry.durationMinutes)}</span>
+                                    <span className="tc-status"><StatusBadge status={entry.status} /></span>
+                                    <div className="tc-actions" style={{ display: "flex", gap: "5px", flexWrap: "wrap" }}>
                                         {isSuperAdmin && (
                                             <>
                                                 <button onClick={() => toggleEdit(editKey)} style={{ ...S.ghostBtn, padding: "4px 10px", fontSize: "11px" }}>
@@ -377,7 +377,7 @@ export default function TimeCardsTab({
                                         <div style={{ fontSize: "11px", color: "#d97706", fontWeight: 600, marginBottom: "10px" }}>
                                             ⚠ Super admin edit — changes apply immediately to this entry.
                                         </div>
-                                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 140px auto", gap: "12px" }}>
+                                        <div className="tc-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 140px auto", gap: "12px" }}>
                                             <label style={S.label}>
                                                 <span>Start Time</span>
                                                 <input type="datetime-local" style={S.input}
@@ -424,7 +424,7 @@ export default function TimeCardsTab({
                     <span style={{ fontSize: "11px", color: "#94a3b8" }}>Employees & subcontractors</span>
                 </div>
                 <div style={{ ...S.card, padding: "20px" }}>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 120px auto", gap: "12px", alignItems: "end" }}>
+                    <div className="tc-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 120px auto", gap: "12px", alignItems: "end" }}>
                         <label style={S.label}>
                             <span>Staff Member</span>
                             <select value={manualTimeEntryForm.cleanerUid} onChange={e => setManualTimeEntryForm(p => ({ ...p, cleanerUid: e.target.value }))} style={S.input}>
