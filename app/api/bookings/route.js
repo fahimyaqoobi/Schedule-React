@@ -13,7 +13,10 @@ import { generateReferralCode, ensurePromotionList, normalizePromoCode, applyPro
 import { getCustomerPromoContext, getPersonalReferralCode } from "../../../lib/customerRewards";
 import { computeBookingPricing } from "../../../lib/pricing";
 
-const BOOKING_STATUS_FLOW = ["Lead", "Follow Up", "Pending", "Confirmed", "Completed", "Cancelled"];
+// Lead → Quote → Booking(Pending/Confirmed) → Completed. "Quote" sits between
+// a raw enquiry and an accepted booking — pricing has been sent, customer
+// hasn't accepted yet. The Calendar only ever shows "Confirmed".
+const BOOKING_STATUS_FLOW = ["Lead", "Follow Up", "Quote", "Pending", "Confirmed", "Completed", "Cancelled"];
 const PAYMENT_STATUS_FLOW = ["unpaid", "paid", "redo"];
 
 function normalizeBookingStatus(status = "Lead") {
@@ -316,8 +319,8 @@ export async function POST(request) {
             price: total,
             status: bookingStatus,
             paymentStatus,
-            documentStage: ["Lead", "Follow Up", "Pending"].includes(bookingStatus) ? "estimate" : "booking",
-            estimateNumber: ["Lead", "Follow Up", "Pending"].includes(bookingStatus) ? orderNumber : "",
+            documentStage: ["Lead", "Follow Up", "Quote", "Pending"].includes(bookingStatus) ? "estimate" : "booking",
+            estimateNumber: ["Lead", "Follow Up", "Quote", "Pending"].includes(bookingStatus) ? orderNumber : "",
             invoiceNumber: "",
             customerPortalPhone,
             referralCode: bookingData.referralCode || generateReferralCode(customerPortalPhone, orderNumber, bookingData.clientName),
@@ -424,7 +427,7 @@ export async function PUT(request) {
             const requestedDocumentStage = String(bookingData.documentStage || "").toLowerCase();
             const nextDocumentStage = requestedDocumentStage === "invoice"
                 ? "invoice"
-                : ["Lead", "Follow Up", "Pending"].includes(nextStatus)
+                : ["Lead", "Follow Up", "Quote", "Pending"].includes(nextStatus)
                     ? "estimate"
                     : "booking";
             // Server is the single source of truth for tax/total — see lib/pricing.js.
@@ -520,7 +523,7 @@ export async function PUT(request) {
                     tax: requestedPaymentStatus === "redo" ? 0 : Number(originalData.tax || 0),
                     status: requestedStatus,
                     paymentStatus: requestedPaymentStatus,
-                    documentStage: ["Lead", "Follow Up", "Pending"].includes(requestedStatus) ? "estimate" : "booking",
+                    documentStage: ["Lead", "Follow Up", "Quote", "Pending"].includes(requestedStatus) ? "estimate" : "booking",
                     duration: Number(originalData.duration || 0)
                 }
             };

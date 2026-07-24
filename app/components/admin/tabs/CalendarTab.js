@@ -36,7 +36,10 @@ export default function CalendarTab({
                         {calendarDays.map((cell, idx) => {
                             if (!cell.day) return <div key={`empty-${idx}`} className="cal-day empty"></div>;
 
-                            const dayBookings = bookings.filter(b => b.date === cell.dateStr && (isCleanerSelfServiceView ? true : b.status !== "Cancelled"));
+                            // Admin calendar only shows Confirmed bookings — if a booking becomes
+                            // Cancelled or slips back to Pending/Lead/Quote it disappears here
+                            // automatically (this is a live filter, not a stored flag).
+                            const dayBookings = bookings.filter(b => b.date === cell.dateStr && (isCleanerSelfServiceView ? true : b.status === "Confirmed"));
                             const isSelected = cell.dateStr === selectedCalDate;
                             const isToday = cell.dateStr === new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
 

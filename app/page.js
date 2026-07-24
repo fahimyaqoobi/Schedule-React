@@ -4013,8 +4013,12 @@ export default function Home() {
     };
 
     const agendaBookings = useMemo(() => {
-        return bookings.filter(b => b.date === selectedCalDate).sort((a, b) => a.time.localeCompare(b.time));
-    }, [bookings, selectedCalDate]);
+        // Admin calendar agenda only shows Confirmed bookings, matching the day-grid dots.
+        // Cleaners still see all their own jobs regardless of status (their own history/schedule).
+        return bookings
+            .filter(b => b.date === selectedCalDate && (isCleanerSelfServiceView ? true : b.status === "Confirmed"))
+            .sort((a, b) => a.time.localeCompare(b.time));
+    }, [bookings, selectedCalDate, isCleanerSelfServiceView]);
 
     // Time slots population helper (7:00 AM to 7:00 PM every 30 mins)
     const timeSlots = useMemo(() => {
@@ -5249,6 +5253,7 @@ export default function Home() {
                                             <select value={adminCheckoutForm.bookingStatus} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, bookingStatus: e.target.value }))}>
                                                 <option value="Lead">Lead</option>
                                                 <option value="Follow Up">Follow Up</option>
+                                                <option value="Quote">Quote</option>
                                                 <option value="Pending">Pending</option>
                                                 <option value="Confirmed">Confirmed</option>
                                             </select>
@@ -6362,6 +6367,7 @@ export default function Home() {
                                                     <select value={bookingForm.status} onChange={e => setBookingForm(prev => ({ ...prev, status: e.target.value }))} required className="border border-slate-200 rounded-lg p-2">
                                                         <option value="Lead">Lead</option>
                                                         <option value="Follow Up">Follow Up</option>
+                                                        <option value="Quote">Quote</option>
                                                         <option value="Pending">Pending</option>
                                                         <option value="Confirmed">Confirmed</option>
                                                         <option value="Completed">Completed</option>

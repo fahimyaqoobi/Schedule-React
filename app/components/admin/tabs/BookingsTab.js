@@ -3,6 +3,9 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import * as XLSX from "xlsx";
 
 const STATUS_OPTIONS = [
+    { value: "Lead",              label: "Lead",                  color: "#78716c", bg: "#fafaf9", border: "#e7e5e4" },
+    { value: "Follow Up",         label: "Follow Up",             color: "#a16207", bg: "#fefce8", border: "#fef08a" },
+    { value: "Quote",             label: "💬 Quote",               color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe" },
     { value: "awaiting_approval", label: "⏳ Awaiting Approval", color: "#f59e0b", bg: "#fffbeb", border: "#fde68a" },
     { value: "Pending",           label: "Pending",              color: "#6366f1", bg: "#eef2ff", border: "#c7d2fe" },
     { value: "Confirmed",         label: "✓ Confirmed",          color: "#0891b2", bg: "#ecfeff", border: "#a5f3fc" },
@@ -385,6 +388,8 @@ export default function BookingsTab({
 
                     <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ flex: "1 1 160px" }}>
                         <option value="">All Statuses</option>
+                        <option value="Lead">Lead</option>
+                        <option value="Quote">Quote</option>
                         <option value="awaiting_approval">⏳ Awaiting Approval</option>
                         <option value="Pending">Pending</option>
                         <option value="Confirmed">✓ Confirmed</option>
