@@ -4705,6 +4705,7 @@ export default function Home() {
                         branchTimezone={activeBranch?.timezone || "America/Toronto"}
                         leadSources={leadSources}
                         openNewBookingCommand={openNewBookingCommand}
+                        teams={teams}
                     />
                 )}
 
