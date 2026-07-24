@@ -190,21 +190,15 @@ export default function DashboardTab({
     customerRewards,
     promotionRules,
     adminCommandMetrics,
-    adminServiceCart,
-    adminCartTotals,
     activeBranch,
     todayBookings,
     pendingUsers,
     fieldStaff,
+    activeTimeEntries,
     canManagePermissions,
     Icons,
-    serviceCatalogRef,
     getPersonalReferralCode,
     getCustomerEligiblePromotions,
-    openNewBookingCommand,
-    editAdminCartItem,
-    removeAdminCartItem,
-    checkoutAdminCart,
     setSelectedBooking,
     setDetailsModalOpen,
     setActiveTab,
@@ -212,7 +206,6 @@ export default function DashboardTab({
     handleResolveUserApproval,
     getRoleLabel,
 }) {
-    const [showMetrics, setShowMetrics] = useState(false);
     const [chartFilter, setChartFilter] = useState("6m");
 
     const chartData = useMemo(() => {
@@ -345,96 +338,100 @@ export default function DashboardTab({
                 </div>
             ) : (
                 <>
-                    {/* Mobile-only CTA — only visible on phones */}
-                    <div className="dashboard-mobile-cta">
-                        <div className="dashboard-mobile-cta-inner">
+                    {/* Business Health summary — grouped, no operational actions here.
+                        Booking creation lives in the Bookings module. */}
+                    <section className="dashboard-health-shell">
+                        <div className="dashboard-health-header">
                             <div>
-                                <p className="admin-command-kicker">Admin</p>
-                                <h3>New Booking</h3>
+                                <p className="admin-command-kicker">Business Health</p>
+                                <h3>How is {activeBranch?.name || "the business"} doing today?</h3>
                             </div>
-                            <button onClick={openNewBookingCommand} className="admin-primary-action dashboard-mobile-new-booking">
-                                {Icons.Plus()}
-                                Start New Booking
-                            </button>
+                            <div className="dashboard-health-date">
+                                {new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                            </div>
                         </div>
-                    </div>
+
+                        <div className="dashboard-health-groups">
+                            <div className="dashboard-health-group">
+                                <div className="dashboard-health-group-title">Today</div>
+                                <div className="dashboard-health-group-body">
+                                    <div className="dashboard-health-stat">
+                                        <span>Jobs Today</span>
+                                        <strong>{adminCommandMetrics.jobsToday}</strong>
+                                    </div>
+                                    <div className="dashboard-health-stat">
+                                        <span>Today&apos;s Revenue</span>
+                                        <strong>${adminCommandMetrics.todayRevenue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</strong>
+                                    </div>
+                                    <div className="dashboard-health-stat">
+                                        <span>Employees Working</span>
+                                        <strong>{(activeTimeEntries || []).length}</strong>
+                                    </div>
+                                    <div
+                                        className={`dashboard-health-stat${adminCommandMetrics.jobsNeedingAttention > 0 ? " alert" : ""}`}
+                                        style={{ cursor: adminCommandMetrics.jobsNeedingAttention > 0 ? "pointer" : "default" }}
+                                        onClick={() => { if (adminCommandMetrics.jobsNeedingAttention > 0) setActiveTab("bookings"); }}
+                                    >
+                                        <span>Needs Attention</span>
+                                        <strong>{adminCommandMetrics.jobsNeedingAttention}</strong>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="dashboard-health-group">
+                                <div className="dashboard-health-group-title">Money</div>
+                                <div className="dashboard-health-group-body">
+                                    <div className="dashboard-health-stat">
+                                        <span>Payments Received</span>
+                                        <strong>${adminCommandMetrics.paidRevenue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</strong>
+                                    </div>
+                                    <div
+                                        className={`dashboard-health-stat${adminCommandMetrics.pendingPaymentCount > 0 ? " alert" : ""}`}
+                                        style={{ cursor: adminCommandMetrics.pendingPaymentCount > 0 ? "pointer" : "default" }}
+                                        onClick={() => { if (adminCommandMetrics.pendingPaymentCount > 0) { setActiveTab("bookings"); setFilterStatus("unpaid"); } }}
+                                    >
+                                        <span>Outstanding Invoices</span>
+                                        <strong>${adminCommandMetrics.pendingPaymentAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</strong>
+                                        <small>{adminCommandMetrics.pendingPaymentCount} job{adminCommandMetrics.pendingPaymentCount !== 1 ? "s" : ""}</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="dashboard-health-group">
+                                <div className="dashboard-health-group-title">Pipeline &amp; Customers</div>
+                                <div className="dashboard-health-group-body">
+                                    <div className="dashboard-health-stat" style={{ cursor: "pointer" }} onClick={() => { setActiveTab("bookings"); setFilterStatus("Lead"); }}>
+                                        <span>New Leads</span>
+                                        <strong>{adminCommandMetrics.newLeads}</strong>
+                                    </div>
+                                    <div className="dashboard-health-stat" style={{ cursor: "pointer" }} onClick={() => { setActiveTab("bookings"); setFilterStatus("Quote"); }}>
+                                        <span>New Quotes</span>
+                                        <strong>{adminCommandMetrics.newQuotes}</strong>
+                                    </div>
+                                    <div className="dashboard-health-stat">
+                                        <span>Active Recurring Customers</span>
+                                        <strong>{adminCommandMetrics.uniqueRecurringCustomers}</strong>
+                                        <small>{adminCommandMetrics.recurringActive} scheduled visit{adminCommandMetrics.recurringActive !== 1 ? "s" : ""}</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="dashboard-health-group">
+                                <div className="dashboard-health-group-title">Tomorrow</div>
+                                <div className="dashboard-health-group-body">
+                                    <div className={`dashboard-health-stat${adminCommandMetrics.tomorrowReady ? " good" : adminCommandMetrics.jobsTomorrow > 0 ? " alert" : ""}`}>
+                                        <span>Readiness</span>
+                                        <strong>{adminCommandMetrics.jobsTomorrow === 0 ? "No jobs" : adminCommandMetrics.tomorrowReady ? "Ready ✓" : `${adminCommandMetrics.tomorrowUnassigned} unassigned`}</strong>
+                                        <small>{adminCommandMetrics.jobsTomorrow} confirmed job{adminCommandMetrics.jobsTomorrow !== 1 ? "s" : ""}</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
 
                     {/* Desktop-only dashboard sections */}
                     <section className="admin-command-shell dashboard-desktop-only">
-                        <div className="admin-command-header">
-                            <div>
-                                <p className="admin-command-kicker">Admin booking command</p>
-                                <h3>Create a new booking</h3>
-                                <p>
-                                    Use the step-by-step booking wizard to select a service, configure size and add-ons, set frequency, and apply promotions — all in one guided flow.
-                                </p>
-                                <div className="admin-workflow-steps" aria-label="Booking workflow">
-                                    <span><strong>1</strong> Choose type</span>
-                                    <span><strong>2</strong> Select service</span>
-                                    <span><strong>3</strong> Configure</span>
-                                    <span><strong>4</strong> Add-ons</span>
-                                    <span><strong>5</strong> Frequency</span>
-                                    <span><strong>6</strong> Review</span>
-                                </div>
-                            </div>
-                            <button onClick={openNewBookingCommand} className="admin-primary-action">
-                                {Icons.Plus()}
-                                New Booking
-                            </button>
-                        </div>
-
-                        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: showMetrics ? "10px" : "0" }}>
-                            <button
-                                onClick={() => setShowMetrics(v => !v)}
-                                style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "12px", fontWeight: 700, cursor: "pointer", letterSpacing: "0.03em", padding: "4px 0", display: "flex", alignItems: "center", gap: "5px" }}
-                            >
-                                {showMetrics ? "Hide summary ▲" : "Show summary ▼"}
-                            </button>
-                        </div>
-
-                        {showMetrics && (
-                            <div className="admin-metric-row" style={{ marginBottom: "24px" }}>
-                                <div className="admin-metric-card">
-                                    <span>Payments Collected</span>
-                                    <strong>${adminCommandMetrics.paidRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-                                    {adminCommandMetrics.paidByMethodLabeled && adminCommandMetrics.paidByMethodLabeled.length > 0 ? (
-                                        <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginTop: "4px" }}>
-                                            {adminCommandMetrics.paidByMethodLabeled.map(m => (
-                                                <span key={m.key} style={{ fontSize: 10, fontWeight: 700, background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0", borderRadius: 99, padding: "1px 7px", whiteSpace: "nowrap" }}>
-                                                    {m.label} ${m.amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <small>Paid jobs only</small>
-                                    )}
-                                </div>
-                                <div className="admin-metric-card warning" style={{cursor: adminCommandMetrics.pendingPaymentCount > 0 ? "pointer" : "default"}} onClick={() => { if (adminCommandMetrics.pendingPaymentCount > 0) { setActiveTab("bookings"); setFilterStatus("unpaid"); } }}>
-                                    <span>Payments Pending</span>
-                                    <strong>${adminCommandMetrics.pendingPaymentAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-                                    <small>{adminCommandMetrics.pendingPaymentCount} unpaid job{adminCommandMetrics.pendingPaymentCount !== 1 ? "s" : ""}</small>
-                                </div>
-                                <div className="admin-metric-card">
-                                    <span>Completed Jobs</span>
-                                    <strong>{adminCommandMetrics.completedCount}</strong>
-                                    <small>{adminCommandMetrics.activeBookings} total active</small>
-                                </div>
-                                <div className="admin-metric-card">
-                                    <span>Confirmed</span>
-                                    <strong>{adminCommandMetrics.confirmed}</strong>
-                                    <small>Upcoming confirmed jobs</small>
-                                </div>
-                                <div className="admin-metric-card" style={{cursor: adminCommandMetrics.pipeline > 0 ? "pointer" : "default"}} onClick={() => { if (adminCommandMetrics.pipeline > 0) { setActiveTab("bookings"); setFilterStatus("Pending"); } }}>
-                                    <span>Pipeline</span>
-                                    <strong>{adminCommandMetrics.pipeline}</strong>
-                                    <small>{adminCommandMetrics.awaitingApproval > 0 ? `⏳ ${adminCommandMetrics.awaitingApproval} awaiting approval` : "Pending · leads · follow-ups"}</small>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Two-column layout: main content left, cart right */}
-                        <div className="dashboard-two-col" ref={serviceCatalogRef}>
-                            <div className="dashboard-main-col">
+                        <div className="dashboard-main-col">
 
                                 {/* Revenue & Wages Chart */}
                                 <div className="dashboard-chart-section">
@@ -569,91 +566,7 @@ export default function DashboardTab({
                                     </div>
                                 </div>
 
-                            </div>{/* end dashboard-main-col */}
-
-                            {/* RIGHT: Client Service Cart sidebar */}
-                            <aside className="admin-cart-panel dashboard-cart-col">
-                                <div className="admin-section-heading">
-                                    <div>
-                                        <h4>Client Service Cart</h4>
-                                        <p>Add multiple services before checkout.</p>
-                                    </div>
-                                    <span>{adminServiceCart.length} Items</span>
-                                </div>
-                                {adminServiceCart.length === 0 ? (
-                                    <div className="admin-cart-empty">
-                                        <strong>No services selected yet.</strong>
-                                        <p>Click <em>New Booking</em> above to build a service quote using the booking wizard.</p>
-                                    </div>
-                                ) : (
-                                    <div className="admin-cart-list">
-                                        {adminServiceCart.map(item => {
-                                            const basePrice = Number(item.basePrice || 0);
-                                            const bathroomPrice = Number(item.bathroomPrice || 0);
-                                            const addons = item.addons || [];
-                                            return (
-                                                <div key={item.cartId} className="admin-cart-item">
-                                                    <div>
-                                                        <strong>{item.name}</strong>
-                                                        <span>
-                                                            {item.optionName}
-                                                            {item.bathroomKey ? ` • ${item.bathroomKey}` : ""}
-                                                            {` • ${Number(item.durationHrs || 0).toFixed(1)} hrs`}
-                                                        </span>
-                                                        <div className="admin-cart-breakdown">
-                                                            <div>
-                                                                <span>Base service / tier</span>
-                                                                <strong>${basePrice.toFixed(2)}</strong>
-                                                            </div>
-                                                            {bathroomPrice > 0 && (
-                                                                <div>
-                                                                    <span>{item.bathroomKey || "Bathroom adjustment"}</span>
-                                                                    <strong>${bathroomPrice.toFixed(2)}</strong>
-                                                                </div>
-                                                            )}
-                                                            {addons.length > 0 ? addons.map(addon => {
-                                                                const qty = Number(addon.qty || 1);
-                                                                const addonLineTotal = Number(addon.total ?? Number(addon.price || 0) * qty);
-                                                                return (
-                                                                    <div key={addon.id}>
-                                                                        <span>{addon.name}{qty > 1 ? ` x${qty}` : ""}</span>
-                                                                        <strong>${addonLineTotal.toFixed(2)}</strong>
-                                                                    </div>
-                                                                );
-                                                            }) : (
-                                                                <div>
-                                                                    <span>Add-ons</span>
-                                                                    <strong>$0.00</strong>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                    <div className="admin-cart-price">
-                                                        <strong>${Number(item.price || 0).toFixed(2)}</strong>
-                                                        <button onClick={() => editAdminCartItem(item)} type="button" className="admin-cart-edit" aria-label={`Edit ${item.name}`}>
-                                                            {Icons.Edit()}
-                                                        </button>
-                                                        <button onClick={() => removeAdminCartItem(item.cartId)} type="button" aria-label={`Remove ${item.name}`}>
-                                                            {Icons.Trash()}
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                                <div className="admin-cart-totals">
-                                    <div><span>Subtotal</span><strong>${adminCartTotals.subtotal.toFixed(2)}</strong></div>
-                                    <div><span>{activeBranch.taxLabel}</span><strong>${adminCartTotals.tax.toFixed(2)}</strong></div>
-                                    <div><span>Estimated Hours</span><strong>{adminCartTotals.duration.toFixed(1)}</strong></div>
-                                    <div className="admin-cart-grand"><span>Total</span><strong>${adminCartTotals.total.toFixed(2)}</strong></div>
-                                </div>
-                                <button disabled={adminServiceCart.length === 0} onClick={checkoutAdminCart} type="button" className="admin-checkout-btn">
-                                    Continue to Checkout
-                                </button>
-                            </aside>
-
-                        </div>{/* end dashboard-two-col */}
+                        </div>{/* end dashboard-main-col */}
                     </section>
 
                     {/* Permissioned pending user approvals table in Dashboard */}

@@ -3874,6 +3874,24 @@ export default function Home() {
             key, label: METHOD_LABELS[key] || key, amount: amt,
         })).sort((a, b) => b.amount - a.amount);
 
+        // ── Business-health metrics (Dashboard summary only — no operational data) ──
+        const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
+        const tomorrowStr = new Date(Date.now() + 86400000).toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
+        const jobsTodayList = activeBookings.filter(b => b.date === todayStr);
+        const jobsTomorrowList = activeBookings.filter(b => b.date === tomorrowStr && b.status === "Confirmed");
+        const todayRevenue = jobsTodayList.reduce((sum, b) => sum + parseFloat(b.price || b.totalAmount || 0), 0);
+        const newLeads = activeBookings.filter(b => b.status === "Lead").length;
+        const newQuotes = activeBookings.filter(b => b.status === "Quote").length;
+        const jobsNeedingAttention = activeBookings.filter(b =>
+            (b.date === todayStr && b.status === "Confirmed" && (!b.assignedStaffIds || b.assignedStaffIds.length === 0)) ||
+            (b.status === "Completed" && b.paymentStatus !== "paid")
+        ).length;
+        const recurringActive = activeBookings.filter(b => b.isRecurring && b.status !== "Completed").length;
+        const uniqueRecurringCustomers = new Set(
+            activeBookings.filter(b => b.isRecurring).map(b => b.email || b.phone || b.clientName)
+        ).size;
+        const tomorrowUnassigned = jobsTomorrowList.filter(b => !b.assignedStaffIds || b.assignedStaffIds.length === 0).length;
+
         return {
             activeBookings: activeBookings.length,
             paidRevenue,
@@ -3884,6 +3902,16 @@ export default function Home() {
             awaitingApproval,
             pendingPaymentAmount,
             pendingPaymentCount: pendingPaymentJobs.length,
+            jobsToday: jobsTodayList.length,
+            todayRevenue,
+            newLeads,
+            newQuotes,
+            jobsNeedingAttention,
+            recurringActive,
+            uniqueRecurringCustomers,
+            jobsTomorrow: jobsTomorrowList.length,
+            tomorrowUnassigned,
+            tomorrowReady: jobsTomorrowList.length > 0 && tomorrowUnassigned === 0,
         };
     }, [bookings]);
 
@@ -4470,23 +4498,15 @@ export default function Home() {
                         customerRewards={customerRewards}
                         promotionRules={promotionRules}
                         adminCommandMetrics={adminCommandMetrics}
-                        catalogServiceCards={catalogServiceCards}
-                        adminServiceCart={adminServiceCart}
-                        adminCartTotals={adminCartTotals}
                         activeBranch={activeBranch}
                         todayBookings={todayBookings}
                         pendingUsers={pendingUsers}
                         fieldStaff={fieldStaff}
+                        activeTimeEntries={activeTimeEntries}
                         canManagePermissions={canManagePermissions}
                         Icons={Icons}
-                        serviceCatalogRef={serviceCatalogRef}
                         getPersonalReferralCode={getPersonalReferralCode}
                         getCustomerEligiblePromotions={getCustomerEligiblePromotions}
-                        openNewBookingCommand={openNewBookingCommand}
-                        openServiceConfigurator={openServiceConfigurator}
-                        editAdminCartItem={editAdminCartItem}
-                        removeAdminCartItem={removeAdminCartItem}
-                        checkoutAdminCart={checkoutAdminCart}
                         setSelectedBooking={setSelectedBooking}
                         setDetailsModalOpen={setDetailsModalOpen}
                         setActiveTab={setActiveTab}
@@ -4526,6 +4546,7 @@ export default function Home() {
                         setFilterPayment={setFilterPayment}
                         branchTimezone={activeBranch?.timezone || "America/Toronto"}
                         leadSources={leadSources}
+                        openNewBookingCommand={openNewBookingCommand}
                     />
                 )}
 

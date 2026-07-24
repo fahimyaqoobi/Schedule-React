@@ -217,6 +217,7 @@ export default function BookingsTab({
     fieldStaff,
     handleQuickBookingUpdate,
     branchTimezone,
+    openNewBookingCommand,
 }) {
     const [editingCell, setEditingCell] = useState(null);
     const [selectedIds, setSelectedIds] = useState(new Set());
@@ -354,6 +355,15 @@ export default function BookingsTab({
 
     return (
         <div className="animate-fade">
+            {/* ── New Booking entry point (moved here from Dashboard) ── */}
+            {openNewBookingCommand && (
+                <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 14 }}>
+                    <button onClick={openNewBookingCommand} className="admin-primary-action" type="button">
+                        {Icons.Plus()}
+                        New Booking
+                    </button>
+                </div>
+            )}
             {/* ── Filters card ── */}
             <div className="filters-card" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {/* Row 1: search */}
