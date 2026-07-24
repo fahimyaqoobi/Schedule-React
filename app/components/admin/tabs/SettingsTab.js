@@ -28,6 +28,9 @@ export default function SettingsTab({
     getInitials,
     leadSources,
     handleSaveLeadSources,
+    canViewAdministration,
+    setActiveTab,
+    Icons,
 }) {
     const [localSources, setLocalSources] = useState(leadSources || []);
     const [newSource, setNewSource] = useState("");
@@ -43,9 +46,40 @@ export default function SettingsTab({
 
     const saveLeadSources = () => handleSaveLeadSources?.(localSources);
 
+    const configItems = [
+        { tab: "departments", label: "Departments", desc: "Org structure, department access, HR modules.", icon: "Departments", show: canViewAdministration },
+        { tab: "catalog", label: "Catalog Studio", desc: "Services, sizes, add-ons, and pricing tiers.", icon: "Catalog", show: canViewAdministration },
+        { tab: "promotions", label: "Promotions Manager", desc: "Promo codes, referral rules, document copy.", icon: "Cash", show: canViewAdministration },
+        { tab: "permissions", label: "Permissions & Roles", desc: "Role definitions and department access.", icon: "Shield", show: canManagePermissions },
+    ].filter(item => item.show);
+
     return (
         <div className="animate-fade">
             <div className="settings-container">
+                {/* Configuration — Catalog, Promotions, Departments, Permissions all
+                    live under Settings so the main sidebar stays to one responsibility
+                    per item. */}
+                {configItems.length > 0 && (
+                    <div className="settings-card settings-config-card">
+                        <div className="panel-header border-b border-slate-100 pb-3">
+                            <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">Configuration</h4>
+                            <p className="text-slate-500 text-xs mt-1">Administration and setup tools, grouped out of the way of day-to-day work.</p>
+                        </div>
+                        <div className="settings-config-grid">
+                            {configItems.map(item => (
+                                <button key={item.tab} type="button" onClick={() => setActiveTab(item.tab)} className="settings-config-tile">
+                                    <span className="settings-config-icon">{Icons[item.icon] ? Icons[item.icon]() : null}</span>
+                                    <span className="settings-config-text">
+                                        <strong>{item.label}</strong>
+                                        <small>{item.desc}</small>
+                                    </span>
+                                    <span className="settings-config-chevron">›</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {/* Card 1: User Profile */}
                 <div className="settings-card">
                     <div className="panel-header border-b border-slate-100 pb-3">
