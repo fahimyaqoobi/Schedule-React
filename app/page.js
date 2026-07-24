@@ -60,6 +60,7 @@ import BookingsTab from "./components/admin/tabs/BookingsTab";
 import BookingWizard from "./components/admin/BookingWizard";
 import CalendarTab from "./components/admin/tabs/CalendarTab";
 import RecurringTab from "./components/admin/tabs/RecurringTab";
+import ExpensesTab from "./components/admin/tabs/ExpensesTab";
 
 const V2SettingsManager = dynamic(() => import("./components/V2SettingsManager"), {
     ssr: false,
@@ -918,6 +919,13 @@ export default function Home() {
     // Core Data collections loaded from Serverless APIs
     const [bookings, setBookings] = useState([]);
     const [timeEntries, setTimeEntries] = useState([]);
+    const [expenses, setExpenses] = useState([]);
+    const [financialRecords, setFinancialRecords] = useState([]);
+    const [expenseForm, setExpenseForm] = useState({ amount: "", category: "Supplies", description: "", date: new Date().toISOString().split("T")[0], receiptUrl: "", receiptName: "" });
+    const [expenseReceiptUploading, setExpenseReceiptUploading] = useState(false);
+    const [expenseSubmitting, setExpenseSubmitting] = useState(false);
+    const [expenseFeedback, setExpenseFeedback] = useState("");
+    const [expenseRejectReason, setExpenseRejectReason] = useState({});
     const [teams, setTeams] = useState([]);
     const [editRequests, setEditRequests] = useState([]);
     const [pendingUsers, setPendingUsers] = useState([]);
@@ -946,6 +954,7 @@ export default function Home() {
     const canManagePermissions = canManageSystem(currentUser);
     const canManagePeopleProfiles = currentUser ? ["super-admin", "branch-admin"].includes(normalizeRole(currentUser.role)) : false;
     const isSuperAdmin = normalizeRole(currentUser?.role) === "super-admin";
+    const canReviewExpenses = canManagePeopleProfiles;
     const isCleanerSelfServiceView = Boolean(canSelfManagePeopleProfile && !canManagePeopleProfiles && !isPendingCleanerOnboarding);
     const showBookingContactFields = !isCleanerSelfServiceView;
     const isCleanerBookingEditor = isCleanerSelfServiceView;
@@ -1638,6 +1647,24 @@ export default function Home() {
                 setEditRequests(data);
             } else {
                 console.error("Edit requests sync failed", editsRes.status, await editsRes.text());
+            }
+
+            const expensesRes = await fetch("/api/expenses", { headers });
+            if (expensesRes.ok) {
+                const data = await expensesRes.json();
+                setExpenses(data);
+            } else {
+                console.error("Expenses sync failed", expensesRes.status, await expensesRes.text());
+            }
+
+            if (isBranchManager) {
+                const financialRecordsRes = await fetch("/api/financial-records", { headers });
+                if (financialRecordsRes.ok) {
+                    const data = await financialRecordsRes.json();
+                    setFinancialRecords(data);
+                } else {
+                    console.error("Financial records sync failed", financialRecordsRes.status, await financialRecordsRes.text());
+                }
             }
 
             // 4. Fetch pending user accounts & registered approved team leaders (permissioned admin only)
@@ -2893,6 +2920,98 @@ export default function Home() {
         }
     };
 
+    const handleUpdateEmploymentStatus = async (targetUid, employmentStatus) => {
+        if (!targetUid) return;
+        setStaffProfileSaving(true);
+        setStaffProfileFeedback("");
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch("/api/users", {
+                method: "PUT",
+                headers,
+                body: JSON.stringify({ targetUid, employmentStatus })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Failed to update employment status.");
+            setStaffProfileFeedback(`Employment status set to ${employmentStatus}.`);
+            syncDatabaseData(currentUser);
+        } catch (err) {
+            setStaffProfileFeedback(err.message || "Failed to update employment status.");
+        } finally {
+            setStaffProfileSaving(false);
+        }
+    };
+
+    const handleExpenseReceiptCapture = async (file) => {
+        if (!file) return;
+        setExpenseReceiptUploading(true);
+        setExpenseFeedback("");
+        try {
+            const headers = await getAuthHeaders();
+            delete headers["Content-Type"];
+            const formData = new FormData();
+            formData.append("file", file);
+            const res = await fetch("/api/uploads/expense-receipt", {
+                method: "POST",
+                headers,
+                body: formData
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Failed to upload receipt.");
+            setExpenseForm(prev => ({ ...prev, receiptUrl: data.url, receiptName: data.name }));
+        } catch (err) {
+            setExpenseFeedback(err.message || "Failed to upload receipt.");
+        } finally {
+            setExpenseReceiptUploading(false);
+        }
+    };
+
+    const handleSubmitExpense = async () => {
+        if (!expenseForm.amount || !expenseForm.receiptUrl) {
+            setExpenseFeedback("A receipt photo and amount are required.");
+            return;
+        }
+        setExpenseSubmitting(true);
+        setExpenseFeedback("");
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch("/api/expenses", {
+                method: "POST",
+                headers,
+                body: JSON.stringify(expenseForm)
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Failed to submit expense.");
+            setExpenseFeedback(data.message || "Expense submitted for approval.");
+            setExpenseForm({ amount: "", category: "Supplies", description: "", date: new Date().toISOString().split("T")[0], receiptUrl: "", receiptName: "" });
+            syncDatabaseData(currentUser);
+        } catch (err) {
+            setExpenseFeedback(err.message || "Failed to submit expense.");
+        } finally {
+            setExpenseSubmitting(false);
+        }
+    };
+
+    const handleReviewExpense = async (expenseId, action) => {
+        setExpenseSubmitting(true);
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch("/api/expenses", {
+                method: "PUT",
+                headers,
+                body: JSON.stringify({ action, expenseId, rejectionReason: expenseRejectReason[expenseId] || "" })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Failed to review expense.");
+            setExpenseFeedback(data.message || `Expense ${action}d.`);
+            syncDatabaseData(currentUser);
+        } catch (err) {
+            setExpenseFeedback(err.message || "Failed to review expense.");
+        } finally {
+            setExpenseSubmitting(false);
+        }
+    };
+
     const ensureCleanerJobDraft = useCallback((booking) => {
         if (!booking?.id) return null;
         const tasks = buildCleanerTaskList(booking, pricingRates, v2Catalog);
@@ -3892,6 +4011,19 @@ export default function Home() {
         ).size;
         const tomorrowUnassigned = jobsTomorrowList.filter(b => !b.assignedStaffIds || b.assignedStaffIds.length === 0).length;
 
+        const pendingExpenseCount = expenses.filter(e => e.status === "pending_approval").length;
+        const approvedExpenseTotal = expenses
+            .filter(e => e.status === "approved")
+            .reduce((sum, e) => sum + parseFloat(e.amount || 0), 0);
+
+        const todayFinancialRecords = financialRecords.filter(r => r.date === todayStr);
+        const dailyPnl = todayFinancialRecords.reduce((acc, r) => ({
+            revenue: acc.revenue + Number(r.revenue || 0),
+            laborCost: acc.laborCost + Number(r.laborCost || 0),
+            materialCost: acc.materialCost + Number(r.materialCost || 0),
+            profit: acc.profit + Number(r.profit || 0),
+        }), { revenue: 0, laborCost: 0, materialCost: 0, profit: 0 });
+
         return {
             activeBookings: activeBookings.length,
             paidRevenue,
@@ -3912,8 +4044,12 @@ export default function Home() {
             jobsTomorrow: jobsTomorrowList.length,
             tomorrowUnassigned,
             tomorrowReady: jobsTomorrowList.length > 0 && tomorrowUnassigned === 0,
+            pendingExpenseCount,
+            approvedExpenseTotal,
+            dailyPnl,
+            jobsCompletedTodayWithFinancials: todayFinancialRecords.length,
         };
-    }, [bookings]);
+    }, [bookings, expenses, financialRecords]);
 
     const catalogServiceCards = useMemo(() => {
         const serviceImages = [
@@ -4103,8 +4239,31 @@ export default function Home() {
         return { available: true, reason: assignedThatDay.length ? `${assignedThatDay.length} job(s) that day` : "Available" };
     }, [bookings, getWeekdayIndexForSchedule, normalizeStaffProfile]);
 
+    // HR: only fully-approved, Active employees can be assigned to jobs.
+    // (status !== "approved" covers applicants; employmentStatus covers
+    // approved staff who are Inactive/Suspended/On Leave — undefined defaults
+    // to Active so existing staff aren't silently unassignable.)
+    const myExpenses = useMemo(() => {
+        return expenses.filter(expense => expense.submittedByUid === currentUser?.uid);
+    }, [expenses, currentUser]);
+
+    const pendingExpenseApprovals = useMemo(() => {
+        return expenses.filter(expense => expense.status === "pending_approval");
+    }, [expenses]);
+
+    const reviewedExpenses = useMemo(() => {
+        return expenses;
+    }, [expenses]);
+
+    const assignableFieldStaff = useMemo(() => {
+        return fieldStaff.filter((member) =>
+            member.status === "approved" &&
+            !["Inactive", "Suspended", "On Leave"].includes(member.employmentStatus)
+        );
+    }, [fieldStaff]);
+
     const adminStaffAvailabilityCards = useMemo(() => {
-        return fieldStaff.map((member) => ({
+        return assignableFieldStaff.map((member) => ({
             member,
             status: getCleanerShiftConflict(
                 member,
@@ -4112,7 +4271,7 @@ export default function Home() {
                 adminCheckoutForm.shifts || [],
             )
         }));
-    }, [adminCheckoutForm.date, adminCheckoutForm.shifts, fieldStaff, getCleanerShiftConflict]);
+    }, [adminCheckoutForm.date, adminCheckoutForm.shifts, assignableFieldStaff, getCleanerShiftConflict]);
 
     const adminSlotStates = useMemo(() => {
         return buildCombinedSlotStatus(
@@ -4155,7 +4314,7 @@ export default function Home() {
     }, [activeBranch.taxRate, adminCartTotals.subtotal, adminCheckoutForm.discountAmount, adminCheckoutForm.discountPercent, adminServiceCart]);
 
     const bookingStaffAvailabilityCards = useMemo(() => {
-        return fieldStaff.map((member) => ({
+        return assignableFieldStaff.map((member) => ({
             member,
             status: getCleanerShiftConflict(
                 member,
@@ -4164,7 +4323,7 @@ export default function Home() {
                 bookingForm.id || null
             )
         }));
-    }, [bookingForm.date, bookingForm.shifts, bookingForm.id, fieldStaff, getCleanerShiftConflict]);
+    }, [bookingForm.date, bookingForm.shifts, bookingForm.id, assignableFieldStaff, getCleanerShiftConflict]);
 
     const bookingSlotStates = useMemo(() => {
         return buildCombinedSlotStatus(
@@ -4336,7 +4495,7 @@ export default function Home() {
                     {(canViewOperations || canViewPeople || canViewAdministration) && !isCleanerSelfServiceView && (
                         <div className={`nav-group${hrHubOpen ? " open" : ""}`}>
                             <button
-                                className={`nav-group-header${["jobs","teams","payroll"].includes(activeTab) ? " has-active" : ""}`}
+                                className={`nav-group-header${["jobs","teams","payroll","expenses"].includes(activeTab) ? " has-active" : ""}`}
                                 onClick={() => setHrHubOpen(v => !v)}
                                 title="HR Hub"
                             >
@@ -4370,14 +4529,29 @@ export default function Home() {
                                         <span className="nav-label">Payroll</span>
                                     </button>
                                 )}
+                                {canViewOperations && (
+                                    <button onClick={() => setActiveTab("expenses")} className={`nav-item nav-sub-item ${activeTab === "expenses" ? "active" : ""}`} title="Expenses">
+                                        {Icons.Cash()}
+                                        <span className="nav-label">Expenses</span>
+                                        {canReviewExpenses && pendingExpenseApprovals.length > 0 && (
+                                            <span className="badge">{pendingExpenseApprovals.length}</span>
+                                        )}
+                                    </button>
+                                )}
                             </div>
                         </div>
                     )}
-                    {/* Cleaner self-service: show Jobs & Profile outside group */}
+                    {/* Cleaner self-service: show Jobs, Expenses & Profile outside group */}
                     {isCleanerSelfServiceView && canViewOperations && (
                         <button onClick={() => setActiveTab("jobs")} className={`nav-item ${activeTab === "jobs" ? "active" : ""}`} title="Jobs">
                             {Icons.Clock()}
                             <span className="nav-label">Jobs</span>
+                        </button>
+                    )}
+                    {isCleanerSelfServiceView && canViewOperations && (
+                        <button onClick={() => setActiveTab("expenses")} className={`nav-item ${activeTab === "expenses" ? "active" : ""}`} title="Expenses">
+                            {Icons.Cash()}
+                            <span className="nav-label">Expenses</span>
                         </button>
                     )}
                     {isCleanerSelfServiceView && canViewPeople && (
@@ -4445,6 +4619,7 @@ export default function Home() {
                                     activeTab === "calendar" ? (isCleanerSelfServiceView ? "Schedule" : "Scheduling Calendar") :
                                         activeTab === "jobs" ? (isCleanerSelfServiceView ? "Jobs" : "Time Cards") :
                                             activeTab === "payroll" ? "Payroll & Time Hub" :
+                                                activeTab === "expenses" ? "Expense Management" :
                                         activeTab === "teams" ? (isCleanerSelfServiceView ? "Profile" : "Field Staff Assignments") :
                                             activeTab === "departments" ? "Departments" :
                                             activeTab === "edit-requests" ? "Modification Requests Inbox" :
@@ -4629,6 +4804,26 @@ export default function Home() {
                     />
                 )}
 
+                {activeTab === "expenses" && (
+                    <ExpensesTab
+                        Icons={Icons}
+                        canReviewExpenses={canReviewExpenses}
+                        myExpenses={myExpenses}
+                        pendingExpenseApprovals={pendingExpenseApprovals}
+                        reviewedExpenses={reviewedExpenses}
+                        expenseForm={expenseForm}
+                        setExpenseForm={setExpenseForm}
+                        expenseReceiptUploading={expenseReceiptUploading}
+                        expenseSubmitting={expenseSubmitting}
+                        expenseFeedback={expenseFeedback}
+                        expenseRejectReason={expenseRejectReason}
+                        setExpenseRejectReason={setExpenseRejectReason}
+                        handleExpenseReceiptCapture={handleExpenseReceiptCapture}
+                        handleSubmitExpense={handleSubmitExpense}
+                        handleReviewExpense={handleReviewExpense}
+                    />
+                )}
+
                 {/* TAB 4: FIELD STAFF ASSIGNMENTS VIEW */}
                 {activeTab === "teams" && (
                     <TeamsTab
@@ -4679,6 +4874,7 @@ export default function Home() {
                         updateAvailabilityDayShift={updateAvailabilityDayShift}
                         addBlockedDateToDraft={addBlockedDateToDraft}
                         removeBlockedDateFromDraft={removeBlockedDateFromDraft}
+                        handleUpdateEmploymentStatus={handleUpdateEmploymentStatus}
                     />
                 )}
 
@@ -4784,6 +4980,17 @@ export default function Home() {
                     <button onClick={() => setActiveTab("jobs")} className={`mobile-nav-item ${activeTab === "jobs" ? "active" : ""}`}>
                         {Icons.Clock()}
                         <span>Jobs</span>
+                    </button>
+                )}
+                {canViewOperations && (
+                    <button onClick={() => setActiveTab("expenses")} className={`mobile-nav-item relative ${activeTab === "expenses" ? "active" : ""}`}>
+                        {Icons.Cash()}
+                        <span>Expenses</span>
+                        {canReviewExpenses && pendingExpenseApprovals.length > 0 && (
+                            <span className="absolute -top-1 right-2 bg-amber-500 text-white rounded-full w-4 h-4 text-[9px] flex items-center justify-center font-black">
+                                {pendingExpenseApprovals.length}
+                            </span>
+                        )}
                     </button>
                 )}
                 {canViewPeople && (
@@ -6343,6 +6550,19 @@ export default function Home() {
                                                         <option value="Completed">Completed</option>
                                                         <option value="Cancelled">Cancelled</option>
                                                     </select>
+                                                </div>
+                                                <div className="form-group flex flex-col gap-1">
+                                                    <label className="font-bold text-slate-700">Material Cost ($)</label>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        step="0.01"
+                                                        value={bookingForm.materialCost || ""}
+                                                        onChange={e => setBookingForm(prev => ({ ...prev, materialCost: e.target.value }))}
+                                                        placeholder="0.00"
+                                                        className="border border-slate-200 rounded-lg p-2"
+                                                    />
+                                                    <small className="text-slate-400">Feeds job profitability once marked Completed.</small>
                                                 </div>
                                                 <div className="form-group flex flex-col gap-1">
                                                     <label className="font-bold text-slate-700">Payment Status</label>

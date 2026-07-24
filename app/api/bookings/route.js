@@ -12,6 +12,7 @@ import {
 import { generateReferralCode, ensurePromotionList, normalizePromoCode, applyPromotion } from "../../../lib/promotions";
 import { getCustomerPromoContext, getPersonalReferralCode } from "../../../lib/customerRewards";
 import { computeBookingPricing } from "../../../lib/pricing";
+import { buildJobFinancialRecord } from "../../../lib/financials";
 
 // Lead → Quote → Booking(Pending/Confirmed) → Completed. "Quote" sits between
 // a raw enquiry and an accepted booking — pricing has been sent, customer
@@ -496,6 +497,20 @@ export async function PUT(request) {
                 })
             };
             await bookingRef.set(updatedBooking);
+
+            // Every completed job creates/refreshes its financial record —
+            // the data model for Daily Business Performance (live sync to
+            // Google Sheets/QuickBooks is a stub until credentials exist).
+            if (nextStatus === "Completed") {
+                const timeEntriesSnap = await adminDb.collection("timeEntries")
+                    .where("bookingId", "==", updatedBooking.id)
+                    .where("status", "==", "approved")
+                    .get();
+                const approvedTimeEntries = timeEntriesSnap.docs.map(doc => doc.data());
+                const financialRecord = buildJobFinancialRecord(updatedBooking, approvedTimeEntries);
+                await adminDb.collection("financialRecords").doc(updatedBooking.id).set(financialRecord);
+            }
+
             return NextResponse.json({ message: "Booking updated directly by Admin", booking: updatedBooking }, { status: 200 });
         } else {
             // Team Leader updates: Write to review table 'editRequests' for Admin approval

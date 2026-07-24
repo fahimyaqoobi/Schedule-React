@@ -2529,6 +2529,26 @@ label {
     gap: 28px;
 }
 
+.people-roster-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.people-roster-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.people-roster-section-head h4 {
+    font-size: 13px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #475569;
+}
+
 .people-profile-canvas {
     background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
     border: 1px solid #dbeafe;
@@ -3886,6 +3906,19 @@ label {
     color: #64748b;
     font-size: 13px;
     font-weight: 700;
+}
+
+.people-employment-status-select {
+    display: block;
+    margin-top: 6px;
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    color: #111827;
+    font-size: 13px;
+    font-weight: 800;
 }
 
 .people-mobile-info-card strong,

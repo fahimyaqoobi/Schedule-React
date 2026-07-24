@@ -379,6 +379,29 @@ export default function DashboardTab({
                             </div>
 
                             <div className="dashboard-health-group">
+                                <div className="dashboard-health-group-title">Daily P&amp;L</div>
+                                <div className="dashboard-health-group-body">
+                                    <div className="dashboard-health-stat">
+                                        <span>Revenue</span>
+                                        <strong>${adminCommandMetrics.dailyPnl.revenue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</strong>
+                                    </div>
+                                    <div className="dashboard-health-stat">
+                                        <span>Labor Cost</span>
+                                        <strong>${adminCommandMetrics.dailyPnl.laborCost.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</strong>
+                                    </div>
+                                    <div className="dashboard-health-stat">
+                                        <span>Material Cost</span>
+                                        <strong>${adminCommandMetrics.dailyPnl.materialCost.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</strong>
+                                    </div>
+                                    <div className="dashboard-health-stat">
+                                        <span>Net Profit</span>
+                                        <strong>${adminCommandMetrics.dailyPnl.profit.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</strong>
+                                        <small>{adminCommandMetrics.jobsCompletedTodayWithFinancials} job{adminCommandMetrics.jobsCompletedTodayWithFinancials !== 1 ? "s" : ""} completed today</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="dashboard-health-group">
                                 <div className="dashboard-health-group-title">Money</div>
                                 <div className="dashboard-health-group-body">
                                     <div className="dashboard-health-stat">
@@ -393,6 +416,15 @@ export default function DashboardTab({
                                         <span>Outstanding Invoices</span>
                                         <strong>${adminCommandMetrics.pendingPaymentAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</strong>
                                         <small>{adminCommandMetrics.pendingPaymentCount} job{adminCommandMetrics.pendingPaymentCount !== 1 ? "s" : ""}</small>
+                                    </div>
+                                    <div
+                                        className={`dashboard-health-stat${adminCommandMetrics.pendingExpenseCount > 0 ? " alert" : ""}`}
+                                        style={{ cursor: "pointer" }}
+                                        onClick={() => setActiveTab("expenses")}
+                                    >
+                                        <span>Approved Expenses</span>
+                                        <strong>${adminCommandMetrics.approvedExpenseTotal.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</strong>
+                                        <small>{adminCommandMetrics.pendingExpenseCount} pending approval</small>
                                     </div>
                                 </div>
                             </div>

@@ -48,7 +48,55 @@ export default function TeamsTab({
     updateAvailabilityDayShift,
     addBlockedDateToDraft,
     removeBlockedDateFromDraft,
+    handleUpdateEmploymentStatus,
 }) {
+    const approvedEmployees = peopleRoster.filter(member => member.status === "approved");
+    const newApplications = peopleRoster.filter(member => member.status !== "approved");
+
+    const renderRosterCard = (member) => {
+        const assignedJobs = bookings.filter(b => b.assignedStaffIds?.includes(member.uid) && b.status !== "Cancelled");
+        const completedCount = assignedJobs.filter(b => b.status === "Completed").length;
+        const initials = getInitials(member.name || member.email || "FS");
+        const requestPending = member.staffProfileRequest?.requestedProfile;
+        return (
+            <button
+                key={member.uid}
+                type="button"
+                onClick={() => {
+                    setSelectedStaffUid(member.uid);
+                    setStaffProfileDraftOwnerUid(member.uid);
+                    setStaffProfileDraft(normalizeStaffProfile(member.staffProfile));
+                    setStaffProfileFeedback("");
+                    setStaffProfileRejectReason("");
+                    setStaffProfileEditOpen(false);
+                }}
+                className={`rounded-[28px] border p-3 text-left shadow-sm transition ${selectedStaffMember?.uid === member.uid ? "border-blue-500 bg-blue-50 shadow-md" : "border-slate-200 bg-white hover:border-slate-300"}`}
+            >
+                <div className="flex flex-col items-center gap-2">
+                    <div className={`relative h-16 w-16 overflow-hidden rounded-full border-4 ${selectedStaffMember?.uid === member.uid ? "border-blue-500" : "border-slate-100"} bg-blue-600 text-white flex items-center justify-center text-lg font-extrabold`}>
+                        {member.photoURL ? (
+                            <img src={member.photoURL} alt={member.name || member.email} className="h-full w-full object-cover" />
+                        ) : initials}
+                        <span className={`absolute bottom-0 right-0 h-4 w-4 rounded-full border-2 border-white ${member.status === "approved" ? "bg-emerald-500" : "bg-amber-400"}`}></span>
+                    </div>
+                    <div className="flex flex-wrap justify-center gap-1">
+                        <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${member.staffProfileMeta?.status === "approved" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>P</span>
+                        <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${assignedJobs.length > 0 ? "bg-blue-50 text-blue-700" : "bg-slate-100 text-slate-600"}`}>J{assignedJobs.length}</span>
+                        <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${completedCount > 0 ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>C{completedCount}</span>
+                        {requestPending && <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold text-amber-700">R</span>}
+                        {member.status === "approved" && member.employmentStatus && member.employmentStatus !== "Active" && (
+                            <span className="rounded-full bg-rose-100 px-2 py-1 text-[10px] font-bold text-rose-700">{member.employmentStatus}</span>
+                        )}
+                    </div>
+                    <div className="text-center">
+                        <h4 className="line-clamp-2 text-xs font-bold text-slate-800">{member.name}</h4>
+                        <span className="text-[10px] text-slate-500">{getRoleLabel(member.role)}</span>
+                    </div>
+                </div>
+            </button>
+        );
+    };
+
     return (
         <div className="animate-fade flex flex-col gap-6">
             {!isViewingOwnCleanerProfile && (
@@ -72,48 +120,32 @@ export default function TeamsTab({
             ) : (
                 <div className="people-management-shell">
                     {!isViewingOwnCleanerProfile && (
-                        <div className="grid grid-cols-4 gap-3 md:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10">
-                            {peopleRoster.map(member => {
-                                const assignedJobs = bookings.filter(b => b.assignedStaffIds?.includes(member.uid) && b.status !== "Cancelled");
-                                const completedCount = assignedJobs.filter(b => b.status === "Completed").length;
-                                const initials = getInitials(member.name || member.email || "FS");
-                                const requestPending = member.staffProfileRequest?.requestedProfile;
-                                return (
-                                    <button
-                                        key={member.uid}
-                                        type="button"
-                                        onClick={() => {
-                                            setSelectedStaffUid(member.uid);
-                                            setStaffProfileDraftOwnerUid(member.uid);
-                                            setStaffProfileDraft(normalizeStaffProfile(member.staffProfile));
-                                            setStaffProfileFeedback("");
-                                            setStaffProfileRejectReason("");
-                                            setStaffProfileEditOpen(false);
-                                        }}
-                                        className={`rounded-[28px] border p-3 text-left shadow-sm transition ${selectedStaffMember?.uid === member.uid ? "border-blue-500 bg-blue-50 shadow-md" : "border-slate-200 bg-white hover:border-slate-300"}`}
-                                    >
-                                        <div className="flex flex-col items-center gap-2">
-                                            <div className={`relative h-16 w-16 overflow-hidden rounded-full border-4 ${selectedStaffMember?.uid === member.uid ? "border-blue-500" : "border-slate-100"} bg-blue-600 text-white flex items-center justify-center text-lg font-extrabold`}>
-                                                {member.photoURL ? (
-                                                    <img src={member.photoURL} alt={member.name || member.email} className="h-full w-full object-cover" />
-                                                ) : initials}
-                                                <span className={`absolute bottom-0 right-0 h-4 w-4 rounded-full border-2 border-white ${member.status === "approved" ? "bg-emerald-500" : "bg-amber-400"}`}></span>
-                                            </div>
-                                            <div className="flex flex-wrap justify-center gap-1">
-                                                <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${member.staffProfileMeta?.status === "approved" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>P</span>
-                                                <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${assignedJobs.length > 0 ? "bg-blue-50 text-blue-700" : "bg-slate-100 text-slate-600"}`}>J{assignedJobs.length}</span>
-                                                <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${completedCount > 0 ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>C{completedCount}</span>
-                                                {requestPending && <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold text-amber-700">R</span>}
-                                            </div>
-                                            <div className="text-center">
-                                                <h4 className="line-clamp-2 text-xs font-bold text-slate-800">{member.name}</h4>
-                                                <span className="text-[10px] text-slate-500">{getRoleLabel(member.role)}</span>
-                                            </div>
-                                        </div>
-                                    </button>
-                                );
-                            })}
-                        </div>
+                        <>
+                            {newApplications.length > 0 && (
+                                <div className="people-roster-section">
+                                    <div className="people-roster-section-head">
+                                        <h4>New Applications</h4>
+                                        <span className="ops-chip">{newApplications.length}</span>
+                                    </div>
+                                    <div className="grid grid-cols-4 gap-3 md:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10">
+                                        {newApplications.map(renderRosterCard)}
+                                    </div>
+                                </div>
+                            )}
+                            <div className="people-roster-section">
+                                <div className="people-roster-section-head">
+                                    <h4>Approved Employees</h4>
+                                    <span className="ops-chip">{approvedEmployees.length}</span>
+                                </div>
+                                {approvedEmployees.length === 0 ? (
+                                    <div className="text-xs text-slate-400 py-4">No approved employees yet.</div>
+                                ) : (
+                                    <div className="grid grid-cols-4 gap-3 md:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10">
+                                        {approvedEmployees.map(renderRosterCard)}
+                                    </div>
+                                )}
+                            </div>
+                        </>
                     )}
 
                     {selectedStaffMember && activeStaffProfileDraft && (
@@ -242,6 +274,22 @@ export default function TeamsTab({
                                                         </article>
                                                     ))}
                                                 </div>
+                                                {canManagePeopleProfiles && (
+                                                    <div className="people-mobile-mini-card" style={{ marginTop: 8 }}>
+                                                        <span>Employment Status</span>
+                                                        <select
+                                                            value={selectedStaffMember.employmentStatus || "Active"}
+                                                            onChange={e => handleUpdateEmploymentStatus(selectedStaffMember.uid, e.target.value)}
+                                                            disabled={staffProfileSaving}
+                                                            className="people-employment-status-select"
+                                                        >
+                                                            <option value="Active">Active</option>
+                                                            <option value="Inactive">Inactive</option>
+                                                            <option value="Suspended">Suspended</option>
+                                                            <option value="On Leave">On Leave</option>
+                                                        </select>
+                                                    </div>
+                                                )}
                                             </section>
                                             <section className="people-mobile-card-group">
                                                 <label>Internal Notes</label>
@@ -598,6 +646,22 @@ export default function TeamsTab({
                                             </div>
                                             <div className="people-profile-read-list">
                                                 <div><span>Worker Type</span><strong>{activeStaffProfileDraft.employment.workerType || getRoleLabel(selectedStaffMember.role)}</strong></div>
+                                                {canManagePeopleProfiles && (
+                                                    <div>
+                                                        <span>Employment Status</span>
+                                                        <select
+                                                            value={selectedStaffMember.employmentStatus || "Active"}
+                                                            onChange={e => handleUpdateEmploymentStatus(selectedStaffMember.uid, e.target.value)}
+                                                            disabled={staffProfileSaving}
+                                                            className="people-employment-status-select"
+                                                        >
+                                                            <option value="Active">Active</option>
+                                                            <option value="Inactive">Inactive</option>
+                                                            <option value="Suspended">Suspended</option>
+                                                            <option value="On Leave">On Leave</option>
+                                                        </select>
+                                                    </div>
+                                                )}
                                                 <div><span>Hourly Rate</span><strong>${Number(activeStaffProfileDraft.employment.hourlyRate || 20).toFixed(2)}/hr</strong></div>
                                                 <div><span>Overtime Rate</span><strong>${Number(activeStaffProfileDraft.employment.overtimeRate || 30).toFixed(2)}/hr</strong></div>
                                                 <div><span>Overtime After</span><strong>{Number(activeStaffProfileDraft.employment.overtimeAfterHours || 44)} hrs/week</strong></div>

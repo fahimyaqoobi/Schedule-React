@@ -460,17 +460,17 @@ export async function PUT(request) {
             return NextResponse.json({ error: "Forbidden: Only Administrators can update user details." }, { status: 403 });
         }
         
-        const { targetUid, teamId, role, branchId, branchName, branchIds, departmentIds } = body;
+        const { targetUid, teamId, role, branchId, branchName, branchIds, departmentIds, applicantStatus, employmentStatus } = body;
         if (!targetUid) {
             return NextResponse.json({ error: "Missing target user UID" }, { status: 400 });
         }
-        
+
         const userRef = adminDb.collection("users").doc(targetUid);
         const docSnap = await userRef.get();
         if (!docSnap.exists) {
             return NextResponse.json({ error: "User profile not found" }, { status: 404 });
         }
-        
+
         const targetUserData = docSnap.data();
         const updatedData = {
             ...targetUserData,
@@ -480,6 +480,8 @@ export async function PUT(request) {
             branchName: branchName !== undefined ? branchName : (targetUserData.branchName || "Ottawa"),
             departmentIds: departmentIds || ROLE_DEFINITIONS[role || targetUserData.role]?.departments || targetUserData.departmentIds || [],
             teamId: teamId !== undefined ? teamId : targetUserData.teamId,
+            applicantStatus: applicantStatus !== undefined ? applicantStatus : targetUserData.applicantStatus,
+            employmentStatus: employmentStatus !== undefined ? employmentStatus : targetUserData.employmentStatus,
             updatedAt: new Date().toISOString()
         };
         
