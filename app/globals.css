@@ -9890,3 +9890,247 @@ body:has(.modal-backdrop.show) {
     }
 }
 
+
+/* ══════════════════════════════════════════════════════════════
+   CLEANER JOB WIZARD — Modernized
+   Namespace: .cjw-*  (replaces the old fully-inline-styled wizard)
+   ══════════════════════════════════════════════════════════════ */
+
+.cjw-progress {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 6px 0 18px;
+    gap: 0;
+}
+.cjw-progress-step { display: flex; align-items: flex-start; }
+.cjw-progress-dot {
+    width: 30px; height: 30px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: #e2e8f0; color: #94a3b8;
+    font-size: 12px; font-weight: 800;
+    transition: background 0.2s, color 0.2s;
+    flex-shrink: 0;
+}
+.cjw-progress-dot.active { background: var(--color-brand-action); color: #fff; }
+.cjw-progress-dot.done { background: var(--color-brand-green); color: #fff; }
+.cjw-progress-col { display: flex; flex-direction: column; align-items: center; gap: 5px; width: 68px; }
+.cjw-progress-label {
+    font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;
+    color: #94a3b8; text-align: center;
+}
+.cjw-progress-label.active { color: var(--color-brand-action); }
+.cjw-progress-connector { width: 30px; height: 3px; border-radius: 99px; background: #e2e8f0; margin: 14px 4px 0; flex-shrink: 0; }
+.cjw-progress-connector.done { background: var(--color-brand-green); }
+
+.cjw-hero {
+    background: linear-gradient(135deg, var(--color-brand-deep), var(--color-brand-action));
+    border-radius: 20px;
+    padding: 18px 20px;
+    color: #fff;
+    box-shadow: 0 10px 24px -10px rgba(0, 86, 145, 0.45);
+}
+.cjw-hero-service { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
+.cjw-hero-meta { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 10px; }
+.cjw-hero-meta-item { display: flex; flex-direction: column; gap: 1px; }
+.cjw-hero-meta-item .l { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: rgba(255,255,255,0.7); }
+.cjw-hero-meta-item .v { font-size: 13px; font-weight: 700; }
+
+.cjw-address-card {
+    display: flex; align-items: center; gap: 12px;
+    background: #fff; border: 1.5px solid #e2e8f0; border-radius: 16px;
+    padding: 14px 16px; text-decoration: none; color: inherit;
+}
+.cjw-address-icon {
+    width: 38px; height: 38px; border-radius: 12px; background: #eef4fb;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 18px;
+}
+.cjw-address-text { flex: 1; min-width: 0; }
+.cjw-address-label { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; }
+.cjw-address-value { font-size: 13.5px; font-weight: 700; color: var(--color-brand-action); margin-top: 1px; }
+.cjw-address-chevron { color: #cbd5e1; flex-shrink: 0; }
+
+.cjw-notice {
+    background: #fffbeb; border: 1.5px solid #fde68a; border-radius: 16px;
+    padding: 14px 16px;
+}
+.cjw-notice-title { font-size: 12px; font-weight: 800; color: #92400e; display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.cjw-notice-row { font-size: 12.5px; color: #78350f; line-height: 1.55; }
+.cjw-notice-row + .cjw-notice-row { margin-top: 6px; }
+.cjw-notice-row b { font-weight: 700; }
+
+.cjw-banner {
+    display: flex; align-items: center; justify-content: space-between;
+    border-radius: 16px; padding: 14px 16px;
+}
+.cjw-banner.live { background: #f0fdf4; border: 1.5px solid #bbf7d0; }
+.cjw-banner.warn { background: #fff7ed; border: 1.5px solid #fed7aa; }
+.cjw-banner-title { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; }
+.cjw-banner.live .cjw-banner-title { color: #16a34a; }
+.cjw-banner.warn .cjw-banner-title { color: #c2410c; }
+.cjw-banner-sub { font-size: 13px; font-weight: 700; margin-top: 3px; }
+.cjw-banner.live .cjw-banner-sub { color: #166534; }
+.cjw-banner.warn .cjw-banner-sub { color: #9a3412; font-weight: 600; }
+.cjw-banner-count { font-size: 22px; font-weight: 900; color: #16a34a; }
+
+.cjw-section-label {
+    font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em;
+    color: #64748b; display: flex; align-items: center; justify-content: space-between;
+    margin: 4px 2px;
+}
+
+.cjw-task-card {
+    background: #fff; border: 1.5px solid #e2e8f0; border-radius: 16px;
+    padding: 14px; transition: background 0.15s, border-color 0.15s;
+}
+.cjw-task-card.done { background: #f0fdf4; border-color: #bbf7d0; }
+.cjw-task-top { display: flex; align-items: flex-start; gap: 12px; }
+.cjw-task-check {
+    width: 28px; height: 28px; border-radius: 9px; flex-shrink: 0;
+    border: 2px solid #cbd5e1; background: #fff;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+.cjw-task-check.done { background: var(--color-brand-green); border-color: var(--color-brand-green); }
+.cjw-task-body { flex: 1; min-width: 0; }
+.cjw-task-label { font-size: 13.5px; font-weight: 700; color: #1e293b; line-height: 1.4; }
+.cjw-task-label.done { color: #15803d; text-decoration: line-through; }
+.cjw-task-tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 99px; margin-top: 5px;
+}
+.cjw-task-tag.required { color: #dc2626; background: #fef2f2; }
+.cjw-task-tag.needed { color: #b45309; background: #fffbeb; }
+
+.cjw-photo-caption { font-size: 10.5px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin: 10px 0 7px; }
+.cjw-photo-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.cjw-photo-thumb { position: relative; width: 58px; height: 58px; border-radius: 12px; overflow: hidden; }
+.cjw-photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cjw-photo-thumb.pending { background: #f1f5f9; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #94a3b8; }
+.cjw-photo-remove {
+    position: absolute; top: -5px; right: -5px; width: 20px; height: 20px; border-radius: 50%;
+    background: #ef4444; border: 2px solid #fff; color: #fff; font-size: 12px; line-height: 1;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.cjw-photo-add {
+    width: 58px; height: 58px; border-radius: 12px; flex-shrink: 0;
+    border: 2px dashed #94a3b8; background: #f8fafc;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    font-size: 24px; color: #94a3b8; line-height: 1;
+}
+.cjw-photo-mini-row { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 8px; }
+.cjw-photo-mini { width: 40px; height: 40px; border-radius: 9px; overflow: hidden; background: #f1f5f9; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #94a3b8; }
+.cjw-photo-mini img { width: 100%; height: 100%; object-fit: cover; }
+
+.cjw-add-task-btn {
+    border: 2px dashed #cbd5e1; border-radius: 14px; padding: 12px 0;
+    background: transparent; color: #64748b; font-size: 13px; font-weight: 700;
+    cursor: pointer; width: 100%;
+}
+.cjw-add-task-row { display: flex; gap: 8px; }
+.cjw-add-task-row input {
+    flex: 1; border: 1.5px solid #cbd5e1; border-radius: 12px; padding: 11px 14px;
+    font-size: 14px; font-family: inherit;
+}
+.cjw-add-task-row input:focus { outline: none; border-color: var(--color-brand-action); }
+.cjw-add-task-row button { border-radius: 12px; padding: 0 16px; font-size: 13px; font-weight: 800; border: none; cursor: pointer; }
+.cjw-add-task-row .cjw-confirm { background: var(--color-brand-action); color: #fff; }
+.cjw-add-task-row .cjw-cancel { background: #f1f5f9; color: #64748b; }
+
+.cjw-hint {
+    font-size: 12.5px; color: #b45309; text-align: center; font-weight: 600;
+    background: #fffbeb; border-radius: 10px; padding: 8px 12px;
+}
+
+.cjw-cta {
+    width: 100%; padding: 16px; border-radius: 16px; border: none;
+    font-size: 15.5px; font-weight: 800; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    transition: opacity 0.15s, transform 0.1s;
+}
+.cjw-cta:active { transform: scale(0.985); }
+.cjw-cta.primary { background: var(--color-brand-action); color: #fff; box-shadow: 0 8px 20px -8px rgba(10,108,184,0.55); }
+.cjw-cta.danger { background: #ef4444; color: #fff; box-shadow: 0 8px 20px -8px rgba(239,68,68,0.5); }
+.cjw-cta.success { background: var(--color-brand-green); color: #fff; box-shadow: 0 8px 20px -8px rgba(120,165,62,0.5); }
+.cjw-cta:disabled { background: #e2e8f0; color: #94a3b8; box-shadow: none; cursor: not-allowed; }
+
+.cjw-success { text-align: center; padding: 44px 16px; }
+.cjw-success-badge {
+    width: 76px; height: 76px; border-radius: 50%; background: #d1fae5;
+    display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;
+}
+.cjw-success-title { font-size: 21px; font-weight: 900; color: #064e3b; margin-bottom: 8px; }
+.cjw-success-body { font-size: 13.5px; color: #6b7280; line-height: 1.6; max-width: 32ch; margin: 0 auto; }
+
+.cjw-empty { color: #94a3b8; font-size: 13px; text-align: center; padding: 20px 0; }
+
+@media (max-width: 480px) {
+    .cjw-progress-col { width: 58px; }
+    .cjw-hero { padding: 16px; }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   CLEANER JOBS TAB — Modern refresh
+   Additive overrides only — does not touch the shared
+   .admin-payroll-* selectors also grouped into the base rules above.
+   ══════════════════════════════════════════════════════════════ */
+
+.cleaner-jobs-mobile .cleaner-payroll-summary-card {
+    background: linear-gradient(135deg, var(--color-brand-deep), var(--color-brand-action));
+    border: none;
+    color: #fff;
+    box-shadow: 0 16px 32px -12px rgba(0, 86, 145, 0.4);
+}
+.cleaner-jobs-mobile .cleaner-payroll-summary-head span { color: rgba(255,255,255,0.72); }
+.cleaner-jobs-mobile .cleaner-payroll-summary-head h3 { color: #fff; }
+.cleaner-jobs-mobile .cleaner-period-badge { background: rgba(255,255,255,0.18); color: #fff; }
+.cleaner-jobs-mobile .cleaner-payroll-summary-stats strong { color: #fff; }
+.cleaner-jobs-mobile .cleaner-payroll-summary-stats div span { color: rgba(255,255,255,0.72); }
+.cleaner-jobs-mobile .cleaner-payroll-summary-foot { border-top-color: rgba(255,255,255,0.2); color: #fff; }
+.cleaner-jobs-mobile .cleaner-payroll-summary-foot strong,
+.cleaner-jobs-mobile .cleaner-payroll-summary-foot em { color: rgba(255,255,255,0.92); }
+
+.cleaner-jobs-mobile .cleaner-shift-button {
+    border-color: var(--method-get-bg, #e7f1fb);
+    background: linear-gradient(135deg, var(--color-brand-action), var(--color-brand-sky, #0092c7));
+    box-shadow: 0 14px 30px -10px rgba(10, 108, 184, 0.55);
+    transition: transform 0.12s ease;
+}
+.cleaner-jobs-mobile .cleaner-shift-button:active { transform: scale(0.98); }
+.cleaner-jobs-mobile .cleaner-shift-button.clock-out {
+    background: linear-gradient(135deg, #ef4444, #f97316);
+    box-shadow: 0 14px 30px -10px rgba(239, 68, 68, 0.5);
+}
+
+.cleaner-jobs-mobile .cleaner-job-card {
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+.cleaner-jobs-mobile .cleaner-job-card.active {
+    border-color: var(--color-brand-action);
+    box-shadow: 0 0 0 3px rgba(10, 108, 184, 0.14);
+    background: #f6fbff;
+}
+.cleaner-jobs-mobile .cleaner-job-card-foot button {
+    background: var(--color-brand-action);
+    border: none;
+    cursor: pointer;
+}
+.cleaner-jobs-mobile .cleaner-job-card.active .cleaner-job-card-foot button {
+    background: var(--color-brand-green);
+}
+
+.cleaner-jobs-mobile .cleaner-entry-status.status-approved strong { color: var(--color-brand-green); }
+.cleaner-jobs-mobile .cleaner-entry-status.status-pending_approval strong { color: #b45309; }
+.cleaner-jobs-mobile .cleaner-entry-status.status-rejected strong { color: #dc2626; }
+
+@media (max-width: 640px) {
+    .cleaner-jobs-mobile { gap: 14px; }
+    .cleaner-jobs-mobile .cleaner-payroll-summary-card,
+    .cleaner-jobs-mobile .cleaner-active-shift-card,
+    .cleaner-jobs-mobile .cleaner-assigned-jobs-list,
+    .cleaner-jobs-mobile .cleaner-recent-time-list {
+        border-radius: 20px;
+        padding: 18px;
+    }
+    .cleaner-jobs-mobile .cleaner-shift-button { width: 220px; }
+}

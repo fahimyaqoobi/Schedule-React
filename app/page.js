@@ -1135,6 +1135,8 @@ export default function Home() {
     const [cleanerJobTab, setCleanerJobTab] = useState("overview");
     const [cleanerJobDrafts, setCleanerJobDrafts] = useState({});
     const [pendingAfterPhotos, setPendingAfterPhotos] = useState({});
+    const [cleanerExtraTaskOpen, setCleanerExtraTaskOpen] = useState(false);
+    const [cleanerExtraTaskInput, setCleanerExtraTaskInput] = useState("");
     const [adminClockForm, setAdminClockForm] = useState({ cleanerUid: "", bookingId: "", startedAt: "" });
     const [editRequestResolutions, setEditRequestResolutions] = useState({});
     const [timeEntryEditDrafts, setTimeEntryEditDrafts] = useState({});
@@ -3161,8 +3163,7 @@ export default function Home() {
         }
     }, [cleanerJobDrafts, currentUser, getAuthHeaders, syncDatabaseData]);
 
-    const addCleanerExtraTask = useCallback((bookingId) => {
-        const label = prompt("Describe the extra task:");
+    const addCleanerExtraTask = useCallback((bookingId, label) => {
         if (!label?.trim()) return;
         setCleanerJobDrafts(prev => {
             const draft = prev[bookingId];
@@ -5840,60 +5841,61 @@ export default function Home() {
                                 <div className="modal-body flex flex-col gap-4 text-xs p-6">
                                     {isCleanerBookingEditor ? (
                                         <>
-                                            {/* ── CLEANER JOB WIZARD ── */}
+                                            {/* ── CLEANER JOB WIZARD (modernized, .cjw-* classes in globals.css) ── */}
                                             {cleanerWizardPhase !== "submitted" && cleanerWizardPhase !== "read_only" && (
-                                                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "4px 0 12px" }}>
+                                                <div className="cjw-progress">
                                                     {[["Check In", 0], ["Working", 1], ["Submit", 2]].map(([label, i]) => {
                                                         const phases = ["before_start", "in_progress", "after_photos"];
                                                         const cur = phases.indexOf(cleanerWizardPhase);
                                                         const active = cur >= i;
+                                                        const done = cur > i;
                                                         return (
-                                                            <div key={label} style={{ display: "flex", alignItems: "center" }}>
-                                                                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
-                                                                    <div style={{ width: 26, height: 26, borderRadius: "50%", background: active ? "#3b82f6" : "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                                                        {cur > i
+                                                            <div key={label} className="cjw-progress-step">
+                                                                <div className="cjw-progress-col">
+                                                                    <div className={`cjw-progress-dot${done ? " done" : active ? " active" : ""}`}>
+                                                                        {done
                                                                             ? <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 6.5l3.5 3.5 5.5-6" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                                                                            : <span style={{ fontSize: 11, fontWeight: 800, color: active ? "#fff" : "#94a3b8" }}>{i + 1}</span>
+                                                                            : <span>{i + 1}</span>
                                                                         }
                                                                     </div>
-                                                                    <span style={{ fontSize: 9, fontWeight: 700, color: active ? "#3b82f6" : "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</span>
+                                                                    <span className={`cjw-progress-label${active ? " active" : ""}`}>{label}</span>
                                                                 </div>
-                                                                {i < 2 && <div style={{ width: 28, height: 2, background: cur > i ? "#3b82f6" : "#e2e8f0", margin: "0 4px", marginBottom: 14 }} />}
+                                                                {i < 2 && <div className={`cjw-progress-connector${done ? " done" : ""}`} />}
                                                             </div>
                                                         );
                                                     })}
-
                                                 </div>
                                             )}
 
                                             {/* ── SUBMITTED ── */}
                                             {cleanerWizardPhase === "submitted" && (
-                                                <div style={{ textAlign: "center", padding: "40px 16px" }}>
-                                                    <div style={{ width: 72, height: 72, borderRadius: "50%", background: "#d1fae5", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}>
+                                                <div className="cjw-success">
+                                                    <div className="cjw-success-badge">
                                                         <svg width="36" height="36" viewBox="0 0 36 36" fill="none"><path d="M6 18l9 9 15-15" stroke="#059669" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                                                     </div>
-                                                    <div style={{ fontSize: 20, fontWeight: 900, color: "#064e3b", marginBottom: 8 }}>Job Submitted!</div>
-                                                    <div style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.6 }}>Your work has been submitted for admin review. You will be notified once it is approved.</div>
+                                                    <div className="cjw-success-title">Job Submitted!</div>
+                                                    <div className="cjw-success-body">Your work has been submitted for admin review. You will be notified once it is approved.</div>
                                                 </div>
                                             )}
 
                                             {/* ── READ ONLY (past/future job) ── */}
                                             {cleanerWizardPhase === "read_only" && (
                                                 <>
-                                                    <div className="detail-card">
-                                                        <div className="detail-card-title">🧹 Job Overview</div>
-                                                        <div className="detail-card-grid">
-                                                            <div className="detail-row"><span className="detail-label">Service</span><span className="detail-value bold">{bookingForm.service}</span></div>
-                                                            <div className="detail-row"><span className="detail-label">Date</span><span className="detail-value bold">{bookingForm.date}</span></div>
-                                                            <div className="detail-row"><span className="detail-label">Time</span><span className="detail-value">{bookingForm.time}</span></div>
-                                                            <div className="detail-row"><span className="detail-label">Duration</span><span className="detail-value">{bookingForm.duration} hrs</span></div>
+                                                    <div className="cjw-hero">
+                                                        <div className="cjw-hero-service">🧹 {bookingForm.service}</div>
+                                                        <div className="cjw-hero-meta">
+                                                            <div className="cjw-hero-meta-item"><span className="l">Date</span><span className="v">{bookingForm.date}</span></div>
+                                                            <div className="cjw-hero-meta-item"><span className="l">Time</span><span className="v">{bookingForm.time}</span></div>
+                                                            <div className="cjw-hero-meta-item"><span className="l">Duration</span><span className="v">{bookingForm.duration} hrs</span></div>
                                                         </div>
                                                     </div>
-                                                    <a href={getGoogleMapsDirectionsUrl(bookingForm)} target="_blank" rel="noreferrer" className="detail-card block no-underline">
-                                                        <div className="detail-card-title">📍 Address — Tap for Directions</div>
-                                                        <div className="detail-card-grid">
-                                                            <div className="detail-row full-width"><span className="detail-value font-semibold text-blue-600">{formatAddress(bookingForm)}</span></div>
+                                                    <a href={getGoogleMapsDirectionsUrl(bookingForm)} target="_blank" rel="noreferrer" className="cjw-address-card">
+                                                        <div className="cjw-address-icon">📍</div>
+                                                        <div className="cjw-address-text">
+                                                            <div className="cjw-address-label">Tap for Directions</div>
+                                                            <div className="cjw-address-value">{formatAddress(bookingForm)}</div>
                                                         </div>
+                                                        <span className="cjw-address-chevron">›</span>
                                                     </a>
                                                 </>
                                             )}
@@ -5905,65 +5907,67 @@ export default function Home() {
                                                 const beforeDone = reqTasks.every(t => (t.beforePhotos || []).some(p => p.url));
                                                 return (
                                                     <>
-                                                        <div className="detail-card">
-                                                            <div className="detail-card-title">🧹 {bookingForm.service}</div>
-                                                            <div className="detail-card-grid">
-                                                                <div className="detail-row"><span className="detail-label">Client</span><span className="detail-value bold">{bookingForm.firstName || "Client"}</span></div>
-                                                                <div className="detail-row"><span className="detail-label">Date &amp; Time</span><span className="detail-value bold">{bookingForm.date} · {bookingForm.time}</span></div>
-                                                                <div className="detail-row"><span className="detail-label">Duration</span><span className="detail-value">{bookingForm.duration} hrs</span></div>
-                                                                <div className="detail-row"><span className="detail-label">Frequency</span><span className="detail-value">{bookingForm.frequency || "One-Time"}</span></div>
+                                                        <div className="cjw-hero">
+                                                            <div className="cjw-hero-service">🧹 {bookingForm.service}</div>
+                                                            <div className="cjw-hero-meta">
+                                                                <div className="cjw-hero-meta-item"><span className="l">Client</span><span className="v">{bookingForm.firstName || "Client"}</span></div>
+                                                                <div className="cjw-hero-meta-item"><span className="l">Date &amp; Time</span><span className="v">{bookingForm.date} · {bookingForm.time}</span></div>
+                                                                <div className="cjw-hero-meta-item"><span className="l">Duration</span><span className="v">{bookingForm.duration} hrs</span></div>
+                                                                <div className="cjw-hero-meta-item"><span className="l">Frequency</span><span className="v">{bookingForm.frequency || "One-Time"}</span></div>
                                                             </div>
                                                         </div>
-                                                        <a href={getGoogleMapsDirectionsUrl(bookingForm)} target="_blank" rel="noreferrer" className="detail-card block no-underline">
-                                                            <div className="detail-card-title">📍 Address — Tap for Directions</div>
-                                                            <div className="detail-card-grid">
-                                                                <div className="detail-row full-width"><span className="detail-value font-semibold text-blue-600">{formatAddress(bookingForm)}</span></div>
+                                                        <a href={getGoogleMapsDirectionsUrl(bookingForm)} target="_blank" rel="noreferrer" className="cjw-address-card">
+                                                            <div className="cjw-address-icon">📍</div>
+                                                            <div className="cjw-address-text">
+                                                                <div className="cjw-address-label">Tap for Directions</div>
+                                                                <div className="cjw-address-value">{formatAddress(bookingForm)}</div>
                                                             </div>
+                                                            <span className="cjw-address-chevron">›</span>
                                                         </a>
                                                         {(bookingForm.accessMode || bookingForm.accessDetails || bookingForm.specialNotes) && (
-                                                            <div className="detail-card" style={{ background: "#fffbeb", borderColor: "#fde68a" }}>
-                                                                <div className="detail-card-title">🔑 Access &amp; Instructions</div>
-                                                                <div className="detail-card-grid">
-                                                                    {bookingForm.accessMode && <div className="detail-row"><span className="detail-label">Access</span><span className="detail-value font-semibold">{bookingForm.accessMode}</span></div>}
-                                                                    {bookingForm.accessDetails && <div className="detail-row full-width"><span className="detail-label">Access Notes</span><span className="detail-value whitespace-pre-wrap">{bookingForm.accessDetails}</span></div>}
-                                                                    {bookingForm.specialNotes && <div className="detail-row full-width"><span className="detail-label">Special Instructions</span><span className="detail-value whitespace-pre-wrap">{bookingForm.specialNotes}</span></div>}
-                                                                </div>
+                                                            <div className="cjw-notice">
+                                                                <div className="cjw-notice-title">🔑 Access &amp; Instructions</div>
+                                                                {bookingForm.accessMode && <div className="cjw-notice-row"><b>Access:</b> {bookingForm.accessMode}</div>}
+                                                                {bookingForm.accessDetails && <div className="cjw-notice-row">{bookingForm.accessDetails}</div>}
+                                                                {bookingForm.specialNotes && <div className="cjw-notice-row">{bookingForm.specialNotes}</div>}
                                                             </div>
                                                         )}
-                                                        <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 16, padding: 16 }}>
-                                                            <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>📸 Before Photos</div>
-                                                            {tasks.length === 0
-                                                                ? <div style={{ color: "#94a3b8", fontSize: 13, textAlign: "center", padding: "12px 0" }}>No tasks defined for this service.</div>
-                                                                : tasks.map((task, idx) => (
-                                                                    <div key={task.id} style={{ paddingBottom: idx < tasks.length - 1 ? 12 : 0, marginBottom: idx < tasks.length - 1 ? 12 : 0, borderBottom: idx < tasks.length - 1 ? "1px solid #f1f5f9" : "none" }}>
-                                                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                                                            <span style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>{task.label}</span>
-                                                                            {task.requiresPhoto && <span style={{ fontSize: 10, fontWeight: 700, color: "#dc2626", background: "#fef2f2", padding: "2px 7px", borderRadius: 99 }}>Required</span>}
+                                                        <div>
+                                                            <div className="cjw-section-label">📸 Before Photos</div>
+                                                            {tasks.length === 0 ? (
+                                                                <div className="cjw-empty">No tasks defined for this service.</div>
+                                                            ) : (
+                                                                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                                                    {tasks.map(task => (
+                                                                        <div key={task.id} className="cjw-task-card">
+                                                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                                                                <span className="cjw-task-label">{task.label}</span>
+                                                                                {task.requiresPhoto && <span className="cjw-task-tag required">Required</span>}
+                                                                            </div>
+                                                                            <div className="cjw-photo-grid" style={{ marginTop: 10 }}>
+                                                                                {(task.beforePhotos || []).map(photo => (
+                                                                                    <div key={photo.id} className="cjw-photo-thumb">
+                                                                                        {photo.url
+                                                                                            ? <img src={photo.url} alt="" />
+                                                                                            : <div className="cjw-photo-thumb pending">{photo.uploading ? "…" : "?"}</div>
+                                                                                        }
+                                                                                        {!photo.uploading && <button type="button" onClick={() => removeCleanerJobPhoto(bookingForm.id, task.id, "beforePhotos", photo.id)} className="cjw-photo-remove">×</button>}
+                                                                                    </div>
+                                                                                ))}
+                                                                                <label className="cjw-photo-add">
+                                                                                    +
+                                                                                    <input type="file" accept="image/*" capture="environment" multiple style={{ display: "none" }} onChange={e => updateCleanerJobPhotos(bookingForm.id, task.id, "beforePhotos", e.target.files)} />
+                                                                                </label>
+                                                                            </div>
                                                                         </div>
-                                                                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
-                                                                            {(task.beforePhotos || []).map(photo => (
-                                                                                <div key={photo.id} style={{ position: "relative" }}>
-                                                                                    {photo.url
-                                                                                        ? <img src={photo.url} alt="" style={{ width: 54, height: 54, borderRadius: 10, objectFit: "cover" }} />
-                                                                                        : <div style={{ width: 54, height: 54, borderRadius: 10, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#94a3b8" }}>{photo.uploading ? "…" : "?"}</div>
-                                                                                    }
-                                                                                    {!photo.uploading && <button type="button" onClick={() => removeCleanerJobPhoto(bookingForm.id, task.id, "beforePhotos", photo.id)} style={{ position: "absolute", top: -4, right: -4, width: 18, height: 18, borderRadius: "50%", background: "#ef4444", border: "none", color: "#fff", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>}
-                                                                                </div>
-                                                                            ))}
-                                                                            <label style={{ width: 54, height: 54, borderRadius: 10, border: "2px dashed #94a3b8", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: "#f8fafc", flexShrink: 0 }}>
-                                                                                <span style={{ fontSize: 22, color: "#94a3b8", lineHeight: 1 }}>+</span>
-                                                                                <input type="file" accept="image/*" capture="environment" multiple style={{ display: "none" }} onChange={e => updateCleanerJobPhotos(bookingForm.id, task.id, "beforePhotos", e.target.files)} />
-                                                                            </label>
-                                                                        </div>
-                                                                    </div>
-                                                                ))
-                                                            }
+                                                                    ))}
+                                                                </div>
+                                                            )}
                                                         </div>
                                                         {reqTasks.length > 0 && !beforeDone && (
-                                                            <div style={{ fontSize: 12, color: "#d97706", textAlign: "center", fontWeight: 600 }}>Upload required before photos to unlock Start Job</div>
+                                                            <div className="cjw-hint">Upload required before photos to unlock Start Job</div>
                                                         )}
-                                                        <button type="button" onClick={() => handleStartCleanerJob(bookingForm)} disabled={!beforeDone || timeEntrySaving}
-                                                            style={{ width: "100%", padding: 15, borderRadius: 14, border: "none", background: beforeDone ? "#3b82f6" : "#e2e8f0", color: beforeDone ? "#fff" : "#94a3b8", fontSize: 15, fontWeight: 800, cursor: beforeDone ? "pointer" : "not-allowed" }}>
+                                                        <button type="button" onClick={() => handleStartCleanerJob(bookingForm)} disabled={!beforeDone || timeEntrySaving} className="cjw-cta primary">
                                                             {timeEntrySaving ? "Starting…" : "▶  Start Job"}
                                                         </button>
                                                         {jobsFeedback && <div className="people-profile-message">{jobsFeedback}</div>}
@@ -5977,36 +5981,30 @@ export default function Home() {
                                                 const completedCount = tasks.filter(t => t.completed).length;
                                                 return (
                                                     <>
-                                                        <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 16, padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                                        <div className="cjw-banner live">
                                                             <div>
-                                                                <div style={{ fontSize: 11, fontWeight: 700, color: "#16a34a", textTransform: "uppercase", letterSpacing: "0.08em" }}>🟢 Job in Progress</div>
-                                                                <div style={{ fontSize: 13, color: "#166534", fontWeight: 600, marginTop: 2 }}>
-                                                                    {activeTimeEntry?.startedAt ? formatRuntime(activeTimeEntry.startedAt, jobsNow) : "—"}
-                                                                </div>
+                                                                <div className="cjw-banner-title">🟢 Job in Progress</div>
+                                                                <div className="cjw-banner-sub">{activeTimeEntry?.startedAt ? formatRuntime(activeTimeEntry.startedAt, jobsNow) : "—"}</div>
                                                             </div>
-                                                            <div style={{ fontSize: 22, fontWeight: 900, color: "#16a34a" }}>{completedCount}/{tasks.length}</div>
+                                                            <div className="cjw-banner-count">{completedCount}/{tasks.length}</div>
                                                         </div>
 
                                                         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                                                            <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em" }}>Your Tasks</div>
+                                                            <div className="cjw-section-label">Your Tasks</div>
                                                             {tasks.map(task => (
-                                                                <div key={task.id} style={{ background: task.completed ? "#f0fdf4" : "#fff", border: `1px solid ${task.completed ? "#bbf7d0" : "#e2e8f0"}`, borderRadius: 16, padding: "12px 14px" }}>
-                                                                    <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-                                                                        <button type="button" onClick={() => toggleCleanerTaskComplete(bookingForm.id, task.id)}
-                                                                            style={{ width: 26, height: 26, borderRadius: 8, border: `2px solid ${task.completed ? "#22c55e" : "#cbd5e1"}`, background: task.completed ? "#22c55e" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, cursor: "pointer" }}>
+                                                                <div key={task.id} className={`cjw-task-card${task.completed ? " done" : ""}`}>
+                                                                    <div className="cjw-task-top">
+                                                                        <button type="button" onClick={() => toggleCleanerTaskComplete(bookingForm.id, task.id)} className={`cjw-task-check${task.completed ? " done" : ""}`}>
                                                                             {task.completed && <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2.5 6.5l3 3 5-5" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
                                                                         </button>
-                                                                        <div style={{ flex: 1, minWidth: 0 }}>
-                                                                            <div style={{ fontSize: 13, fontWeight: 700, color: task.completed ? "#15803d" : "#1e293b", textDecoration: task.completed ? "line-through" : "none" }}>{task.label}</div>
-                                                                            {task.requiresPhoto && <span style={{ fontSize: 10, fontWeight: 700, color: "#d97706", background: "#fffbeb", padding: "1px 6px", borderRadius: 99, marginTop: 3, display: "inline-block" }}>📷 Photo needed</span>}
+                                                                        <div className="cjw-task-body">
+                                                                            <div className={`cjw-task-label${task.completed ? " done" : ""}`}>{task.label}</div>
+                                                                            {task.requiresPhoto && <span className="cjw-task-tag needed">📷 Photo needed</span>}
                                                                             {((task.beforePhotos || []).length > 0 || (task.afterPhotos || []).length > 0) && (
-                                                                                <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 6 }}>
+                                                                                <div className="cjw-photo-mini-row">
                                                                                     {[...(task.beforePhotos || []), ...(task.afterPhotos || [])].map(photo => (
-                                                                                        <div key={photo.id}>
-                                                                                            {photo.url
-                                                                                                ? <img src={photo.url} alt="" style={{ width: 40, height: 40, borderRadius: 8, objectFit: "cover" }} />
-                                                                                                : <div style={{ width: 40, height: 40, borderRadius: 8, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#94a3b8" }}>{photo.uploading ? "…" : "?"}</div>
-                                                                                            }
+                                                                                        <div key={photo.id} className="cjw-photo-mini">
+                                                                                            {photo.url ? <img src={photo.url} alt="" /> : (photo.uploading ? "…" : "?")}
                                                                                         </div>
                                                                                     ))}
                                                                                 </div>
@@ -6015,13 +6013,33 @@ export default function Home() {
                                                                     </div>
                                                                 </div>
                                                             ))}
-                                                            <button type="button" onClick={() => addCleanerExtraTask(bookingForm.id)} style={{ border: "2px dashed #94a3b8", borderRadius: 14, padding: "10px 0", background: "transparent", color: "#64748b", fontSize: 13, fontWeight: 700, cursor: "pointer", width: "100%" }}>
-                                                                + Add extra task
-                                                            </button>
+                                                            {cleanerExtraTaskOpen ? (
+                                                                <div className="cjw-add-task-row">
+                                                                    <input
+                                                                        type="text"
+                                                                        autoFocus
+                                                                        placeholder="Describe the extra task…"
+                                                                        value={cleanerExtraTaskInput}
+                                                                        onChange={e => setCleanerExtraTaskInput(e.target.value)}
+                                                                        onKeyDown={e => {
+                                                                            if (e.key === "Enter") {
+                                                                                addCleanerExtraTask(bookingForm.id, cleanerExtraTaskInput);
+                                                                                setCleanerExtraTaskInput("");
+                                                                                setCleanerExtraTaskOpen(false);
+                                                                            }
+                                                                        }}
+                                                                    />
+                                                                    <button type="button" className="cjw-confirm" onClick={() => { addCleanerExtraTask(bookingForm.id, cleanerExtraTaskInput); setCleanerExtraTaskInput(""); setCleanerExtraTaskOpen(false); }}>Add</button>
+                                                                    <button type="button" className="cjw-cancel" onClick={() => { setCleanerExtraTaskInput(""); setCleanerExtraTaskOpen(false); }}>Cancel</button>
+                                                                </div>
+                                                            ) : (
+                                                                <button type="button" onClick={() => setCleanerExtraTaskOpen(true)} className="cjw-add-task-btn">
+                                                                    + Add extra task
+                                                                </button>
+                                                            )}
                                                         </div>
 
-                                                        <button type="button" onClick={() => handleEndCleanerJob(bookingForm)} disabled={timeEntrySaving}
-                                                            style={{ width: "100%", padding: 15, borderRadius: 14, border: "none", background: "#ef4444", color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer" }}>
+                                                        <button type="button" onClick={() => handleEndCleanerJob(bookingForm)} disabled={timeEntrySaving} className="cjw-cta danger">
                                                             {timeEntrySaving ? "Saving…" : "⏹  End Job & Add After Photos"}
                                                         </button>
                                                         {jobsFeedback && <div className="people-profile-message">{jobsFeedback}</div>}
@@ -6036,39 +6054,40 @@ export default function Home() {
                                                 const afterDone = reqTasks.every(t => (t.afterPhotos || []).some(p => p.url));
                                                 return (
                                                     <>
-                                                        <div style={{ background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 16, padding: "12px 16px" }}>
-                                                            <div style={{ fontSize: 13, fontWeight: 800, color: "#9a3412" }}>Almost done!</div>
-                                                            <div style={{ fontSize: 12, color: "#7c3aed", marginTop: 4 }}>
-                                                                Tasks: {tasks.filter(t => t.completed).length}/{tasks.length} completed · Upload after photos then submit for review.
-                                                            </div>
+                                                        <div className="cjw-banner warn" style={{ flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
+                                                            <div className="cjw-banner-title" style={{ color: "#c2410c" }}>Almost done!</div>
+                                                            <div className="cjw-banner-sub">Tasks: {tasks.filter(t => t.completed).length}/{tasks.length} completed · Upload after photos then submit for review.</div>
                                                         </div>
 
                                                         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                                                            <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em" }}>📸 After Photos & Task Review</div>
+                                                            <div className="cjw-section-label">📸 After Photos &amp; Task Review</div>
                                                             {tasks.map(task => (
-                                                                <div key={task.id} style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 16, padding: "12px 14px" }}>
-                                                                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                                                                        <button type="button" onClick={() => toggleCleanerTaskComplete(bookingForm.id, task.id)}
-                                                                            style={{ width: 24, height: 24, borderRadius: 7, border: `2px solid ${task.completed ? "#22c55e" : "#cbd5e1"}`, background: task.completed ? "#22c55e" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, cursor: "pointer" }}>
+                                                                <div key={task.id} className="cjw-task-card">
+                                                                    <div className="cjw-task-top" style={{ marginBottom: 4 }}>
+                                                                        <button type="button" onClick={() => toggleCleanerTaskComplete(bookingForm.id, task.id)} className={`cjw-task-check${task.completed ? " done" : ""}`}>
                                                                             {task.completed && <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
                                                                         </button>
-                                                                        <span style={{ fontSize: 13, fontWeight: 700, color: task.completed ? "#15803d" : "#1e293b", flex: 1 }}>{task.label}</span>
-                                                                        {task.requiresPhoto && <span style={{ fontSize: 10, fontWeight: 700, color: "#dc2626", background: "#fef2f2", padding: "2px 6px", borderRadius: 99 }}>Required</span>}
+                                                                        <div className="cjw-task-body">
+                                                                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                                                                <span className={`cjw-task-label${task.completed ? " done" : ""}`}>{task.label}</span>
+                                                                                {task.requiresPhoto && <span className="cjw-task-tag required">Required</span>}
+                                                                            </div>
+                                                                        </div>
                                                                     </div>
-                                                                    <div style={{ paddingLeft: 34 }}>
-                                                                        <div style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 6 }}>After Photos</div>
-                                                                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                                                                    <div style={{ paddingLeft: 40 }}>
+                                                                        <div className="cjw-photo-caption">After Photos</div>
+                                                                        <div className="cjw-photo-grid">
                                                                             {(task.afterPhotos || []).map(photo => (
-                                                                                <div key={photo.id} style={{ position: "relative" }}>
+                                                                                <div key={photo.id} className="cjw-photo-thumb">
                                                                                     {photo.url
-                                                                                        ? <img src={photo.url} alt="" style={{ width: 54, height: 54, borderRadius: 10, objectFit: "cover" }} />
-                                                                                        : <div style={{ width: 54, height: 54, borderRadius: 10, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#94a3b8" }}>{photo.uploading ? "…" : "?"}</div>
+                                                                                        ? <img src={photo.url} alt="" />
+                                                                                        : <div className="cjw-photo-thumb pending">{photo.uploading ? "…" : "?"}</div>
                                                                                     }
-                                                                                    {!photo.uploading && <button type="button" onClick={() => removeCleanerJobPhoto(bookingForm.id, task.id, "afterPhotos", photo.id)} style={{ position: "absolute", top: -4, right: -4, width: 18, height: 18, borderRadius: "50%", background: "#ef4444", border: "none", color: "#fff", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>}
+                                                                                    {!photo.uploading && <button type="button" onClick={() => removeCleanerJobPhoto(bookingForm.id, task.id, "afterPhotos", photo.id)} className="cjw-photo-remove">×</button>}
                                                                                 </div>
                                                                             ))}
-                                                                            <label style={{ width: 54, height: 54, borderRadius: 10, border: "2px dashed #94a3b8", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", background: "#f8fafc", flexShrink: 0 }}>
-                                                                                <span style={{ fontSize: 22, color: "#94a3b8", lineHeight: 1 }}>+</span>
+                                                                            <label className="cjw-photo-add">
+                                                                                +
                                                                                 <input type="file" accept="image/*" capture="environment" multiple style={{ display: "none" }} onChange={e => updateCleanerJobPhotos(bookingForm.id, task.id, "afterPhotos", e.target.files)} />
                                                                             </label>
                                                                         </div>
@@ -6078,10 +6097,9 @@ export default function Home() {
                                                         </div>
 
                                                         {reqTasks.length > 0 && !afterDone && (
-                                                            <div style={{ fontSize: 12, color: "#d97706", textAlign: "center", fontWeight: 600 }}>Upload required after photos to submit for review</div>
+                                                            <div className="cjw-hint">Upload required after photos to submit for review</div>
                                                         )}
-                                                        <button type="button" onClick={() => handleSubmitJobForReview(bookingForm)} disabled={!afterDone || timeEntrySaving}
-                                                            style={{ width: "100%", padding: 15, borderRadius: 14, border: "none", background: afterDone ? "#059669" : "#e2e8f0", color: afterDone ? "#fff" : "#94a3b8", fontSize: 15, fontWeight: 800, cursor: afterDone ? "pointer" : "not-allowed" }}>
+                                                        <button type="button" onClick={() => handleSubmitJobForReview(bookingForm)} disabled={!afterDone || timeEntrySaving} className="cjw-cta success">
                                                             {timeEntrySaving ? "Submitting…" : "✅  Submit Job for Review"}
                                                         </button>
                                                         {jobsFeedback && <div className="people-profile-message">{jobsFeedback}</div>}
