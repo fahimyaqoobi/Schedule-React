@@ -307,6 +307,7 @@ export default function BookingsTab({
     branchTimezone,
     openNewBookingCommand,
     teams,
+    openCustomerProfile,
 }) {
     const [editingCell, setEditingCell] = useState(null);
     const [selectedIds, setSelectedIds] = useState(new Set());
@@ -940,7 +941,19 @@ export default function BookingsTab({
 
                                         {/* ── Client (fixed, always shown) ── */}
                                         <td>
-                                            <div style={{ fontWeight: 700, fontSize: 13, color: "#1e293b", whiteSpace: "nowrap" }}>{b.clientName}</div>
+                                            {openCustomerProfile ? (
+                                                <div
+                                                    onClick={() => openCustomerProfile(b)}
+                                                    title="View customer profile"
+                                                    style={{ fontWeight: 700, fontSize: 13, color: "#0891b2", whiteSpace: "nowrap", cursor: "pointer", textDecoration: "underline", textDecorationColor: "transparent" }}
+                                                    onMouseEnter={e => e.currentTarget.style.textDecorationColor = "#0891b2"}
+                                                    onMouseLeave={e => e.currentTarget.style.textDecorationColor = "transparent"}
+                                                >
+                                                    {b.clientName}
+                                                </div>
+                                            ) : (
+                                                <div style={{ fontWeight: 700, fontSize: 13, color: "#1e293b", whiteSpace: "nowrap" }}>{b.clientName}</div>
+                                            )}
                                             <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 1 }}>{b.phone}</div>
                                             {(b.customerConfirmed && b.status === "Pending") && (
                                                 <span style={{ display:"inline-block", marginTop:3, fontSize:9, fontWeight:700, background:"#f0fdf4", color:"#16a34a", border:"1px solid #bbf7d0", borderRadius:99, padding:"1px 7px" }}>✓ Confirmed</span>

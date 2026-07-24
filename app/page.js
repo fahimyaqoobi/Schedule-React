@@ -61,6 +61,12 @@ import BookingWizard from "./components/admin/BookingWizard";
 import CalendarTab from "./components/admin/tabs/CalendarTab";
 import RecurringTab from "./components/admin/tabs/RecurringTab";
 import ExpensesTab from "./components/admin/tabs/ExpensesTab";
+import CustomersTab from "./components/admin/tabs/CustomersTab";
+import MessagesTab from "./components/admin/tabs/MessagesTab";
+import CleanerSupportChat from "./components/shared/CleanerSupportChat";
+import CustomerProfileModal from "./components/admin/CustomerProfileModal";
+import JobChatCard from "./components/shared/JobChatCard";
+import { customerKeyForBooking } from "../lib/phone";
 
 const V2SettingsManager = dynamic(() => import("./components/V2SettingsManager"), {
     ssr: false,
@@ -951,6 +957,8 @@ export default function Home() {
     const canViewPeople = isPendingCleanerOnboarding ? true : canViewDepartment("people") || canSelfManagePeopleProfile;
     const canViewOperations = isPendingCleanerOnboarding ? false : canViewDepartment("operations");
     const canViewAdministration = isPendingCleanerOnboarding ? false : canViewDepartment("administration");
+    const canViewSales = isPendingCleanerOnboarding ? false : canViewDepartment("sales");
+    const canViewCRM = canViewSales || canViewOperations || canViewAdministration;
     const canManagePermissions = canManageSystem(currentUser);
     const canManagePeopleProfiles = currentUser ? ["super-admin", "branch-admin"].includes(normalizeRole(currentUser.role)) : false;
     const isSuperAdmin = normalizeRole(currentUser?.role) === "super-admin";
@@ -1057,6 +1065,7 @@ export default function Home() {
 
     // Details and Editing modals
     const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+    const [crmCustomerKey, setCrmCustomerKey] = useState(null);
     const [selectedBooking, setSelectedBooking] = useState(null);
     const [bookingModalOpen, setBookingModalOpen] = useState(false);
     const [adminServiceCart, setAdminServiceCart] = useState([]);
@@ -2550,6 +2559,11 @@ export default function Home() {
             alert(`Quick update failed: ${err.message}`);
         }
     }, [bookings, getAuthHeaders, maybeExtendRecurringSeries]);
+
+    const openCustomerProfile = useCallback((booking) => {
+        const key = customerKeyForBooking(booking);
+        if (key) setCrmCustomerKey(key);
+    }, []);
 
     // ----------------------------------------------------
     // Admin Crew Creation Actions
@@ -4474,6 +4488,20 @@ export default function Home() {
                             <span className="nav-label">Bookings</span>
                         </button>
                     )}
+                    {canViewCRM && !isCleanerSelfServiceView && (
+                        <button onClick={() => setActiveTab("customers")} className={`nav-item ${activeTab === "customers" ? "active" : ""}`} title="Customers">
+                            {Icons.Teams()}
+                            <span className="nav-label">Customers</span>
+                        </button>
+                    )}
+                    {canViewCRM && !isCleanerSelfServiceView && (
+                        <button onClick={() => setActiveTab("messages")} className={`nav-item ${activeTab === "messages" ? "active" : ""}`} title="Messages">
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                            </svg>
+                            <span className="nav-label">Messages</span>
+                        </button>
+                    )}
                     {!isPendingCleanerOnboarding && !isCleanerSelfServiceView && (
                         <button onClick={() => setActiveTab("recurring")} className={`nav-item ${activeTab === "recurring" ? "active" : ""}`} title="Recurring">
                             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -4554,6 +4582,14 @@ export default function Home() {
                             <span className="nav-label">Expenses</span>
                         </button>
                     )}
+                    {isCleanerSelfServiceView && canViewOperations && (
+                        <button onClick={() => setActiveTab("messages")} className={`nav-item ${activeTab === "messages" ? "active" : ""}`} title="Support">
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                            </svg>
+                            <span className="nav-label">Support</span>
+                        </button>
+                    )}
                     {isCleanerSelfServiceView && canViewPeople && (
                         <button onClick={() => setActiveTab("teams")} className={`nav-item ${activeTab === "teams" ? "active" : ""}`} title="Profile">
                             {Icons.Teams()}
@@ -4620,6 +4656,8 @@ export default function Home() {
                                         activeTab === "jobs" ? (isCleanerSelfServiceView ? "Jobs" : "Time Cards") :
                                             activeTab === "payroll" ? "Payroll & Time Hub" :
                                                 activeTab === "expenses" ? "Expense Management" :
+                                                activeTab === "customers" ? "Customer Directory" :
+                                                activeTab === "messages" ? (isCleanerSelfServiceView ? "Support" : "Messages") :
                                         activeTab === "teams" ? (isCleanerSelfServiceView ? "Profile" : "Field Staff Assignments") :
                                             activeTab === "departments" ? "Departments" :
                                             activeTab === "edit-requests" ? "Modification Requests Inbox" :
@@ -4706,6 +4744,7 @@ export default function Home() {
                         leadSources={leadSources}
                         openNewBookingCommand={openNewBookingCommand}
                         teams={teams}
+                        openCustomerProfile={openCustomerProfile}
                     />
                 )}
 
@@ -4803,6 +4842,34 @@ export default function Home() {
                         currentUser={currentUser}
                         syncDatabaseData={syncDatabaseData}
                     />
+                )}
+
+                {activeTab === "customers" && canViewCRM && (
+                    <CustomersTab
+                        getAuthHeaders={getAuthHeaders}
+                        currentUser={currentUser}
+                    />
+                )}
+
+                {activeTab === "messages" && !isCleanerSelfServiceView && canViewCRM && (
+                    <MessagesTab
+                        getAuthHeaders={getAuthHeaders}
+                        currentUser={currentUser}
+                        Icons={Icons}
+                    />
+                )}
+
+                {activeTab === "messages" && isCleanerSelfServiceView && (
+                    <div className="animate-fade">
+                        <div className="ops-control-header">
+                            <div>
+                                <p className="ops-eyebrow">Support</p>
+                                <h3 className="ops-title">Message Support</h3>
+                                <p className="ops-copy">One ongoing conversation with the office — spans every job you've worked. Chat about a specific job stays on that job's details until it's completed.</p>
+                            </div>
+                        </div>
+                        <CleanerSupportChat getAuthHeaders={getAuthHeaders} currentUser={currentUser} />
+                    </div>
                 )}
 
                 {activeTab === "expenses" && (
@@ -4969,6 +5036,20 @@ export default function Home() {
                             <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
                         </svg>
                         <span>Recurring</span>
+                    </button>
+                )}
+                {canViewCRM && !isCleanerSelfServiceView && (
+                    <button onClick={() => setActiveTab("customers")} className={`mobile-nav-item ${activeTab === "customers" ? "active" : ""}`}>
+                        {Icons.Teams()}
+                        <span>Customers</span>
+                    </button>
+                )}
+                {canViewCRM && (
+                    <button onClick={() => setActiveTab("messages")} className={`mobile-nav-item ${activeTab === "messages" ? "active" : ""}`}>
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                        </svg>
+                        <span>{isCleanerSelfServiceView ? "Support" : "Messages"}</span>
                     </button>
                 )}
                 {canViewOperations && (
@@ -5702,6 +5783,15 @@ export default function Home() {
             )}
 
             {/* MODAL 1: VIEW DETAILS MODAL */}
+            {crmCustomerKey && (
+                <CustomerProfileModal
+                    customerKey={crmCustomerKey}
+                    getAuthHeaders={getAuthHeaders}
+                    currentUser={currentUser}
+                    onClose={() => setCrmCustomerKey(null)}
+                />
+            )}
+
             {detailsModalOpen && selectedBooking && (() => {
                 const b = selectedBooking;
                 const extrasEntries = Object.entries(b.extras || {}).filter(([, qty]) => qty);
@@ -6000,6 +6090,14 @@ export default function Home() {
                                     </div>
                                 </div>
 
+                                {detailsModalOpen && (
+                                    <JobChatCard
+                                        bookingId={b.id}
+                                        getAuthHeaders={getAuthHeaders}
+                                        currentActorId={currentUser?.uid}
+                                    />
+                                )}
+
                             </div>
 
                             {/* Footer */}
@@ -6192,6 +6290,13 @@ export default function Home() {
                                                             </div>
                                                             <div className="cjw-banner-count">{completedCount}/{tasks.length}</div>
                                                         </div>
+
+                                                        <JobChatCard
+                                                            bookingId={bookingForm.id}
+                                                            getAuthHeaders={getAuthHeaders}
+                                                            currentActorId={currentUser?.uid}
+                                                            title="💬 Chat with Customer"
+                                                        />
 
                                                         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                                                             <div className="cjw-section-label">Your Tasks</div>

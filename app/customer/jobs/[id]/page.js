@@ -3,6 +3,11 @@ import { useEffect, useState, use } from "react";
 import { Fragment } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import JobChatCard from "../../../components/shared/JobChatCard";
+
+// The customer portal authenticates via the "cst" session cookie, sent
+// automatically with same-origin fetches — no bearer token needed here.
+const getPortalAuthHeaders = async () => ({ "Content-Type": "application/json" });
 
 const BRAND = "#005691";
 const ACTION = "#0A6CB8";
@@ -291,6 +296,12 @@ export default function JobDetailPage({ params }) {
                             <span style={{ fontWeight: 600, color: "#0f172a", maxWidth: "60%", textAlign: "right" }}>{value}</span>
                         </div>
                     ) : null)}
+                </div>
+
+                {/* Job chat with your assigned cleaner — locks once the job closes */}
+                <div style={{ marginBottom: 24 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 8 }}>Chat</div>
+                    <JobChatCard bookingId={id} getAuthHeaders={getPortalAuthHeaders} title="💬 Chat with Your Cleaner" />
                 </div>
             </div>
         </div>
