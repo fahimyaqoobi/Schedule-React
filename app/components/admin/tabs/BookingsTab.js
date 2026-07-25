@@ -14,10 +14,11 @@ const STATUS_OPTIONS = [
 ];
 
 const PAYMENT_OPTIONS = [
-    { value: "unpaid",  label: "Unpaid",   color: "#dc2626", bg: "#fef2f2", border: "#fecaca" },
-    { value: "paid",    label: "💳 Paid",   color: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0" },
-    { value: "redo",    label: "↩ Redo",    color: "#d97706", bg: "#fffbeb", border: "#fde68a" },
-    { value: "pending", label: "Pending",   color: "#6366f1", bg: "#eef2ff", border: "#c7d2fe" },
+    { value: "unpaid",  label: "Unpaid",         color: "#dc2626", bg: "#fef2f2", border: "#fecaca" },
+    { value: "partial", label: "◐ Partial",      color: "#d97706", bg: "#fffbeb", border: "#fde68a" },
+    { value: "paid",    label: "💳 Paid",         color: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0" },
+    { value: "redo",    label: "↩ Redo",         color: "#d97706", bg: "#fffbeb", border: "#fde68a" },
+    { value: "pending", label: "Pending",        color: "#6366f1", bg: "#eef2ff", border: "#c7d2fe" },
 ];
 
 const METHOD_OPTIONS = [
@@ -611,7 +612,18 @@ export default function BookingsTab({
                     <div style={{ position: "relative" }}>
                         {isEditing(b.id, "payment") ? (
                             <select autoFocus defaultValue={b.paymentStatus || "unpaid"}
-                                onChange={async e => { await quickUpdate(b.id, { paymentStatus: e.target.value }); }}
+                                onChange={async e => {
+                                    const nextStatus = e.target.value;
+                                    if (nextStatus === "partial") {
+                                        const price = parseFloat(b.price || 0);
+                                        const entered = window.prompt(`Amount received so far (of $${price.toFixed(2)}):`, b.amountReceived || "");
+                                        if (entered === null) { stopEditing(); return; }
+                                        const amount = Math.max(0, Math.min(price, parseFloat(entered) || 0));
+                                        await quickUpdate(b.id, { paymentStatus: nextStatus, amountReceived: amount });
+                                    } else {
+                                        await quickUpdate(b.id, { paymentStatus: nextStatus });
+                                    }
+                                }}
                                 onBlur={stopEditing}
                                 style={{ width: "100%", padding: "5px 7px", borderRadius: 7, border: "2px solid #34d399", fontSize: 12, cursor: "pointer" }}>
                                 {PAYMENT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -619,6 +631,9 @@ export default function BookingsTab({
                         ) : (
                             <div onClick={() => startEditing(b.id, "payment")} style={{ cursor: "pointer" }}>
                                 <PaymentBadge status={b.paymentStatus} />
+                                {b.paymentStatus === "partial" && (
+                                    <div style={{ fontSize: 9, color: "#94a3b8", marginTop: 2 }}>${parseFloat(b.amountReceived || 0).toFixed(2)} of ${parseFloat(b.price || 0).toFixed(2)}</div>
+                                )}
                             </div>
                         )}
                     </div>
@@ -730,6 +745,7 @@ export default function BookingsTab({
                     <select value={filterPayment} onChange={e => setFilterPayment(e.target.value)} style={{ flex: "1 1 140px" }}>
                         <option value="">All Payments</option>
                         <option value="unpaid">Unpaid</option>
+                        <option value="partial">◐ Partial</option>
                         <option value="paid">💳 Paid</option>
                         <option value="redo">↩ Redo</option>
                         <option value="pending">Pending Payment</option>

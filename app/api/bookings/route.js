@@ -13,12 +13,13 @@ import { generateReferralCode, ensurePromotionList, normalizePromoCode, applyPro
 import { getCustomerPromoContext, getPersonalReferralCode } from "../../../lib/customerRewards";
 import { computeBookingPricing } from "../../../lib/pricing";
 import { buildJobFinancialRecord } from "../../../lib/financials";
+import { maybeRecordCardProcessingFee } from "../../../lib/cardFees";
 
 // Lead → Quote → Booking(Pending/Confirmed) → Completed. "Quote" sits between
 // a raw enquiry and an accepted booking — pricing has been sent, customer
 // hasn't accepted yet. The Calendar only ever shows "Confirmed".
 const BOOKING_STATUS_FLOW = ["Lead", "Follow Up", "Quote", "Pending", "Confirmed", "Completed", "Cancelled"];
-const PAYMENT_STATUS_FLOW = ["unpaid", "paid", "redo"];
+const PAYMENT_STATUS_FLOW = ["unpaid", "partial", "paid", "redo"];
 
 function normalizeBookingStatus(status = "Lead") {
     return BOOKING_STATUS_FLOW.includes(status) ? status : "Lead";
@@ -445,6 +446,12 @@ export async function PUT(request) {
             });
             protectedTax = editPricing.taxAmount;
             const nextPrice = nextPaymentStatus === "redo" ? 0 : Number(editPricing.total.toFixed(2));
+            // Amount Received drives Balance Due / Partially Paid reporting — full
+            // amount when marked Paid, zero when Unpaid/Redo, an admin-entered
+            // figure (clamped to the price) when Partial.
+            const nextAmountReceived = nextPaymentStatus === "paid" ? nextPrice
+                : (nextPaymentStatus === "unpaid" || nextPaymentStatus === "redo") ? 0
+                    : Math.max(0, Math.min(nextPrice, Number(bookingData.amountReceived ?? originalData.amountReceived ?? 0)));
             const safeBookingData = { ...bookingData };
             delete safeBookingData.priceOverride;
             delete safeBookingData.servicesChanged;
@@ -462,6 +469,8 @@ export async function PUT(request) {
                 price: nextPrice,
                 status: nextStatus,
                 paymentStatus: nextPaymentStatus,
+                amountReceived: nextAmountReceived,
+                paidAt: nextPaymentStatus === "paid" ? (originalData.paidAt || new Date().toISOString()) : (nextPaymentStatus === "partial" ? new Date().toISOString() : originalData.paidAt || ""),
                 tax: nextPaymentStatus === "redo" ? 0 : protectedTax,
                 subtotal: nextPaymentStatus === "redo" ? 0 : protectedSubtotal,
                 // Always explicit (never rely on the client having threaded these
@@ -510,6 +519,9 @@ export async function PUT(request) {
                 const financialRecord = buildJobFinancialRecord(updatedBooking, approvedTimeEntries);
                 await adminDb.collection("financialRecords").doc(updatedBooking.id).set(financialRecord);
             }
+
+            // Card payments carry a processing fee — auto-book it as an expense.
+            await maybeRecordCardProcessingFee(adminDb, updatedBooking);
 
             return NextResponse.json({ message: "Booking updated directly by Admin", booking: updatedBooking }, { status: 200 });
         } else {

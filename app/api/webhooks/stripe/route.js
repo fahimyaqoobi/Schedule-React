@@ -3,6 +3,7 @@ import nodemailer from "nodemailer";
 import { adminDb } from "../../../../lib/firebase-admin";
 import Stripe from "stripe";
 import { upsertCustomerProfile, recordCustomerPayment } from "../../../../lib/customerProfile";
+import { maybeRecordCardProcessingFee } from "../../../../lib/cardFees";
 
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -97,16 +98,25 @@ export async function POST(request) {
             const ref = adminDb.collection("bookings").doc(bookingId);
             const snap = await ref.get();
 
+            const paidAtIso = new Date().toISOString();
             await ref.update({
                 paymentStatus: "paid",
-                paidAt: new Date().toISOString(),
+                amountReceived: snap.exists ? Number(snap.data().price || 0) : 0,
+                paidAt: paidAtIso,
+                paymentMethod: "credit-card",
                 stripePaymentIntentId: session.payment_intent || "",
                 stripeSessionId: session.id,
-                updatedAt: new Date().toISOString(),
+                updatedAt: paidAtIso,
             });
 
             if (snap.exists) {
                 const bookingData = snap.data();
+                // Card payments carry a processing fee — auto-book it as an expense.
+                try {
+                    await maybeRecordCardProcessingFee(adminDb, { ...bookingData, id: bookingId, paymentMethod: "credit-card", amountReceived: Number(bookingData.price || 0), paidAt: paidAtIso });
+                } catch (feeErr) {
+                    console.error("Card processing fee recording failed:", feeErr.message);
+                }
                 // Auto-send receipt email
                 try {
                     await sendReceiptEmail(bookingData);

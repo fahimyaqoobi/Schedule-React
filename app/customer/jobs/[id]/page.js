@@ -112,6 +112,9 @@ export default function JobDetailPage({ params }) {
     const tax = Number(booking?.tax || 0);
     const promoDiscount = Number(booking?.promoDiscount || 0);
     const total = Number(booking?.price || 0);
+    const amountReceived = Number(booking?.amountReceived || 0);
+    const balanceDue = Math.max(0, total - amountReceived);
+    const isPartiallyPaid = booking?.paymentStatus === "partial" && amountReceived > 0;
 
     return (
         <div>
@@ -218,9 +221,17 @@ export default function JobDetailPage({ params }) {
                                         <span>HST (13%)</span><span>{fmt$(tax)}</span>
                                     </div>
                                 )}
+                                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: "#475569", marginBottom: 6 }}>
+                                    <span>Total</span><span>{fmt$(total)}</span>
+                                </div>
+                                {isPartiallyPaid && (
+                                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: GREEN, marginBottom: 6 }}>
+                                        <span>Amount Received</span><span>-{fmt$(amountReceived)}</span>
+                                    </div>
+                                )}
                                 <div style={{ display: "flex", justifyContent: "space-between", background: BRAND, color: "#fff", borderRadius: 12, padding: "12px 16px", marginTop: 10 }}>
-                                    <span style={{ fontWeight: 700, fontSize: 15 }}>Total Due</span>
-                                    <span style={{ fontWeight: 900, fontSize: 18 }}>{fmt$(total)}</span>
+                                    <span style={{ fontWeight: 700, fontSize: 15 }}>{isPartiallyPaid ? "Balance Due" : "Total Due"}</span>
+                                    <span style={{ fontWeight: 900, fontSize: 18 }}>{fmt$(balanceDue)}</span>
                                 </div>
                             </div>
                         )}
@@ -238,7 +249,7 @@ export default function JobDetailPage({ params }) {
                             disabled={actionLoading}
                             style={{ width: "100%", background: ACTION, color: "#fff", border: "none", borderRadius: 14, padding: "15px 0", fontSize: 16, fontWeight: 700, cursor: "pointer", opacity: actionLoading ? 0.7 : 1 }}
                         >
-                            {actionLoading ? "Redirecting…" : `Pay ${hasPrice ? fmt$(total) : ""} Now →`}
+                            {actionLoading ? "Redirecting…" : `Pay ${hasPrice ? fmt$(isPartiallyPaid ? balanceDue : total) : ""} Now →`}
                         </button>
                     </div>
                 )}

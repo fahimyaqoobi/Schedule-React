@@ -65,6 +65,7 @@ import CustomersTab from "./components/admin/tabs/CustomersTab";
 import MessagesTab from "./components/admin/tabs/MessagesTab";
 import CleanerSupportChat from "./components/shared/CleanerSupportChat";
 import CustomerProfileModal from "./components/admin/CustomerProfileModal";
+import FinanceTab from "./components/admin/tabs/FinanceTab";
 import JobChatCard from "./components/shared/JobChatCard";
 import { customerKeyForBooking } from "../lib/phone";
 
@@ -927,7 +928,7 @@ export default function Home() {
     const [timeEntries, setTimeEntries] = useState([]);
     const [expenses, setExpenses] = useState([]);
     const [financialRecords, setFinancialRecords] = useState([]);
-    const [expenseForm, setExpenseForm] = useState({ amount: "", category: "Supplies", description: "", date: new Date().toISOString().split("T")[0], receiptUrl: "", receiptName: "" });
+    const [expenseForm, setExpenseForm] = useState({ amount: "", category: "Cleaning Supplies", description: "", date: new Date().toISOString().split("T")[0], receiptUrl: "", receiptName: "", paymentMethod: "Personal (Reimbursable)", isReimbursable: true });
     const [expenseReceiptUploading, setExpenseReceiptUploading] = useState(false);
     const [expenseSubmitting, setExpenseSubmitting] = useState(false);
     const [expenseFeedback, setExpenseFeedback] = useState("");
@@ -2997,7 +2998,7 @@ export default function Home() {
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "Failed to submit expense.");
             setExpenseFeedback(data.message || "Expense submitted for approval.");
-            setExpenseForm({ amount: "", category: "Supplies", description: "", date: new Date().toISOString().split("T")[0], receiptUrl: "", receiptName: "" });
+            setExpenseForm({ amount: "", category: "Cleaning Supplies", description: "", date: new Date().toISOString().split("T")[0], receiptUrl: "", receiptName: "", paymentMethod: "Personal (Reimbursable)", isReimbursable: true });
             syncDatabaseData(currentUser);
         } catch (err) {
             setExpenseFeedback(err.message || "Failed to submit expense.");
@@ -3989,13 +3990,22 @@ export default function Home() {
     const adminCommandMetrics = useMemo(() => {
         const activeBookings = bookings.filter(b => b.status !== "Cancelled");
         const paidBookings = activeBookings.filter(b => b.paymentStatus === "paid" || b.paymentStatus === "Paid");
-        const paidRevenue = paidBookings.reduce((sum, b) => sum + parseFloat(b.price || b.totalAmount || 0), 0);
+        // Collected revenue counts partial payments' collected portion too —
+        // matches "Payments Collected" (amount received), not "Sales Invoiced".
+        const paidRevenue = activeBookings.reduce((sum, b) => {
+            if (b.paymentStatus === "paid" || b.paymentStatus === "Paid") return sum + parseFloat(b.price || b.totalAmount || 0);
+            if (b.paymentStatus === "partial") return sum + parseFloat(b.amountReceived || 0);
+            return sum;
+        }, 0);
         const completedCount = activeBookings.filter(b => b.status === "Completed").length;
         const confirmed = activeBookings.filter(b => b.status === "Confirmed").length;
         const pipeline = activeBookings.filter(b => ["Pending", "Lead", "Follow Up"].includes(b.status)).length;
         const awaitingApproval = activeBookings.filter(b => b.customerConfirmed === true && b.status === "Pending").length;
         const pendingPaymentJobs = activeBookings.filter(b => b.status === "Completed" && b.paymentStatus !== "paid" && b.paymentStatus !== "Paid");
-        const pendingPaymentAmount = pendingPaymentJobs.reduce((sum, b) => sum + parseFloat(b.price || b.totalAmount || 0), 0);
+        const pendingPaymentAmount = pendingPaymentJobs.reduce((sum, b) => {
+            const balance = parseFloat(b.price || b.totalAmount || 0) - parseFloat(b.amountReceived || 0);
+            return sum + Math.max(0, balance);
+        }, 0);
 
         const METHOD_LABELS = { cash: "Cash", "e-transfer": "E-Transfer", "credit-card": "Card", "direct-deposit": "Direct Deposit", cheque: "Cheque" };
         const paidByMethod = {};
@@ -4502,6 +4512,12 @@ export default function Home() {
                             <span className="nav-label">Messages</span>
                         </button>
                     )}
+                    {canViewAdministration && (
+                        <button onClick={() => setActiveTab("finance")} className={`nav-item ${activeTab === "finance" ? "active" : ""}`} title="Finance">
+                            {Icons.Cash()}
+                            <span className="nav-label">Finance</span>
+                        </button>
+                    )}
                     {!isPendingCleanerOnboarding && !isCleanerSelfServiceView && (
                         <button onClick={() => setActiveTab("recurring")} className={`nav-item ${activeTab === "recurring" ? "active" : ""}`} title="Recurring">
                             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -4658,6 +4674,7 @@ export default function Home() {
                                                 activeTab === "expenses" ? "Expense Management" :
                                                 activeTab === "customers" ? "Customer Directory" :
                                                 activeTab === "messages" ? (isCleanerSelfServiceView ? "Support" : "Messages") :
+                                                activeTab === "finance" ? "Finance" :
                                         activeTab === "teams" ? (isCleanerSelfServiceView ? "Profile" : "Field Staff Assignments") :
                                             activeTab === "departments" ? "Departments" :
                                             activeTab === "edit-requests" ? "Modification Requests Inbox" :
@@ -4849,6 +4866,10 @@ export default function Home() {
                         getAuthHeaders={getAuthHeaders}
                         currentUser={currentUser}
                     />
+                )}
+
+                {activeTab === "finance" && canViewAdministration && (
+                    <FinanceTab getAuthHeaders={getAuthHeaders} />
                 )}
 
                 {activeTab === "messages" && !isCleanerSelfServiceView && canViewCRM && (
@@ -6674,10 +6695,27 @@ export default function Home() {
                                                     <label className="font-bold text-slate-700">Payment Status</label>
                                                     <select value={bookingForm.paymentStatus} onChange={e => setBookingForm(prev => ({ ...prev, paymentStatus: e.target.value }))} required className="border border-slate-200 rounded-lg p-2">
                                                         <option value="unpaid">Unpaid</option>
+                                                        <option value="partial">Partial</option>
                                                         <option value="paid">Paid</option>
                                                         <option value="redo">Redo</option>
                                                     </select>
                                                 </div>
+                                                {bookingForm.paymentStatus === "partial" && (
+                                                    <div className="form-group flex flex-col gap-1">
+                                                        <label className="font-bold text-slate-700">Amount Received ($)</label>
+                                                        <input
+                                                            type="number"
+                                                            min="0"
+                                                            step="0.01"
+                                                            max={bookingForm.price || undefined}
+                                                            value={bookingForm.amountReceived || ""}
+                                                            onChange={e => setBookingForm(prev => ({ ...prev, amountReceived: e.target.value }))}
+                                                            placeholder="0.00"
+                                                            className="border border-slate-200 rounded-lg p-2"
+                                                        />
+                                                        <small className="text-slate-400">Balance due: ${Math.max(0, parseFloat(bookingForm.price || 0) - parseFloat(bookingForm.amountReceived || 0)).toFixed(2)}</small>
+                                                    </div>
+                                                )}
                                                 <div className="form-group flex flex-col gap-1">
                                                     <label className="font-bold text-slate-700">Payment Method</label>
                                                     <select value={bookingForm.paymentMethod || ""} onChange={e => setBookingForm(prev => ({ ...prev, paymentMethod: e.target.value }))} className="border border-slate-200 rounded-lg p-2">
