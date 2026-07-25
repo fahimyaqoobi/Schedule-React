@@ -1529,6 +1529,9 @@ label {
 .event-dot.sparkle { background-color: var(--accent-blue); box-shadow: 0 0 4px var(--accent-blue); }
 .event-dot.deluxe { background-color: var(--accent-purple); box-shadow: 0 0 4px var(--accent-purple); }
 .event-dot.ecoclean { background-color: var(--accent-green); box-shadow: 0 0 4px var(--accent-green); }
+/* Completed jobs always show as this green, overriding team color, so a
+   completed dispatch is recognizable on the mini-calendar at a glance. */
+.event-dot.completed { background-color: #16a34a; box-shadow: 0 0 4px #16a34a; }
 
 .agenda-card {
     background: var(--card-bg);

@@ -36,10 +36,10 @@ export default function CalendarTab({
                         {calendarDays.map((cell, idx) => {
                             if (!cell.day) return <div key={`empty-${idx}`} className="cal-day empty"></div>;
 
-                            // Admin calendar only shows Confirmed bookings — if a booking becomes
-                            // Cancelled or slips back to Pending/Lead/Quote it disappears here
-                            // automatically (this is a live filter, not a stored flag).
-                            const dayBookings = bookings.filter(b => b.date === cell.dateStr && (isCleanerSelfServiceView ? true : b.status === "Confirmed"));
+                            // Admin calendar shows Confirmed (upcoming) and Completed (done)
+                            // bookings — Cancelled or anything still Pending/Lead/Quote stays
+                            // off the grid (this is a live filter, not a stored flag).
+                            const dayBookings = bookings.filter(b => b.date === cell.dateStr && (isCleanerSelfServiceView ? true : ["Confirmed", "Completed"].includes(b.status)));
                             const isSelected = cell.dateStr === selectedCalDate;
                             const isToday = cell.dateStr === new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
 
@@ -53,11 +53,12 @@ export default function CalendarTab({
                                     <div className="cal-events-dots">
                                         {dayBookings.slice(0, 3).map(b => {
                                             const teamColor = teams.find(t => t.name === b.team)?.color || "sparkle";
+                                            const dotColor = b.status === "Completed" ? "completed" : teamColor;
                                             return (
                                                 <span
                                                     key={b.id}
-                                                    className={`event-dot ${teamColor}`}
-                                                    title={`${isCleanerSelfServiceView ? getBookingCustomerFirstName(b) : b.clientName} - ${b.service}`}
+                                                    className={`event-dot ${dotColor}`}
+                                                    title={`${isCleanerSelfServiceView ? getBookingCustomerFirstName(b) : b.clientName} - ${b.service}${b.status === "Completed" ? " (Completed)" : ""}`}
                                                 ></span>
                                             );
                                         })}

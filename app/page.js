@@ -4213,10 +4213,12 @@ export default function Home() {
     };
 
     const agendaBookings = useMemo(() => {
-        // Admin calendar agenda only shows Confirmed bookings, matching the day-grid dots.
+        // Admin calendar agenda shows Confirmed and Completed bookings, matching
+        // the day-grid dots — lets admin click straight into a completed job to
+        // update status/payment without hunting through the Bookings table.
         // Cleaners still see all their own jobs regardless of status (their own history/schedule).
         return bookings
-            .filter(b => b.date === selectedCalDate && (isCleanerSelfServiceView ? true : b.status === "Confirmed"))
+            .filter(b => b.date === selectedCalDate && (isCleanerSelfServiceView ? true : ["Confirmed", "Completed"].includes(b.status)))
             .sort((a, b) => a.time.localeCompare(b.time));
     }, [bookings, selectedCalDate, isCleanerSelfServiceView]);
 
