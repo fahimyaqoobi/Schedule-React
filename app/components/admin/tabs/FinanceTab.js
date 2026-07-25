@@ -86,6 +86,7 @@ function OverviewView({ getAuthHeaders }) {
     const [loading, setLoading] = useState(true);
 
     const range = useMemo(() => preset === "custom" ? { from: customFrom, to: customTo } : computePresetRange(preset), [preset, customFrom, customTo]);
+    const periodLabel = PRESETS.find(p => p.key === preset)?.label || "Period";
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -128,33 +129,37 @@ function OverviewView({ getAuthHeaders }) {
                 <div className="text-center p-12 text-slate-400 text-sm">Loading finance data…</div>
             ) : (
                 <>
-                    <Panel title="Sales & Collections — Completed Jobs Only">
-                        <StatCard label="Revenue (Period)" value={money(overview.sales.salesPeriod)} sub={`All-time: ${money(overview.sales.salesTotal)}`} />
-                        <StatCard label="Collected (Period)" value={money(overview.sales.collectedPeriod)} sub={`All-time: ${money(overview.sales.collectedTotal)}`} />
-                        <StatCard label="Unpaid / Owed Right Now" value={money(overview.sales.unpaidOwed)} alert={overview.sales.unpaidOwed > 0} sub="Completed jobs not yet fully paid" />
-                        <StatCard label="Paid / Partial / Unpaid" value={`${overview.sales.paidCount} / ${overview.sales.partialCount} / ${overview.sales.unpaidCount}`} sub="Completed jobs by payment status" />
+                    <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 10, padding: "10px 14px", fontSize: 12, color: "#1e40af" }}>
+                        Showing jobs <strong>marked Completed</strong> and <strong>scheduled {periodLabel === "Today" ? "today" : periodLabel === "All Time" ? "any time" : `in: ${periodLabel}`}</strong> ({range.from || "the beginning"} → {range.to || "now"}). A job's own date decides which period it falls into — not when it was booked or last edited.
+                    </div>
+
+                    <Panel title={`Sales & Collections (${periodLabel})`}>
+                        <StatCard label={`Revenue — ${periodLabel}`} value={money(overview.sales.salesPeriod)} sub={`Price of every completed job in this range · All-time: ${money(overview.sales.salesTotal)}`} />
+                        <StatCard label={`Collected — ${periodLabel}`} value={money(overview.sales.collectedPeriod)} sub={`Money actually received on those same jobs · All-time: ${money(overview.sales.collectedTotal)}`} />
+                        <StatCard label="Unpaid / Owed Right Now" value={money(overview.sales.unpaidOwed)} alert={overview.sales.unpaidOwed > 0} sub="Every completed job, ever, not yet fully paid — not limited to this period" />
+                        <StatCard label={`Paid / Partial / Unpaid — ${periodLabel}`} value={`${overview.sales.paidCount} / ${overview.sales.partialCount} / ${overview.sales.unpaidCount}`} sub="Completed jobs in this period, by payment status" />
                     </Panel>
 
-                    <Panel title="Cash Position">
-                        <StatCard label="Cash In Hand" value={money(overview.cash.cashRemainingInHand)} sub="Running balance, not tied to the date filter" />
-                        <StatCard label="Cash Received (Period)" value={money(overview.cash.cashReceivedPeriod)} />
-                        <StatCard label="Cash Deposited (Period)" value={money(overview.cash.cashDepositedPeriod)} />
-                        <StatCard label="Available Company Funds" value={money(overview.cash.availableCompanyFunds)} sub="Opening capital + collected − expenses, all-time" />
+                    <Panel title="Cash Position (always as-of-now, not by period)">
+                        <StatCard label="Cash In Hand" value={money(overview.cash.cashRemainingInHand)} sub="Cash collected minus cash spent minus cash deposited — running total" />
+                        <StatCard label={`Cash Received — ${periodLabel}`} value={money(overview.cash.cashReceivedPeriod)} sub="Only jobs paid by the 'Cash' method" />
+                        <StatCard label={`Cash Deposited — ${periodLabel}`} value={money(overview.cash.cashDepositedPeriod)} sub="From deposits you log in Settings & Cash Log" />
+                        <StatCard label="Available Company Funds" value={money(overview.cash.availableCompanyFunds)} sub="Opening Capital + all money ever collected − all expenses ever approved" />
                     </Panel>
 
-                    <Panel title="Expenses">
-                        <StatCard label="Expenses (Period)" value={money(overview.expenses.expensesPeriod)} />
-                        <StatCard label="Expenses (YTD)" value={money(overview.expenses.expensesYTD)} />
-                        <StatCard label="Payroll (All-time)" value={money(overview.expenses.payrollExpenseTotal)} />
-                        <StatCard label="Operating (All-time)" value={money(overview.expenses.operatingExpensesTotal)} />
-                        <StatCard label="Startup/Capital (All-time)" value={money(overview.expenses.startupCapitalTotal)} />
-                        <StatCard label="Reimbursements Pending" value={money(overview.expenses.reimbursementsPending)} alert={overview.expenses.reimbursementsPending > 0} />
+                    <Panel title={`Expenses (${periodLabel} + running totals)`}>
+                        <StatCard label={`Expenses — ${periodLabel}`} value={money(overview.expenses.expensesPeriod)} sub="Approved expenses dated in this period" />
+                        <StatCard label="Expenses — Year to Date" value={money(overview.expenses.expensesYTD)} sub="Always Jan 1 → today, regardless of the filter above" />
+                        <StatCard label="Payroll — All-time" value={money(overview.expenses.payrollExpenseTotal)} />
+                        <StatCard label="Operating — All-time" value={money(overview.expenses.operatingExpensesTotal)} sub="Everything except Payroll and Equipment" />
+                        <StatCard label="Equipment/Capital — All-time" value={money(overview.expenses.startupCapitalTotal)} />
+                        <StatCard label="Reimbursements Pending" value={money(overview.expenses.reimbursementsPending)} alert={overview.expenses.reimbursementsPending > 0} sub="Approved, marked reimbursable, not yet paid back" />
                     </Panel>
 
-                    <Panel title="Profit">
-                        <StatCard label="Net Profit (Period)" value={money(overview.profit.netProfitPeriod)} />
-                        <StatCard label="Net Profit (YTD)" value={money(overview.profit.netProfitYTD)} />
-                        <StatCard label="Profit Margin (YTD)" value={pct(overview.profit.profitMarginYTD)} />
+                    <Panel title={`Profit (${periodLabel} + Year to Date)`}>
+                        <StatCard label={`Net Profit — ${periodLabel}`} value={money(overview.profit.netProfitPeriod)} sub="Revenue in this period minus expenses dated in this period" />
+                        <StatCard label="Net Profit — Year to Date" value={money(overview.profit.netProfitYTD)} sub="Always Jan 1 → today" />
+                        <StatCard label="Profit Margin — YTD" value={pct(overview.profit.profitMarginYTD)} sub="YTD profit ÷ YTD revenue" />
                     </Panel>
                 </>
             )}
@@ -183,25 +188,24 @@ function ForecastView({ getAuthHeaders }) {
 
     return (
         <div className="flex flex-col gap-4">
-            <p style={{ fontSize: 12, color: "#94a3b8" }}>
-                Run-rate projection: {forecast.daysElapsed} of {forecast.daysInMonth} days elapsed this month.
-            </p>
-            <Panel title="Month-End Forecast (Run Rate, Completed Jobs)">
-                <StatCard label="Current Month Sales" value={money(forecast.currentMonthSales)} />
-                <StatCard label="Avg Daily Sales" value={money(forecast.avgDailySales)} />
-                <StatCard label="Expected Month-End Sales" value={money(forecast.expectedMonthEndSales)} />
-                <StatCard label="Current Month Expenses" value={money(forecast.currentMonthExpenses)} />
-                <StatCard label="Avg Daily Expenses" value={money(forecast.avgDailyExpenses)} />
-                <StatCard label="Expected Month-End Expenses" value={money(forecast.expectedMonthEndExpenses)} />
-                <StatCard label="Expected Month-End Profit" value={money(forecast.expectedMonthEndProfit)} />
+            <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 10, padding: "10px 14px", fontSize: 12, color: "#1e40af" }}>
+                This is a projection, not an actual — it takes what's happened so far this month ({forecast.daysElapsed} of {forecast.daysInMonth} days in) and assumes the rest of the month keeps the same daily pace. It will always be rough early in the month and more accurate closer to month-end.
+            </div>
+            <Panel title="If This Pace Continues... (Completed Jobs This Month)">
+                <StatCard label="Sales So Far This Month" value={money(forecast.currentMonthSales)} sub="Actual, not projected" />
+                <StatCard label="Average Per Day So Far" value={money(forecast.avgDailySales)} sub={`Sales so far ÷ ${forecast.daysElapsed} days elapsed`} />
+                <StatCard label="Projected Total This Month" value={money(forecast.expectedMonthEndSales)} sub={`Average per day × ${forecast.daysInMonth} days in the month`} />
+                <StatCard label="Expenses So Far This Month" value={money(forecast.currentMonthExpenses)} sub="Actual, not projected" />
+                <StatCard label="Projected Expenses This Month" value={money(forecast.expectedMonthEndExpenses)} />
+                <StatCard label="Projected Profit This Month" value={money(forecast.expectedMonthEndProfit)} sub="Projected sales minus projected expenses" />
             </Panel>
-            <Panel title="Collection Forecast">
-                <StatCard label="Historical Collection Rate" value={pct(forecast.collectionRate)} />
-                <StatCard label="Unpaid / Owed Right Now" value={money(forecast.unpaidOwed)} />
-                <StatCard label="Expected Collections This Month" value={money(forecast.expectedCollectionsThisMonth)} />
+            <Panel title="Collections Outlook">
+                <StatCard label="Your Collection Track Record" value={pct(forecast.collectionRate)} sub="Of everything ever billed, this % has actually been collected" />
+                <StatCard label="Unpaid / Owed Right Now" value={money(forecast.unpaidOwed)} sub="Same number as the Overview tab" />
+                <StatCard label="Realistic Collections This Month" value={money(forecast.expectedCollectionsThisMonth)} sub="Unpaid amount × your track record — a guess, not a guarantee" />
             </Panel>
-            <Panel title="Job Performance">
-                <StatCard label="Completed Jobs This Month" value={forecast.completedJobsThisMonth} />
+            <Panel title="Job Performance This Month">
+                <StatCard label="Completed Jobs" value={forecast.completedJobsThisMonth} />
                 <StatCard label="Average Revenue Per Job" value={money(forecast.averageRevenuePerJob)} />
             </Panel>
         </div>
@@ -269,15 +273,18 @@ function SettingsView({ getAuthHeaders }) {
             <div className="settings-card">
                 <div className="panel-header border-b border-slate-100 pb-3">
                     <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">Finance Settings</h4>
+                    <p className="text-slate-500 text-xs mt-1">All optional — leave anything at 0 if it doesn't apply to you yet. Nothing here is required for the Overview/Forecast numbers to work.</p>
                 </div>
                 <div className="settings-form">
                     <div className="form-group">
                         <label>Opening Capital ($)</label>
                         <input type="number" step="0.01" value={settings.openingCapital} onChange={e => setSettings(prev => ({ ...prev, openingCapital: e.target.value }))} />
+                        <small className="text-slate-400">How much money you started the company with. Only affects one number: "Available Company Funds." Leave at 0 if you'd rather not track this.</small>
                     </div>
                     <div className="form-group">
                         <label>Payment Terms (days)</label>
                         <input type="number" value={settings.paymentTermsDays} onChange={e => setSettings(prev => ({ ...prev, paymentTermsDays: e.target.value }))} />
+                        <small className="text-slate-400">Not currently used by any number on this page — reserved for a future "overdue" view. Safe to ignore.</small>
                     </div>
                     <div className="form-group">
                         <label>Card Processing Fee Rate (%)</label>
@@ -286,7 +293,7 @@ function SettingsView({ getAuthHeaders }) {
                     <div className="form-group">
                         <label>Card Processing Fixed Fee ($)</label>
                         <input type="number" step="0.01" value={settings.cardProcessingFeeFixed} onChange={e => setSettings(prev => ({ ...prev, cardProcessingFeeFixed: e.target.value }))} />
-                        <small className="text-slate-400">Applied automatically as an expense whenever a booking is paid by card.</small>
+                        <small className="text-slate-400">Your card processor's rate (e.g. Stripe is usually 2.9% + $0.30/transaction). Whenever a job is paid by card, the fee is calculated from these two numbers and automatically logged as a "Processing Fees" expense — you don't need to enter it by hand.</small>
                     </div>
                     <button type="button" onClick={saveSettings} disabled={saving} className="btn btn-primary h-[40px] rounded-lg text-white font-bold transition mt-2">
                         {saving ? "Saving…" : "Save Settings"}
