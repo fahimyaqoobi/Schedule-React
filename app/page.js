@@ -928,7 +928,7 @@ export default function Home() {
     const [timeEntries, setTimeEntries] = useState([]);
     const [expenses, setExpenses] = useState([]);
     const [financialRecords, setFinancialRecords] = useState([]);
-    const [expenseForm, setExpenseForm] = useState({ amount: "", category: "Cleaning Supplies", description: "", date: new Date().toISOString().split("T")[0], receiptUrl: "", receiptName: "", paymentMethod: "Personal (Reimbursable)", isReimbursable: true });
+    const [expenseForm, setExpenseForm] = useState({ amount: "", category: "Cleaning Supplies", vendor: "", description: "", date: new Date().toISOString().split("T")[0], receiptUrl: "", receiptName: "", paymentMethod: "Personal (Reimbursable)", isReimbursable: true, adminDirect: false });
     const [expenseReceiptUploading, setExpenseReceiptUploading] = useState(false);
     const [expenseSubmitting, setExpenseSubmitting] = useState(false);
     const [expenseFeedback, setExpenseFeedback] = useState("");
@@ -2982,8 +2982,8 @@ export default function Home() {
     };
 
     const handleSubmitExpense = async () => {
-        if (!expenseForm.amount || !expenseForm.receiptUrl) {
-            setExpenseFeedback("A receipt photo and amount are required.");
+        if (!expenseForm.amount || (!expenseForm.adminDirect && !expenseForm.receiptUrl)) {
+            setExpenseFeedback(expenseForm.adminDirect ? "An amount is required." : "A receipt photo and amount are required.");
             return;
         }
         setExpenseSubmitting(true);
@@ -2998,7 +2998,7 @@ export default function Home() {
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "Failed to submit expense.");
             setExpenseFeedback(data.message || "Expense submitted for approval.");
-            setExpenseForm({ amount: "", category: "Cleaning Supplies", description: "", date: new Date().toISOString().split("T")[0], receiptUrl: "", receiptName: "", paymentMethod: "Personal (Reimbursable)", isReimbursable: true });
+            setExpenseForm({ amount: "", category: "Cleaning Supplies", vendor: "", description: "", date: new Date().toISOString().split("T")[0], receiptUrl: "", receiptName: "", paymentMethod: "Personal (Reimbursable)", isReimbursable: true, adminDirect: expenseForm.adminDirect });
             syncDatabaseData(currentUser);
         } catch (err) {
             setExpenseFeedback(err.message || "Failed to submit expense.");
@@ -3007,14 +3007,14 @@ export default function Home() {
         }
     };
 
-    const handleReviewExpense = async (expenseId, action) => {
+    const handleReviewExpense = async (expenseId, action, extra = {}) => {
         setExpenseSubmitting(true);
         try {
             const headers = await getAuthHeaders();
             const res = await fetch("/api/expenses", {
                 method: "PUT",
                 headers,
-                body: JSON.stringify({ action, expenseId, rejectionReason: expenseRejectReason[expenseId] || "" })
+                body: JSON.stringify({ action, expenseId, rejectionReason: expenseRejectReason[expenseId] || "", ...extra })
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "Failed to review expense.");
@@ -3022,6 +3022,46 @@ export default function Home() {
             syncDatabaseData(currentUser);
         } catch (err) {
             setExpenseFeedback(err.message || "Failed to review expense.");
+        } finally {
+            setExpenseSubmitting(false);
+        }
+    };
+
+    const handleEditExpense = async (expenseId, patch) => {
+        setExpenseSubmitting(true);
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch("/api/expenses", {
+                method: "PUT",
+                headers,
+                body: JSON.stringify({ action: "edit", expenseId, patch })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Failed to update expense.");
+            setExpenseFeedback(data.message || "Expense updated.");
+            syncDatabaseData(currentUser);
+        } catch (err) {
+            setExpenseFeedback(err.message || "Failed to update expense.");
+        } finally {
+            setExpenseSubmitting(false);
+        }
+    };
+
+    const handleDeleteExpense = async (expenseId) => {
+        if (!window.confirm("Delete this expense? This cannot be undone.")) return;
+        setExpenseSubmitting(true);
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch(`/api/expenses?id=${encodeURIComponent(expenseId)}`, {
+                method: "DELETE",
+                headers,
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Failed to delete expense.");
+            setExpenseFeedback(data.message || "Expense deleted.");
+            syncDatabaseData(currentUser);
+        } catch (err) {
+            setExpenseFeedback(err.message || "Failed to delete expense.");
         } finally {
             setExpenseSubmitting(false);
         }
@@ -4910,6 +4950,8 @@ export default function Home() {
                         handleExpenseReceiptCapture={handleExpenseReceiptCapture}
                         handleSubmitExpense={handleSubmitExpense}
                         handleReviewExpense={handleReviewExpense}
+                        handleEditExpense={handleEditExpense}
+                        handleDeleteExpense={handleDeleteExpense}
                     />
                 )}
 

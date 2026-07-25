@@ -128,20 +128,18 @@ function OverviewView({ getAuthHeaders }) {
                 <div className="text-center p-12 text-slate-400 text-sm">Loading finance data…</div>
             ) : (
                 <>
-                    <Panel title="Sales & Collections">
-                        <StatCard label="Sales Invoiced (Period)" value={money(overview.sales.salesInvoicedPeriod)} sub={`All-time: ${money(overview.sales.salesInvoicedTotal)}`} />
-                        <StatCard label="Payments Collected (Period)" value={money(overview.sales.paymentsCollectedPeriod)} sub={`All-time: ${money(overview.sales.paymentsCollectedTotal)}`} />
-                        <StatCard label="Outstanding Receivables" value={money(overview.sales.outstandingReceivables)} />
-                        <StatCard label="Overdue Receivables" value={money(overview.sales.overdueReceivables)} alert={overview.sales.overdueReceivables > 0} />
-                        <StatCard label="Paid / Partial / Unpaid" value={`${overview.sales.paidCount} / ${overview.sales.partialCount} / ${overview.sales.unpaidCount}`} />
+                    <Panel title="Sales & Collections — Completed Jobs Only">
+                        <StatCard label="Revenue (Period)" value={money(overview.sales.salesPeriod)} sub={`All-time: ${money(overview.sales.salesTotal)}`} />
+                        <StatCard label="Collected (Period)" value={money(overview.sales.collectedPeriod)} sub={`All-time: ${money(overview.sales.collectedTotal)}`} />
+                        <StatCard label="Unpaid / Owed Right Now" value={money(overview.sales.unpaidOwed)} alert={overview.sales.unpaidOwed > 0} sub="Completed jobs not yet fully paid" />
+                        <StatCard label="Paid / Partial / Unpaid" value={`${overview.sales.paidCount} / ${overview.sales.partialCount} / ${overview.sales.unpaidCount}`} sub="Completed jobs by payment status" />
                     </Panel>
 
                     <Panel title="Cash Position">
-                        <StatCard label="Estimated Bank Position" value={money(overview.cash.estimatedBankPosition)} />
-                        <StatCard label="Cash In Hand" value={money(overview.cash.cashRemainingInHand)} />
+                        <StatCard label="Cash In Hand" value={money(overview.cash.cashRemainingInHand)} sub="Running balance, not tied to the date filter" />
                         <StatCard label="Cash Received (Period)" value={money(overview.cash.cashReceivedPeriod)} />
                         <StatCard label="Cash Deposited (Period)" value={money(overview.cash.cashDepositedPeriod)} />
-                        <StatCard label="Available Company Funds" value={money(overview.cash.availableCompanyFunds)} />
+                        <StatCard label="Available Company Funds" value={money(overview.cash.availableCompanyFunds)} sub="Opening capital + collected − expenses, all-time" />
                     </Panel>
 
                     <Panel title="Expenses">
@@ -188,7 +186,7 @@ function ForecastView({ getAuthHeaders }) {
             <p style={{ fontSize: 12, color: "#94a3b8" }}>
                 Run-rate projection: {forecast.daysElapsed} of {forecast.daysInMonth} days elapsed this month.
             </p>
-            <Panel title="Month-End Forecast (Run Rate)">
+            <Panel title="Month-End Forecast (Run Rate, Completed Jobs)">
                 <StatCard label="Current Month Sales" value={money(forecast.currentMonthSales)} />
                 <StatCard label="Avg Daily Sales" value={money(forecast.avgDailySales)} />
                 <StatCard label="Expected Month-End Sales" value={money(forecast.expectedMonthEndSales)} />
@@ -199,7 +197,7 @@ function ForecastView({ getAuthHeaders }) {
             </Panel>
             <Panel title="Collection Forecast">
                 <StatCard label="Historical Collection Rate" value={pct(forecast.collectionRate)} />
-                <StatCard label="Outstanding Receivables" value={money(forecast.outstandingReceivables)} />
+                <StatCard label="Unpaid / Owed Right Now" value={money(forecast.unpaidOwed)} />
                 <StatCard label="Expected Collections This Month" value={money(forecast.expectedCollectionsThisMonth)} />
             </Panel>
             <Panel title="Job Performance">
@@ -346,7 +344,7 @@ export default function FinanceTab({ getAuthHeaders }) {
                 <div>
                     <p className="ops-eyebrow">Finance</p>
                     <h3 className="ops-title">Financial Overview</h3>
-                    <p className="ops-copy">Sales, cash position, expenses, and profit — computed live from your own bookings and expenses, with a real date-range filter.</p>
+                    <p className="ops-copy">Sales, cash, expenses, and profit — counted only from jobs marked Completed, computed live with a real date-range filter.</p>
                 </div>
             </div>
 
