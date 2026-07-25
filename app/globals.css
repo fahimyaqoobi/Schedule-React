@@ -1,4 +1,8 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
 
 /* ============================================================
    SMARTOUCH CLEAN — Apple/iOS Typography System
@@ -104,6 +108,38 @@
     /* iOS safe-area insets (mobile bottom nav / notch) */
     --safe-bottom: env(safe-area-inset-bottom, 0px);
     --safe-top: env(safe-area-inset-top, 0px);
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.147 0.004 49.3);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.147 0.004 49.3);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.147 0.004 49.3);
+    --primary: oklch(0.488 0.243 264.376);
+    --primary-foreground: oklch(0.97 0.014 254.604);
+    --secondary: oklch(0.967 0.001 286.375);
+    --secondary-foreground: oklch(0.21 0.006 285.885);
+    --muted: oklch(0.96 0.002 17.2);
+    --muted-foreground: oklch(0.547 0.021 43.1);
+    --accent: oklch(0.96 0.002 17.2);
+    --accent-foreground: oklch(0.214 0.009 43.1);
+    --destructive: oklch(0.577 0.245 27.325);
+    --border: oklch(0.922 0.005 34.3);
+    --input: oklch(0.922 0.005 34.3);
+    --ring: oklch(0.714 0.014 41.2);
+    --chart-1: oklch(0.845 0.143 164.978);
+    --chart-2: oklch(0.696 0.17 162.48);
+    --chart-3: oklch(0.596 0.145 163.225);
+    --chart-4: oklch(0.508 0.118 165.612);
+    --chart-5: oklch(0.432 0.095 166.913);
+    --radius: 0.625rem;
+    --sidebar: oklch(0.986 0.002 67.8);
+    --sidebar-foreground: oklch(0.147 0.004 49.3);
+    --sidebar-primary: oklch(0.546 0.245 262.881);
+    --sidebar-primary-foreground: oklch(0.97 0.014 254.604);
+    --sidebar-accent: oklch(0.96 0.002 17.2);
+    --sidebar-accent-foreground: oklch(0.214 0.009 43.1);
+    --sidebar-border: oklch(0.922 0.005 34.3);
+    --sidebar-ring: oklch(0.714 0.014 41.2);
 }
 
 /* Base resets & layouts */
@@ -162,13 +198,16 @@ label {
     box-shadow: var(--shadow-sparkle);
 }
 
-.text-primary { color: var(--color-brand-action); }
-.bg-primary { background-color: var(--color-brand-action); }
+/* .text-primary/.bg-primary/.border-primary/.text-secondary/.bg-secondary/
+   .border-secondary used to live here as hand-rolled "brand utility" classes
+   predating Tailwind in this project. Removed: confirmed nothing in the app
+   used them as literal classNames, and being unlayered they permanently
+   shadowed the real Tailwind/shadcn utilities of the same name (Tailwind's
+   generated utilities sit in `@layer utilities`, which always loses to any
+   unlayered rule regardless of source order) — every shadcn Button/Badge
+   using variant="secondary" or "default" was silently rendering brand green/
+   blue instead of the new theme's colors. */
 .bg-primary-10 { background-color: rgba(10, 108, 184, 0.10); }
-.border-primary { border-color: var(--color-brand-action); }
-.text-secondary { color: var(--color-brand-green); }
-.bg-secondary { background-color: var(--color-brand-green); }
-.border-secondary { border-color: var(--color-brand-green); }
 
 /* Custom Scrollbars */
 ::-webkit-scrollbar {
@@ -2409,11 +2448,11 @@ label {
     .dashboard-panels {
         grid-template-columns: 1fr;
     }
-    
+
     .calendar-split-container {
         grid-template-columns: 1fr;
     }
-    
+
     .agenda-card {
         max-height: 350px;
     }
@@ -2423,40 +2462,40 @@ label {
     .sidebar {
         transform: translateX(-100%);
     }
-    
+
     .sidebar.show {
         transform: translateX(0);
     }
-    
+
     .main-content {
         margin-left: 0;
         padding: 20px;
     }
-    
+
     .mobile-toggle {
         display: block;
     }
-    
+
     .top-header {
         margin-bottom: 24px;
     }
-    
+
     .header-right .datetime-indicator {
         display: none;
     }
-    
+
     .stats-grid {
         grid-template-columns: 1fr 1fr;
     }
-    
+
     .col-6 {
         grid-column: span 12;
     }
-    
+
     .filters-card {
         padding: 16px;
     }
-    
+
     .filters-actions {
         grid-template-columns: 1fr;
     }
@@ -2466,18 +2505,18 @@ label {
     .stats-grid {
         grid-template-columns: 1fr;
     }
-    
+
     .today-item {
         flex-direction: column;
         align-items: flex-start;
         gap: 12px;
     }
-    
+
     .today-right {
         width: 100%;
         justify-content: space-between;
     }
-    
+
     .view-title {
         font-size: 20px;
     }
@@ -4381,7 +4420,6 @@ label {
     gap: 12px;
 }
 
-
 .people-editor-actions {
     display: flex;
     gap: 12px;
@@ -4869,7 +4907,7 @@ select option:disabled {
         backdrop-filter: blur(6px) !important;
         overflow-y: auto !important;
     }
-    
+
     .modal-backdrop.show {
         display: flex !important;
     }
@@ -6883,7 +6921,6 @@ select option:disabled {
     grid-column: span 2;
 }
 
-
 .settings-card:hover {
     border-color: var(--card-hover-border);
     box-shadow: 0 12px 30px -5px rgba(15, 23, 42, 0.08);
@@ -6937,32 +6974,31 @@ select option:disabled {
         grid-template-columns: 1fr !important;
         gap: 16px !important;
     }
-    
+
     .settings-card-full {
         grid-column: span 1 !important;
     }
-    
+
     .settings-card .panel-header {
         padding: 16px 20px !important;
     }
-    
+
     .settings-form {
         padding: 16px !important;
         gap: 16px !important;
     }
-    
+
     .settings-avatar-group {
         gap: 12px !important;
         padding-bottom: 12px !important;
     }
-    
+
     .settings-avatar {
         width: 52px !important;
         height: 52px !important;
         font-size: 16px !important;
     }
 }
-
 
 /* ============================================================
    AUTH PAGE — Premium Split-Panel Design (Smartouch Clean)
@@ -7593,7 +7629,6 @@ select option:disabled {
     border: 1px solid #e2e8f0 !important;
 }
 
-
 /* ====================================================
    Step 8: Quote & Invoice Review Styles
    ==================================================== */
@@ -7926,7 +7961,6 @@ select option:disabled {
     padding: 0 !important;
 }
 
-
 /* ====================================================
    Step 5 & Step 7: Scheduler & Additional Info Styles
    ==================================================== */
@@ -8085,8 +8119,6 @@ select option:disabled {
     box-shadow: 0 4px 10px rgba(2, 104, 179, 0.2) !important;
 }
 
-
-
 /* ============================================================
    WIZARD LIVE PRICE PREVIEW STRIP (Steps 3-7)
    ============================================================ */
@@ -8173,7 +8205,6 @@ select option:disabled {
         font-size: 16px;
     }
 }
-
 
 /* ============================================================
    BOOKING STATUS SELECTOR GRID (Step 8 Sidebar)
@@ -8353,7 +8384,6 @@ select option:disabled {
         grid-column: span 1;
     }
 }
-
 
 .rates-row {
     display: flex !important;
@@ -10032,7 +10062,6 @@ body:has(.modal-backdrop.show) {
     }
 }
 
-
 /* ══════════════════════════════════════════════════════════════
    CLEANER JOB WIZARD — Modernized
    Namespace: .cjw-*  (replaces the old fully-inline-styled wizard)
@@ -10362,3 +10391,94 @@ body:has(.modal-backdrop.show) {
 .settings-config-text strong { font-size: 13px; font-weight: 800; color: #1e293b; }
 .settings-config-text small { font-size: 11px; color: #64748b; font-weight: 600; }
 .settings-config-chevron { color: #cbd5e1; font-size: 18px; flex-shrink: 0; }
+
+@theme inline {
+    --font-heading: var(--font-sans);
+    --font-sans: var(--font-sans);
+    --color-sidebar-ring: var(--sidebar-ring);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar: var(--sidebar);
+    --color-chart-5: var(--chart-5);
+    --color-chart-4: var(--chart-4);
+    --color-chart-3: var(--chart-3);
+    --color-chart-2: var(--chart-2);
+    --color-chart-1: var(--chart-1);
+    --color-ring: var(--ring);
+    --color-input: var(--input);
+    --color-border: var(--border);
+    --color-destructive: var(--destructive);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-accent: var(--accent);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-muted: var(--muted);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-secondary: var(--secondary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-primary: var(--primary);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-popover: var(--popover);
+    --color-card-foreground: var(--card-foreground);
+    --color-card: var(--card);
+    --color-foreground: var(--foreground);
+    --color-background: var(--background);
+    --radius-sm: calc(var(--radius) * 0.6);
+    --radius-md: calc(var(--radius) * 0.8);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) * 1.4);
+    --radius-2xl: calc(var(--radius) * 1.8);
+    --radius-3xl: calc(var(--radius) * 2.2);
+    --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+.dark {
+    --background: oklch(0.147 0.004 49.3);
+    --foreground: oklch(0.986 0.002 67.8);
+    --card: oklch(0.214 0.009 43.1);
+    --card-foreground: oklch(0.986 0.002 67.8);
+    --popover: oklch(0.214 0.009 43.1);
+    --popover-foreground: oklch(0.986 0.002 67.8);
+    --primary: oklch(0.424 0.199 265.638);
+    --primary-foreground: oklch(0.97 0.014 254.604);
+    --secondary: oklch(0.274 0.006 286.033);
+    --secondary-foreground: oklch(0.985 0 0);
+    --muted: oklch(0.268 0.011 36.5);
+    --muted-foreground: oklch(0.714 0.014 41.2);
+    --accent: oklch(0.268 0.011 36.5);
+    --accent-foreground: oklch(0.986 0.002 67.8);
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 15%);
+    --ring: oklch(0.547 0.021 43.1);
+    --chart-1: oklch(0.845 0.143 164.978);
+    --chart-2: oklch(0.696 0.17 162.48);
+    --chart-3: oklch(0.596 0.145 163.225);
+    --chart-4: oklch(0.508 0.118 165.612);
+    --chart-5: oklch(0.432 0.095 166.913);
+    --sidebar: oklch(0.214 0.009 43.1);
+    --sidebar-foreground: oklch(0.986 0.002 67.8);
+    --sidebar-primary: oklch(0.623 0.214 259.815);
+    --sidebar-primary-foreground: oklch(0.97 0.014 254.604);
+    --sidebar-accent: oklch(0.268 0.011 36.5);
+    --sidebar-accent-foreground: oklch(0.986 0.002 67.8);
+    --sidebar-border: oklch(1 0 0 / 10%);
+    --sidebar-ring: oklch(0.547 0.021 43.1);
+}
+
+/* shadcn's default base layer applies `body { bg-background text-foreground }`
+   and `html { font-sans }` globally — that would silently re-skin every
+   screen (including ones not yet migrated) the moment this file loads, since
+   it's the last rule in the cascade and wins the specificity tie against the
+   existing `body {}` rule above. We're migrating screen-by-screen, so only
+   the neutral `*` border/ring reset ships app-wide; screens opt into the new
+   background/text/font by applying shadcn's utility classes directly once
+   they're actually redesigned. */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    }
+}

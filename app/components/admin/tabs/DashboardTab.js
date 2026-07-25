@@ -1,5 +1,37 @@
 "use client";
 import { useState, useMemo } from "react";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+
+function fmtMoney(n) {
+    return `$${Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+}
+
+// A single label/value row inside a Business Health group card.
+function HealthStat({ label, value, sub, tone, onClick }) {
+    const toneClasses = tone === "alert"
+        ? "text-destructive"
+        : tone === "good"
+            ? "text-emerald-600 dark:text-emerald-400"
+            : "text-foreground";
+    return (
+        <div
+            onClick={onClick}
+            className={cn(
+                "flex items-center justify-between gap-3 rounded-lg px-2.5 py-2",
+                onClick && "cursor-pointer hover:bg-muted",
+            )}
+        >
+            <div className="flex flex-col">
+                <span className="text-xs font-medium text-muted-foreground">{label}</span>
+                {sub && <span className="text-[11px] text-muted-foreground/80">{sub}</span>}
+            </div>
+            <strong className={cn("text-base font-bold", toneClasses)}>{value}</strong>
+        </div>
+    );
+}
 
 // --- Chart period helpers ---
 const CHART_FILTERS = [
@@ -340,301 +372,282 @@ export default function DashboardTab({
                 <>
                     {/* Business Health summary — grouped, no operational actions here.
                         Booking creation lives in the Bookings module. */}
-                    <section className="dashboard-health-shell">
-                        <div className="dashboard-health-header">
+                    <section className="flex flex-col gap-4">
+                        <div className="flex flex-wrap items-end justify-between gap-3">
                             <div>
-                                <p className="admin-command-kicker">Business Health</p>
-                                <h3>How is {activeBranch?.name || "the business"} doing today?</h3>
+                                <p className="text-xs font-semibold uppercase tracking-wider text-primary">Business Health</p>
+                                <h3 className="text-xl font-bold text-foreground">How is {activeBranch?.name || "the business"} doing today?</h3>
                             </div>
-                            <div className="dashboard-health-date">
+                            <Badge variant="secondary" className="h-7 rounded-full px-3 text-xs font-semibold">
                                 {new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                            </div>
+                            </Badge>
                         </div>
 
-                        <div className="dashboard-health-groups">
-                            <div className="dashboard-health-group">
-                                <div className="dashboard-health-group-title">Today</div>
-                                <div className="dashboard-health-group-body">
-                                    <div className="dashboard-health-stat">
-                                        <span>Jobs Today</span>
-                                        <strong>{adminCommandMetrics.jobsToday}</strong>
-                                    </div>
-                                    <div className="dashboard-health-stat">
-                                        <span>Today&apos;s Revenue</span>
-                                        <strong>${adminCommandMetrics.todayRevenue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</strong>
-                                    </div>
-                                    <div className="dashboard-health-stat">
-                                        <span>Employees Working</span>
-                                        <strong>{(activeTimeEntries || []).length}</strong>
-                                    </div>
-                                    <div
-                                        className={`dashboard-health-stat${adminCommandMetrics.jobsNeedingAttention > 0 ? " alert" : ""}`}
-                                        style={{ cursor: adminCommandMetrics.jobsNeedingAttention > 0 ? "pointer" : "default" }}
-                                        onClick={() => { if (adminCommandMetrics.jobsNeedingAttention > 0) setActiveTab("bookings"); }}
-                                    >
-                                        <span>Needs Attention</span>
-                                        <strong>{adminCommandMetrics.jobsNeedingAttention}</strong>
-                                    </div>
-                                </div>
-                            </div>
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                            <Card>
+                                <CardHeader><CardTitle>Today</CardTitle></CardHeader>
+                                <CardContent className="flex flex-col gap-1">
+                                    <HealthStat label="Jobs Today" value={adminCommandMetrics.jobsToday} />
+                                    <HealthStat label="Today's Revenue" value={fmtMoney(adminCommandMetrics.todayRevenue)} />
+                                    <HealthStat label="Employees Working" value={(activeTimeEntries || []).length} />
+                                    <HealthStat
+                                        label="Needs Attention"
+                                        value={adminCommandMetrics.jobsNeedingAttention}
+                                        tone={adminCommandMetrics.jobsNeedingAttention > 0 ? "alert" : undefined}
+                                        onClick={adminCommandMetrics.jobsNeedingAttention > 0 ? () => setActiveTab("bookings") : undefined}
+                                    />
+                                </CardContent>
+                            </Card>
 
-                            <div className="dashboard-health-group">
-                                <div className="dashboard-health-group-title">Daily P&amp;L</div>
-                                <div className="dashboard-health-group-body">
-                                    <div className="dashboard-health-stat">
-                                        <span>Revenue</span>
-                                        <strong>${adminCommandMetrics.dailyPnl.revenue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</strong>
-                                    </div>
-                                    <div className="dashboard-health-stat">
-                                        <span>Labor Cost</span>
-                                        <strong>${adminCommandMetrics.dailyPnl.laborCost.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</strong>
-                                    </div>
-                                    <div className="dashboard-health-stat">
-                                        <span>Material Cost</span>
-                                        <strong>${adminCommandMetrics.dailyPnl.materialCost.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</strong>
-                                    </div>
-                                    <div className="dashboard-health-stat">
-                                        <span>Net Profit</span>
-                                        <strong>${adminCommandMetrics.dailyPnl.profit.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</strong>
-                                        <small>{adminCommandMetrics.jobsCompletedTodayWithFinancials} job{adminCommandMetrics.jobsCompletedTodayWithFinancials !== 1 ? "s" : ""} completed today</small>
-                                    </div>
-                                </div>
-                            </div>
+                            <Card>
+                                <CardHeader><CardTitle>Daily P&amp;L</CardTitle></CardHeader>
+                                <CardContent className="flex flex-col gap-1">
+                                    <HealthStat label="Revenue" value={fmtMoney(adminCommandMetrics.dailyPnl.revenue)} />
+                                    <HealthStat label="Labor Cost" value={fmtMoney(adminCommandMetrics.dailyPnl.laborCost)} />
+                                    <HealthStat label="Material Cost" value={fmtMoney(adminCommandMetrics.dailyPnl.materialCost)} />
+                                    <HealthStat
+                                        label="Net Profit"
+                                        value={fmtMoney(adminCommandMetrics.dailyPnl.profit)}
+                                        sub={`${adminCommandMetrics.jobsCompletedTodayWithFinancials} job${adminCommandMetrics.jobsCompletedTodayWithFinancials !== 1 ? "s" : ""} completed today`}
+                                    />
+                                </CardContent>
+                            </Card>
 
-                            <div className="dashboard-health-group">
-                                <div className="dashboard-health-group-title">Money</div>
-                                <div className="dashboard-health-group-body">
-                                    <div className="dashboard-health-stat">
-                                        <span>Payments Received</span>
-                                        <strong>${adminCommandMetrics.paidRevenue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</strong>
-                                    </div>
-                                    <div
-                                        className={`dashboard-health-stat${adminCommandMetrics.pendingPaymentCount > 0 ? " alert" : ""}`}
-                                        style={{ cursor: adminCommandMetrics.pendingPaymentCount > 0 ? "pointer" : "default" }}
-                                        onClick={() => { if (adminCommandMetrics.pendingPaymentCount > 0) { setActiveTab("bookings"); setFilterStatus("unpaid"); } }}
-                                    >
-                                        <span>Outstanding Invoices</span>
-                                        <strong>${adminCommandMetrics.pendingPaymentAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</strong>
-                                        <small>{adminCommandMetrics.pendingPaymentCount} job{adminCommandMetrics.pendingPaymentCount !== 1 ? "s" : ""}</small>
-                                    </div>
-                                    <div
-                                        className={`dashboard-health-stat${adminCommandMetrics.pendingExpenseCount > 0 ? " alert" : ""}`}
-                                        style={{ cursor: "pointer" }}
+                            <Card>
+                                <CardHeader><CardTitle>Money</CardTitle></CardHeader>
+                                <CardContent className="flex flex-col gap-1">
+                                    <HealthStat label="Payments Received" value={fmtMoney(adminCommandMetrics.paidRevenue)} />
+                                    <HealthStat
+                                        label="Outstanding Invoices"
+                                        value={fmtMoney(adminCommandMetrics.pendingPaymentAmount)}
+                                        sub={`${adminCommandMetrics.pendingPaymentCount} job${adminCommandMetrics.pendingPaymentCount !== 1 ? "s" : ""}`}
+                                        tone={adminCommandMetrics.pendingPaymentCount > 0 ? "alert" : undefined}
+                                        onClick={adminCommandMetrics.pendingPaymentCount > 0 ? () => { setActiveTab("bookings"); setFilterStatus("unpaid"); } : undefined}
+                                    />
+                                    <HealthStat
+                                        label="Approved Expenses"
+                                        value={fmtMoney(adminCommandMetrics.approvedExpenseTotal)}
+                                        sub={`${adminCommandMetrics.pendingExpenseCount} pending approval`}
+                                        tone={adminCommandMetrics.pendingExpenseCount > 0 ? "alert" : undefined}
                                         onClick={() => setActiveTab("expenses")}
-                                    >
-                                        <span>Approved Expenses</span>
-                                        <strong>${adminCommandMetrics.approvedExpenseTotal.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</strong>
-                                        <small>{adminCommandMetrics.pendingExpenseCount} pending approval</small>
-                                    </div>
-                                </div>
-                            </div>
+                                    />
+                                </CardContent>
+                            </Card>
 
-                            <div className="dashboard-health-group">
-                                <div className="dashboard-health-group-title">Pipeline &amp; Customers</div>
-                                <div className="dashboard-health-group-body">
-                                    <div className="dashboard-health-stat" style={{ cursor: "pointer" }} onClick={() => { setActiveTab("bookings"); setFilterStatus("Lead"); }}>
-                                        <span>New Leads</span>
-                                        <strong>{adminCommandMetrics.newLeads}</strong>
-                                    </div>
-                                    <div className="dashboard-health-stat" style={{ cursor: "pointer" }} onClick={() => { setActiveTab("bookings"); setFilterStatus("Quote"); }}>
-                                        <span>New Quotes</span>
-                                        <strong>{adminCommandMetrics.newQuotes}</strong>
-                                    </div>
-                                    <div className="dashboard-health-stat">
-                                        <span>Active Recurring Customers</span>
-                                        <strong>{adminCommandMetrics.uniqueRecurringCustomers}</strong>
-                                        <small>{adminCommandMetrics.recurringActive} scheduled visit{adminCommandMetrics.recurringActive !== 1 ? "s" : ""}</small>
-                                    </div>
-                                </div>
-                            </div>
+                            <Card>
+                                <CardHeader><CardTitle>Pipeline &amp; Customers</CardTitle></CardHeader>
+                                <CardContent className="flex flex-col gap-1">
+                                    <HealthStat label="New Leads" value={adminCommandMetrics.newLeads} onClick={() => { setActiveTab("bookings"); setFilterStatus("Lead"); }} />
+                                    <HealthStat label="New Quotes" value={adminCommandMetrics.newQuotes} onClick={() => { setActiveTab("bookings"); setFilterStatus("Quote"); }} />
+                                    <HealthStat
+                                        label="Active Recurring Customers"
+                                        value={adminCommandMetrics.uniqueRecurringCustomers}
+                                        sub={`${adminCommandMetrics.recurringActive} scheduled visit${adminCommandMetrics.recurringActive !== 1 ? "s" : ""}`}
+                                    />
+                                </CardContent>
+                            </Card>
 
-                            <div className="dashboard-health-group">
-                                <div className="dashboard-health-group-title">Tomorrow</div>
-                                <div className="dashboard-health-group-body">
-                                    <div className={`dashboard-health-stat${adminCommandMetrics.tomorrowReady ? " good" : adminCommandMetrics.jobsTomorrow > 0 ? " alert" : ""}`}>
-                                        <span>Readiness</span>
-                                        <strong>{adminCommandMetrics.jobsTomorrow === 0 ? "No jobs" : adminCommandMetrics.tomorrowReady ? "Ready ✓" : `${adminCommandMetrics.tomorrowUnassigned} unassigned`}</strong>
-                                        <small>{adminCommandMetrics.jobsTomorrow} confirmed job{adminCommandMetrics.jobsTomorrow !== 1 ? "s" : ""}</small>
-                                    </div>
-                                </div>
-                            </div>
+                            <Card>
+                                <CardHeader><CardTitle>Tomorrow</CardTitle></CardHeader>
+                                <CardContent className="flex flex-col gap-1">
+                                    <HealthStat
+                                        label="Readiness"
+                                        value={adminCommandMetrics.jobsTomorrow === 0 ? "No jobs" : adminCommandMetrics.tomorrowReady ? "Ready ✓" : `${adminCommandMetrics.tomorrowUnassigned} unassigned`}
+                                        sub={`${adminCommandMetrics.jobsTomorrow} confirmed job${adminCommandMetrics.jobsTomorrow !== 1 ? "s" : ""}`}
+                                        tone={adminCommandMetrics.tomorrowReady ? "good" : adminCommandMetrics.jobsTomorrow > 0 ? "alert" : undefined}
+                                    />
+                                </CardContent>
+                            </Card>
                         </div>
                     </section>
 
                     {/* Desktop-only dashboard sections */}
-                    <section className="admin-command-shell dashboard-desktop-only">
-                        <div className="dashboard-main-col">
-
-                                {/* Revenue & Wages Chart */}
-                                <div className="dashboard-chart-section">
-                                    <div className="dashboard-chart-header">
-                                        <div>
-                                            <h4 className="dashboard-chart-title">Revenue &amp; Wages</h4>
-                                            <div className="dashboard-chart-legend" style={{ display: "flex", gap: 16, marginTop: 4 }}>
-                                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                                    <span style={{ display: "inline-block", width: 14, height: 14, borderRadius: 3, background: "#1e3a5f" }}></span>
-                                                    <span style={{ fontSize: 12, fontWeight: 700, color: "#1e3a5f" }}>Revenue (paid bookings)</span>
-                                                </div>
-                                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                                    <svg width="22" height="14" viewBox="0 0 22 14" style={{ display: "block" }}>
-                                                        <line x1="0" y1="7" x2="22" y2="7" stroke="#f97316" strokeWidth="3" strokeLinecap="round" />
-                                                        <circle cx="11" cy="7" r="4" fill="#f97316" stroke="#fff" strokeWidth="1.5" />
-                                                    </svg>
-                                                    <span style={{ fontSize: 12, fontWeight: 700, color: "#f97316" }}>Wages (payroll)</span>
-                                                </div>
-                                            </div>
+                    <section className="dashboard-desktop-only mt-6 flex flex-col gap-6">
+                        {/* Revenue & Wages Chart */}
+                        <Card>
+                            <CardHeader className="flex-row flex-wrap items-start justify-between gap-4 border-b border-border pb-4">
+                                <div>
+                                    <CardTitle>Revenue &amp; Wages</CardTitle>
+                                    <div className="mt-2 flex gap-4">
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="inline-block h-3.5 w-3.5 rounded-sm bg-[#1e3a5f]" />
+                                            <span className="text-xs font-semibold text-[#1e3a5f]">Revenue (paid bookings)</span>
                                         </div>
-                                        <div className="dashboard-chart-filters">
-                                            {CHART_FILTERS.map(f => (
+                                        <div className="flex items-center gap-1.5">
+                                            <svg width="22" height="14" viewBox="0 0 22 14" className="block">
+                                                <line x1="0" y1="7" x2="22" y2="7" stroke="#f97316" strokeWidth="3" strokeLinecap="round" />
+                                                <circle cx="11" cy="7" r="4" fill="#f97316" stroke="#fff" strokeWidth="1.5" />
+                                            </svg>
+                                            <span className="text-xs font-semibold text-[#f97316]">Wages (payroll)</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {CHART_FILTERS.map(f => (
+                                        <Button
+                                            key={f.key}
+                                            type="button"
+                                            size="sm"
+                                            variant={chartFilter === f.key ? "default" : "outline"}
+                                            onClick={() => setChartFilter(f.key)}
+                                        >
+                                            {f.label}
+                                        </Button>
+                                    ))}
+                                </div>
+                            </CardHeader>
+                            <CardContent className="pt-4">
+                                <RevenueWagesChart data={chartData} />
+                            </CardContent>
+                        </Card>
+
+                        {/* Status & Payment pie charts */}
+                        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                            <Card>
+                                <CardHeader><CardTitle>Booking Status</CardTitle></CardHeader>
+                                <CardContent className="flex items-center gap-6">
+                                    <PieChart size={110} segments={[
+                                        { label: "Completed", value: adminCommandMetrics.completedCount, color: "#16a34a" },
+                                        { label: "Confirmed", value: adminCommandMetrics.confirmed, color: "#0891b2" },
+                                        { label: "Pipeline",  value: adminCommandMetrics.pipeline,   color: "#6366f1" },
+                                    ]} />
+                                    <div className="flex flex-col gap-2">
+                                        {[
+                                            { label: "Completed", color: "#16a34a", value: adminCommandMetrics.completedCount },
+                                            { label: "Confirmed", color: "#0891b2", value: adminCommandMetrics.confirmed },
+                                            { label: "Pipeline",  color: "#6366f1", value: adminCommandMetrics.pipeline },
+                                        ].map(s => (
+                                            <div key={s.label} className="flex items-center gap-2 text-sm">
+                                                <span className="h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />
+                                                <span className="text-muted-foreground">{s.label}</span>
+                                                <span className="ml-auto font-bold text-foreground">{s.value}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            <Card>
+                                <CardHeader><CardTitle>Payment Overview</CardTitle></CardHeader>
+                                <CardContent className="flex items-center gap-6">
+                                    <PieChart size={110} segments={[
+                                        { label: "Collected", value: adminCommandMetrics.paidRevenue,          color: "#16a34a" },
+                                        { label: "Pending",   value: adminCommandMetrics.pendingPaymentAmount, color: "#f59e0b" },
+                                    ]} />
+                                    <div className="flex flex-col gap-2">
+                                        {[
+                                            { label: "Collected", color: "#16a34a", value: fmtMoney(adminCommandMetrics.paidRevenue) },
+                                            { label: "Pending",   color: "#f59e0b", value: fmtMoney(adminCommandMetrics.pendingPaymentAmount) },
+                                        ].map(s => (
+                                            <div key={s.label} className="flex items-center gap-2 text-sm">
+                                                <span className="h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />
+                                                <span className="text-muted-foreground">{s.label}</span>
+                                                <span className="ml-auto font-bold text-foreground">{s.value}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
+
+                        {/* Today's Dispatch + HR Queue */}
+                        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                            <Card>
+                                <CardHeader className="flex-row items-center justify-between">
+                                    <div>
+                                        <CardTitle>Today&apos;s Dispatches</CardTitle>
+                                        <p className="text-xs text-muted-foreground">{new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                                    </div>
+                                    <Badge variant="secondary">{todayBookings.length} Jobs</Badge>
+                                </CardHeader>
+                                <CardContent>
+                                    {todayBookings.length === 0 ? (
+                                        <div className="py-6 text-center text-sm text-muted-foreground">No dispatches scheduled for today.</div>
+                                    ) : (
+                                        <div className="flex flex-col gap-1.5">
+                                            {todayBookings.slice(0, 5).map(b => (
                                                 <button
-                                                    key={f.key}
+                                                    key={b.id}
+                                                    onClick={() => { setSelectedBooking(b); setDetailsModalOpen(true); }}
                                                     type="button"
-                                                    className={`chart-filter-btn${chartFilter === f.key ? " active" : ""}`}
-                                                    onClick={() => setChartFilter(f.key)}
+                                                    className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2 text-left transition-colors hover:bg-muted"
                                                 >
-                                                    {f.label}
+                                                    <span className="text-xs font-semibold text-muted-foreground">{b.time}</span>
+                                                    <div className="flex-1">
+                                                        <strong className="block text-sm text-foreground">{b.clientName}</strong>
+                                                        <small className="text-xs text-muted-foreground">{b.service} • {b.team}</small>
+                                                    </div>
+                                                    <Badge variant="outline" className="text-[10px]">{b.status}</Badge>
                                                 </button>
                                             ))}
                                         </div>
-                                    </div>
-                                    <div className="dashboard-chart-body">
-                                        <RevenueWagesChart data={chartData} />
-                                    </div>
-                                </div>
+                                    )}
+                                </CardContent>
+                            </Card>
 
-                                {/* Status & Payment pie charts */}
-                                <div className="dashboard-pies-row">
-                                    <div className="dashboard-pie-card">
-                                        <h4 className="dashboard-pie-title">Booking Status</h4>
-                                        <div className="dashboard-pie-body">
-                                            <PieChart size={110} segments={[
-                                                { label: "Completed", value: adminCommandMetrics.completedCount, color: "#16a34a" },
-                                                { label: "Confirmed", value: adminCommandMetrics.confirmed, color: "#0891b2" },
-                                                { label: "Pipeline",  value: adminCommandMetrics.pipeline,   color: "#6366f1" },
-                                            ]} />
-                                            <div className="dashboard-pie-legend">
-                                                {[
-                                                    { label: "Completed", color: "#16a34a", value: adminCommandMetrics.completedCount },
-                                                    { label: "Confirmed", color: "#0891b2", value: adminCommandMetrics.confirmed },
-                                                    { label: "Pipeline",  color: "#6366f1", value: adminCommandMetrics.pipeline },
-                                                ].map(s => (
-                                                    <div key={s.label} className="pie-legend-item">
-                                                        <span className="pie-dot" style={{ background: s.color }} />
-                                                        <span className="pie-legend-label">{s.label}</span>
-                                                        <span className="pie-legend-val">{s.value}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
+                            <Card>
+                                <CardHeader className="flex-row items-center justify-between">
+                                    <div>
+                                        <CardTitle>HR &amp; Compliance Queue</CardTitle>
+                                        <p className="text-xs text-muted-foreground">Employee/subcontractor readiness.</p>
+                                    </div>
+                                    <Badge variant="secondary">{pendingUsers.length} Pending</Badge>
+                                </CardHeader>
+                                <CardContent className="flex flex-col gap-4">
+                                    <div className="grid grid-cols-3 gap-3 text-center">
+                                        <div>
+                                            <strong className="block text-xl font-bold text-foreground">{fieldStaff.length}</strong>
+                                            <span className="text-[11px] text-muted-foreground">Approved field staff</span>
+                                        </div>
+                                        <div>
+                                            <strong className="block text-xl font-bold text-foreground">{pendingUsers.length}</strong>
+                                            <span className="text-[11px] text-muted-foreground">Pending approvals</span>
+                                        </div>
+                                        <div>
+                                            <strong className="block text-xl font-bold text-foreground">{bookings.filter(b => b.assignedStaffIds?.length > 0).length}</strong>
+                                            <span className="text-[11px] text-muted-foreground">Assigned jobs</span>
                                         </div>
                                     </div>
-
-                                    <div className="dashboard-pie-card">
-                                        <h4 className="dashboard-pie-title">Payment Overview</h4>
-                                        <div className="dashboard-pie-body">
-                                            <PieChart size={110} segments={[
-                                                { label: "Collected", value: adminCommandMetrics.paidRevenue,          color: "#16a34a" },
-                                                { label: "Pending",   value: adminCommandMetrics.pendingPaymentAmount, color: "#f59e0b" },
-                                            ]} />
-                                            <div className="dashboard-pie-legend">
-                                                {[
-                                                    { label: "Collected", color: "#16a34a", value: `$${adminCommandMetrics.paidRevenue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` },
-                                                    { label: "Pending",   color: "#f59e0b", value: `$${adminCommandMetrics.pendingPaymentAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` },
-                                                ].map(s => (
-                                                    <div key={s.label} className="pie-legend-item">
-                                                        <span className="pie-dot" style={{ background: s.color }} />
-                                                        <span className="pie-legend-label">{s.label}</span>
-                                                        <span className="pie-legend-val">{s.value}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Today's Dispatch + HR Queue */}
-                                <div className="admin-ops-grid">
-                                    <div className="admin-live-panel">
-                                        <div className="admin-section-heading">
-                                            <div>
-                                                <h4>Today&apos;s Dispatches</h4>
-                                                <p>{new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                                            </div>
-                                            <span>{todayBookings.length} Jobs</span>
-                                        </div>
-                                        {todayBookings.length === 0 ? (
-                                            <div className="admin-cart-empty">No dispatches scheduled for today.</div>
-                                        ) : (
-                                            <div className="admin-dispatch-list">
-                                                {todayBookings.slice(0, 5).map(b => (
-                                                    <button key={b.id} onClick={() => { setSelectedBooking(b); setDetailsModalOpen(true); }} className="admin-dispatch-item" type="button">
-                                                        <span>{b.time}</span>
-                                                        <div>
-                                                            <strong>{b.clientName}</strong>
-                                                            <small>{b.service} • {b.team}</small>
-                                                        </div>
-                                                        <em>{b.status}</em>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <div className="admin-live-panel">
-                                        <div className="admin-section-heading">
-                                            <div>
-                                                <h4>HR &amp; Compliance Queue</h4>
-                                                <p>Employee/subcontractor readiness.</p>
-                                            </div>
-                                            <span>{pendingUsers.length} Pending</span>
-                                        </div>
-                                        <div className="admin-hr-queue">
-                                            <div><strong>{fieldStaff.length}</strong><span>Approved field staff</span></div>
-                                            <div><strong>{pendingUsers.length}</strong><span>Pending approvals</span></div>
-                                            <div><strong>{bookings.filter(b => b.assignedStaffIds?.length > 0).length}</strong><span>Assigned jobs</span></div>
-                                        </div>
-                                        <button onClick={() => setActiveTab("departments")} className="admin-secondary-action" type="button">
-                                            Open HR modules
-                                        </button>
-                                    </div>
-                                </div>
-
-                        </div>{/* end dashboard-main-col */}
+                                    <Button variant="secondary" onClick={() => setActiveTab("departments")} type="button">
+                                        Open HR modules
+                                    </Button>
+                                </CardContent>
+                            </Card>
+                        </div>
                     </section>
 
                     {/* Permissioned pending user approvals table in Dashboard */}
                     {canManagePermissions && pendingUsers.length > 0 && (
-                        <div className="panel-card mt-6 dashboard-desktop-only">
-                            <div className="panel-header">
-                                <h4>Awaiting operational registration approvals</h4>
-                                <span className="badge badge-warning">{pendingUsers.length} Pending</span>
-                            </div>
-                            <div className="panel-body">
-                                <div className="table-container">
-                                    <table className="bookings-table">
+                        <Card className="dashboard-desktop-only mt-6">
+                            <CardHeader className="flex-row items-center justify-between">
+                                <CardTitle>Awaiting operational registration approvals</CardTitle>
+                                <Badge variant="secondary">{pendingUsers.length} Pending</Badge>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="overflow-x-auto rounded-lg border border-border">
+                                    <table className="w-full text-left text-sm">
                                         <thead>
-                                            <tr>
-                                                <th>Person Name</th>
-                                                <th>Email Address</th>
-                                                <th>Account Role</th>
-                                                <th>Requested Role</th>
-                                                <th className="text-right">Actions</th>
+                                            <tr className="border-b border-border bg-muted/50">
+                                                <th className="px-4 py-2.5 font-semibold text-muted-foreground">Person Name</th>
+                                                <th className="px-4 py-2.5 font-semibold text-muted-foreground">Email Address</th>
+                                                <th className="px-4 py-2.5 font-semibold text-muted-foreground">Account Role</th>
+                                                <th className="px-4 py-2.5 font-semibold text-muted-foreground">Requested Role</th>
+                                                <th className="px-4 py-2.5 text-right font-semibold text-muted-foreground">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {pendingUsers.map(u => (
-                                                <tr key={u.uid}>
-                                                    <td className="font-bold text-slate-800">{u.name}</td>
-                                                    <td>{u.email}</td>
-                                                    <td>
-                                                        <span className={`px-2 py-1 rounded text-xs font-bold ${u.role === 'customer' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
-                                                            {getRoleLabel(u.role)}
-                                                        </span>
+                                                <tr key={u.uid} className="border-b border-border last:border-0">
+                                                    <td className="px-4 py-2.5 font-bold text-foreground">{u.name}</td>
+                                                    <td className="px-4 py-2.5 text-muted-foreground">{u.email}</td>
+                                                    <td className="px-4 py-2.5">
+                                                        <Badge variant={u.role === "customer" ? "outline" : "secondary"}>{getRoleLabel(u.role)}</Badge>
                                                     </td>
-                                                    <td>{getRoleLabel(u.role)}</td>
-                                                    <td className="text-right">
-                                                        <div className="flex gap-2 justify-end">
-                                                            <button onClick={() => handleResolveUserApproval(u.uid, "approve")} className="btn btn-secondary btn-sm">Approve</button>
-                                                            <button onClick={() => handleResolveUserApproval(u.uid, "reject")} className="btn btn-danger btn-sm">Reject</button>
+                                                    <td className="px-4 py-2.5 text-muted-foreground">{getRoleLabel(u.role)}</td>
+                                                    <td className="px-4 py-2.5 text-right">
+                                                        <div className="flex justify-end gap-2">
+                                                            <Button size="sm" variant="secondary" onClick={() => handleResolveUserApproval(u.uid, "approve")}>Approve</Button>
+                                                            <Button size="sm" variant="destructive" onClick={() => handleResolveUserApproval(u.uid, "reject")}>Reject</Button>
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -642,8 +655,8 @@ export default function DashboardTab({
                                         </tbody>
                                     </table>
                                 </div>
-                            </div>
-                        </div>
+                            </CardContent>
+                        </Card>
                     )}
                 </>
             )}
