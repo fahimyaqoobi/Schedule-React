@@ -65,15 +65,48 @@ function StatCard({ label, value, sub, alert }) {
     );
 }
 
-function Panel({ title, children }) {
+function Panel({ title, sub, children }) {
     return (
         <div className="settings-card">
             <div className="panel-header border-b border-slate-100 pb-3">
                 <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">{title}</h4>
+                {sub && <p className="text-slate-500 text-xs mt-1">{sub}</p>}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, paddingTop: 14 }}>
                 {children}
             </div>
+        </div>
+    );
+}
+
+function PaymentMethodsPanel({ title, breakdown }) {
+    const total = breakdown.reduce((s, m) => s + m.amount, 0);
+    return (
+        <div className="settings-card">
+            <div className="panel-header border-b border-slate-100 pb-3">
+                <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">{title}</h4>
+                <p className="text-slate-500 text-xs mt-1">How the money you collected in this period actually came in.</p>
+            </div>
+            {breakdown.length === 0 ? (
+                <div className="text-center p-6 text-slate-400 text-xs">Nothing collected in this period yet.</div>
+            ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingTop: 14 }}>
+                    {breakdown.map(m => {
+                        const widthPct = total > 0 ? (m.amount / total) * 100 : 0;
+                        return (
+                            <div key={m.method}>
+                                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}>
+                                    <span style={{ fontWeight: 700, color: "#1e293b" }}>{m.label}</span>
+                                    <span style={{ color: "#64748b" }}>{money(m.amount)} · {m.count} job{m.count === 1 ? "" : "s"}</span>
+                                </div>
+                                <div style={{ background: "#f1f5f9", borderRadius: 99, height: 8, overflow: "hidden" }}>
+                                    <div style={{ width: `${widthPct}%`, background: "#0891b2", height: "100%", borderRadius: 99 }}></div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
         </div>
     );
 }
@@ -139,6 +172,8 @@ function OverviewView({ getAuthHeaders }) {
                         <StatCard label="Unpaid / Owed Right Now" value={money(overview.sales.unpaidOwed)} alert={overview.sales.unpaidOwed > 0} sub="Every completed job, ever, not yet fully paid — not limited to this period" />
                         <StatCard label={`Paid / Partial / Unpaid — ${periodLabel}`} value={`${overview.sales.paidCount} / ${overview.sales.partialCount} / ${overview.sales.unpaidCount}`} sub="Completed jobs in this period, by payment status" />
                     </Panel>
+
+                    <PaymentMethodsPanel title={`Collected by Payment Method — ${periodLabel}`} breakdown={overview.sales.paymentMethodsPeriod} />
 
                     <Panel title="Cash Position (always as-of-now, not by period)">
                         <StatCard label="Cash In Hand" value={money(overview.cash.cashRemainingInHand)} sub="Cash collected minus cash spent minus cash deposited — running total" />
