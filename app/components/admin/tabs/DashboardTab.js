@@ -1,35 +1,76 @@
 "use client";
 import { useState, useMemo } from "react";
+import {
+    DollarSign, TrendingUp, TriangleAlert, CalendarDays, Users,
+    Wallet, UserPlus, FileText, CheckCircle2, ArrowRight, Sparkles,
+} from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
 function fmtMoney(n) {
     return `$${Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
-// A single label/value row inside a Business Health group card.
-function HealthStat({ label, value, sub, tone, onClick }) {
-    const toneClasses = tone === "alert"
-        ? "text-destructive"
-        : tone === "good"
-            ? "text-emerald-600 dark:text-emerald-400"
-            : "text-foreground";
+function initials(name) {
+    return (name || "?").trim().split(/\s+/).slice(0, 2).map(p => p[0]?.toUpperCase()).join("") || "?";
+}
+
+const TONE_STYLES = {
+    default: { icon: "bg-primary/10 text-primary", value: "text-foreground" },
+    alert: { icon: "bg-destructive/10 text-destructive", value: "text-destructive" },
+    good: { icon: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400", value: "text-emerald-600 dark:text-emerald-400" },
+};
+
+// A large, scannable hero metric — icon badge + big number + context line.
+function HeroStat({ icon: Icon, label, value, sub, tone = "default", onClick }) {
+    const t = TONE_STYLES[tone] || TONE_STYLES.default;
     return (
-        <div
+        <Card
             onClick={onClick}
             className={cn(
-                "flex items-center justify-between gap-3 rounded-lg px-2.5 py-2",
-                onClick && "cursor-pointer hover:bg-muted",
+                "relative overflow-hidden transition-shadow",
+                onClick && "cursor-pointer hover:shadow-md",
             )}
         >
-            <div className="flex flex-col">
-                <span className="text-xs font-medium text-muted-foreground">{label}</span>
-                {sub && <span className="text-[11px] text-muted-foreground/80">{sub}</span>}
-            </div>
-            <strong className={cn("text-base font-bold", toneClasses)}>{value}</strong>
-        </div>
+            <CardContent className="flex items-start justify-between gap-3 px-5 py-4">
+                <div className="flex min-w-0 flex-col gap-1.5">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</span>
+                    <strong className={cn("text-[26px] leading-none font-bold tabular-nums", t.value)}>{value}</strong>
+                    {sub && <span className="text-xs text-muted-foreground">{sub}</span>}
+                </div>
+                <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-full", t.icon)}>
+                    <Icon className="h-5 w-5" strokeWidth={2.25} />
+                </span>
+            </CardContent>
+        </Card>
+    );
+}
+
+// A compact chip for secondary metrics that don't need hero treatment.
+function QuickChip({ icon: Icon, label, value, tone = "default", onClick }) {
+    const t = TONE_STYLES[tone] || TONE_STYLES.default;
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            disabled={!onClick}
+            className={cn(
+                "flex items-center gap-2.5 rounded-full border border-border bg-card py-1.5 pr-4 pl-1.5 text-left transition-colors",
+                onClick && "cursor-pointer hover:border-primary/40 hover:bg-muted",
+                !onClick && "cursor-default",
+            )}
+        >
+            <span className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-full", t.icon)}>
+                <Icon className="h-3.5 w-3.5" strokeWidth={2.25} />
+            </span>
+            <span className="flex flex-col leading-tight">
+                <span className={cn("text-sm font-bold tabular-nums", t.value)}>{value}</span>
+                <span className="text-[11px] font-medium text-muted-foreground">{label}</span>
+            </span>
+        </button>
     );
 }
 
@@ -372,97 +413,83 @@ export default function DashboardTab({
                 <>
                     {/* Business Health summary — grouped, no operational actions here.
                         Booking creation lives in the Bookings module. */}
-                    <section className="flex flex-col gap-4">
+                    <section className="flex flex-col gap-5">
                         <div className="flex flex-wrap items-end justify-between gap-3">
-                            <div>
-                                <p className="text-xs font-semibold uppercase tracking-wider text-primary">Business Health</p>
-                                <h3 className="text-xl font-bold text-foreground">How is {activeBranch?.name || "the business"} doing today?</h3>
+                            <div className="flex items-center gap-3">
+                                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                                    <Sparkles className="h-5 w-5" strokeWidth={2.25} />
+                                </span>
+                                <div>
+                                    <p className="text-xs font-semibold uppercase tracking-wider text-primary">Business Health</p>
+                                    <h3 className="text-xl font-bold text-foreground">How is {activeBranch?.name || "the business"} doing today?</h3>
+                                </div>
                             </div>
                             <Badge variant="secondary" className="h-7 rounded-full px-3 text-xs font-semibold">
                                 {new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                             </Badge>
                         </div>
 
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-                            <Card>
-                                <CardHeader><CardTitle>Today</CardTitle></CardHeader>
-                                <CardContent className="flex flex-col gap-1">
-                                    <HealthStat label="Jobs Today" value={adminCommandMetrics.jobsToday} />
-                                    <HealthStat label="Today's Revenue" value={fmtMoney(adminCommandMetrics.todayRevenue)} />
-                                    <HealthStat label="Employees Working" value={(activeTimeEntries || []).length} />
-                                    <HealthStat
-                                        label="Needs Attention"
-                                        value={adminCommandMetrics.jobsNeedingAttention}
-                                        tone={adminCommandMetrics.jobsNeedingAttention > 0 ? "alert" : undefined}
-                                        onClick={adminCommandMetrics.jobsNeedingAttention > 0 ? () => setActiveTab("bookings") : undefined}
-                                    />
-                                </CardContent>
-                            </Card>
+                        {/* Hero metrics — the four numbers that matter most, at a glance */}
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                            <HeroStat
+                                icon={DollarSign}
+                                label="Today's Revenue"
+                                value={fmtMoney(adminCommandMetrics.todayRevenue)}
+                                sub={`${adminCommandMetrics.jobsToday} job${adminCommandMetrics.jobsToday !== 1 ? "s" : ""} scheduled today`}
+                            />
+                            <HeroStat
+                                icon={TrendingUp}
+                                label="Net Profit (Today)"
+                                value={fmtMoney(adminCommandMetrics.dailyPnl.profit)}
+                                sub={`${adminCommandMetrics.jobsCompletedTodayWithFinancials} job${adminCommandMetrics.jobsCompletedTodayWithFinancials !== 1 ? "s" : ""} completed · after labor & material`}
+                                tone={adminCommandMetrics.dailyPnl.profit >= 0 ? "good" : "alert"}
+                            />
+                            <HeroStat
+                                icon={Wallet}
+                                label="Outstanding"
+                                value={fmtMoney(adminCommandMetrics.pendingPaymentAmount)}
+                                sub={`${adminCommandMetrics.pendingPaymentCount} unpaid job${adminCommandMetrics.pendingPaymentCount !== 1 ? "s" : ""}`}
+                                tone={adminCommandMetrics.pendingPaymentCount > 0 ? "alert" : "default"}
+                                onClick={adminCommandMetrics.pendingPaymentCount > 0 ? () => { setActiveTab("bookings"); setFilterStatus("unpaid"); } : undefined}
+                            />
+                            <HeroStat
+                                icon={CalendarDays}
+                                label="Tomorrow"
+                                value={adminCommandMetrics.jobsTomorrow === 0 ? "No jobs" : adminCommandMetrics.tomorrowReady ? "Ready" : `${adminCommandMetrics.tomorrowUnassigned} unassigned`}
+                                sub={`${adminCommandMetrics.jobsTomorrow} confirmed job${adminCommandMetrics.jobsTomorrow !== 1 ? "s" : ""}`}
+                                tone={adminCommandMetrics.tomorrowReady ? "good" : adminCommandMetrics.jobsTomorrow > 0 ? "alert" : "default"}
+                            />
+                        </div>
 
-                            <Card>
-                                <CardHeader><CardTitle>Daily P&amp;L</CardTitle></CardHeader>
-                                <CardContent className="flex flex-col gap-1">
-                                    <HealthStat label="Revenue" value={fmtMoney(adminCommandMetrics.dailyPnl.revenue)} />
-                                    <HealthStat label="Labor Cost" value={fmtMoney(adminCommandMetrics.dailyPnl.laborCost)} />
-                                    <HealthStat label="Material Cost" value={fmtMoney(adminCommandMetrics.dailyPnl.materialCost)} />
-                                    <HealthStat
-                                        label="Net Profit"
-                                        value={fmtMoney(adminCommandMetrics.dailyPnl.profit)}
-                                        sub={`${adminCommandMetrics.jobsCompletedTodayWithFinancials} job${adminCommandMetrics.jobsCompletedTodayWithFinancials !== 1 ? "s" : ""} completed today`}
-                                    />
-                                </CardContent>
-                            </Card>
-
-                            <Card>
-                                <CardHeader><CardTitle>Money</CardTitle></CardHeader>
-                                <CardContent className="flex flex-col gap-1">
-                                    <HealthStat label="Payments Received" value={fmtMoney(adminCommandMetrics.paidRevenue)} />
-                                    <HealthStat
-                                        label="Outstanding Invoices"
-                                        value={fmtMoney(adminCommandMetrics.pendingPaymentAmount)}
-                                        sub={`${adminCommandMetrics.pendingPaymentCount} job${adminCommandMetrics.pendingPaymentCount !== 1 ? "s" : ""}`}
-                                        tone={adminCommandMetrics.pendingPaymentCount > 0 ? "alert" : undefined}
-                                        onClick={adminCommandMetrics.pendingPaymentCount > 0 ? () => { setActiveTab("bookings"); setFilterStatus("unpaid"); } : undefined}
-                                    />
-                                    <HealthStat
-                                        label="Approved Expenses"
-                                        value={fmtMoney(adminCommandMetrics.approvedExpenseTotal)}
-                                        sub={`${adminCommandMetrics.pendingExpenseCount} pending approval`}
-                                        tone={adminCommandMetrics.pendingExpenseCount > 0 ? "alert" : undefined}
-                                        onClick={() => setActiveTab("expenses")}
-                                    />
-                                </CardContent>
-                            </Card>
-
-                            <Card>
-                                <CardHeader><CardTitle>Pipeline &amp; Customers</CardTitle></CardHeader>
-                                <CardContent className="flex flex-col gap-1">
-                                    <HealthStat label="New Leads" value={adminCommandMetrics.newLeads} onClick={() => { setActiveTab("bookings"); setFilterStatus("Lead"); }} />
-                                    <HealthStat label="New Quotes" value={adminCommandMetrics.newQuotes} onClick={() => { setActiveTab("bookings"); setFilterStatus("Quote"); }} />
-                                    <HealthStat
-                                        label="Active Recurring Customers"
-                                        value={adminCommandMetrics.uniqueRecurringCustomers}
-                                        sub={`${adminCommandMetrics.recurringActive} scheduled visit${adminCommandMetrics.recurringActive !== 1 ? "s" : ""}`}
-                                    />
-                                </CardContent>
-                            </Card>
-
-                            <Card>
-                                <CardHeader><CardTitle>Tomorrow</CardTitle></CardHeader>
-                                <CardContent className="flex flex-col gap-1">
-                                    <HealthStat
-                                        label="Readiness"
-                                        value={adminCommandMetrics.jobsTomorrow === 0 ? "No jobs" : adminCommandMetrics.tomorrowReady ? "Ready ✓" : `${adminCommandMetrics.tomorrowUnassigned} unassigned`}
-                                        sub={`${adminCommandMetrics.jobsTomorrow} confirmed job${adminCommandMetrics.jobsTomorrow !== 1 ? "s" : ""}`}
-                                        tone={adminCommandMetrics.tomorrowReady ? "good" : adminCommandMetrics.jobsTomorrow > 0 ? "alert" : undefined}
-                                    />
-                                </CardContent>
-                            </Card>
+                        {/* Quick stats — secondary numbers, one glance, one tap to drill in */}
+                        <div className="flex flex-wrap gap-2">
+                            <QuickChip icon={Users} label="Employees Working" value={(activeTimeEntries || []).length} />
+                            <QuickChip
+                                icon={TriangleAlert}
+                                label="Needs Attention"
+                                value={adminCommandMetrics.jobsNeedingAttention}
+                                tone={adminCommandMetrics.jobsNeedingAttention > 0 ? "alert" : "default"}
+                                onClick={adminCommandMetrics.jobsNeedingAttention > 0 ? () => setActiveTab("bookings") : undefined}
+                            />
+                            <QuickChip icon={UserPlus} label="New Leads" value={adminCommandMetrics.newLeads} onClick={() => { setActiveTab("bookings"); setFilterStatus("Lead"); }} />
+                            <QuickChip icon={FileText} label="New Quotes" value={adminCommandMetrics.newQuotes} onClick={() => { setActiveTab("bookings"); setFilterStatus("Quote"); }} />
+                            <QuickChip
+                                icon={CheckCircle2}
+                                label={`Recurring Customers · ${adminCommandMetrics.recurringActive} visit${adminCommandMetrics.recurringActive !== 1 ? "s" : ""}`}
+                                value={adminCommandMetrics.uniqueRecurringCustomers}
+                            />
+                            <QuickChip
+                                icon={Wallet}
+                                label={`Expenses · ${adminCommandMetrics.pendingExpenseCount} pending`}
+                                value={fmtMoney(adminCommandMetrics.approvedExpenseTotal)}
+                                tone={adminCommandMetrics.pendingExpenseCount > 0 ? "alert" : "default"}
+                                onClick={() => setActiveTab("expenses")}
+                            />
                         </div>
                     </section>
 
                     {/* Desktop-only dashboard sections */}
-                    <section className="dashboard-desktop-only mt-6 flex flex-col gap-6">
+                    <section className="mt-6 hidden flex-col gap-6 md:flex">
                         {/* Revenue & Wages Chart */}
                         <Card>
                             <CardHeader className="flex-row flex-wrap items-start justify-between gap-4 border-b border-border pb-4">
@@ -482,17 +509,21 @@ export default function DashboardTab({
                                         </div>
                                     </div>
                                 </div>
-                                <div className="flex flex-wrap gap-1.5">
+                                <div className="flex flex-wrap gap-0.5 rounded-full bg-muted p-1">
                                     {CHART_FILTERS.map(f => (
-                                        <Button
+                                        <button
                                             key={f.key}
                                             type="button"
-                                            size="sm"
-                                            variant={chartFilter === f.key ? "default" : "outline"}
                                             onClick={() => setChartFilter(f.key)}
+                                            className={cn(
+                                                "rounded-full px-3 py-1.5 text-xs font-semibold transition-colors",
+                                                chartFilter === f.key
+                                                    ? "bg-background text-foreground shadow-sm"
+                                                    : "text-muted-foreground hover:text-foreground",
+                                            )}
                                         >
                                             {f.label}
-                                        </Button>
+                                        </button>
                                     ))}
                                 </div>
                             </CardHeader>
@@ -506,21 +537,29 @@ export default function DashboardTab({
                             <Card>
                                 <CardHeader><CardTitle>Booking Status</CardTitle></CardHeader>
                                 <CardContent className="flex items-center gap-6">
-                                    <PieChart size={110} segments={[
-                                        { label: "Completed", value: adminCommandMetrics.completedCount, color: "#16a34a" },
-                                        { label: "Confirmed", value: adminCommandMetrics.confirmed, color: "#0891b2" },
-                                        { label: "Pipeline",  value: adminCommandMetrics.pipeline,   color: "#6366f1" },
-                                    ]} />
-                                    <div className="flex flex-col gap-2">
+                                    <div className="relative flex h-[120px] w-[120px] shrink-0 items-center justify-center">
+                                        <PieChart size={120} segments={[
+                                            { label: "Completed", value: adminCommandMetrics.completedCount, color: "#16a34a" },
+                                            { label: "Confirmed", value: adminCommandMetrics.confirmed, color: "#0891b2" },
+                                            { label: "Pipeline",  value: adminCommandMetrics.pipeline,   color: "#6366f1" },
+                                        ]} />
+                                        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                                            <strong className="text-lg font-bold text-foreground">
+                                                {adminCommandMetrics.completedCount + adminCommandMetrics.confirmed + adminCommandMetrics.pipeline}
+                                            </strong>
+                                            <span className="text-[10px] font-medium text-muted-foreground">Total</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-1 flex-col gap-1.5">
                                         {[
                                             { label: "Completed", color: "#16a34a", value: adminCommandMetrics.completedCount },
                                             { label: "Confirmed", color: "#0891b2", value: adminCommandMetrics.confirmed },
                                             { label: "Pipeline",  color: "#6366f1", value: adminCommandMetrics.pipeline },
                                         ].map(s => (
-                                            <div key={s.label} className="flex items-center gap-2 text-sm">
-                                                <span className="h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />
+                                            <div key={s.label} className="flex items-center gap-2 rounded-lg bg-muted/50 px-2.5 py-1.5 text-sm">
+                                                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: s.color }} />
                                                 <span className="text-muted-foreground">{s.label}</span>
-                                                <span className="ml-auto font-bold text-foreground">{s.value}</span>
+                                                <span className="ml-auto font-bold tabular-nums text-foreground">{s.value}</span>
                                             </div>
                                         ))}
                                     </div>
@@ -530,19 +569,27 @@ export default function DashboardTab({
                             <Card>
                                 <CardHeader><CardTitle>Payment Overview</CardTitle></CardHeader>
                                 <CardContent className="flex items-center gap-6">
-                                    <PieChart size={110} segments={[
-                                        { label: "Collected", value: adminCommandMetrics.paidRevenue,          color: "#16a34a" },
-                                        { label: "Pending",   value: adminCommandMetrics.pendingPaymentAmount, color: "#f59e0b" },
-                                    ]} />
-                                    <div className="flex flex-col gap-2">
+                                    <div className="relative flex h-[120px] w-[120px] shrink-0 items-center justify-center">
+                                        <PieChart size={120} segments={[
+                                            { label: "Collected", value: adminCommandMetrics.paidRevenue,          color: "#16a34a" },
+                                            { label: "Pending",   value: adminCommandMetrics.pendingPaymentAmount, color: "#f59e0b" },
+                                        ]} />
+                                        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-2 text-center">
+                                            <strong className="text-sm font-bold text-foreground">
+                                                {fmtMoney(adminCommandMetrics.paidRevenue + adminCommandMetrics.pendingPaymentAmount)}
+                                            </strong>
+                                            <span className="text-[10px] font-medium text-muted-foreground">Billed</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-1 flex-col gap-1.5">
                                         {[
                                             { label: "Collected", color: "#16a34a", value: fmtMoney(adminCommandMetrics.paidRevenue) },
                                             { label: "Pending",   color: "#f59e0b", value: fmtMoney(adminCommandMetrics.pendingPaymentAmount) },
                                         ].map(s => (
-                                            <div key={s.label} className="flex items-center gap-2 text-sm">
-                                                <span className="h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />
+                                            <div key={s.label} className="flex items-center gap-2 rounded-lg bg-muted/50 px-2.5 py-1.5 text-sm">
+                                                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: s.color }} />
                                                 <span className="text-muted-foreground">{s.label}</span>
-                                                <span className="ml-auto font-bold text-foreground">{s.value}</span>
+                                                <span className="ml-auto font-bold tabular-nums text-foreground">{s.value}</span>
                                             </div>
                                         ))}
                                     </div>
@@ -562,24 +609,38 @@ export default function DashboardTab({
                                 </CardHeader>
                                 <CardContent>
                                     {todayBookings.length === 0 ? (
-                                        <div className="py-6 text-center text-sm text-muted-foreground">No dispatches scheduled for today.</div>
+                                        <div className="flex flex-col items-center gap-2 py-8 text-center text-sm text-muted-foreground">
+                                            <CalendarDays className="h-6 w-6 text-muted-foreground/50" />
+                                            No dispatches scheduled for today.
+                                        </div>
                                     ) : (
-                                        <div className="flex flex-col gap-1.5">
+                                        <div className="flex flex-col gap-1">
                                             {todayBookings.slice(0, 5).map(b => (
                                                 <button
                                                     key={b.id}
                                                     onClick={() => { setSelectedBooking(b); setDetailsModalOpen(true); }}
                                                     type="button"
-                                                    className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2 text-left transition-colors hover:bg-muted"
+                                                    className="flex items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-muted"
                                                 >
-                                                    <span className="text-xs font-semibold text-muted-foreground">{b.time}</span>
-                                                    <div className="flex-1">
-                                                        <strong className="block text-sm text-foreground">{b.clientName}</strong>
-                                                        <small className="text-xs text-muted-foreground">{b.service} • {b.team}</small>
+                                                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                                                        {initials(b.clientName)}
+                                                    </span>
+                                                    <div className="min-w-0 flex-1">
+                                                        <strong className="block truncate text-sm text-foreground">{b.clientName}</strong>
+                                                        <small className="block truncate text-xs text-muted-foreground">{b.time} · {b.service}{b.team ? ` · ${b.team}` : ""}</small>
                                                     </div>
-                                                    <Badge variant="outline" className="text-[10px]">{b.status}</Badge>
+                                                    <Badge variant="outline" className="shrink-0 text-[10px]">{b.status}</Badge>
                                                 </button>
                                             ))}
+                                            {todayBookings.length > 5 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setActiveTab("bookings")}
+                                                    className="mt-1 flex items-center justify-center gap-1 rounded-lg py-2 text-xs font-semibold text-primary hover:bg-muted"
+                                                >
+                                                    View all {todayBookings.length} <ArrowRight className="h-3 w-3" />
+                                                </button>
+                                            )}
                                         </div>
                                     )}
                                 </CardContent>
@@ -594,19 +655,17 @@ export default function DashboardTab({
                                     <Badge variant="secondary">{pendingUsers.length} Pending</Badge>
                                 </CardHeader>
                                 <CardContent className="flex flex-col gap-4">
-                                    <div className="grid grid-cols-3 gap-3 text-center">
-                                        <div>
-                                            <strong className="block text-xl font-bold text-foreground">{fieldStaff.length}</strong>
-                                            <span className="text-[11px] text-muted-foreground">Approved field staff</span>
-                                        </div>
-                                        <div>
-                                            <strong className="block text-xl font-bold text-foreground">{pendingUsers.length}</strong>
-                                            <span className="text-[11px] text-muted-foreground">Pending approvals</span>
-                                        </div>
-                                        <div>
-                                            <strong className="block text-xl font-bold text-foreground">{bookings.filter(b => b.assignedStaffIds?.length > 0).length}</strong>
-                                            <span className="text-[11px] text-muted-foreground">Assigned jobs</span>
-                                        </div>
+                                    <div className="grid grid-cols-3 gap-3">
+                                        {[
+                                            { value: fieldStaff.length, label: "Approved field staff" },
+                                            { value: pendingUsers.length, label: "Pending approvals", alert: pendingUsers.length > 0 },
+                                            { value: bookings.filter(b => b.assignedStaffIds?.length > 0).length, label: "Assigned jobs" },
+                                        ].map(s => (
+                                            <div key={s.label} className="flex flex-col items-center gap-0.5 rounded-lg bg-muted/50 px-2 py-3 text-center">
+                                                <strong className={cn("text-xl font-bold tabular-nums", s.alert ? "text-destructive" : "text-foreground")}>{s.value}</strong>
+                                                <span className="text-[11px] leading-tight text-muted-foreground">{s.label}</span>
+                                            </div>
+                                        ))}
                                     </div>
                                     <Button variant="secondary" onClick={() => setActiveTab("departments")} type="button">
                                         Open HR modules
@@ -618,42 +677,49 @@ export default function DashboardTab({
 
                     {/* Permissioned pending user approvals table in Dashboard */}
                     {canManagePermissions && pendingUsers.length > 0 && (
-                        <Card className="dashboard-desktop-only mt-6">
+                        <Card className="mt-6 hidden md:block">
                             <CardHeader className="flex-row items-center justify-between">
                                 <CardTitle>Awaiting operational registration approvals</CardTitle>
                                 <Badge variant="secondary">{pendingUsers.length} Pending</Badge>
                             </CardHeader>
                             <CardContent>
-                                <div className="overflow-x-auto rounded-lg border border-border">
-                                    <table className="w-full text-left text-sm">
-                                        <thead>
-                                            <tr className="border-b border-border bg-muted/50">
-                                                <th className="px-4 py-2.5 font-semibold text-muted-foreground">Person Name</th>
-                                                <th className="px-4 py-2.5 font-semibold text-muted-foreground">Email Address</th>
-                                                <th className="px-4 py-2.5 font-semibold text-muted-foreground">Account Role</th>
-                                                <th className="px-4 py-2.5 font-semibold text-muted-foreground">Requested Role</th>
-                                                <th className="px-4 py-2.5 text-right font-semibold text-muted-foreground">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
+                                <div className="overflow-hidden rounded-lg border border-border">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow className="bg-muted/50 hover:bg-muted/50">
+                                                <TableHead>Person Name</TableHead>
+                                                <TableHead>Email Address</TableHead>
+                                                <TableHead>Account Role</TableHead>
+                                                <TableHead>Requested Role</TableHead>
+                                                <TableHead className="text-right">Actions</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
                                             {pendingUsers.map(u => (
-                                                <tr key={u.uid} className="border-b border-border last:border-0">
-                                                    <td className="px-4 py-2.5 font-bold text-foreground">{u.name}</td>
-                                                    <td className="px-4 py-2.5 text-muted-foreground">{u.email}</td>
-                                                    <td className="px-4 py-2.5">
+                                                <TableRow key={u.uid}>
+                                                    <TableCell className="font-bold text-foreground">
+                                                        <div className="flex items-center gap-2.5">
+                                                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-bold text-primary">
+                                                                {initials(u.name)}
+                                                            </span>
+                                                            {u.name}
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="text-muted-foreground">{u.email}</TableCell>
+                                                    <TableCell>
                                                         <Badge variant={u.role === "customer" ? "outline" : "secondary"}>{getRoleLabel(u.role)}</Badge>
-                                                    </td>
-                                                    <td className="px-4 py-2.5 text-muted-foreground">{getRoleLabel(u.role)}</td>
-                                                    <td className="px-4 py-2.5 text-right">
+                                                    </TableCell>
+                                                    <TableCell className="text-muted-foreground">{getRoleLabel(u.role)}</TableCell>
+                                                    <TableCell className="text-right">
                                                         <div className="flex justify-end gap-2">
                                                             <Button size="sm" variant="secondary" onClick={() => handleResolveUserApproval(u.uid, "approve")}>Approve</Button>
                                                             <Button size="sm" variant="destructive" onClick={() => handleResolveUserApproval(u.uid, "reject")}>Reject</Button>
                                                         </div>
-                                                    </td>
-                                                </tr>
+                                                    </TableCell>
+                                                </TableRow>
                                             ))}
-                                        </tbody>
-                                    </table>
+                                        </TableBody>
+                                    </Table>
                                 </div>
                             </CardContent>
                         </Card>
