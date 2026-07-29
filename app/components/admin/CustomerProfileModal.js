@@ -18,6 +18,8 @@ export default function CustomerProfileModal({ customerKey, getAuthHeaders, curr
 
     const [chatMessages, setChatMessages] = useState([]);
     const [chatLoading, setChatLoading] = useState(true);
+    const [downloadingReport, setDownloadingReport] = useState(false);
+    const [reportError, setReportError] = useState("");
 
     const loadRecord = useCallback(async () => {
         setLoading(true);
@@ -61,6 +63,33 @@ export default function CustomerProfileModal({ customerKey, getAuthHeaders, curr
             body: JSON.stringify({ type: "customer", refId: record.phone, refName: record.name, text }),
         });
         await loadChat();
+    };
+
+    const downloadReport = async () => {
+        setDownloadingReport(true);
+        setReportError("");
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch(`/api/customers/report-pdf?key=${encodeURIComponent(customerKey)}`, { headers });
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                throw new Error(data.error || "Failed to generate report.");
+            }
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const safeName = (record?.name || "customer").replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "");
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `${safeName}-service-report.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            setReportError(err.message || "Failed to generate report.");
+        } finally {
+            setDownloadingReport(false);
+        }
     };
 
     const saveNotes = async () => {
@@ -132,7 +161,15 @@ export default function CustomerProfileModal({ customerKey, getAuthHeaders, curr
                             </div>
 
                             <div>
-                                <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 6 }}>Booking History ({record.bookings.length})</div>
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 6 }}>
+                                    <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b" }}>Booking History ({record.bookings.length})</div>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                        {reportError && <span style={{ fontSize: 11, color: "#dc2626" }}>{reportError}</span>}
+                                        <button onClick={downloadReport} disabled={downloadingReport} className="btn btn-secondary btn-sm" title="Download a PDF of completed services with paid/unpaid totals">
+                                            {downloadingReport ? "Preparing…" : "⬇ Download Report (PDF)"}
+                                        </button>
+                                    </div>
+                                </div>
                                 <div style={{ maxHeight: 220, overflowY: "auto", border: "1px solid #e2e8f0", borderRadius: 10 }}>
                                     <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
                                         <thead>
