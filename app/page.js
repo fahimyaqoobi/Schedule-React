@@ -3349,6 +3349,22 @@ export default function Home() {
         }
     }, [getAuthHeaders, currentUser, syncDatabaseData]);
 
+    const [remindingStaffUid, setRemindingStaffUid] = useState("");
+    const handleSendManualReminder = useCallback(async (bookingId, staffUid) => {
+        setRemindingStaffUid(staffUid);
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch("/api/bookings/remind", {
+                method: "POST", headers,
+                body: JSON.stringify({ bookingId, staffUid })
+            });
+            const data = await res.json();
+            alert(res.ok ? "Reminder sent." : (data.error || "Failed to send reminder."));
+        } finally {
+            setRemindingStaffUid("");
+        }
+    }, [getAuthHeaders]);
+
     const handleOpenCleanerJob = (booking, nextTab = "overview") => {
         if (!booking) return;
         ensureCleanerJobDraft(booking);
@@ -6821,9 +6837,21 @@ export default function Home() {
                                                                                     ? { label: "❌ Declined", color: "#dc2626" }
                                                                                     : { label: "⏳ Awaiting response", color: "#b45309" };
                                                                             return (
-                                                                                <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: badge.color }}>
-                                                                                    {badge.label}
-                                                                                </span>
+                                                                                <>
+                                                                                    <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: badge.color }}>
+                                                                                        {badge.label}
+                                                                                    </span>
+                                                                                    {respStatus !== "confirmed" && bookingForm.id && (
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            disabled={remindingStaffUid === member.uid}
+                                                                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleSendManualReminder(bookingForm.id, member.uid); }}
+                                                                                            style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: "#0A6CB8", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
+                                                                                        >
+                                                                                            {remindingStaffUid === member.uid ? "Sending…" : "🔔 Remind"}
+                                                                                        </button>
+                                                                                    )}
+                                                                                </>
                                                                             );
                                                                         })()}
                                                                     </strong>
