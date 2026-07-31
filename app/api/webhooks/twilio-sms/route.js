@@ -75,12 +75,11 @@ export async function POST(request) {
             const todaysJob = await findTodaysJobForCleaner(matchedStaff.uid);
             if (todaysJob) {
                 await appendJobChatMessage(adminDb, {
-                    bookingId: todaysJob.id,
+                    booking: todaysJob,
                     senderKind: "cleaner",
                     senderId: matchedStaff.uid,
                     senderName: matchedStaff.name || "Cleaner",
                     text: body,
-                    branchId: todaysJob.branchId || "",
                 });
             } else {
                 await appendSupportMessage(adminDb, {
@@ -97,12 +96,11 @@ export async function POST(request) {
             const todaysJob = await findTodaysJobForCustomerPhone(fromPhone);
             if (todaysJob) {
                 await appendJobChatMessage(adminDb, {
-                    bookingId: todaysJob.id,
+                    booking: todaysJob,
                     senderKind: "customer",
                     senderId: fromPhone,
                     senderName: todaysJob.clientName || "Customer",
                     text: body,
-                    branchId: todaysJob.branchId || "",
                 });
             } else {
                 await appendSupportMessage(adminDb, {

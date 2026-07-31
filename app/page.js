@@ -6428,6 +6428,14 @@ export default function Home() {
                                                                 {bookingForm.specialNotes && <div className="cjw-notice-row">{bookingForm.specialNotes}</div>}
                                                             </div>
                                                         )}
+
+                                                        <JobChatCard
+                                                            bookingId={bookingForm.id}
+                                                            getAuthHeaders={getAuthHeaders}
+                                                            currentActorId={currentUser?.uid}
+                                                            title="💬 Chat with Customer"
+                                                        />
+
                                                         <div>
                                                             <div className="cjw-section-label">📸 Before Photos</div>
                                                             {tasks.length === 0 ? (
@@ -6561,6 +6569,13 @@ export default function Home() {
                                                             <div className="cjw-banner-title" style={{ color: "#c2410c" }}>Almost done!</div>
                                                             <div className="cjw-banner-sub">Tasks: {tasks.filter(t => t.completed).length}/{tasks.length} completed · Upload after photos then submit for review.</div>
                                                         </div>
+
+                                                        <JobChatCard
+                                                            bookingId={bookingForm.id}
+                                                            getAuthHeaders={getAuthHeaders}
+                                                            currentActorId={currentUser?.uid}
+                                                            title="💬 Chat with Customer"
+                                                        />
 
                                                         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                                                             <div className="cjw-section-label">📸 After Photos &amp; Task Review</div>

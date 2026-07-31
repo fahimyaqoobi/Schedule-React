@@ -3,8 +3,6 @@ import { adminDb } from "../../../../lib/firebase-admin";
 import { identifyChatActor } from "../../../../lib/chatAuth";
 import { normalizePhone } from "../../../../lib/phone";
 import { appendJobChatMessage, JOB_CHAT_LOCKED_STATUSES } from "../../../../lib/jobChat";
-import { getStaffPhone } from "../../../../lib/staffNotify";
-import { trySendSms, buildJobChatMessageSms } from "../../../../lib/sms";
 
 async function authorizeForBooking(actor, booking) {
     if (actor.kind === "staff") return actor.isSupportStaff;
@@ -69,28 +67,16 @@ export async function POST(request) {
         }
 
         const senderName = actor.kind === "customer" ? (booking.clientName || "Customer") : actor.name;
+        // appendJobChatMessage also handles the SMS mirror (texting whoever
+        // didn't send it) and the staff notification — same single path the
+        // inbound-SMS webhook uses, so nothing can be forgotten in one caller.
         const message = await appendJobChatMessage(adminDb, {
-            bookingId,
+            booking: { ...booking, id: bookingId },
             senderKind: actor.kind,
             senderId: actor.uid || actor.phone,
             senderName,
             text,
-            branchId: booking.branchId || "",
         });
-
-        // Whoever didn't send it gets a real text — the customer if a
-        // cleaner/staff wrote in, every assigned cleaner if the customer did.
-        // A reply lands right back in this same job's chat via the Twilio
-        // inbound webhook (while the job's still open).
-        const smsBody = buildJobChatMessageSms(message.text, senderName, booking);
-        if (actor.kind === "customer") {
-            const staffIds = booking.assignedStaffIds || [];
-            const phones = await Promise.all(staffIds.map((uid) => getStaffPhone(adminDb, uid)));
-            await Promise.allSettled(phones.filter(Boolean).map((phone) => trySendSms(phone, smsBody)));
-        } else {
-            const customerPhone = normalizePhone(booking.customerPortalPhone || booking.phone || "");
-            if (customerPhone) await trySendSms(customerPhone, smsBody);
-        }
 
         return NextResponse.json({ message: "Sent.", chatMessage: message }, { status: 200 });
     } catch (err) {
