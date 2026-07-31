@@ -1,12 +1,15 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, MessageSquare, MessagesSquare } from "lucide-react";
 import ChatPanel from "../../shared/ChatPanel";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 
 function initials(name) {
     return (name || "?").trim().split(/\s+/).slice(0, 2).map(p => p[0]?.toUpperCase()).join("") || "?";
@@ -47,16 +50,20 @@ export default function MessagesTab({ getAuthHeaders, currentUser, Icons, fieldS
         }
     }, [getAuthHeaders]);
 
-    const loadMessages = useCallback(async (thread) => {
+    // `silent` is what actually fixes the blink: background polls must never
+    // toggle the loading flag, or ChatPanel swaps the whole conversation for
+    // a "Loading messages…" placeholder every few seconds. Only the very
+    // first load of a newly-opened thread should show that.
+    const loadMessages = useCallback(async (thread, { silent = false } = {}) => {
         if (!thread) return;
-        setChatLoading(true);
+        if (!silent) setChatLoading(true);
         try {
             const headers = await getAuthHeaders();
             const res = await fetch(`/api/chat/support?type=${thread.type}&refId=${encodeURIComponent(thread.refId)}`, { headers });
             const data = await res.json();
             if (res.ok) setMessages(data.messages || []);
         } finally {
-            setChatLoading(false);
+            if (!silent) setChatLoading(false);
         }
     }, [getAuthHeaders]);
 
@@ -69,7 +76,7 @@ export default function MessagesTab({ getAuthHeaders, currentUser, Icons, fieldS
     useEffect(() => {
         if (!activeThread) return;
         loadMessages(activeThread);
-        const interval = setInterval(() => loadMessages(activeThread), 6000);
+        const interval = setInterval(() => loadMessages(activeThread, { silent: true }), 6000);
         return () => clearInterval(interval);
     }, [activeThread, loadMessages]);
 
@@ -79,7 +86,7 @@ export default function MessagesTab({ getAuthHeaders, currentUser, Icons, fieldS
             method: "POST", headers,
             body: JSON.stringify({ type: activeThread.type, refId: activeThread.refId, refName: activeThread.refName, text }),
         });
-        await loadMessages(activeThread);
+        await loadMessages(activeThread, { silent: true });
         await loadThreads();
     };
 
@@ -105,36 +112,33 @@ export default function MessagesTab({ getAuthHeaders, currentUser, Icons, fieldS
     };
 
     return (
-        <div className="animate-fade">
-            <div className="ops-control-header">
-                <div>
-                    <p className="ops-eyebrow">Support</p>
-                    <h3 className="ops-title">Messages</h3>
-                    <p className="ops-copy">One persistent thread per customer and per cleaner — spans every job. Job-specific chats live on the booking itself and lock once the job closes.</p>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <span className="ops-chip">{threads.length} Threads</span>
-                    <Button size="sm" onClick={() => setComposeOpen(true)}>
-                        <Plus className="size-4" />
-                        New Message
-                    </Button>
-                </div>
-            </div>
+        <div className="animate-fade flex flex-col gap-4">
+            <Card>
+                <CardHeader className="flex-row flex-wrap items-start justify-between gap-4">
+                    <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-primary">Support</p>
+                        <CardTitle className="text-xl">Messages</CardTitle>
+                        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+                            One persistent thread per customer and per cleaner — spans every job. Job-specific chats live on the booking itself and lock once the job closes. Messages also go out as a real text, and replies text back in here.
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Badge variant="secondary">{threads.length} Threads</Badge>
+                        <Button size="sm" onClick={() => setComposeOpen(true)}>
+                            <Plus className="size-4" />
+                            New Message
+                        </Button>
+                    </div>
+                </CardHeader>
+            </Card>
 
-            <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-                {[
-                    { key: "", label: "All" },
-                    { key: "customer", label: "Customers" },
-                    { key: "cleaner", label: "Cleaners" },
-                ].map(opt => (
-                    <button key={opt.key} onClick={() => setFilterType(opt.key)} style={{
-                        padding: "5px 12px", borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: "pointer",
-                        border: filterType === opt.key ? "1.5px solid #0891b2" : "1.5px solid #e2e8f0",
-                        background: filterType === opt.key ? "#ecfeff" : "#fff",
-                        color: filterType === opt.key ? "#0891b2" : "#64748b",
-                    }}>{opt.label}</button>
-                ))}
-            </div>
+            <Tabs value={filterType || "all"} onValueChange={(v) => setFilterType(v === "all" ? "" : v)}>
+                <TabsList>
+                    <TabsTrigger value="all">All</TabsTrigger>
+                    <TabsTrigger value="customer">Customers</TabsTrigger>
+                    <TabsTrigger value="cleaner">Cleaners</TabsTrigger>
+                </TabsList>
+            </Tabs>
 
             <Dialog open={composeOpen} onOpenChange={setComposeOpen}>
                 <DialogContent>
@@ -181,58 +185,76 @@ export default function MessagesTab({ getAuthHeaders, currentUser, Icons, fieldS
                 </DialogContent>
             </Dialog>
 
-            <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: 16 }}>
-                <div className="table-container" style={{ maxHeight: 560, overflowY: "auto" }}>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[320px_1fr]">
+                <Card className="max-h-[600px] overflow-y-auto p-0">
                     {loading ? (
-                        <div className="text-center p-8 text-slate-400 text-xs">Loading…</div>
+                        <div className="p-8 text-center text-xs text-muted-foreground">Loading…</div>
                     ) : visibleThreads.length === 0 ? (
-                        <div className="text-center p-8 text-slate-400 text-xs">No support conversations yet.</div>
+                        <div className="flex flex-col items-center gap-2 p-8 text-center text-xs text-muted-foreground">
+                            <MessagesSquare className="h-6 w-6 text-muted-foreground/50" />
+                            No support conversations yet.
+                        </div>
                     ) : (
                         visibleThreads.map(t => (
                             <button
                                 key={t.id}
                                 onClick={() => setActiveThread(t)}
-                                style={{
-                                    display: "block", width: "100%", textAlign: "left", padding: "12px 14px",
-                                    borderBottom: "1px solid #f1f5f9", background: activeThread?.id === t.id ? "#ecfeff" : "#fff",
-                                    border: "none", borderBottom: "1px solid #f1f5f9", cursor: "pointer",
-                                }}
+                                type="button"
+                                className={cn(
+                                    "flex w-full items-center gap-3 border-b border-border px-3.5 py-3 text-left transition-colors last:border-0 hover:bg-muted",
+                                    activeThread?.id === t.id && "bg-accent",
+                                )}
                             >
-                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                    <span style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>{t.refName || t.refId}</span>
-                                    <span style={{ fontSize: 9, fontWeight: 700, color: t.type === "customer" ? "#0891b2" : "#7c3aed", background: t.type === "customer" ? "#ecfeff" : "#f5f3ff", borderRadius: 99, padding: "1px 7px" }}>
-                                        {t.type === "customer" ? "Customer" : "Cleaner"}
-                                    </span>
+                                <Avatar className="shrink-0">
+                                    <AvatarFallback>{initials(t.refName || t.refId)}</AvatarFallback>
+                                </Avatar>
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <strong className="truncate text-sm text-foreground">{t.refName || t.refId}</strong>
+                                        <Badge variant={t.type === "customer" ? "outline" : "secondary"} className="shrink-0 text-[9px]">
+                                            {t.type === "customer" ? "Customer" : "Cleaner"}
+                                        </Badge>
+                                    </div>
+                                    <p className="truncate text-xs text-muted-foreground">{t.lastMessagePreview}</p>
+                                    <p className="text-[10px] text-muted-foreground/70">{timeAgo(t.lastMessageAt)}</p>
                                 </div>
-                                <div style={{ fontSize: 11, color: "#64748b", marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.lastMessagePreview}</div>
-                                <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>{timeAgo(t.lastMessageAt)}</div>
                             </button>
                         ))
                     )}
-                </div>
+                </Card>
 
-                <div>
+                <Card>
                     {activeThread ? (
                         <>
-                            <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b", marginBottom: 8 }}>
-                                {activeThread.refName || activeThread.refId}
-                                <span style={{ fontSize: 11, fontWeight: 500, color: "#94a3b8", marginLeft: 8 }}>{activeThread.type === "customer" ? activeThread.refId : ""}</span>
-                            </div>
-                            <ChatPanel
-                                messages={messages}
-                                currentActorId={currentUser?.uid}
-                                onSend={handleSend}
-                                loading={chatLoading}
-                                placeholder={`Message this ${activeThread.type}…`}
-                                height={460}
-                            />
+                            <CardHeader className="flex-row items-center gap-2 border-b border-border pb-4">
+                                <Avatar>
+                                    <AvatarFallback>{initials(activeThread.refName || activeThread.refId)}</AvatarFallback>
+                                </Avatar>
+                                <div>
+                                    <CardTitle className="text-sm">{activeThread.refName || activeThread.refId}</CardTitle>
+                                    {activeThread.type === "customer" && (
+                                        <p className="text-xs text-muted-foreground">{activeThread.refId}</p>
+                                    )}
+                                </div>
+                            </CardHeader>
+                            <CardContent className="pt-4">
+                                <ChatPanel
+                                    messages={messages}
+                                    currentActorId={currentUser?.uid}
+                                    onSend={handleSend}
+                                    loading={chatLoading}
+                                    placeholder={`Message this ${activeThread.type}…`}
+                                    height={460}
+                                />
+                            </CardContent>
                         </>
                     ) : (
-                        <div className="text-center p-12 text-slate-400 text-sm" style={{ border: "1px dashed #e2e8f0", borderRadius: 14 }}>
+                        <CardContent className="flex flex-col items-center justify-center gap-2 py-24 text-center text-sm text-muted-foreground">
+                            <MessageSquare className="h-6 w-6 text-muted-foreground/50" />
                             Select a conversation to view messages.
-                        </div>
+                        </CardContent>
                     )}
-                </div>
+                </Card>
             </div>
         </div>
     );
