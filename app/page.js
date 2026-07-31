@@ -67,6 +67,7 @@ import CleanerSupportChat from "./components/shared/CleanerSupportChat";
 import CustomerProfileModal from "./components/admin/CustomerProfileModal";
 import FinanceTab from "./components/admin/tabs/FinanceTab";
 import JobChatCard from "./components/shared/JobChatCard";
+import NotificationBell from "./components/shared/NotificationBell";
 import { customerKeyForBooking } from "../lib/phone";
 
 const V2SettingsManager = dynamic(() => import("./components/V2SettingsManager"), {
@@ -1177,6 +1178,48 @@ export default function Home() {
         };
     }, []);
 
+    // Deep link from an assignment/reminder text (?job=<id>) or a decline
+    // notification (?tab=bookings&job=<id>) — opens straight to that job
+    // instead of making the cleaner hunt for it. Only ever runs once.
+    const deepLinkHandledRef = useRef(false);
+    const [staffResponseSaving, setStaffResponseSaving] = useState(false);
+    useEffect(() => {
+        if (deepLinkHandledRef.current || typeof window === "undefined") return;
+        if (!bookings.length || !currentUser) return;
+        const params = new URLSearchParams(window.location.search);
+        const jobId = params.get("job");
+        const tab = params.get("tab");
+        if (!jobId) return;
+        const target = bookings.find(b => b.id === jobId);
+        if (target) {
+            deepLinkHandledRef.current = true;
+            if (tab) setActiveTab(tab);
+            setSelectedBooking(target);
+            setDetailsModalOpen(true);
+        }
+    }, [bookings, currentUser]);
+
+    // Same query-string shape as the deep link above, triggered by tapping a
+    // notification-bell entry instead of an incoming SMS link.
+    const handleNotificationNavigate = useCallback((link) => {
+        try {
+            const query = link.startsWith("?") ? link.slice(1) : link;
+            const params = new URLSearchParams(query);
+            const tab = params.get("tab");
+            const jobId = params.get("job");
+            if (tab) setActiveTab(tab);
+            if (jobId) {
+                const target = bookings.find(b => b.id === jobId);
+                if (target) {
+                    setSelectedBooking(target);
+                    setDetailsModalOpen(true);
+                }
+            }
+        } catch {
+            // Malformed link — nothing to navigate to.
+        }
+    }, [bookings]);
+
     useEffect(() => {
         if (currentUser) {
             const timer = setTimeout(() => {
@@ -2160,6 +2203,7 @@ export default function Home() {
             team: "",
             assignedStaff: b.assignedStaff || [],
             assignedStaffIds: b.assignedStaffIds || [],
+            assignedStaffConfirmations: b.assignedStaffConfirmations || {},
             status: b.status,
             paymentStatus: b.paymentStatus || "unpaid",
             paymentMethod: b.paymentMethod || "",
@@ -3281,6 +3325,29 @@ export default function Home() {
             setTimeEntrySaving(false);
         }
     }, [activeTimeEntry, currentUser, getAuthHeaders, getCurrentLocation, syncDatabaseData]);
+
+    const handleStaffAssignmentResponse = useCallback(async (booking, response) => {
+        if (!booking?.id) return;
+        setStaffResponseSaving(true);
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch("/api/bookings/respond", {
+                method: "POST", headers,
+                body: JSON.stringify({ bookingId: booking.id, response })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setSelectedBooking(prev => prev && prev.id === booking.id
+                    ? { ...prev, assignedStaffConfirmations: { ...(prev.assignedStaffConfirmations || {}), [currentUser.uid]: { status: response, respondedAt: new Date().toISOString() } } }
+                    : prev);
+                await syncDatabaseData();
+            } else {
+                alert(data.error || "Failed to record your response.");
+            }
+        } finally {
+            setStaffResponseSaving(false);
+        }
+    }, [getAuthHeaders, currentUser, syncDatabaseData]);
 
     const handleOpenCleanerJob = (booking, nextTab = "overview") => {
         if (!booking) return;
@@ -4741,6 +4808,9 @@ export default function Home() {
                             )}
                         </div>
                         <div className="datetime-indicator text-xs font-bold text-slate-500 bg-white p-2.5 rounded-full border border-slate-200">{clockString}</div>
+                        {canViewCRM && !isCleanerSelfServiceView && (
+                            <NotificationBell getAuthHeaders={getAuthHeaders} onNavigate={handleNotificationNavigate} />
+                        )}
                     </div>
                 </header>
 
@@ -5889,6 +5959,44 @@ export default function Home() {
                             {/* Body */}
                             <div className="modal-body modal-body-scroll">
 
+                                {isCleanerSelfServiceView && b.status === "Confirmed" && (() => {
+                                    const myResponse = b.assignedStaffConfirmations?.[currentUser?.uid]?.status || "pending";
+                                    const tone = myResponse === "declined"
+                                        ? { bg: "#fef2f2", border: "#fecaca" }
+                                        : myResponse === "confirmed"
+                                            ? { bg: "#f0fdf4", border: "#bbf7d0" }
+                                            : { bg: "#fffbeb", border: "#fde68a" };
+                                    return (
+                                        <div className="detail-card" style={{ background: tone.bg, borderColor: tone.border }}>
+                                            <div className="detail-card-title">
+                                                {myResponse === "confirmed" ? "✅ You confirmed this job"
+                                                    : myResponse === "declined" ? "❌ You said you can't make this job"
+                                                        : "⏳ Please confirm you're on this job"}
+                                            </div>
+                                            {myResponse === "pending" ? (
+                                                <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+                                                    <button type="button" disabled={staffResponseSaving} onClick={() => handleStaffAssignmentResponse(b, "confirmed")} className="btn btn-sm" style={{ background: "#16a34a", color: "#fff", fontWeight: 700 }}>
+                                                        ✓ Confirm
+                                                    </button>
+                                                    <button type="button" disabled={staffResponseSaving} onClick={() => handleStaffAssignmentResponse(b, "declined")} className="btn btn-sm" style={{ background: "#dc2626", color: "#fff", fontWeight: 700 }}>
+                                                        ✕ Can&apos;t Make It
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    disabled={staffResponseSaving}
+                                                    onClick={() => handleStaffAssignmentResponse(b, myResponse === "confirmed" ? "declined" : "confirmed")}
+                                                    className="btn btn-secondary btn-sm"
+                                                    style={{ marginTop: 8 }}
+                                                >
+                                                    Change response
+                                                </button>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
+
                                 {!isCleanerSelfServiceView && (
                                     <div className="detail-card">
                                         <div className="detail-card-title">👤 Client Information</div>
@@ -6703,7 +6811,22 @@ export default function Home() {
                                                                             };
                                                                         })}
                                                                     />
-                                                                    <strong>{member.name}</strong>
+                                                                    <strong>
+                                                                        {member.name}
+                                                                        {checked && (() => {
+                                                                            const respStatus = bookingForm.assignedStaffConfirmations?.[member.uid]?.status || "pending";
+                                                                            const badge = respStatus === "confirmed"
+                                                                                ? { label: "✅ Confirmed", color: "#16a34a" }
+                                                                                : respStatus === "declined"
+                                                                                    ? { label: "❌ Declined", color: "#dc2626" }
+                                                                                    : { label: "⏳ Awaiting response", color: "#b45309" };
+                                                                            return (
+                                                                                <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: badge.color }}>
+                                                                                    {badge.label}
+                                                                                </span>
+                                                                            );
+                                                                        })()}
+                                                                    </strong>
                                                                     <small>{getRoleLabel(member.role)} · {member.branchName || "Ottawa"} · {status.reason}</small>
                                                                 </label>
                                                             );

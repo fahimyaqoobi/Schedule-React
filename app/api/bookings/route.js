@@ -14,6 +14,7 @@ import { getCustomerPromoContext, getPersonalReferralCode } from "../../../lib/c
 import { computeBookingPricing } from "../../../lib/pricing";
 import { buildJobFinancialRecord } from "../../../lib/financials";
 import { maybeRecordCardProcessingFee } from "../../../lib/cardFees";
+import { computeAssignmentNotifications } from "../../../lib/staffNotify";
 
 // Lead → Quote → Booking(Pending/Confirmed) → Completed. "Quote" sits between
 // a raw enquiry and an accepted booking — pricing has been sent, customer
@@ -344,7 +345,18 @@ export async function POST(request) {
                 paymentStatus
             })
         };
-        
+
+        // Covers the rare case of a booking created already-Confirmed with
+        // staff pre-assigned — same "new assignment" text as an edit would send.
+        const notifyOrigin = request.headers.get("origin") || request.nextUrl.origin;
+        const { assignedStaffConfirmations, staffNotifiedAt } = await computeAssignmentNotifications(adminDb, {
+            originalData: {},
+            nextBooking: newBooking,
+            origin: notifyOrigin
+        });
+        newBooking.assignedStaffConfirmations = assignedStaffConfirmations;
+        newBooking.staffNotifiedAt = staffNotifiedAt;
+
         await adminDb.collection("bookings").doc(id).set(newBooking);
         return NextResponse.json({ message: "Booking created successfully", booking: newBooking }, { status: 200 });
     } catch (err) {
@@ -505,6 +517,19 @@ export async function PUT(request) {
                     paymentStatus: nextPaymentStatus
                 })
             };
+
+            // Text assigned cleaners when they're newly added to a Confirmed
+            // job, and text already-assigned cleaners if a Confirmed job's
+            // status/date/time changes out from under them.
+            const notifyOrigin = request.headers.get("origin") || request.nextUrl.origin;
+            const { assignedStaffConfirmations, staffNotifiedAt } = await computeAssignmentNotifications(adminDb, {
+                originalData,
+                nextBooking: updatedBooking,
+                origin: notifyOrigin
+            });
+            updatedBooking.assignedStaffConfirmations = assignedStaffConfirmations;
+            updatedBooking.staffNotifiedAt = staffNotifiedAt;
+
             await bookingRef.set(updatedBooking);
 
             // Every completed job creates/refreshes its financial record —

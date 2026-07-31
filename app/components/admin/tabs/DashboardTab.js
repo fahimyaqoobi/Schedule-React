@@ -615,23 +615,42 @@ export default function DashboardTab({
                                         </div>
                                     ) : (
                                         <div className="flex flex-col gap-1">
-                                            {todayBookings.slice(0, 5).map(b => (
-                                                <button
-                                                    key={b.id}
-                                                    onClick={() => { setSelectedBooking(b); setDetailsModalOpen(true); }}
-                                                    type="button"
-                                                    className="flex items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-muted"
-                                                >
-                                                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                                                        {initials(b.clientName)}
-                                                    </span>
-                                                    <div className="min-w-0 flex-1">
-                                                        <strong className="block truncate text-sm text-foreground">{b.clientName}</strong>
-                                                        <small className="block truncate text-xs text-muted-foreground">{b.time} · {b.service}{b.team ? ` · ${b.team}` : ""}</small>
-                                                    </div>
-                                                    <Badge variant="outline" className="shrink-0 text-[10px]">{b.status}</Badge>
-                                                </button>
-                                            ))}
+                                            {todayBookings.slice(0, 5).map(b => {
+                                                const staffIds = b.assignedStaffIds || [];
+                                                const confirmations = b.assignedStaffConfirmations || {};
+                                                const unconfirmedCount = staffIds.filter(uid => confirmations[uid]?.status !== "confirmed").length;
+                                                const hasDeclined = staffIds.some(uid => confirmations[uid]?.status === "declined");
+                                                return (
+                                                    <button
+                                                        key={b.id}
+                                                        onClick={() => { setSelectedBooking(b); setDetailsModalOpen(true); }}
+                                                        type="button"
+                                                        className="flex items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-muted"
+                                                    >
+                                                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                                                            {initials(b.clientName)}
+                                                        </span>
+                                                        <div className="min-w-0 flex-1">
+                                                            <strong className="block truncate text-sm text-foreground">{b.clientName}</strong>
+                                                            <small className="block truncate text-xs text-muted-foreground">{b.time} · {b.service}{b.team ? ` · ${b.team}` : ""}</small>
+                                                        </div>
+                                                        <div className="flex shrink-0 flex-col items-end gap-1">
+                                                            <Badge variant="outline" className="text-[10px]">{b.status}</Badge>
+                                                            {unconfirmedCount > 0 && (
+                                                                <Badge
+                                                                    variant={hasDeclined ? "destructive" : "secondary"}
+                                                                    className={cn(
+                                                                        "text-[10px]",
+                                                                        !hasDeclined && "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+                                                                    )}
+                                                                >
+                                                                    {hasDeclined ? "⚠ Declined" : "⏳ Not confirmed"}
+                                                                </Badge>
+                                                            )}
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })}
                                             {todayBookings.length > 5 && (
                                                 <button
                                                     type="button"

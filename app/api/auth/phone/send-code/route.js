@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { adminDb, adminAuth } from "../../../../../lib/firebase-admin";
+import { sendSms } from "../../../../../lib/sms";
 
 function normalizePhoneNumber(value = "") {
     const trimmed = String(value || "").trim();
@@ -15,41 +16,6 @@ function normalizePhoneNumber(value = "") {
 
 function createVerificationCode() {
     return `${Math.floor(100000 + Math.random() * 900000)}`;
-}
-
-async function sendSmsCode(phoneNumber, code) {
-    const accountSid = process.env.TWILIO_ACCOUNT_SID;
-    const authToken = process.env.TWILIO_AUTH_TOKEN;
-    const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
-    const fromNumber = process.env.TWILIO_FROM_NUMBER;
-
-    if (!accountSid || !authToken || (!messagingServiceSid && !fromNumber)) {
-        throw new Error("Twilio environment variables are missing.");
-    }
-
-    const params = new URLSearchParams();
-    params.set("To", phoneNumber);
-    params.set("Body", `Your SmarTouch Clean verification code is ${code}. It expires in 10 minutes.`);
-    if (messagingServiceSid) {
-        params.set("MessagingServiceSid", messagingServiceSid);
-    } else {
-        params.set("From", fromNumber);
-    }
-
-    const auth = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
-    const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`, {
-        method: "POST",
-        headers: {
-            Authorization: `Basic ${auth}`,
-            "Content-Type": "application/x-www-form-urlencoded"
-        },
-        body: params
-    });
-
-    if (!response.ok) {
-        const errorData = await response.text();
-        throw new Error(`Twilio SMS failed: ${errorData}`);
-    }
 }
 
 export async function POST(request) {
@@ -84,7 +50,7 @@ export async function POST(request) {
             createdAt: new Date().toISOString()
         });
 
-        await sendSmsCode(phoneNumber, code);
+        await sendSms(phoneNumber, `Your SmarTouch Clean verification code is ${code}. It expires in 10 minutes.`);
 
         return NextResponse.json({ message: "Verification code sent successfully." }, { status: 200 });
     } catch (error) {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { adminDb } from "../../../../lib/firebase-admin";
 import { identifyChatActor } from "../../../../lib/chatAuth";
 import { normalizePhone } from "../../../../lib/phone";
+import { createNotification } from "../../../../lib/notifications";
 
 function threadId(type, refId) {
     return type === "customer" ? `customer_${normalizePhone(refId)}` : `cleaner_${refId}`;
@@ -87,6 +88,20 @@ export async function POST(request) {
             createdAt: nowIso,
         };
         await adminDb.collection("supportMessages").doc(msgId).set(message);
+
+        // A customer or cleaner messaging in is exactly what the notification
+        // bell exists for — staff replying to their own thread shouldn't
+        // notify staff.
+        if (senderKind !== "staff") {
+            await createNotification(adminDb, {
+                type: "chat_message",
+                title: `New message from ${message.senderName}`,
+                body: messagePreview,
+                link: `?tab=messages&thread=${encodeURIComponent(id)}`,
+                refId: id,
+            });
+        }
+
         return NextResponse.json({ message: "Sent.", chatMessage: message }, { status: 200 });
     } catch (err) {
         console.error("POST support chat error:", err);
