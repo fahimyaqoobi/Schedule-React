@@ -1,6 +1,16 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Plus, Search } from "lucide-react";
 import ChatPanel from "../../shared/ChatPanel";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+
+function initials(name) {
+    return (name || "?").trim().split(/\s+/).slice(0, 2).map(p => p[0]?.toUpperCase()).join("") || "?";
+}
 
 function timeAgo(iso) {
     if (!iso) return "";
@@ -16,13 +26,15 @@ function timeAgo(iso) {
 // Shared support inbox — every persistent customer and cleaner support
 // thread in one place, visible to admin/ops/sales (matches "admin, ops, and
 // salesperson can see and take action" from the requirements).
-export default function MessagesTab({ getAuthHeaders, currentUser, Icons }) {
+export default function MessagesTab({ getAuthHeaders, currentUser, Icons, fieldStaff = [] }) {
     const [threads, setThreads] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filterType, setFilterType] = useState("");
     const [activeThread, setActiveThread] = useState(null);
     const [messages, setMessages] = useState([]);
     const [chatLoading, setChatLoading] = useState(false);
+    const [composeOpen, setComposeOpen] = useState(false);
+    const [composeSearch, setComposeSearch] = useState("");
 
     const loadThreads = useCallback(async () => {
         try {
@@ -73,6 +85,25 @@ export default function MessagesTab({ getAuthHeaders, currentUser, Icons }) {
 
     const visibleThreads = threads.filter(t => !filterType || t.type === filterType);
 
+    // Support staff starting a conversation, not waiting on the cleaner to
+    // message first — a thread doesn't exist server-side until the first
+    // message is actually sent, so this just opens the chat panel against a
+    // not-yet-created thread; POST creates it on first send either way.
+    const composableCleaners = useMemo(() => {
+        const q = composeSearch.trim().toLowerCase();
+        return fieldStaff
+            .filter(m => ["cleaner", "subcontractor", "supervisor"].includes(m.role))
+            .filter(m => !q || (m.name || "").toLowerCase().includes(q))
+            .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    }, [fieldStaff, composeSearch]);
+
+    const startConversationWith = (member) => {
+        const existing = threads.find(t => t.type === "cleaner" && t.refId === member.uid);
+        setActiveThread(existing || { id: `cleaner_${member.uid}`, type: "cleaner", refId: member.uid, refName: member.name });
+        setComposeOpen(false);
+        setComposeSearch("");
+    };
+
     return (
         <div className="animate-fade">
             <div className="ops-control-header">
@@ -81,7 +112,13 @@ export default function MessagesTab({ getAuthHeaders, currentUser, Icons }) {
                     <h3 className="ops-title">Messages</h3>
                     <p className="ops-copy">One persistent thread per customer and per cleaner — spans every job. Job-specific chats live on the booking itself and lock once the job closes.</p>
                 </div>
-                <span className="ops-chip">{threads.length} Threads</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span className="ops-chip">{threads.length} Threads</span>
+                    <Button size="sm" onClick={() => setComposeOpen(true)}>
+                        <Plus className="size-4" />
+                        New Message
+                    </Button>
+                </div>
             </div>
 
             <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
@@ -98,6 +135,51 @@ export default function MessagesTab({ getAuthHeaders, currentUser, Icons }) {
                     }}>{opt.label}</button>
                 ))}
             </div>
+
+            <Dialog open={composeOpen} onOpenChange={setComposeOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>New message to a cleaner</DialogTitle>
+                        <DialogDescription>Start the conversation yourself — no need to wait for them to text first.</DialogDescription>
+                    </DialogHeader>
+                    <div className="relative">
+                        <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                            autoFocus
+                            placeholder="Search cleaners…"
+                            value={composeSearch}
+                            onChange={(e) => setComposeSearch(e.target.value)}
+                            className="pl-8"
+                        />
+                    </div>
+                    <div className="flex max-h-80 flex-col gap-1 overflow-y-auto">
+                        {composableCleaners.length === 0 ? (
+                            <div className="py-6 text-center text-sm text-muted-foreground">No cleaners match.</div>
+                        ) : (
+                            composableCleaners.map(member => {
+                                const hasThread = threads.some(t => t.type === "cleaner" && t.refId === member.uid);
+                                return (
+                                    <button
+                                        key={member.uid}
+                                        type="button"
+                                        onClick={() => startConversationWith(member)}
+                                        className="flex items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-muted"
+                                    >
+                                        <Avatar>
+                                            <AvatarFallback>{initials(member.name)}</AvatarFallback>
+                                        </Avatar>
+                                        <div className="min-w-0 flex-1">
+                                            <strong className="block truncate text-sm text-foreground">{member.name}</strong>
+                                            <small className="block truncate text-xs text-muted-foreground">{member.branchName || "Ottawa"}</small>
+                                        </div>
+                                        {hasThread && <Badge variant="outline" className="shrink-0 text-[10px]">Existing thread</Badge>}
+                                    </button>
+                                );
+                            })
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
 
             <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: 16 }}>
                 <div className="table-container" style={{ maxHeight: 560, overflowY: "auto" }}>
