@@ -435,7 +435,7 @@ export default function DashboardTab({
                                 icon={DollarSign}
                                 label="Today's Revenue"
                                 value={fmtMoney(adminCommandMetrics.todayRevenue)}
-                                sub={`${adminCommandMetrics.jobsToday} job${adminCommandMetrics.jobsToday !== 1 ? "s" : ""} scheduled today`}
+                                sub={`${adminCommandMetrics.jobsCompletedToday} completed of ${adminCommandMetrics.jobsToday} scheduled today`}
                             />
                             <HeroStat
                                 icon={TrendingUp}

@@ -4145,7 +4145,10 @@ export default function Home() {
         const tomorrowStr = new Date(Date.now() + 86400000).toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
         const jobsTodayList = activeBookings.filter(b => b.date === todayStr);
         const jobsTomorrowList = activeBookings.filter(b => b.date === tomorrowStr && b.status === "Confirmed");
-        const todayRevenue = jobsTodayList.reduce((sum, b) => sum + parseFloat(b.price || b.totalAmount || 0), 0);
+        // Revenue only counts Completed jobs — a Lead/Pending/Confirmed job
+        // scheduled for today isn't money earned yet, same rule Finance uses.
+        const completedTodayList = jobsTodayList.filter(b => b.status === "Completed");
+        const todayRevenue = completedTodayList.reduce((sum, b) => sum + parseFloat(b.price || b.totalAmount || 0), 0);
         const newLeads = activeBookings.filter(b => b.status === "Lead").length;
         const newQuotes = activeBookings.filter(b => b.status === "Quote").length;
         const jobsNeedingAttention = activeBookings.filter(b =>
@@ -4182,6 +4185,7 @@ export default function Home() {
             pendingPaymentAmount,
             pendingPaymentCount: pendingPaymentJobs.length,
             jobsToday: jobsTodayList.length,
+            jobsCompletedToday: completedTodayList.length,
             todayRevenue,
             newLeads,
             newQuotes,
