@@ -3,6 +3,7 @@ import { adminAuth, adminDb } from "../../../../lib/firebase-admin";
 import { canManageBranch } from "../../../../lib/permissions";
 import { userCanAccessBranch, DEFAULT_BRANCH_ID } from "../../../../lib/branches";
 import { trySendSms, buildManualReminderSms } from "../../../../lib/sms";
+import { getStaffPhone } from "../../../../lib/staffNotify";
 
 async function authenticateRequest(request) {
     const authHeader = request.headers.get("Authorization");
@@ -45,8 +46,7 @@ export async function POST(request) {
             return NextResponse.json({ error: "This person is not assigned to this job." }, { status: 400 });
         }
 
-        const staffDoc = await adminDb.collection("users").doc(staffUid).get();
-        const phone = staffDoc.exists ? (staffDoc.data()?.staffProfile?.personal?.phone || "") : "";
+        const phone = await getStaffPhone(adminDb, staffUid);
         if (!phone) {
             return NextResponse.json({ error: "This cleaner has no phone number on file." }, { status: 400 });
         }

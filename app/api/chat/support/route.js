@@ -2,11 +2,9 @@ import { NextResponse } from "next/server";
 import { adminDb } from "../../../../lib/firebase-admin";
 import { identifyChatActor } from "../../../../lib/chatAuth";
 import { normalizePhone } from "../../../../lib/phone";
-import { createNotification } from "../../../../lib/notifications";
-
-function threadId(type, refId) {
-    return type === "customer" ? `customer_${normalizePhone(refId)}` : `cleaner_${refId}`;
-}
+import { appendSupportMessage, supportThreadId } from "../../../../lib/supportChat";
+import { getStaffPhone } from "../../../../lib/staffNotify";
+import { trySendSms, buildSupportMessageSms } from "../../../../lib/sms";
 
 function canAccessThread(actor, type, refId) {
     if (actor.kind === "staff") return actor.isSupportStaff;
@@ -39,7 +37,7 @@ export async function GET(request) {
             return NextResponse.json({ error: "Forbidden: You cannot view this support thread." }, { status: 403 });
         }
 
-        const id = threadId(type, refId);
+        const id = supportThreadId(type, refId);
         const threadSnap = await adminDb.collection("supportThreads").doc(id).get();
         const messagesSnap = await adminDb.collection("supportMessages").where("threadId", "==", id).get();
         const messages = messagesSnap.docs.map(doc => doc.data()).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
@@ -62,44 +60,25 @@ export async function POST(request) {
             return NextResponse.json({ error: "Forbidden: You cannot post to this support thread." }, { status: 403 });
         }
 
-        const id = threadId(type, refId);
-        const nowIso = new Date().toISOString();
-        const threadRef = adminDb.collection("supportThreads").doc(id);
-        const threadSnap = await threadRef.get();
-
         const senderKind = actor.kind;
         const senderName = actor.kind === "staff" ? actor.name : (refName || (actor.kind === "customer" ? "Customer" : "Cleaner"));
-        const messagePreview = String(text).trim().slice(0, 140);
 
-        await threadRef.set({
-            id, type, refId: type === "customer" ? normalizePhone(refId) : refId,
-            refName: refName || (threadSnap.exists ? threadSnap.data().refName : senderName),
-            lastMessageAt: nowIso,
-            lastMessagePreview: messagePreview,
-            createdAt: threadSnap.exists ? threadSnap.data().createdAt : nowIso,
-        }, { merge: true });
+        const { message } = await appendSupportMessage(adminDb, {
+            type, refId, refName,
+            senderKind,
+            senderId: actor.uid || actor.phone,
+            senderName,
+            text,
+        });
 
-        const msgId = `sm-${Date.now()}`;
-        const message = {
-            id: msgId, threadId: id,
-            senderKind, senderId: actor.uid || actor.phone,
-            senderName: actor.kind === "staff" ? actor.name : senderName,
-            text: String(text).trim(),
-            createdAt: nowIso,
-        };
-        await adminDb.collection("supportMessages").doc(msgId).set(message);
-
-        // A customer or cleaner messaging in is exactly what the notification
-        // bell exists for — staff replying to their own thread shouldn't
-        // notify staff.
-        if (senderKind !== "staff") {
-            await createNotification(adminDb, {
-                type: "chat_message",
-                title: `New message from ${message.senderName}`,
-                body: messagePreview,
-                link: `?tab=messages&thread=${encodeURIComponent(id)}`,
-                refId: id,
-            });
+        // Staff starting or replying in a thread also goes out as a real
+        // text — and because of the Twilio inbound webhook, whatever they
+        // text back lands right back in this same thread.
+        if (senderKind === "staff") {
+            const phone = type === "customer" ? normalizePhone(refId) : await getStaffPhone(adminDb, refId);
+            if (phone) {
+                await trySendSms(phone, buildSupportMessageSms(message.text, actor.name));
+            }
         }
 
         return NextResponse.json({ message: "Sent.", chatMessage: message }, { status: 200 });
