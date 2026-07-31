@@ -6827,35 +6827,33 @@ export default function Home() {
                                                                             };
                                                                         })}
                                                                     />
-                                                                    <strong>
-                                                                        {member.name}
-                                                                        {checked && (() => {
-                                                                            const respStatus = bookingForm.assignedStaffConfirmations?.[member.uid]?.status || "pending";
-                                                                            const badge = respStatus === "confirmed"
-                                                                                ? { label: "✅ Confirmed", color: "#16a34a" }
-                                                                                : respStatus === "declined"
-                                                                                    ? { label: "❌ Declined", color: "#dc2626" }
-                                                                                    : { label: "⏳ Awaiting response", color: "#b45309" };
-                                                                            return (
-                                                                                <>
-                                                                                    <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: badge.color }}>
-                                                                                        {badge.label}
-                                                                                    </span>
-                                                                                    {respStatus !== "confirmed" && bookingForm.id && (
-                                                                                        <button
-                                                                                            type="button"
-                                                                                            disabled={remindingStaffUid === member.uid}
-                                                                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleSendManualReminder(bookingForm.id, member.uid); }}
-                                                                                            style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: "#0A6CB8", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
-                                                                                        >
-                                                                                            {remindingStaffUid === member.uid ? "Sending…" : "🔔 Remind"}
-                                                                                        </button>
-                                                                                    )}
-                                                                                </>
-                                                                            );
-                                                                        })()}
-                                                                    </strong>
+                                                                    <strong>{member.name}</strong>
                                                                     <small>{getRoleLabel(member.role)} · {member.branchName || "Ottawa"} · {status.reason}</small>
+                                                                    {checked && (() => {
+                                                                        const respStatus = bookingForm.assignedStaffConfirmations?.[member.uid]?.status || "pending";
+                                                                        const badge = respStatus === "confirmed"
+                                                                            ? { label: "✅ Confirmed", color: "#16a34a" }
+                                                                            : respStatus === "declined"
+                                                                                ? { label: "❌ Declined", color: "#dc2626" }
+                                                                                : { label: "⏳ Awaiting response", color: "#b45309" };
+                                                                        return (
+                                                                            <div style={{ gridColumn: 2, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginTop: 2 }}>
+                                                                                <span style={{ fontSize: 11, fontWeight: 700, color: badge.color, whiteSpace: "nowrap" }}>
+                                                                                    {badge.label}
+                                                                                </span>
+                                                                                {respStatus !== "confirmed" && bookingForm.id && (
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        disabled={remindingStaffUid === member.uid}
+                                                                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleSendManualReminder(bookingForm.id, member.uid); }}
+                                                                                        style={{ fontSize: 11, fontWeight: 700, color: "#0A6CB8", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", whiteSpace: "nowrap" }}
+                                                                                    >
+                                                                                        {remindingStaffUid === member.uid ? "Sending…" : "🔔 Remind"}
+                                                                                    </button>
+                                                                                )}
+                                                                            </div>
+                                                                        );
+                                                                    })()}
                                                                 </label>
                                                             );
                                                         })}
