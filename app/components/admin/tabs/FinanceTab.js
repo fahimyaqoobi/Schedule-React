@@ -1,5 +1,14 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { Info } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 function money(n) {
     const num = Number(n || 0);
@@ -57,24 +66,30 @@ const PRESETS = [
 
 function StatCard({ label, value, sub, alert }) {
     return (
-        <div style={{ background: alert ? "#fef2f2" : "#f8fafc", border: `1px solid ${alert ? "#fecaca" : "#e2e8f0"}`, borderRadius: 12, padding: "14px 16px" }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: alert ? "#dc2626" : "#1e293b", marginTop: 2 }}>{value}</div>
-            {sub && <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>{sub}</div>}
+        <div className={cn("rounded-lg border p-3.5", alert ? "border-destructive/30 bg-destructive/5" : "border-border bg-muted/30")}>
+            <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{label}</p>
+            <p className={cn("mt-0.5 text-xl font-extrabold", alert ? "text-destructive" : "text-foreground")}>{value}</p>
+            {sub && <p className="mt-0.5 text-[11px] text-muted-foreground">{sub}</p>}
         </div>
     );
 }
 
 function Panel({ title, sub, children }) {
     return (
-        <div className="settings-card">
-            <div className="panel-header border-b border-slate-100 pb-3">
-                <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">{title}</h4>
-                {sub && <p className="text-slate-500 text-xs mt-1">{sub}</p>}
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, paddingTop: 14 }}>
+        <Card>
+            <CardHeader><CardTitle className="text-sm">{title}</CardTitle>{sub && <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p>}</CardHeader>
+            <CardContent className="grid gap-2.5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}>
                 {children}
-            </div>
+            </CardContent>
+        </Card>
+    );
+}
+
+function InfoBanner({ children }) {
+    return (
+        <div className="flex items-start gap-2 rounded-lg border border-primary/25 bg-primary/5 px-3.5 py-2.5 text-xs text-foreground/80">
+            <Info className="mt-0.5 size-3.5 shrink-0 text-primary" />
+            <span>{children}</span>
         </div>
     );
 }
@@ -82,29 +97,57 @@ function Panel({ title, sub, children }) {
 function PaymentMethodsPanel({ title, breakdown }) {
     const total = breakdown.reduce((s, m) => s + m.amount, 0);
     return (
-        <div className="settings-card">
-            <div className="panel-header border-b border-slate-100 pb-3">
-                <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">{title}</h4>
-                <p className="text-slate-500 text-xs mt-1">How the money you collected in this period actually came in.</p>
-            </div>
-            {breakdown.length === 0 ? (
-                <div className="text-center p-6 text-slate-400 text-xs">Nothing collected in this period yet.</div>
-            ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingTop: 14 }}>
-                    {breakdown.map(m => {
-                        const widthPct = total > 0 ? (m.amount / total) * 100 : 0;
-                        return (
-                            <div key={m.method}>
-                                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}>
-                                    <span style={{ fontWeight: 700, color: "#1e293b" }}>{m.label}</span>
-                                    <span style={{ color: "#64748b" }}>{money(m.amount)} · {m.count} job{m.count === 1 ? "" : "s"}</span>
+        <Card>
+            <CardHeader>
+                <CardTitle className="text-sm">{title}</CardTitle>
+                <p className="mt-0.5 text-xs text-muted-foreground">How the money you collected in this period actually came in.</p>
+            </CardHeader>
+            <CardContent>
+                {breakdown.length === 0 ? (
+                    <p className="py-4 text-center text-xs text-muted-foreground">Nothing collected in this period yet.</p>
+                ) : (
+                    <div className="flex flex-col gap-2.5">
+                        {breakdown.map(m => {
+                            const widthPct = total > 0 ? (m.amount / total) * 100 : 0;
+                            return (
+                                <div key={m.method}>
+                                    <div className="mb-1 flex justify-between text-xs">
+                                        <span className="font-bold text-foreground">{m.label}</span>
+                                        <span className="text-muted-foreground">{money(m.amount)} · {m.count} job{m.count === 1 ? "" : "s"}</span>
+                                    </div>
+                                    <div className="h-2 overflow-hidden rounded-full bg-muted">
+                                        <div className="h-full rounded-full bg-cyan-600" style={{ width: `${widthPct}%` }} />
+                                    </div>
                                 </div>
-                                <div style={{ background: "#f1f5f9", borderRadius: 99, height: 8, overflow: "hidden" }}>
-                                    <div style={{ width: `${widthPct}%`, background: "#0891b2", height: "100%", borderRadius: 99 }}></div>
-                                </div>
-                            </div>
-                        );
-                    })}
+                            );
+                        })}
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
+function PresetPicker({ preset, setPreset, customFrom, setCustomFrom, customTo, setCustomTo }) {
+    return (
+        <div className="flex flex-wrap items-center gap-1.5">
+            {PRESETS.map(p => (
+                <button
+                    key={p.key}
+                    onClick={() => setPreset(p.key)}
+                    className={cn(
+                        "rounded-full border px-3 py-1.5 text-[11px] font-semibold",
+                        preset === p.key ? "border-cyan-600 bg-cyan-50 text-cyan-700 dark:bg-cyan-950/30" : "border-input bg-card text-muted-foreground"
+                    )}
+                >
+                    {p.label}
+                </button>
+            ))}
+            {preset === "custom" && (
+                <div className="flex items-center gap-1.5">
+                    <Input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)} className="h-8 w-auto text-xs" />
+                    <span className="text-xs text-muted-foreground">to</span>
+                    <Input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)} className="h-8 w-auto text-xs" />
                 </div>
             )}
         </div>
@@ -140,31 +183,15 @@ function OverviewView({ getAuthHeaders }) {
 
     return (
         <div className="flex flex-col gap-4">
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {PRESETS.map(p => (
-                    <button key={p.key} onClick={() => setPreset(p.key)} style={{
-                        padding: "5px 12px", borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: "pointer",
-                        border: preset === p.key ? "1.5px solid #0891b2" : "1.5px solid #e2e8f0",
-                        background: preset === p.key ? "#ecfeff" : "#fff",
-                        color: preset === p.key ? "#0891b2" : "#64748b",
-                    }}>{p.label}</button>
-                ))}
-                {preset === "custom" && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)} style={{ fontSize: 12, padding: "5px 8px", border: "1px solid #e2e8f0", borderRadius: 8 }} />
-                        <span style={{ fontSize: 11, color: "#94a3b8" }}>to</span>
-                        <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)} style={{ fontSize: 12, padding: "5px 8px", border: "1px solid #e2e8f0", borderRadius: 8 }} />
-                    </div>
-                )}
-            </div>
+            <PresetPicker preset={preset} setPreset={setPreset} customFrom={customFrom} setCustomFrom={setCustomFrom} customTo={customTo} setCustomTo={setCustomTo} />
 
             {loading || !overview ? (
-                <div className="text-center p-12 text-slate-400 text-sm">Loading finance data…</div>
+                <div className="py-12 text-center text-sm text-muted-foreground">Loading finance data…</div>
             ) : (
                 <>
-                    <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 10, padding: "10px 14px", fontSize: 12, color: "#1e40af" }}>
+                    <InfoBanner>
                         Showing jobs <strong>marked Completed</strong> and <strong>scheduled {periodLabel === "Today" ? "today" : periodLabel === "All Time" ? "any time" : `in: ${periodLabel}`}</strong> ({range.from || "the beginning"} → {range.to || "now"}). A job's own date decides which period it falls into — not when it was booked or last edited.
-                    </div>
+                    </InfoBanner>
 
                     <Panel title={`Sales & Collections (${periodLabel})`}>
                         <StatCard label={`Revenue — ${periodLabel}`} value={money(overview.sales.salesPeriod)} sub={`Price of every completed job in this range · All-time: ${money(overview.sales.salesTotal)}`} />
@@ -219,13 +246,13 @@ function ForecastView({ getAuthHeaders }) {
         })();
     }, [getAuthHeaders]);
 
-    if (loading || !forecast) return <div className="text-center p-12 text-slate-400 text-sm">Loading forecast…</div>;
+    if (loading || !forecast) return <div className="py-12 text-center text-sm text-muted-foreground">Loading forecast…</div>;
 
     return (
         <div className="flex flex-col gap-4">
-            <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 10, padding: "10px 14px", fontSize: 12, color: "#1e40af" }}>
+            <InfoBanner>
                 This is a projection, not an actual — it takes what's happened so far this month ({forecast.daysElapsed} of {forecast.daysInMonth} days in) and assumes the rest of the month keeps the same daily pace. It will always be rough early in the month and more accurate closer to month-end.
-            </div>
+            </InfoBanner>
             <Panel title="If This Pace Continues... (Completed Jobs This Month)">
                 <StatCard label="Sales So Far This Month" value={money(forecast.currentMonthSales)} sub="Actual, not projected" />
                 <StatCard label="Average Per Day So Far" value={money(forecast.avgDailySales)} sub={`Sales so far ÷ ${forecast.daysElapsed} days elapsed`} />
@@ -301,78 +328,80 @@ function SettingsView({ getAuthHeaders }) {
         }
     };
 
-    if (!settings) return <div className="text-center p-12 text-slate-400 text-sm">Loading…</div>;
+    if (!settings) return <div className="py-12 text-center text-sm text-muted-foreground">Loading…</div>;
 
     return (
         <div className="flex flex-col gap-4">
-            <div className="settings-card">
-                <div className="panel-header border-b border-slate-100 pb-3">
-                    <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">Finance Settings</h4>
-                    <p className="text-slate-500 text-xs mt-1">All optional — leave anything at 0 if it doesn't apply to you yet. Nothing here is required for the Overview/Forecast numbers to work.</p>
-                </div>
-                <div className="settings-form">
-                    <div className="form-group">
-                        <label>Opening Capital ($)</label>
-                        <input type="number" step="0.01" value={settings.openingCapital} onChange={e => setSettings(prev => ({ ...prev, openingCapital: e.target.value }))} />
-                        <small className="text-slate-400">How much money you started the company with. Only affects one number: "Available Company Funds." Leave at 0 if you'd rather not track this.</small>
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-sm">Finance Settings</CardTitle>
+                    <p className="mt-0.5 text-xs text-muted-foreground">All optional — leave anything at 0 if it doesn't apply to you yet. Nothing here is required for the Overview/Forecast numbers to work.</p>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-1.5">
+                        <Label>Opening Capital ($)</Label>
+                        <Input type="number" step="0.01" value={settings.openingCapital} onChange={e => setSettings(prev => ({ ...prev, openingCapital: e.target.value }))} />
+                        <small className="text-xs text-muted-foreground">How much money you started the company with. Only affects one number: "Available Company Funds." Leave at 0 if you'd rather not track this.</small>
                     </div>
-                    <div className="form-group">
-                        <label>Payment Terms (days)</label>
-                        <input type="number" value={settings.paymentTermsDays} onChange={e => setSettings(prev => ({ ...prev, paymentTermsDays: e.target.value }))} />
-                        <small className="text-slate-400">Not currently used by any number on this page — reserved for a future "overdue" view. Safe to ignore.</small>
+                    <div className="flex flex-col gap-1.5">
+                        <Label>Payment Terms (days)</Label>
+                        <Input type="number" value={settings.paymentTermsDays} onChange={e => setSettings(prev => ({ ...prev, paymentTermsDays: e.target.value }))} />
+                        <small className="text-xs text-muted-foreground">Not currently used by any number on this page — reserved for a future "overdue" view. Safe to ignore.</small>
                     </div>
-                    <div className="form-group">
-                        <label>Card Processing Fee Rate (%)</label>
-                        <input type="number" step="0.01" value={settings.cardProcessingFeeRatePercent} onChange={e => setSettings(prev => ({ ...prev, cardProcessingFeeRatePercent: e.target.value }))} />
+                    <div className="flex flex-col gap-1.5">
+                        <Label>Card Processing Fee Rate (%)</Label>
+                        <Input type="number" step="0.01" value={settings.cardProcessingFeeRatePercent} onChange={e => setSettings(prev => ({ ...prev, cardProcessingFeeRatePercent: e.target.value }))} />
                     </div>
-                    <div className="form-group">
-                        <label>Card Processing Fixed Fee ($)</label>
-                        <input type="number" step="0.01" value={settings.cardProcessingFeeFixed} onChange={e => setSettings(prev => ({ ...prev, cardProcessingFeeFixed: e.target.value }))} />
-                        <small className="text-slate-400">Your card processor's rate (e.g. Stripe is usually 2.9% + $0.30/transaction). Whenever a job is paid by card, the fee is calculated from these two numbers and automatically logged as a "Processing Fees" expense — you don't need to enter it by hand.</small>
+                    <div className="flex flex-col gap-1.5">
+                        <Label>Card Processing Fixed Fee ($)</Label>
+                        <Input type="number" step="0.01" value={settings.cardProcessingFeeFixed} onChange={e => setSettings(prev => ({ ...prev, cardProcessingFeeFixed: e.target.value }))} />
+                        <small className="text-xs text-muted-foreground">Your card processor's rate (e.g. Stripe is usually 2.9% + $0.30/transaction). Whenever a job is paid by card, the fee is calculated from these two numbers and automatically logged as a "Processing Fees" expense — you don't need to enter it by hand.</small>
                     </div>
-                    <button type="button" onClick={saveSettings} disabled={saving} className="btn btn-primary h-[40px] rounded-lg text-white font-bold transition mt-2">
-                        {saving ? "Saving…" : "Save Settings"}
-                    </button>
-                    {feedback && <span style={{ fontSize: 11, color: "#64748b" }}>{feedback}</span>}
-                </div>
-            </div>
+                    <div className="flex items-center gap-3">
+                        <Button onClick={saveSettings} disabled={saving}>{saving ? "Saving…" : "Save Settings"}</Button>
+                        {feedback && <span className="text-xs text-muted-foreground">{feedback}</span>}
+                    </div>
+                </CardContent>
+            </Card>
 
-            <div className="settings-card">
-                <div className="panel-header border-b border-slate-100 pb-3">
-                    <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">Log a Cash Deposit</h4>
-                    <p className="text-slate-500 text-xs mt-1">Record cash-on-hand deposited to the bank — feeds the Cash Position panel.</p>
-                </div>
-                <div className="settings-form">
-                    <div className="form-group">
-                        <label>Amount ($)</label>
-                        <input type="number" step="0.01" value={depositAmount} onChange={e => setDepositAmount(e.target.value)} placeholder="0.00" />
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-sm">Log a Cash Deposit</CardTitle>
+                    <p className="mt-0.5 text-xs text-muted-foreground">Record cash-on-hand deposited to the bank — feeds the Cash Position panel.</p>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-4">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="flex flex-col gap-1.5">
+                            <Label>Amount ($)</Label>
+                            <Input type="number" step="0.01" value={depositAmount} onChange={e => setDepositAmount(e.target.value)} placeholder="0.00" />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                            <Label>Notes (optional)</Label>
+                            <Input type="text" value={depositNotes} onChange={e => setDepositNotes(e.target.value)} placeholder="e.g. Weekly deposit" />
+                        </div>
                     </div>
-                    <div className="form-group">
-                        <label>Notes (optional)</label>
-                        <input type="text" value={depositNotes} onChange={e => setDepositNotes(e.target.value)} placeholder="e.g. Weekly deposit" />
-                    </div>
-                    <button type="button" onClick={logDeposit} disabled={depositSaving || !depositAmount} className="btn btn-secondary h-[40px] rounded-lg font-bold transition mt-2">
+                    <Button variant="secondary" className="w-fit" onClick={logDeposit} disabled={depositSaving || !depositAmount}>
                         {depositSaving ? "Logging…" : "Log Deposit"}
-                    </button>
-                </div>
-                <div className="table-container" style={{ marginTop: 14 }}>
-                    <table className="data-table">
-                        <thead><tr><th>Date</th><th>Amount</th><th>Notes</th><th>Logged By</th></tr></thead>
-                        <tbody>
+                    </Button>
+                    <Table>
+                        <TableHeader>
+                            <TableRow><TableHead>Date</TableHead><TableHead>Amount</TableHead><TableHead>Notes</TableHead><TableHead>Logged By</TableHead></TableRow>
+                        </TableHeader>
+                        <TableBody>
                             {deposits.length === 0 ? (
-                                <tr><td colSpan={4} className="text-center p-6 text-slate-400 text-xs">No deposits logged yet.</td></tr>
+                                <TableRow><TableCell colSpan={4} className="py-6 text-center text-xs text-muted-foreground">No deposits logged yet.</TableCell></TableRow>
                             ) : deposits.map(d => (
-                                <tr key={d.id}>
-                                    <td>{d.date}</td>
-                                    <td>${Number(d.amount).toFixed(2)}</td>
-                                    <td>{d.notes || "—"}</td>
-                                    <td>{d.depositedBy}</td>
-                                </tr>
+                                <TableRow key={d.id}>
+                                    <TableCell>{d.date}</TableCell>
+                                    <TableCell>${Number(d.amount).toFixed(2)}</TableCell>
+                                    <TableCell>{d.notes || "—"}</TableCell>
+                                    <TableCell>{d.depositedBy}</TableCell>
+                                </TableRow>
                             ))}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
         </div>
     );
 }
@@ -381,29 +410,22 @@ export default function FinanceTab({ getAuthHeaders }) {
     const [view, setView] = useState("overview");
 
     return (
-        <div className="animate-fade">
-            <div className="ops-control-header">
-                <div>
-                    <p className="ops-eyebrow">Finance</p>
-                    <h3 className="ops-title">Financial Overview</h3>
-                    <p className="ops-copy">Sales, cash, expenses, and profit — counted only from jobs marked Completed, computed live with a real date-range filter.</p>
-                </div>
-            </div>
+        <div className="animate-fade flex flex-col gap-4">
+            <Card>
+                <CardHeader>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-primary">Finance</p>
+                    <CardTitle className="text-xl">Financial Overview</CardTitle>
+                    <p className="mt-1 max-w-2xl text-sm text-muted-foreground">Sales, cash, expenses, and profit — counted only from jobs marked Completed, computed live with a real date-range filter.</p>
+                </CardHeader>
+            </Card>
 
-            <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-                {[
-                    { key: "overview", label: "Overview" },
-                    { key: "forecast", label: "Forecast" },
-                    { key: "settings", label: "Settings & Cash Log" },
-                ].map(t => (
-                    <button key={t.key} onClick={() => setView(t.key)} style={{
-                        padding: "8px 16px", borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer",
-                        border: view === t.key ? "1.5px solid #0891b2" : "1.5px solid #e2e8f0",
-                        background: view === t.key ? "#ecfeff" : "#fff",
-                        color: view === t.key ? "#0891b2" : "#64748b",
-                    }}>{t.label}</button>
-                ))}
-            </div>
+            <Tabs value={view} onValueChange={setView}>
+                <TabsList>
+                    <TabsTrigger value="overview">Overview</TabsTrigger>
+                    <TabsTrigger value="forecast">Forecast</TabsTrigger>
+                    <TabsTrigger value="settings">Settings &amp; Cash Log</TabsTrigger>
+                </TabsList>
+            </Tabs>
 
             {view === "overview" && <OverviewView getAuthHeaders={getAuthHeaders} />}
             {view === "forecast" && <ForecastView getAuthHeaders={getAuthHeaders} />}

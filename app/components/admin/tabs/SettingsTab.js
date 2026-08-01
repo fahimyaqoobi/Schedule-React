@@ -1,13 +1,14 @@
 "use client";
 import { useState } from "react";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { LogOut, ChevronRight, X, LayoutGrid, ShoppingBag, DollarSign, Shield } from "lucide-react";
 
-const LogoutIcon = () => (
-    <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-        <polyline points="16 17 21 12 16 7"></polyline>
-        <line x1="21" y1="12" x2="9" y2="12"></line>
-    </svg>
-);
+const CONFIG_ICONS = { Departments: LayoutGrid, Catalog: ShoppingBag, Cash: DollarSign, Shield };
 
 export default function SettingsTab({
     currentUser,
@@ -30,7 +31,6 @@ export default function SettingsTab({
     handleSaveLeadSources,
     canViewAdministration,
     setActiveTab,
-    Icons,
 }) {
     const [localSources, setLocalSources] = useState(leadSources || []);
     const [newSource, setNewSource] = useState("");
@@ -54,105 +54,95 @@ export default function SettingsTab({
     ].filter(item => item.show);
 
     return (
-        <div className="animate-fade">
-            <div className="settings-container">
-                {/* Configuration — Catalog, Promotions, Departments, Permissions all
-                    live under Settings so the main sidebar stays to one responsibility
-                    per item. */}
-                {configItems.length > 0 && (
-                    <div className="settings-card settings-config-card">
-                        <div className="panel-header border-b border-slate-100 pb-3">
-                            <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">Configuration</h4>
-                            <p className="text-slate-500 text-xs mt-1">Administration and setup tools, grouped out of the way of day-to-day work.</p>
-                        </div>
-                        <div className="settings-config-grid">
-                            {configItems.map(item => (
-                                <button key={item.tab} type="button" onClick={() => setActiveTab(item.tab)} className="settings-config-tile">
-                                    <span className="settings-config-icon">{Icons[item.icon] ? Icons[item.icon]() : null}</span>
-                                    <span className="settings-config-text">
-                                        <strong>{item.label}</strong>
-                                        <small>{item.desc}</small>
-                                    </span>
-                                    <span className="settings-config-chevron">›</span>
+        <div className="animate-fade flex flex-col gap-4">
+            {configItems.length > 0 && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-sm">Configuration</CardTitle>
+                        <p className="text-xs text-muted-foreground">Administration and setup tools, grouped out of the way of day-to-day work.</p>
+                    </CardHeader>
+                    <CardContent className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        {configItems.map(item => {
+                            const Icon = CONFIG_ICONS[item.icon];
+                            return (
+                                <button
+                                    key={item.tab}
+                                    type="button"
+                                    onClick={() => setActiveTab(item.tab)}
+                                    className="flex items-center gap-3 rounded-lg border border-border p-3.5 text-left transition-colors hover:bg-muted/50"
+                                >
+                                    {Icon && <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"><Icon className="size-4" /></div>}
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-sm font-bold text-foreground">{item.label}</p>
+                                        <p className="truncate text-xs text-muted-foreground">{item.desc}</p>
+                                    </div>
+                                    <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
                                 </button>
-                            ))}
-                        </div>
-                    </div>
-                )}
+                            );
+                        })}
+                    </CardContent>
+                </Card>
+            )}
 
-                {/* Card 1: User Profile */}
-                <div className="settings-card">
-                    <div className="panel-header border-b border-slate-100 pb-3">
-                        <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">User Profile Specifications</h4>
-                    </div>
-                    <form onSubmit={handleProfileUpdate} className="settings-form">
-                        <div className="settings-avatar-group">
-                            <div className={`settings-avatar ${currentUser.photoURL ? "settings-avatar-photo" : ""}`}>
-                                {currentUser.photoURL ? (
-                                    <img src={currentUser.photoURL} alt={currentUser.name} className="avatar-image" />
-                                ) : getInitials(currentUser.name)}
-                            </div>
+            <Card>
+                <CardHeader><CardTitle className="text-sm">User Profile Specifications</CardTitle></CardHeader>
+                <CardContent>
+                    <form onSubmit={handleProfileUpdate} className="flex flex-col gap-4">
+                        <div className="flex items-center gap-3">
+                            <Avatar className="size-14">
+                                {currentUser.photoURL && <AvatarImage src={currentUser.photoURL} alt={currentUser.name} />}
+                                <AvatarFallback className="text-base font-bold">{getInitials(currentUser.name)}</AvatarFallback>
+                            </Avatar>
                             <div>
-                                <h5 className="settings-profile-name">{currentUser.name}</h5>
-                                <span className="settings-profile-role">{roleLabel}</span>
+                                <p className="text-sm font-bold text-foreground">{currentUser.name}</p>
+                                <p className="text-xs text-muted-foreground">{roleLabel}</p>
                             </div>
                         </div>
-                        <label className="settings-photo-upload">
+                        <label className="flex cursor-pointer items-center justify-center rounded-lg border border-dashed border-input px-4 py-3 text-center text-sm font-semibold text-muted-foreground hover:bg-muted">
                             <input
                                 type="file"
                                 accept="image/*"
                                 capture="user"
+                                className="hidden"
                                 onChange={e => handleProfilePhotoCapture(e.target.files?.[0])}
                                 disabled={profilePhotoUploading}
                             />
-                            {profilePhotoUploading ? "Uploading Photo..." : "Take Or Upload Profile Photo"}
+                            {profilePhotoUploading ? "Uploading Photo…" : "Take Or Upload Profile Photo"}
                         </label>
-                        {profilePhotoStatus && (
-                            <div className="people-profile-message">{profilePhotoStatus}</div>
-                        )}
-                        <div className="form-group">
-                            <label>Display Name</label>
-                            <input
-                                type="text"
-                                value={profileName}
-                                onChange={e => setProfileName(e.target.value)}
-                                required
-                            />
+                        {profilePhotoStatus && <p className="text-sm text-primary">{profilePhotoStatus}</p>}
+                        <div className="flex flex-col gap-1.5">
+                            <Label>Display Name</Label>
+                            <Input type="text" value={profileName} onChange={e => setProfileName(e.target.value)} required />
                         </div>
-                        <div className="form-group">
-                            <label>Email Address (Read-only)</label>
-                            <input type="email" value={currentUser.email} disabled className="input-readonly" />
+                        <div className="flex flex-col gap-1.5">
+                            <Label>Email Address (Read-only)</Label>
+                            <Input type="email" value={currentUser.email} disabled />
                         </div>
                         {!canManagePermissions && (
-                            <div className="form-group">
-                                <label>Assigned Cleaning Crew</label>
-                                <input type="text" value={currentUser.teamId || "None"} disabled className="input-readonly" />
+                            <div className="flex flex-col gap-1.5">
+                                <Label>Assigned Cleaning Crew</Label>
+                                <Input type="text" value={currentUser.teamId || "None"} disabled />
                             </div>
                         )}
-                        <button type="submit" disabled={profileLoading} className="btn btn-primary h-[44px] rounded-lg text-white font-bold transition mt-2">
-                            {profileLoading ? "Updating Profile..." : "Save Profile Details"}
-                        </button>
-                        <div className="mt-4 pt-4 border-t border-slate-100/80 w-full">
-                            <button
-                                type="button"
-                                onClick={handleSignout}
-                                className="btn btn-danger w-full h-[44px] flex items-center justify-center gap-2 font-bold transition-all mt-2"
-                            >
-                                <LogoutIcon /> Log Out of Account
-                            </button>
+                        <Button type="submit" disabled={profileLoading}>
+                            {profileLoading ? "Updating Profile…" : "Save Profile Details"}
+                        </Button>
+                        <div className="mt-1 border-t border-border pt-4">
+                            <Button type="button" variant="destructive" className="w-full" onClick={handleSignout}>
+                                <LogOut className="size-3.5" /> Log Out of Account
+                            </Button>
                         </div>
                     </form>
-                </div>
+                </CardContent>
+            </Card>
 
-                {/* Card 2: Security & Password */}
-                <div className="settings-card">
-                    <div className="panel-header border-b border-slate-100 pb-3">
-                        <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">Security & Password Management</h4>
-                    </div>
-                    <form onSubmit={handlePasswordChange} className="settings-form">
-                        <div className="form-group">
-                            <label>Current Password</label>
-                            <input
+            <Card>
+                <CardHeader><CardTitle className="text-sm">Security &amp; Password Management</CardTitle></CardHeader>
+                <CardContent>
+                    <form onSubmit={handlePasswordChange} className="flex flex-col gap-4">
+                        <div className="flex flex-col gap-1.5">
+                            <Label>Current Password</Label>
+                            <Input
                                 type="password"
                                 value={securityForm.currentPassword}
                                 onChange={e => setSecurityForm(prev => ({ ...prev, currentPassword: e.target.value }))}
@@ -160,9 +150,9 @@ export default function SettingsTab({
                                 placeholder="••••••••"
                             />
                         </div>
-                        <div className="form-group">
-                            <label>New Password</label>
-                            <input
+                        <div className="flex flex-col gap-1.5">
+                            <Label>New Password</Label>
+                            <Input
                                 type="password"
                                 value={securityForm.newPassword}
                                 onChange={e => setSecurityForm(prev => ({ ...prev, newPassword: e.target.value }))}
@@ -170,9 +160,9 @@ export default function SettingsTab({
                                 placeholder="Min 6 characters"
                             />
                         </div>
-                        <div className="form-group">
-                            <label>Confirm New Password</label>
-                            <input
+                        <div className="flex flex-col gap-1.5">
+                            <Label>Confirm New Password</Label>
+                            <Input
                                 type="password"
                                 value={securityForm.confirmPassword}
                                 onChange={e => setSecurityForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
@@ -180,46 +170,45 @@ export default function SettingsTab({
                                 placeholder="••••••••"
                             />
                         </div>
-                        <button type="submit" disabled={securityLoading} className="btn btn-danger h-[44px] rounded-lg font-bold transition mt-2">
-                            {securityLoading ? "Updating Password..." : "Change Security Password"}
-                        </button>
+                        <Button type="submit" variant="destructive" disabled={securityLoading}>
+                            {securityLoading ? "Updating Password…" : "Change Security Password"}
+                        </Button>
                     </form>
-                </div>
+                </CardContent>
+            </Card>
 
-                {canManagePermissions && (
-                    <div className="settings-card">
-                        <div className="panel-header border-b border-slate-100 pb-3">
-                            <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">Lead Sources</h4>
-                            <p className="text-slate-500 text-xs mt-1">Manage the lead source options available when creating or editing bookings.</p>
+            {canManagePermissions && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-sm">Lead Sources</CardTitle>
+                        <p className="text-xs text-muted-foreground">Manage the lead source options available when creating or editing bookings.</p>
+                    </CardHeader>
+                    <CardContent className="flex flex-col gap-4">
+                        <div className="flex flex-wrap gap-2">
+                            {localSources.map(src => (
+                                <Badge key={src} variant="secondary" className="gap-1.5 pr-1.5">
+                                    {src}
+                                    <button type="button" onClick={() => removeSource(src)} className="text-muted-foreground hover:text-foreground">
+                                        <X className="size-3" />
+                                    </button>
+                                </Badge>
+                            ))}
                         </div>
-                        <div style={{ padding: "16px 0 8px" }}>
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
-                                {localSources.map(src => (
-                                    <div key={src} style={{ display: "flex", alignItems: "center", gap: 6, background: "#eef2ff", border: "1px solid #c7d2fe", borderRadius: 99, padding: "4px 10px 4px 12px" }}>
-                                        <span style={{ fontSize: 12, fontWeight: 700, color: "#4f46e5" }}>{src}</span>
-                                        <button type="button" onClick={() => removeSource(src)} style={{ background: "none", border: "none", cursor: "pointer", color: "#a5b4fc", fontSize: 14, lineHeight: 1, padding: 0 }}>×</button>
-                                    </div>
-                                ))}
-                            </div>
-                            <div style={{ display: "flex", gap: 8 }}>
-                                <input
-                                    type="text"
-                                    value={newSource}
-                                    onChange={e => setNewSource(e.target.value)}
-                                    onKeyDown={e => e.key === "Enter" && addSource()}
-                                    placeholder="e.g. Google, bark.com, Instagram…"
-                                    className="border border-slate-200 rounded-lg p-2"
-                                    style={{ flex: 1, fontSize: 13 }}
-                                />
-                                <button type="button" onClick={addSource} className="btn btn-secondary btn-sm">Add</button>
-                            </div>
-                            <button type="button" onClick={saveLeadSources} className="btn btn-primary mt-4" style={{ marginTop: 12 }}>
-                                Save Lead Sources
-                            </button>
+                        <div className="flex gap-2">
+                            <Input
+                                type="text"
+                                value={newSource}
+                                onChange={e => setNewSource(e.target.value)}
+                                onKeyDown={e => e.key === "Enter" && addSource()}
+                                placeholder="e.g. Google, bark.com, Instagram…"
+                                className="flex-1"
+                            />
+                            <Button variant="secondary" onClick={addSource}>Add</Button>
                         </div>
-                    </div>
-                )}
-            </div>
+                        <Button className="w-fit" onClick={saveLeadSources}>Save Lead Sources</Button>
+                    </CardContent>
+                </Card>
+            )}
         </div>
     );
 }

@@ -1,6 +1,13 @@
 "use client";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import CustomerProfileModal from "../CustomerProfileModal";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { Search, X, ArrowUp, ArrowDown, ArrowUpDown, Users } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 function money(n) {
     return `$${Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
@@ -48,71 +55,87 @@ export default function CustomersTab({ getAuthHeaders, currentUser }) {
         });
     }, [customers, search, sortCol, sortDir]);
 
-    const SortArrow = ({ col }) => sortCol !== col ? <span style={{ opacity: 0.3, fontSize: 9 }}>⇅</span> : sortDir === "asc" ? <span style={{ fontSize: 9 }}>▲</span> : <span style={{ fontSize: 9 }}>▼</span>;
+    const SortArrow = ({ col }) => sortCol !== col
+        ? <ArrowUpDown className="size-3 opacity-40" />
+        : sortDir === "asc" ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />;
+
+    const SortHead = ({ col, children, className }) => (
+        <TableHead className={cn("cursor-pointer select-none", className)} onClick={() => handleSort(col)}>
+            <span className="flex items-center gap-1">{children} <SortArrow col={col} /></span>
+        </TableHead>
+    );
 
     return (
-        <div className="animate-fade">
-            <div className="ops-control-header">
-                <div>
-                    <p className="ops-eyebrow">CRM</p>
-                    <h3 className="ops-title">Customer Directory</h3>
-                    <p className="ops-copy">Every customer, matched automatically across bookings by phone (or email) — lifetime value, balance owed, service history, and support chat in one place.</p>
-                </div>
-                <span className="ops-chip">{customers.length} Customers</span>
-            </div>
-
-            <div className="filters-card" style={{ marginBottom: 14 }}>
-                <div className="search-input-wrapper">
-                    <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name, phone, or email…" />
-                    {search && <button onClick={() => setSearch("")} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: 16, padding: "0 6px" }}>✕</button>}
-                </div>
-            </div>
-
-            <div className="table-container">
-                {loading ? (
-                    <div className="text-center p-12 text-slate-400 text-sm">Loading customers…</div>
-                ) : visible.length === 0 ? (
-                    <div className="text-center p-12 text-slate-400 text-sm">No customers match.</div>
-                ) : (
-                    <div className="table-scroll-wrapper">
-                        <table className="bookings-table">
-                            <thead>
-                                <tr>
-                                    <th style={{ cursor: "pointer" }} onClick={() => handleSort("name")}>Name <SortArrow col="name" /></th>
-                                    <th>Phone</th>
-                                    <th>Email</th>
-                                    <th style={{ cursor: "pointer" }} onClick={() => handleSort("totalBookings")}>Bookings <SortArrow col="totalBookings" /></th>
-                                    <th style={{ cursor: "pointer" }} onClick={() => handleSort("totalRevenue")}>Lifetime Revenue <SortArrow col="totalRevenue" /></th>
-                                    <th style={{ cursor: "pointer" }} onClick={() => handleSort("totalOwing")}>Balance Owing <SortArrow col="totalOwing" /></th>
-                                    <th style={{ cursor: "pointer" }} onClick={() => handleSort("promoUsageCount")}>Promo Uses <SortArrow col="promoUsageCount" /></th>
-                                    <th style={{ cursor: "pointer" }} onClick={() => handleSort("lastBookingDate")}>Last Booking <SortArrow col="lastBookingDate" /></th>
-                                    <th style={{ textAlign: "right" }}>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {visible.map(c => (
-                                    <tr key={c.key}>
-                                        <td>
-                                            <div style={{ fontWeight: 700, fontSize: 13, color: "#1e293b" }}>{c.name}</div>
-                                            {c.isRecurringCustomer && <span style={{ fontSize: 9, fontWeight: 700, color: "#0891b2" }}>● Recurring</span>}
-                                        </td>
-                                        <td style={{ fontSize: 12 }}>{c.phone || "—"}</td>
-                                        <td style={{ fontSize: 12, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.email || "—"}</td>
-                                        <td style={{ fontSize: 12 }}>{c.totalBookings}</td>
-                                        <td style={{ fontSize: 12, fontWeight: 700, color: "#0891b2" }}>{money(c.totalRevenue)}</td>
-                                        <td style={{ fontSize: 12, fontWeight: 700, color: c.totalOwing > 0 ? "#dc2626" : "#16a34a" }}>{money(c.totalOwing)}</td>
-                                        <td style={{ fontSize: 12 }}>{c.promoUsageCount}</td>
-                                        <td style={{ fontSize: 12 }}>{c.lastBookingDate || "—"}</td>
-                                        <td style={{ textAlign: "right" }}>
-                                            <button onClick={() => setSelectedKey(c.key)} className="btn btn-secondary btn-sm">View Profile</button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+        <div className="animate-fade flex flex-col gap-4">
+            <Card>
+                <CardHeader className="flex-row flex-wrap items-start justify-between gap-4">
+                    <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-primary">CRM</p>
+                        <CardTitle className="text-xl">Customer Directory</CardTitle>
+                        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">Every customer, matched automatically across bookings by phone (or email) — lifetime value, balance owed, service history, and support chat in one place.</p>
                     </div>
+                    <Badge variant="secondary">{customers.length} Customers</Badge>
+                </CardHeader>
+            </Card>
+
+            <div className="relative">
+                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name, phone, or email…" className="pl-8" />
+                {search && (
+                    <button onClick={() => setSearch("")} className="absolute top-1/2 right-2.5 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                        <X className="size-4" />
+                    </button>
                 )}
             </div>
+
+            <Card className="p-0">
+                <CardContent className="p-4">
+                    {loading ? (
+                        <div className="py-10 text-center text-sm text-muted-foreground">Loading customers…</div>
+                    ) : visible.length === 0 ? (
+                        <div className="flex flex-col items-center gap-2 py-10 text-center text-sm text-muted-foreground">
+                            <Users className="size-6 opacity-50" />
+                            No customers match.
+                        </div>
+                    ) : (
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <SortHead col="name">Name</SortHead>
+                                    <TableHead>Phone</TableHead>
+                                    <TableHead>Email</TableHead>
+                                    <SortHead col="totalBookings">Bookings</SortHead>
+                                    <SortHead col="totalRevenue">Lifetime Revenue</SortHead>
+                                    <SortHead col="totalOwing">Balance Owing</SortHead>
+                                    <SortHead col="promoUsageCount">Promo Uses</SortHead>
+                                    <SortHead col="lastBookingDate">Last Booking</SortHead>
+                                    <TableHead className="text-right">Actions</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {visible.map(c => (
+                                    <TableRow key={c.key}>
+                                        <TableCell>
+                                            <div className="font-bold text-foreground">{c.name}</div>
+                                            {c.isRecurringCustomer && <Badge variant="outline" className="mt-0.5 text-[9px] text-cyan-600">● Recurring</Badge>}
+                                        </TableCell>
+                                        <TableCell className="text-muted-foreground">{c.phone || "—"}</TableCell>
+                                        <TableCell className="max-w-[180px] truncate text-muted-foreground">{c.email || "—"}</TableCell>
+                                        <TableCell>{c.totalBookings}</TableCell>
+                                        <TableCell className="font-bold text-cyan-600">{money(c.totalRevenue)}</TableCell>
+                                        <TableCell className={cn("font-bold", c.totalOwing > 0 ? "text-destructive" : "text-emerald-600")}>{money(c.totalOwing)}</TableCell>
+                                        <TableCell>{c.promoUsageCount}</TableCell>
+                                        <TableCell>{c.lastBookingDate || "—"}</TableCell>
+                                        <TableCell className="text-right">
+                                            <Button size="sm" variant="secondary" onClick={() => setSelectedKey(c.key)}>View Profile</Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    )}
+                </CardContent>
+            </Card>
 
             {selectedKey && (
                 <CustomerProfileModal

@@ -1,18 +1,22 @@
 "use client";
 import { useMemo, useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Repeat, ChevronLeft, ChevronRight, User } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const FREQ_STYLES = {
-    "Weekly":    { bg: "#ecfdf5", border: "#6ee7b7", text: "#047857", dot: "#10b981" },
-    "Bi-Weekly": { bg: "#eff6ff", border: "#93c5fd", text: "#1d4ed8", dot: "#3b82f6" },
-    "Monthly":   { bg: "#f5f3ff", border: "#c4b5fd", text: "#6d28d9", dot: "#8b5cf6" },
+    "Weekly": { badge: "border-emerald-300 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30", dot: "bg-emerald-500" },
+    "Bi-Weekly": { badge: "border-blue-300 bg-blue-50 text-blue-700 dark:bg-blue-950/30", dot: "bg-blue-500" },
+    "Monthly": { badge: "border-violet-300 bg-violet-50 text-violet-700 dark:bg-violet-950/30", dot: "bg-violet-500" },
 };
-const DEFAULT_FREQ_STYLE = { bg: "#f8fafc", border: "#cbd5e1", text: "#475569", dot: "#94a3b8" };
+const DEFAULT_FREQ_STYLE = { badge: "border-border bg-muted text-muted-foreground", dot: "bg-muted-foreground" };
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 const pad = (n) => String(n).padStart(2, "0");
 const toDateStr = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-const parseDate = (str) => new Date(`${str}T00:00:00`);
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 const mondayOf = (d) => { const x = new Date(d); const dow = x.getDay(); x.setDate(x.getDate() - (dow === 0 ? 6 : dow - 1)); return x; };
 const shortLabel = (d) => `${MONTH_NAMES[d.getMonth()].slice(0, 3)} ${d.getDate()}`;
@@ -32,7 +36,6 @@ function freqStyle(b) {
 
 export default function RecurringTab({
     bookings,
-    Icons,
     setSelectedBooking,
     setDetailsModalOpen,
     openEditBookingModal,
@@ -93,45 +96,40 @@ export default function RecurringTab({
     const BookingCard = ({ b, compact = false }) => {
         const st = freqStyle(b);
         return (
-            <div
+            <button
+                type="button"
                 onClick={() => openDetails(b)}
-                style={{
-                    background: st.bg, border: `1.5px solid ${st.border}`, borderLeft: `4px solid ${st.dot}`,
-                    borderRadius: 10, padding: compact ? "6px 8px" : "10px 12px", cursor: "pointer", marginBottom: 6,
-                }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}>
-                    <span style={{ fontSize: compact ? 11 : 12, fontWeight: 800, color: st.text }}>{b.time || "TBD"}</span>
-                    <span style={{ fontSize: 9, fontWeight: 700, color: st.text, background: "#ffffff", border: `1px solid ${st.border}`, borderRadius: 99, padding: "1px 7px", whiteSpace: "nowrap" }}>
-                        {b.frequency || "Recurring"}
-                    </span>
+                className={cn("mb-1.5 w-full rounded-lg border-l-4 text-left", st.badge, compact ? "px-2 py-1.5" : "px-3 py-2.5")}
+            >
+                <div className="flex items-center justify-between gap-1.5">
+                    <span className={cn("font-extrabold", compact ? "text-[11px]" : "text-xs")}>{b.time || "TBD"}</span>
+                    <Badge variant="outline" className="shrink-0 whitespace-nowrap bg-card text-[9px]">{b.frequency || "Recurring"}</Badge>
                 </div>
-                <div style={{ fontSize: compact ? 11 : 13, fontWeight: 700, color: "#0f172a", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <div className={cn("mt-0.5 truncate font-bold text-foreground", compact ? "text-[11px]" : "text-[13px]")}>
                     {b.clientName || `${b.firstName || ""} ${b.lastName || ""}`.trim() || "Client"}
                 </div>
                 {!compact && (
                     <>
-                        <div style={{ fontSize: 11, color: "#475569", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{b.service || ""}</div>
-                        <div style={{ fontSize: 10.5, color: "#64748b", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <div className="mt-0.5 truncate text-[11px] text-foreground/70">{b.service || ""}</div>
+                        <div className="mt-0.5 truncate text-[10.5px] text-muted-foreground">
                             {[b.address1, b.city].filter(Boolean).join(", ")}
                         </div>
                         {(b.assignedStaff || []).length > 0 && (
-                            <div style={{ fontSize: 10, color: "#64748b", marginTop: 3, fontWeight: 600 }}>
-                                👤 {(b.assignedStaff || []).map(s => (s.name || "").split(" ")[0]).filter(Boolean).join(", ")}
+                            <div className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-muted-foreground">
+                                <User className="size-2.5" /> {(b.assignedStaff || []).map(s => (s.name || "").split(" ")[0]).filter(Boolean).join(", ")}
                             </div>
                         )}
                     </>
                 )}
-            </div>
+            </button>
         );
     };
 
-    // ── Week view ──
     const weekDays = (() => {
         const start = mondayOf(anchor);
         return Array.from({ length: 7 }, (_, i) => addDays(start, i));
     })();
 
-    // ── Month view grid ──
     const monthCells = (() => {
         const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
         const daysInMonth = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0).getDate();
@@ -144,79 +142,67 @@ export default function RecurringTab({
         return cells;
     })();
 
-    const viewBtn = (id, label) => (
-        <button key={id} onClick={() => setView(id)}
-            style={{
-                padding: "7px 16px", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer",
-                background: view === id ? "#00426d" : "transparent",
-                color: view === id ? "#ffffff" : "#475569",
-            }}>
-            {label}
-        </button>
-    );
-
     return (
         <div className="animate-fade">
-            <div className="panel-card" style={{ padding: 0, overflow: "hidden" }}>
-                {/* Header */}
-                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12, padding: "14px 18px", borderBottom: "1px solid #e2e8f0" }}>
+            <Card className="overflow-hidden p-0">
+                <div className="flex flex-wrap items-center gap-3 border-b border-border p-4">
                     <div>
-                        <h4 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: "#0f172a" }}>🔁 Recurring Bookings</h4>
-                        <span style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>{seriesCount} active series · {recurringBookings.length} scheduled visits</span>
+                        <h4 className="flex items-center gap-1.5 text-sm font-extrabold text-foreground"><Repeat className="size-4" /> Recurring Bookings</h4>
+                        <p className="text-xs font-semibold text-muted-foreground">{seriesCount} active series · {recurringBookings.length} scheduled visits</p>
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: "auto", flexWrap: "wrap" }}>
-                        <div style={{ display: "flex", background: "#f1f5f9", borderRadius: 10, padding: 3 }}>
-                            {viewBtn("day", "Day")}
-                            {viewBtn("week", "Week")}
-                            {viewBtn("month", "Month")}
+                    <div className="ml-auto flex flex-wrap items-center gap-2.5">
+                        <div className="flex gap-0.5 rounded-lg bg-muted p-0.5">
+                            {[["day", "Day"], ["week", "Week"], ["month", "Month"]].map(([id, label]) => (
+                                <button
+                                    key={id}
+                                    onClick={() => setView(id)}
+                                    className={cn(
+                                        "rounded-md px-3.5 py-1.5 text-xs font-bold",
+                                        view === id ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+                                    )}
+                                >
+                                    {label}
+                                </button>
+                            ))}
                         </div>
-                        <button onClick={() => setAnchor(new Date())}
-                            style={{ padding: "7px 14px", borderRadius: 8, border: "1.5px solid #e2e8f0", background: "#ffffff", fontSize: 12, fontWeight: 700, color: "#334155", cursor: "pointer" }}>
-                            Today
-                        </button>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <button onClick={() => navigate(-1)} className="action-btn">{Icons.ChevronLeft()}</button>
-                            <span style={{ fontSize: 13, fontWeight: 800, color: "#1e293b", minWidth: 170, textAlign: "center" }}>{rangeLabel}</span>
-                            <button onClick={() => navigate(1)} className="action-btn">{Icons.ChevronRight()}</button>
+                        <Button variant="outline" size="sm" onClick={() => setAnchor(new Date())}>Today</Button>
+                        <div className="flex items-center gap-1.5">
+                            <Button variant="ghost" size="icon-sm" onClick={() => navigate(-1)}><ChevronLeft className="size-4" /></Button>
+                            <span className="min-w-42.5 text-center text-sm font-extrabold text-foreground">{rangeLabel}</span>
+                            <Button variant="ghost" size="icon-sm" onClick={() => navigate(1)}><ChevronRight className="size-4" /></Button>
                         </div>
                     </div>
                 </div>
 
-                {/* Legend */}
-                <div style={{ display: "flex", gap: 16, padding: "10px 18px", borderBottom: "1px solid #f1f5f9", flexWrap: "wrap" }}>
+                <div className="flex flex-wrap gap-4 border-b border-border px-4 py-2.5">
                     {Object.entries(FREQ_STYLES).map(([freq, st]) => (
-                        <span key={freq} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, color: "#475569" }}>
-                            <span style={{ width: 10, height: 10, borderRadius: 3, background: st.dot, display: "inline-block" }} />
+                        <span key={freq} className="inline-flex items-center gap-1.5 text-xs font-bold text-muted-foreground">
+                            <span className={cn("inline-block size-2.5 rounded-sm", st.dot)} />
                             {freq}
                         </span>
                     ))}
                 </div>
 
-                {/* Body */}
-                <div style={{ padding: 16 }}>
+                <CardContent className="p-4">
                     {recurringBookings.length === 0 ? (
-                        <div style={{ textAlign: "center", padding: "48px 20px", color: "#94a3b8" }}>
-                            <div style={{ fontSize: 34, marginBottom: 10 }}>🔁</div>
-                            <div style={{ fontSize: 14, fontWeight: 700, color: "#475569" }}>No recurring bookings yet</div>
-                            <div style={{ fontSize: 12, marginTop: 4 }}>Turn on the “Recurring Booking” toggle on any booking or at checkout and it will appear here with its whole series.</div>
+                        <div className="py-12 text-center text-muted-foreground">
+                            <Repeat className="mx-auto mb-2.5 size-8 opacity-50" />
+                            <p className="text-sm font-bold text-foreground">No recurring bookings yet</p>
+                            <p className="mt-1 text-xs">Turn on the "Recurring Booking" toggle on any booking or at checkout and it will appear here with its whole series.</p>
                         </div>
                     ) : view === "week" ? (
-                        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 8, overflowX: "auto" }}>
+                        <div className="grid grid-cols-7 gap-2 overflow-x-auto">
                             {weekDays.map((d, i) => {
                                 const dStr = toDateStr(d);
                                 const isToday = dStr === todayStr;
                                 const dayBookings = byDate[dStr] || [];
                                 return (
-                                    <div key={dStr} style={{ minWidth: 0 }}>
-                                        <div style={{
-                                            textAlign: "center", padding: "6px 4px", borderRadius: 10, marginBottom: 8,
-                                            background: isToday ? "#00426d" : "#f8fafc",
-                                            color: isToday ? "#ffffff" : "#334155",
-                                        }}>
-                                            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", opacity: 0.75 }}>{DAY_NAMES[i]}</div>
-                                            <div style={{ fontSize: 17, fontWeight: 800 }}>{d.getDate()}</div>
+                                    <div key={dStr} className="min-w-0">
+                                        <div className={cn("mb-2 rounded-lg p-1.5 text-center", isToday ? "bg-primary text-primary-foreground" : "bg-muted/50 text-foreground")}>
+                                            <div className="text-[10px] font-bold uppercase opacity-75">{DAY_NAMES[i]}</div>
+                                            <div className="text-lg font-extrabold">{d.getDate()}</div>
                                         </div>
-                                        <div style={{ minHeight: 220 }}>
+                                        <div className="min-h-55">
                                             {dayBookings.map(b => <BookingCard key={b.id} b={b} />)}
                                         </div>
                                     </div>
@@ -224,69 +210,71 @@ export default function RecurringTab({
                             })}
                         </div>
                     ) : view === "day" ? (
-                        <div style={{ maxWidth: 560, margin: "0 auto" }}>
+                        <div className="mx-auto max-w-xl">
                             {(byDate[toDateStr(anchor)] || []).length === 0 ? (
-                                <div style={{ textAlign: "center", padding: "36px 16px", color: "#94a3b8", fontSize: 13 }}>
-                                    No recurring visits scheduled for this day.
-                                </div>
+                                <div className="py-9 text-center text-sm text-muted-foreground">No recurring visits scheduled for this day.</div>
                             ) : (
                                 (byDate[toDateStr(anchor)] || []).map(b => (
-                                    <div key={b.id} style={{ position: "relative" }}>
+                                    <div key={b.id} className="relative">
                                         <BookingCard b={b} />
-                                        <button onClick={(e) => { e.stopPropagation(); openEditBookingModal(b); }}
-                                            style={{ position: "absolute", top: 10, right: 10, padding: "4px 12px", borderRadius: 8, border: "1.5px solid #cbd5e1", background: "#ffffff", fontSize: 11, fontWeight: 700, color: "#334155", cursor: "pointer" }}>
+                                        <Button
+                                            variant="outline" size="sm"
+                                            className="absolute top-2.5 right-2.5"
+                                            onClick={(e) => { e.stopPropagation(); openEditBookingModal(b); }}
+                                        >
                                             Edit
-                                        </button>
+                                        </Button>
                                     </div>
                                 ))
                             )}
                         </div>
                     ) : (
                         <>
-                            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 6 }}>
+                            <div className="mb-1.5 grid grid-cols-7 gap-1">
                                 {DAY_NAMES.map(d => (
-                                    <div key={d} style={{ textAlign: "center", fontSize: 10.5, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>{d}</div>
+                                    <div key={d} className="text-center text-[10.5px] font-extrabold uppercase text-muted-foreground">{d}</div>
                                 ))}
                             </div>
-                            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
+                            <div className="grid grid-cols-7 gap-1">
                                 {monthCells.map((d, idx) => {
                                     if (!d) return <div key={`e-${idx}`} />;
                                     const dStr = toDateStr(d);
                                     const isToday = dStr === todayStr;
                                     const dayBookings = byDate[dStr] || [];
                                     return (
-                                        <div key={dStr}
+                                        <button
+                                            key={dStr}
+                                            type="button"
                                             onClick={() => { setAnchor(d); setView("day"); }}
-                                            style={{
-                                                minHeight: 84, border: `1.5px solid ${isToday ? "#00426d" : "#eef2f7"}`, borderRadius: 10,
-                                                padding: "4px 6px", cursor: "pointer", background: isToday ? "#f0f7ff" : "#ffffff",
-                                            }}>
-                                            <div style={{ fontSize: 11, fontWeight: 800, color: isToday ? "#00426d" : "#475569" }}>{d.getDate()}</div>
+                                            className={cn(
+                                                "min-h-21 rounded-lg border p-1.5 text-left",
+                                                isToday ? "border-primary bg-primary/5" : "border-border bg-card"
+                                            )}
+                                        >
+                                            <div className={cn("text-[11px] font-extrabold", isToday ? "text-primary" : "text-foreground/70")}>{d.getDate()}</div>
                                             {dayBookings.slice(0, 2).map(b => {
                                                 const st = freqStyle(b);
                                                 return (
-                                                    <div key={b.id}
+                                                    <div
+                                                        key={b.id}
                                                         onClick={(e) => { e.stopPropagation(); openDetails(b); }}
-                                                        style={{
-                                                            fontSize: 9.5, fontWeight: 700, color: st.text, background: st.bg,
-                                                            border: `1px solid ${st.border}`, borderRadius: 6, padding: "1px 5px",
-                                                            marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                                                        }}>
+                                                        className={cn("mt-0.5 truncate rounded border px-1 py-0.5 text-[9.5px] font-bold", st.badge)}
+                                                    >
                                                         {(b.clientName || "").split(" ")[0] || "Client"} · {b.time || ""}
                                                     </div>
                                                 );
                                             })}
                                             {dayBookings.length > 2 && (
-                                                <div style={{ fontSize: 9, fontWeight: 700, color: "#64748b", marginTop: 2 }}>+{dayBookings.length - 2} more</div>
+                                                <div className="mt-0.5 text-[9px] font-bold text-muted-foreground">+{dayBookings.length - 2} more</div>
                                             )}
-                                        </div>
+                                        </button>
                                     );
                                 })}
                             </div>
                         </>
                     )}
-                </div>
-            </div>
+                </CardContent>
+            </Card>
         </div>
     );
 }
