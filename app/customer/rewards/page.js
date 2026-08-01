@@ -1,14 +1,15 @@
 "use client";
 import { useEffect, useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { MessageCircle, Smartphone, Share2, Copy, Check, Users, CreditCard, Gift } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-const BRAND = "#005691";
-const ACTION = "#0A6CB8";
-const GREEN = "#78A53E";
-
-function ShareButton({ label, color, onClick, icon }) {
+function ShareButton({ label, className, onClick, Icon }) {
     return (
-        <button onClick={onClick} style={{ flex: 1, background: color, color: "#fff", border: "none", borderRadius: 14, padding: "13px 8px", fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-            <span style={{ fontSize: 20 }}>{icon}</span>
+        <button onClick={onClick} className={cn("flex flex-1 flex-col items-center gap-1 rounded-lg py-3 text-xs font-bold text-white", className)}>
+            <Icon className="size-5" />
             {label}
         </button>
     );
@@ -50,121 +51,124 @@ export default function CustomerRewardsPage() {
 
     return (
         <div>
-            <div style={{ background: `linear-gradient(135deg,${GREEN} 0%,#5f8730 100%)`, padding: "52px 20px 28px", color: "#fff" }}>
-                <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 2 }}>Rewards</div>
-                <div style={{ fontSize: 13, opacity: 0.85 }}>Earn points, refer friends, save more</div>
+            <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 px-5 pt-13 pb-7 text-white">
+                <div className="text-xl font-extrabold">Rewards</div>
+                <div className="mt-0.5 text-sm opacity-85">Earn points, refer friends, save more</div>
             </div>
 
-            <div style={{ padding: "16px 16px 0" }}>
+            <div className="flex flex-col gap-3.5 p-4">
                 {loading ? (
-                    <div style={{ textAlign: "center", padding: "40px 0", color: "#94a3b8" }}>Loading…</div>
+                    <div className="py-10 text-center text-sm text-muted-foreground">Loading…</div>
                 ) : (
                     <>
-                        {/* Points balance */}
-                        <div style={{ background: "#fff", borderRadius: 20, padding: "24px 20px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)", marginBottom: 14, textAlign: "center" }}>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 10 }}>Your Balance</div>
-                            <div style={{ fontSize: 56, fontWeight: 900, color: GREEN, lineHeight: 1 }}>{points}</div>
-                            <div style={{ fontSize: 13, color: "#64748b", marginTop: 6 }}>reward points</div>
-                            <div style={{ marginTop: 16, background: "#f8fafc", borderRadius: 12, padding: "12px 16px" }}>
-                                <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.7 }}>
-                                    Earn <strong>1 point per $1</strong> spent on every clean. Points can be redeemed for discounts on future bookings.
+                        <Card>
+                            <CardContent className="flex flex-col items-center p-6 text-center">
+                                <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Your Balance</p>
+                                <p className="text-6xl font-black leading-none text-emerald-600">{points}</p>
+                                <p className="mt-1.5 text-sm text-muted-foreground">reward points</p>
+                                <div className="mt-4 w-full rounded-lg bg-muted/50 p-3.5 text-xs leading-relaxed text-muted-foreground">
+                                    Earn <strong className="text-foreground">1 point per $1</strong> spent on every clean. Points can be redeemed for discounts on future bookings.
                                 </div>
-                            </div>
-                        </div>
+                            </CardContent>
+                        </Card>
 
-                        {/* Referral section */}
                         {referralCode && (
-                            <div style={{ background: "#fff", borderRadius: 20, padding: "20px 18px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)", marginBottom: 14 }}>
-                                <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 10 }}>Refer a Friend</div>
-                                <div style={{ fontSize: 13, color: "#475569", lineHeight: 1.6, marginBottom: 14 }}>
-                                    Share your code and you both get <strong>$30 off</strong> — you earn when your friend completes their first paid clean.
-                                </div>
+                            <Card>
+                                <CardContent className="p-4">
+                                    <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Refer a Friend</p>
+                                    <p className="mt-2 text-sm leading-relaxed text-foreground/80">
+                                        Share your code and you both get <strong>$30 off</strong> — you earn when your friend completes their first paid clean.
+                                    </p>
 
-                                <div style={{ background: "#f0f9ff", border: "2px dashed #bae6fd", borderRadius: 14, padding: "14px 16px", textAlign: "center", marginBottom: 16 }}>
-                                    <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4, fontWeight: 600 }}>YOUR CODE</div>
-                                    <div style={{ fontSize: 26, fontWeight: 900, color: BRAND, letterSpacing: "0.08em" }}>{referralCode}</div>
-                                </div>
+                                    <div className="mt-3.5 rounded-lg border-2 border-dashed border-primary/30 bg-primary/5 py-3.5 text-center">
+                                        <p className="mb-1 text-[11px] font-semibold text-muted-foreground">YOUR CODE</p>
+                                        <p className="text-2xl font-black tracking-wide text-primary">{referralCode}</p>
+                                    </div>
 
-                                <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
-                                    <ShareButton label="WhatsApp" color="#25D366" icon="💬" onClick={shareWhatsApp} />
-                                    <ShareButton label="SMS" color="#007AFF" icon="📱" onClick={shareSMS} />
-                                    <ShareButton label="Share" color={ACTION} icon="🔗" onClick={shareNative} />
-                                </div>
-                                <button onClick={copyCode} style={{ width: "100%", background: copied ? GREEN : "#f1f5f9", color: copied ? "#fff" : "#475569", border: "none", borderRadius: 12, padding: "12px 0", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
-                                    {copied ? "✓ Code Copied!" : "Copy Code"}
-                                </button>
-                            </div>
+                                    <div className="mt-3.5 flex gap-2.5">
+                                        <ShareButton label="WhatsApp" Icon={MessageCircle} className="bg-[#25D366]" onClick={shareWhatsApp} />
+                                        <ShareButton label="SMS" Icon={Smartphone} className="bg-[#007AFF]" onClick={shareSMS} />
+                                        <ShareButton label="Share" Icon={Share2} className="bg-primary" onClick={shareNative} />
+                                    </div>
+                                    <Button
+                                        variant={copied ? "default" : "secondary"}
+                                        className={cn("mt-2.5 w-full", copied && "bg-emerald-600 text-white hover:bg-emerald-600/90")}
+                                        onClick={copyCode}
+                                    >
+                                        {copied ? <><Check className="size-4" /> Code Copied!</> : <><Copy className="size-4" /> Copy Code</>}
+                                    </Button>
+                                </CardContent>
+                            </Card>
                         )}
 
-                        {/* Referrals list */}
-                        <div style={{ background: "#fff", borderRadius: 20, padding: "20px 18px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)", marginBottom: 14 }}>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 12 }}>
-                                People You&apos;ve Referred
-                                <span style={{ marginLeft: 8, background: referrals.length > 0 ? GREEN : "#e2e8f0", color: referrals.length > 0 ? "#fff" : "#94a3b8", borderRadius: 8, padding: "2px 8px", fontSize: 10 }}>
-                                    {referrals.length}
-                                </span>
-                            </div>
-                            {referrals.length === 0 ? (
-                                <div style={{ textAlign: "center", padding: "20px 0" }}>
-                                    <div style={{ fontSize: 28, marginBottom: 8 }}>👥</div>
-                                    <div style={{ fontSize: 13, color: "#64748b" }}>No referrals yet — share your code to start earning!</div>
+                        <Card>
+                            <CardContent className="p-4">
+                                <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                                    People You&apos;ve Referred
+                                    <Badge variant={referrals.length > 0 ? "default" : "secondary"}>{referrals.length}</Badge>
                                 </div>
-                            ) : (
-                                referrals.map((ref, i) => (
-                                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: i < referrals.length - 1 ? "1px solid #f1f5f9" : "none" }}>
-                                        <div style={{ width: 40, height: 40, borderRadius: "50%", background: ref.hasPaidBooking ? GREEN + "20" : "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
-                                            {ref.hasPaidBooking ? "✓" : "⏳"}
-                                        </div>
-                                        <div style={{ flex: 1 }}>
-                                            <div style={{ fontWeight: 700, fontSize: 14, color: "#0f172a" }}>{ref.firstName}</div>
-                                            <div style={{ fontSize: 12, color: "#94a3b8" }}>{ref.maskedPhone}</div>
-                                        </div>
-                                        <div style={{ textAlign: "right" }}>
-                                            <div style={{ fontSize: 11, fontWeight: 700, color: ref.hasPaidBooking ? GREEN : "#f59e0b", background: ref.hasPaidBooking ? GREEN + "15" : "#fef3c7", borderRadius: 8, padding: "3px 9px" }}>
-                                                {ref.hasPaidBooking ? "Booked ✓" : "Not booked yet"}
-                                            </div>
-                                            {ref.hasPaidBooking && (
-                                                <div style={{ fontSize: 11, color: GREEN, fontWeight: 700, marginTop: 3 }}>+$30 earned</div>
-                                            )}
-                                        </div>
+                                {referrals.length === 0 ? (
+                                    <div className="flex flex-col items-center gap-2 py-5 text-center">
+                                        <Users className="size-6 text-muted-foreground/50" />
+                                        <p className="text-sm text-muted-foreground">No referrals yet — share your code to start earning!</p>
                                     </div>
-                                ))
-                            )}
-                        </div>
-
-                        {/* Promo history */}
-                        {promoHistory.length > 0 && (
-                            <div style={{ background: "#fff", borderRadius: 20, padding: "20px 18px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)", marginBottom: 14 }}>
-                                <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 12 }}>Promo History</div>
-                                {promoHistory.slice().reverse().map((p, i) => (
-                                    <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: i < promoHistory.length - 1 ? "1px solid #f1f5f9" : "none" }}>
-                                        <div>
-                                            <div style={{ fontWeight: 700, fontSize: 14, color: "#0f172a" }}>{p.code}</div>
-                                            <div style={{ fontSize: 12, color: "#94a3b8" }}>{p.usedAt ? new Date(p.usedAt).toLocaleDateString() : ""}</div>
+                                ) : (
+                                    referrals.map((ref, i) => (
+                                        <div key={i} className="flex items-center gap-3 border-b border-border py-3 last:border-0">
+                                            <div className={cn("flex size-10 shrink-0 items-center justify-center rounded-full text-lg", ref.hasPaidBooking ? "bg-emerald-100" : "bg-muted")}>
+                                                {ref.hasPaidBooking ? "✓" : "⏳"}
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className="text-sm font-bold text-foreground">{ref.firstName}</p>
+                                                <p className="text-xs text-muted-foreground">{ref.maskedPhone}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <Badge variant="outline" className={ref.hasPaidBooking ? "border-emerald-300 text-emerald-700" : "border-amber-300 text-amber-700"}>
+                                                    {ref.hasPaidBooking ? "Booked ✓" : "Not booked yet"}
+                                                </Badge>
+                                                {ref.hasPaidBooking && <p className="mt-1 text-xs font-bold text-emerald-600">+$30 earned</p>}
+                                            </div>
                                         </div>
-                                        <div style={{ fontWeight: 700, color: GREEN, fontSize: 15 }}>-${parseFloat(p.discount || 0).toFixed(2)}</div>
+                                    ))
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        {promoHistory.length > 0 && (
+                            <Card>
+                                <CardContent className="p-4">
+                                    <p className="mb-3 text-xs font-bold uppercase tracking-wide text-muted-foreground">Promo History</p>
+                                    {promoHistory.slice().reverse().map((p, i) => (
+                                        <div key={i} className="flex items-center justify-between border-b border-border py-2.5 last:border-0">
+                                            <div>
+                                                <p className="text-sm font-bold text-foreground">{p.code}</p>
+                                                <p className="text-xs text-muted-foreground">{p.usedAt ? new Date(p.usedAt).toLocaleDateString() : ""}</p>
+                                            </div>
+                                            <span className="text-base font-bold text-emerald-600">-${parseFloat(p.discount || 0).toFixed(2)}</span>
+                                        </div>
+                                    ))}
+                                </CardContent>
+                            </Card>
+                        )}
+
+                        <Card>
+                            <CardContent className="p-4">
+                                <p className="mb-3 text-xs font-bold uppercase tracking-wide text-muted-foreground">How Points Work</p>
+                                {[
+                                    [CreditCard, "Pay for a clean", "Earn 1 point per $1 spent"],
+                                    [Users, "Refer a friend", "Get $30 when they pay for their first clean"],
+                                    [Gift, "Use promos", "Apply codes at booking to save instantly"],
+                                ].map(([Icon, title, desc]) => (
+                                    <div key={title} className="flex gap-3 border-b border-border/60 py-2.5 last:border-0">
+                                        <Icon className="mt-0.5 size-5 shrink-0 text-primary" />
+                                        <div>
+                                            <p className="text-sm font-bold text-foreground">{title}</p>
+                                            <p className="mt-0.5 text-xs text-muted-foreground">{desc}</p>
+                                        </div>
                                     </div>
                                 ))}
-                            </div>
-                        )}
-
-                        {/* How it works */}
-                        <div style={{ background: "#fff", borderRadius: 20, padding: "20px 18px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)", marginBottom: 8 }}>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 12 }}>How Points Work</div>
-                            {[
-                                ["💳", "Pay for a clean", "Earn 1 point per $1 spent"],
-                                ["👥", "Refer a friend", "Get $30 when they pay for their first clean"],
-                                ["🎁", "Use promos", "Apply codes at booking to save instantly"],
-                            ].map(([icon, title, desc]) => (
-                                <div key={title} style={{ display: "flex", gap: 14, padding: "10px 0", borderBottom: "1px solid #f8fafc" }}>
-                                    <div style={{ fontSize: 22, flexShrink: 0, marginTop: 1 }}>{icon}</div>
-                                    <div>
-                                        <div style={{ fontWeight: 700, fontSize: 13, color: "#0f172a" }}>{title}</div>
-                                        <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>{desc}</div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+                            </CardContent>
+                        </Card>
                     </>
                 )}
             </div>

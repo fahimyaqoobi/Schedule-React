@@ -1,11 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Fragment } from "react";
 import Link from "next/link";
-
-const BRAND = "#005691";
-const ACTION = "#0A6CB8";
-const GREEN = "#78A53E";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Sparkles, Gift, ArrowRight, Download } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const STEPS = ["Estimate", "Confirmed", "Invoice", "Complete"];
 
@@ -18,26 +18,21 @@ function lifecycleOf(b) {
 
 function LifecycleStepper({ step }) {
     return (
-        <div style={{ display: "flex", alignItems: "center", marginTop: 14, marginBottom: 4 }}>
+        <div className="mt-3 flex items-center">
             {STEPS.map((label, i) => {
                 const done = i < step;
                 const active = i === step;
                 return (
-                    <Fragment key={label}>
-                        <div style={{ flex: "none", textAlign: "center", minWidth: 56 }}>
-                            <div style={{
-                                width: 10, height: 10, borderRadius: "50%", margin: "0 auto 4px",
-                                background: done ? GREEN : active ? ACTION : "#e2e8f0",
-                                border: active ? `2px solid ${ACTION}` : "none",
-                            }} />
-                            <span style={{ fontSize: 9, fontWeight: 700, color: done ? GREEN : active ? ACTION : "#cbd5e1", letterSpacing: "0.03em" }}>
-                                {label}
-                            </span>
+                    <div key={label} className="flex flex-1 items-center last:flex-none">
+                        <div className="flex flex-col items-center gap-1">
+                            <span className={cn(
+                                "size-2.5 rounded-full",
+                                done ? "bg-emerald-500" : active ? "bg-primary ring-2 ring-primary/30" : "bg-muted"
+                            )} />
+                            <span className={cn("text-[9px] font-bold", done ? "text-emerald-600" : active ? "text-primary" : "text-muted-foreground/60")}>{label}</span>
                         </div>
-                        {i < STEPS.length - 1 && (
-                            <div style={{ flex: 1, height: 2, background: i < step ? GREEN : "#e2e8f0", margin: "0 -1px 14px" }} />
-                        )}
-                    </Fragment>
+                        {i < STEPS.length - 1 && <div className={cn("mx-1 -mt-3.5 h-0.5 flex-1", i < step ? "bg-emerald-500" : "bg-muted")} />}
+                    </div>
                 );
             })}
         </div>
@@ -61,8 +56,8 @@ export default function CustomerHomePage() {
 
     if (loading) {
         return (
-            <div style={{ minHeight: "60vh", display: "flex", alignItems: "center", justifyContent: "center", background: `linear-gradient(135deg,${BRAND},${ACTION})` }}>
-                <div style={{ color: "#fff", opacity: 0.75, fontSize: 14 }}>Loading…</div>
+            <div className="flex min-h-[60vh] items-center justify-center bg-gradient-to-br from-primary to-primary/80">
+                <div className="text-sm text-primary-foreground/75">Loading…</div>
             </div>
         );
     }
@@ -79,92 +74,94 @@ export default function CustomerHomePage() {
 
     return (
         <div>
-            {/* Header */}
-            <div style={{ background: `linear-gradient(135deg,${BRAND} 0%,${ACTION} 100%)`, padding: "52px 20px 28px", color: "#fff" }}>
-                <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 2 }}>Hi, {name} 👋</div>
-                <div style={{ fontSize: 14, opacity: 0.85 }}>Welcome back to Smartouch Clean</div>
+            <div className="bg-gradient-to-br from-primary to-primary/80 px-5 pt-13 pb-7 text-primary-foreground">
+                <div className="text-xl font-extrabold">Hi, {name} 👋</div>
+                <div className="mt-0.5 text-sm opacity-85">Welcome back to Smartouch Clean</div>
             </div>
 
-            <div style={{ padding: "16px 16px 0" }}>
-
-                {/* Invoice alert */}
+            <div className="flex flex-col gap-3.5 p-4">
                 {pendingPayment && (
-                    <div style={{ background: "#fef3c7", border: "1px solid #fbbf24", borderRadius: 18, padding: "16px 18px", marginBottom: 14 }}>
-                        <div style={{ fontWeight: 700, color: "#92400e", fontSize: 14, marginBottom: 4 }}>⚡ Invoice Ready — Payment Due</div>
-                        <div style={{ fontSize: 13, color: "#78350f", marginBottom: 12 }}>
-                            {pendingPayment.service} · {pendingPayment.date} · <strong>${parseFloat(pendingPayment.price || 0).toFixed(2)}</strong>
-                        </div>
-                        <div style={{ display: "flex", gap: 8 }}>
-                            <a href={`/api/customer/invoice-pdf?bookingId=${pendingPayment.id}`} download style={{ flex: 1, background: "#fff", color: "#92400e", border: "1.5px solid #fbbf24", textAlign: "center", padding: "10px 0", borderRadius: 10, fontWeight: 700, fontSize: 13, textDecoration: "none" }}>
-                                ⬇ View Invoice
-                            </a>
-                            <Link href={`/customer/jobs/${pendingPayment.id}`} style={{ flex: 1, background: "#d97706", color: "#fff", textAlign: "center", padding: "10px 0", borderRadius: 10, fontWeight: 700, fontSize: 13, textDecoration: "none" }}>
-                                Pay Now →
-                            </Link>
-                        </div>
-                    </div>
+                    <Card className="border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20">
+                        <CardContent className="p-4">
+                            <p className="text-sm font-bold text-amber-800 dark:text-amber-300">⚡ Invoice Ready — Payment Due</p>
+                            <p className="mt-1 text-sm text-amber-900 dark:text-amber-200">
+                                {pendingPayment.service} · {pendingPayment.date} · <strong>${parseFloat(pendingPayment.price || 0).toFixed(2)}</strong>
+                            </p>
+                            <div className="mt-3 flex gap-2">
+                                <Button asChild variant="outline" size="sm" className="flex-1 border-amber-400 text-amber-800 hover:bg-amber-100 dark:text-amber-300">
+                                    <a href={`/api/customer/invoice-pdf?bookingId=${pendingPayment.id}`} download><Download className="size-3.5" /> View Invoice</a>
+                                </Button>
+                                <Button asChild size="sm" className="flex-1 bg-amber-600 text-white hover:bg-amber-600/90">
+                                    <Link href={`/customer/jobs/${pendingPayment.id}`}>Pay Now <ArrowRight className="size-3.5" /></Link>
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
                 )}
 
-                {/* Next appointment */}
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 10 }}>
-                    Next Appointment
-                </div>
+                <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Next Appointment</p>
 
                 {nextJob ? (
-                    <div style={{ background: "#fff", borderRadius: 18, padding: 18, boxShadow: "0 2px 12px rgba(0,0,0,0.06)", marginBottom: 14 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                            <div>
-                                <div style={{ fontWeight: 800, fontSize: 16, color: "#0f172a" }}>{nextJob.service}</div>
-                                <div style={{ fontSize: 13, color: "#64748b", marginTop: 2 }}>{nextJob.date} · {nextJob.time}</div>
-                                <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>{nextJob.address1}</div>
+                    <Card>
+                        <CardContent className="p-4">
+                            <div className="flex items-start justify-between gap-2">
+                                <div>
+                                    <p className="text-base font-extrabold text-foreground">{nextJob.service}</p>
+                                    <p className="mt-0.5 text-sm text-muted-foreground">{nextJob.date} · {nextJob.time}</p>
+                                    <p className="mt-0.5 text-xs text-muted-foreground/80">{nextJob.address1}</p>
+                                </div>
+                                <Badge variant="secondary">{nextJob.status}</Badge>
                             </div>
-                            <span style={{ background: ACTION + "18", color: ACTION, borderRadius: 8, padding: "3px 10px", fontSize: 11, fontWeight: 700 }}>
-                                {nextJob.status}
-                            </span>
-                        </div>
-                        <LifecycleStepper step={lifecycleOf(nextJob)} />
-                        {lifecycleOf(nextJob) === 0 && (
-                            <Link href={`/customer/jobs/${nextJob.id}`} style={{ display: "block", background: ACTION, color: "#fff", textAlign: "center", padding: "12px 0", borderRadius: 12, fontWeight: 700, fontSize: 14, textDecoration: "none", marginTop: 14 }}>
-                                Review &amp; Confirm Appointment
-                            </Link>
-                        )}
-                    </div>
+                            <LifecycleStepper step={lifecycleOf(nextJob)} />
+                            {lifecycleOf(nextJob) === 0 && (
+                                <Button asChild className="mt-4 w-full">
+                                    <Link href={`/customer/jobs/${nextJob.id}`}>Review &amp; Confirm Appointment</Link>
+                                </Button>
+                            )}
+                        </CardContent>
+                    </Card>
                 ) : (
-                    <div style={{ background: "#fff", borderRadius: 18, padding: "28px 20px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)", marginBottom: 14, textAlign: "center" }}>
-                        <div style={{ fontSize: 36, marginBottom: 10 }}>🧹</div>
-                        <div style={{ fontWeight: 700, color: "#0f172a", marginBottom: 6 }}>No upcoming cleanings</div>
-                        <div style={{ fontSize: 13, color: "#64748b", marginBottom: 16 }}>Book your next appointment today.</div>
-                        <Link href="/customer/book" style={{ display: "inline-block", background: ACTION, color: "#fff", borderRadius: 12, padding: "11px 28px", fontWeight: 700, fontSize: 14, textDecoration: "none" }}>
-                            Book Now
-                        </Link>
-                    </div>
+                    <Card>
+                        <CardContent className="flex flex-col items-center gap-3 p-7 text-center">
+                            <div className="text-4xl">🧹</div>
+                            <div>
+                                <p className="font-bold text-foreground">No upcoming cleanings</p>
+                                <p className="mt-1 text-sm text-muted-foreground">Book your next appointment today.</p>
+                            </div>
+                            <Button asChild>
+                                <Link href="/customer/book">Book Now</Link>
+                            </Button>
+                        </CardContent>
+                    </Card>
                 )}
 
-                {/* Rewards card */}
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 10 }}>
-                    Rewards
-                </div>
-                <div style={{ background: `linear-gradient(135deg,${GREEN} 0%,#5f8730 100%)`, borderRadius: 18, padding: "18px 20px", color: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-                    <div>
-                        <div style={{ fontSize: 32, fontWeight: 900, lineHeight: 1 }}>{points}</div>
-                        <div style={{ fontSize: 12, opacity: 0.9, marginTop: 3 }}>reward points earned</div>
-                    </div>
-                    <Link href="/customer/rewards" style={{ background: "rgba(255,255,255,0.22)", color: "#fff", borderRadius: 10, padding: "9px 18px", fontWeight: 700, fontSize: 13, textDecoration: "none" }}>
-                        View →
-                    </Link>
-                </div>
-
-                {/* Referral nudge */}
-                {referralCode && (
-                    <div style={{ background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 18, padding: "16px 18px", marginBottom: 8 }}>
-                        <div style={{ fontWeight: 700, fontSize: 14, color: BRAND, marginBottom: 4 }}>🎁 Refer a Friend, Earn $30</div>
-                        <div style={{ fontSize: 13, color: "#0369a1", marginBottom: 12 }}>
-                            Give friends $30 off their first clean. Your code: <strong>{referralCode}</strong>
+                <p className="mt-1 text-xs font-bold uppercase tracking-wide text-muted-foreground">Rewards</p>
+                <Card className="overflow-hidden border-none bg-gradient-to-br from-emerald-600 to-emerald-700 text-white">
+                    <CardContent className="flex items-center justify-between gap-3 p-4">
+                        <div>
+                            <div className="flex items-center gap-1.5 text-3xl font-black leading-none">
+                                <Sparkles className="size-6" /> {points}
+                            </div>
+                            <p className="mt-1 text-xs opacity-90">reward points earned</p>
                         </div>
-                        <Link href="/customer/rewards" style={{ display: "inline-block", background: BRAND, color: "#fff", borderRadius: 10, padding: "9px 20px", fontWeight: 700, fontSize: 13, textDecoration: "none" }}>
-                            Share Code →
-                        </Link>
-                    </div>
+                        <Button asChild variant="secondary" size="sm" className="bg-white/20 text-white hover:bg-white/30">
+                            <Link href="/customer/rewards">View <ArrowRight className="size-3.5" /></Link>
+                        </Button>
+                    </CardContent>
+                </Card>
+
+                {referralCode && (
+                    <Card className="border-primary/20 bg-primary/5">
+                        <CardContent className="p-4">
+                            <p className="flex items-center gap-1.5 text-sm font-bold text-primary"><Gift className="size-4" /> Refer a Friend, Earn $30</p>
+                            <p className="mt-1 text-sm text-foreground/80">
+                                Give friends $30 off their first clean. Your code: <strong>{referralCode}</strong>
+                            </p>
+                            <Button asChild size="sm" className="mt-3">
+                                <Link href="/customer/rewards">Share Code <ArrowRight className="size-3.5" /></Link>
+                            </Button>
+                        </CardContent>
+                    </Card>
                 )}
             </div>
         </div>

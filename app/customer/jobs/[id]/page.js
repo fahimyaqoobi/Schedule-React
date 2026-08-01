@@ -4,14 +4,16 @@ import { Fragment } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import JobChatCard from "../../../components/shared/JobChatCard";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { ChevronLeft, PartyPopper, Check, Download, Star, Repeat, MessageCircle } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 // The customer portal authenticates via the "cst" session cookie, sent
 // automatically with same-origin fetches — no bearer token needed here.
 const getPortalAuthHeaders = async () => ({ "Content-Type": "application/json" });
-
-const BRAND = "#005691";
-const ACTION = "#0A6CB8";
-const GREEN = "#78A53E";
 
 const STEPS = [
     { label: "Estimate", desc: "Review your quote" },
@@ -90,17 +92,17 @@ export default function JobDetailPage({ params }) {
 
     if (loading) {
         return (
-            <div style={{ minHeight: "60vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <div style={{ color: "#94a3b8", fontSize: 14 }}>Loading…</div>
+            <div className="flex min-h-[60vh] items-center justify-center">
+                <div className="text-sm text-muted-foreground">Loading…</div>
             </div>
         );
     }
 
     if (err && !booking) {
         return (
-            <div style={{ padding: "60px 20px", textAlign: "center" }}>
-                <div style={{ color: "#dc2626", fontSize: 14 }}>{err}</div>
-                <Link href="/customer/jobs" style={{ display: "inline-block", marginTop: 20, color: ACTION, fontWeight: 700, fontSize: 14 }}>← Back to Jobs</Link>
+            <div className="p-10 text-center">
+                <div className="text-sm text-destructive">{err}</div>
+                <Link href="/customer/jobs" className="mt-5 inline-block text-sm font-bold text-primary">← Back to Jobs</Link>
             </div>
         );
     }
@@ -118,201 +120,177 @@ export default function JobDetailPage({ params }) {
 
     return (
         <div>
-            {/* Header */}
-            <div style={{ background: `linear-gradient(135deg,${BRAND},${ACTION})`, padding: "52px 20px 24px", color: "#fff" }}>
-                <button onClick={() => router.push("/customer/jobs")} style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", borderRadius: 10, padding: "6px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 12 }}>
-                    ← Jobs
-                </button>
-                <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 2 }}>{booking?.service}</div>
-                <div style={{ fontSize: 13, opacity: 0.85 }}>{booking?.date} · {booking?.time || "Time TBD"}</div>
+            <div className="bg-gradient-to-br from-primary to-primary/80 px-5 pt-13 pb-6 text-primary-foreground">
+                <Button variant="ghost" size="sm" className="mb-3 h-auto gap-1 bg-white/15 px-3 py-1.5 text-primary-foreground hover:bg-white/25 hover:text-primary-foreground" onClick={() => router.push("/customer/jobs")}>
+                    <ChevronLeft className="size-4" /> Jobs
+                </Button>
+                <div className="text-xl font-extrabold">{booking?.service}</div>
+                <div className="mt-0.5 text-sm opacity-85">{booking?.date} · {booking?.time || "Time TBD"}</div>
             </div>
 
-            <div style={{ padding: "20px 16px 0" }}>
-
-                {/* Payment success banner */}
+            <div className="flex flex-col gap-3.5 p-4">
                 {paid && (
-                    <div style={{ background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 16, padding: "16px 18px", marginBottom: 16, textAlign: "center" }}>
-                        <div style={{ fontSize: 28, marginBottom: 6 }}>🎉</div>
-                        <div style={{ fontWeight: 700, color: "#15803d", fontSize: 15 }}>Payment received!</div>
-                        <div style={{ fontSize: 13, color: "#166534", marginTop: 4 }}>Thank you — your receipt has been emailed.</div>
-                    </div>
+                    <Card className="border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/20">
+                        <CardContent className="flex flex-col items-center gap-1 p-5 text-center">
+                            <PartyPopper className="size-7 text-emerald-600" />
+                            <p className="font-bold text-emerald-800 dark:text-emerald-300">Payment received!</p>
+                            <p className="text-sm text-emerald-700 dark:text-emerald-400">Thank you — your receipt has been emailed.</p>
+                        </CardContent>
+                    </Card>
                 )}
 
-                {/* Lifecycle stepper */}
-                <div style={{ background: "#fff", borderRadius: 18, padding: "20px 18px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)", marginBottom: 14 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 16 }}>
-                        Job Status
-                    </div>
-                    <div style={{ display: "flex", alignItems: "flex-start" }}>
-                        {STEPS.map((s, i) => {
-                            const done = i < step;
-                            const active = i === step;
-                            const dotColor = done ? GREEN : active ? ACTION : "#e2e8f0";
-                            return (
-                                <Fragment key={s.label}>
-                                    <div style={{ flex: "none", textAlign: "center", minWidth: 64 }}>
-                                        <div style={{
-                                            width: 28, height: 28, borderRadius: "50%", margin: "0 auto 6px",
-                                            background: done ? GREEN : active ? ACTION : "#f1f5f9",
-                                            display: "flex", alignItems: "center", justifyContent: "center",
-                                            border: active ? `2.5px solid ${ACTION}` : done ? "none" : "1.5px solid #e2e8f0",
-                                        }}>
-                                            {done ? <span style={{ color: "#fff", fontSize: 14 }}>✓</span>
-                                                : <span style={{ width: 8, height: 8, borderRadius: "50%", background: active ? ACTION : "#cbd5e1", display: "block" }} />}
+                <Card>
+                    <CardContent className="p-4">
+                        <p className="mb-4 text-xs font-bold uppercase tracking-wide text-muted-foreground">Job Status</p>
+                        <div className="flex items-start">
+                            {STEPS.map((s, i) => {
+                                const done = i < step;
+                                const active = i === step;
+                                return (
+                                    <Fragment key={s.label}>
+                                        <div className="flex-none text-center" style={{ minWidth: 64 }}>
+                                            <div className={cn(
+                                                "mx-auto mb-1.5 flex size-7 items-center justify-center rounded-full",
+                                                done ? "bg-emerald-500" : active ? "border-2 border-primary bg-primary/10" : "border border-border bg-muted"
+                                            )}>
+                                                {done ? <Check className="size-3.5 text-white" /> : <span className={cn("size-2 rounded-full", active ? "bg-primary" : "bg-muted-foreground/40")} />}
+                                            </div>
+                                            <p className={cn("text-[10px] font-bold", done ? "text-emerald-600" : active ? "text-primary" : "text-muted-foreground")}>{s.label}</p>
+                                            {active && <p className="mt-0.5 text-[9px] text-muted-foreground">{s.desc}</p>}
                                         </div>
-                                        <div style={{ fontSize: 10, fontWeight: 700, color: done ? GREEN : active ? ACTION : "#94a3b8" }}>{s.label}</div>
-                                        {active && <div style={{ fontSize: 9, color: "#64748b", marginTop: 2 }}>{s.desc}</div>}
-                                    </div>
-                                    {i < STEPS.length - 1 && (
-                                        <div style={{ flex: 1, height: 2, background: i < step ? GREEN : "#e2e8f0", marginTop: 14 }} />
-                                    )}
-                                </Fragment>
-                            );
-                        })}
-                    </div>
-                </div>
-
-                {/* Action card */}
-                {step === 0 && (
-                    <div style={{ background: "#fff", borderRadius: 18, padding: "20px 18px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)", marginBottom: 14 }}>
-                        <div style={{ fontWeight: 700, fontSize: 15, color: "#0f172a", marginBottom: 8 }}>Confirm Your Appointment</div>
-                        <div style={{ fontSize: 13, color: "#64748b", marginBottom: 16, lineHeight: 1.6 }}>
-                            Your booking is pending your confirmation. Please review the details and confirm to lock it in.
+                                        {i < STEPS.length - 1 && (
+                                            <div className={cn("mt-3.5 h-0.5 flex-1", i < step ? "bg-emerald-500" : "bg-border")} />
+                                        )}
+                                    </Fragment>
+                                );
+                            })}
                         </div>
-                        {msg && <div style={{ color: GREEN, fontSize: 13, fontWeight: 600, marginBottom: 12 }}>{msg}</div>}
-                        {err && <div style={{ color: "#dc2626", fontSize: 13, marginBottom: 12 }}>{err}</div>}
-                        <button
-                            onClick={handleConfirm}
-                            disabled={actionLoading}
-                            style={{ width: "100%", background: ACTION, color: "#fff", border: "none", borderRadius: 14, padding: "14px 0", fontSize: 16, fontWeight: 700, cursor: "pointer", opacity: actionLoading ? 0.7 : 1 }}
-                        >
-                            {actionLoading ? "Confirming…" : "Confirm Appointment"}
-                        </button>
-                    </div>
+                    </CardContent>
+                </Card>
+
+                {step === 0 && (
+                    <Card>
+                        <CardContent className="p-4">
+                            <p className="text-base font-bold text-foreground">Confirm Your Appointment</p>
+                            <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                                Your booking is pending your confirmation. Please review the details and confirm to lock it in.
+                            </p>
+                            {msg && <p className="mt-3 text-sm font-semibold text-emerald-600">{msg}</p>}
+                            {err && <p className="mt-3 text-sm text-destructive">{err}</p>}
+                            <Button className="mt-3.5 w-full" size="lg" onClick={handleConfirm} disabled={actionLoading}>
+                                {actionLoading ? "Confirming…" : "Confirm Appointment"}
+                            </Button>
+                        </CardContent>
+                    </Card>
                 )}
 
                 {step === 1 && (
-                    <div style={{ background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 18, padding: "18px", marginBottom: 14, textAlign: "center" }}>
-                        <div style={{ fontSize: 24, marginBottom: 6 }}>✅</div>
-                        <div style={{ fontWeight: 700, color: "#15803d", fontSize: 15 }}>Appointment Confirmed</div>
-                        <div style={{ fontSize: 13, color: "#166534", marginTop: 6 }}>
-                            We&apos;ll see you on <strong>{booking?.date}</strong>. We&apos;ll be in touch closer to the date.
-                        </div>
-                    </div>
+                    <Card className="border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/20">
+                        <CardContent className="flex flex-col items-center gap-1 p-5 text-center">
+                            <Check className="size-6 text-emerald-600" />
+                            <p className="font-bold text-emerald-800 dark:text-emerald-300">Appointment Confirmed</p>
+                            <p className="text-sm text-emerald-700 dark:text-emerald-400">
+                                We&apos;ll see you on <strong>{booking?.date}</strong>. We&apos;ll be in touch closer to the date.
+                            </p>
+                        </CardContent>
+                    </Card>
                 )}
 
                 {step === 2 && (
-                    <div style={{ background: "#fff", borderRadius: 18, padding: "20px 18px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)", marginBottom: 14 }}>
-                        <div style={{ fontWeight: 700, fontSize: 15, color: "#0f172a", marginBottom: 14 }}>Invoice — Payment Due</div>
-                        {hasPrice && (
-                            <div style={{ marginBottom: 16 }}>
-                                {subtotal > 0 && subtotal !== total && (
-                                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: "#475569", marginBottom: 6 }}>
-                                        <span>Subtotal</span><span>{fmt$(subtotal)}</span>
+                    <Card>
+                        <CardContent className="p-4">
+                            <p className="mb-3.5 text-base font-bold text-foreground">Invoice — Payment Due</p>
+                            {hasPrice && (
+                                <div className="mb-4 flex flex-col gap-1.5 text-sm">
+                                    {subtotal > 0 && subtotal !== total && (
+                                        <div className="flex justify-between text-muted-foreground"><span>Subtotal</span><span>{fmt$(subtotal)}</span></div>
+                                    )}
+                                    {promoDiscount > 0 && (
+                                        <div className="flex justify-between text-emerald-600"><span>Promo ({booking?.promoCode})</span><span>-{fmt$(promoDiscount)}</span></div>
+                                    )}
+                                    {tax > 0 && (
+                                        <div className="flex justify-between text-muted-foreground"><span>HST (13%)</span><span>{fmt$(tax)}</span></div>
+                                    )}
+                                    <div className="flex justify-between text-muted-foreground"><span>Total</span><span>{fmt$(total)}</span></div>
+                                    {isPartiallyPaid && (
+                                        <div className="flex justify-between text-emerald-600"><span>Amount Received</span><span>-{fmt$(amountReceived)}</span></div>
+                                    )}
+                                    <div className="mt-2 flex items-center justify-between rounded-lg bg-primary px-4 py-3 text-primary-foreground">
+                                        <span className="font-bold">{isPartiallyPaid ? "Balance Due" : "Total Due"}</span>
+                                        <span className="text-lg font-black">{fmt$(balanceDue)}</span>
                                     </div>
-                                )}
-                                {promoDiscount > 0 && (
-                                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: GREEN, marginBottom: 6 }}>
-                                        <span>Promo ({booking?.promoCode})</span><span>-{fmt$(promoDiscount)}</span>
-                                    </div>
-                                )}
-                                {tax > 0 && (
-                                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: "#475569", marginBottom: 6 }}>
-                                        <span>HST (13%)</span><span>{fmt$(tax)}</span>
-                                    </div>
-                                )}
-                                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: "#475569", marginBottom: 6 }}>
-                                    <span>Total</span><span>{fmt$(total)}</span>
                                 </div>
-                                {isPartiallyPaid && (
-                                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: GREEN, marginBottom: 6 }}>
-                                        <span>Amount Received</span><span>-{fmt$(amountReceived)}</span>
-                                    </div>
-                                )}
-                                <div style={{ display: "flex", justifyContent: "space-between", background: BRAND, color: "#fff", borderRadius: 12, padding: "12px 16px", marginTop: 10 }}>
-                                    <span style={{ fontWeight: 700, fontSize: 15 }}>{isPartiallyPaid ? "Balance Due" : "Total Due"}</span>
-                                    <span style={{ fontWeight: 900, fontSize: 18 }}>{fmt$(balanceDue)}</span>
-                                </div>
-                            </div>
-                        )}
-                        {err && <div style={{ color: "#dc2626", fontSize: 13, marginBottom: 12 }}>{err}</div>}
-                        {/* View Invoice PDF */}
-                        <a
-                            href={`/api/customer/invoice-pdf?bookingId=${id}`}
-                            download
-                            style={{ display: "block", width: "100%", background: "#f8fafc", color: BRAND, border: `1.5px solid ${BRAND}30`, borderRadius: 14, padding: "13px 0", fontSize: 15, fontWeight: 700, textAlign: "center", textDecoration: "none", marginBottom: 10, boxSizing: "border-box" }}
-                        >
-                            ⬇ View / Download Invoice PDF
-                        </a>
-                        <button
-                            onClick={handlePay}
-                            disabled={actionLoading}
-                            style={{ width: "100%", background: ACTION, color: "#fff", border: "none", borderRadius: 14, padding: "15px 0", fontSize: 16, fontWeight: 700, cursor: "pointer", opacity: actionLoading ? 0.7 : 1 }}
-                        >
-                            {actionLoading ? "Redirecting…" : `Pay ${hasPrice ? fmt$(isPartiallyPaid ? balanceDue : total) : ""} Now →`}
-                        </button>
-                    </div>
+                            )}
+                            {err && <p className="mb-3 text-sm text-destructive">{err}</p>}
+                            <Button asChild variant="outline" className="mb-2.5 w-full">
+                                <a href={`/api/customer/invoice-pdf?bookingId=${id}`} download><Download className="size-4" /> View / Download Invoice PDF</a>
+                            </Button>
+                            <Button size="lg" className="w-full" onClick={handlePay} disabled={actionLoading}>
+                                {actionLoading ? "Redirecting…" : `Pay ${hasPrice ? fmt$(isPartiallyPaid ? balanceDue : total) : ""} Now →`}
+                            </Button>
+                        </CardContent>
+                    </Card>
                 )}
 
                 {step === 3 && (
-                    <div style={{ background: "#fff", borderRadius: 18, padding: "20px 18px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)", marginBottom: 14 }}>
-                        {/* Assigned cleaner(s) */}
-                        {booking?.assignedStaff?.length > 0 && (
-                            <div style={{ marginBottom: 16, background: "#f8fafc", borderRadius: 14, padding: "14px 16px" }}>
-                                <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>
-                                    Your Cleaner{booking.assignedStaff.length > 1 ? "s" : ""}
-                                </div>
-                                {booking.assignedStaff.map((s, i) => (
-                                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: i < booking.assignedStaff.length - 1 ? 8 : 0 }}>
-                                        <div style={{ width: 36, height: 36, borderRadius: "50%", background: ACTION + "20", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: ACTION, fontSize: 14 }}>
-                                            {(s.name || "?")[0]?.toUpperCase()}
-                                        </div>
-                                        <div style={{ fontWeight: 600, fontSize: 14, color: "#0f172a" }}>{s.name || "Staff"}</div>
+                    <Card>
+                        <CardContent className="p-4">
+                            {booking?.assignedStaff?.length > 0 && (
+                                <div className="mb-4 rounded-lg bg-muted/50 p-3.5">
+                                    <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                                        Your Cleaner{booking.assignedStaff.length > 1 ? "s" : ""}
+                                    </p>
+                                    <div className="flex flex-col gap-2">
+                                        {booking.assignedStaff.map((s, i) => (
+                                            <div key={i} className="flex items-center gap-2.5">
+                                                <Avatar size="sm"><AvatarFallback>{(s.name || "?")[0]?.toUpperCase()}</AvatarFallback></Avatar>
+                                                <span className="text-sm font-semibold text-foreground">{s.name || "Staff"}</span>
+                                            </div>
+                                        ))}
                                     </div>
-                                ))}
+                                </div>
+                            )}
+                            <div className="mb-4 text-center">
+                                <Star className="mx-auto mb-2 size-7 fill-amber-400 text-amber-400" />
+                                <p className="font-bold text-foreground">How was your clean?</p>
+                                <p className="text-sm text-muted-foreground">A quick review helps us improve and supports our team.</p>
                             </div>
-                        )}
-                        <div style={{ textAlign: "center", marginBottom: 16 }}>
-                            <div style={{ fontSize: 36, marginBottom: 8 }}>⭐</div>
-                            <div style={{ fontWeight: 700, color: "#0f172a", fontSize: 15, marginBottom: 4 }}>How was your clean?</div>
-                            <div style={{ fontSize: 13, color: "#64748b" }}>A quick review helps us improve and supports our team.</div>
-                        </div>
-                        <a
-                            href="https://g.page/r/smartouchclean/review"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{ display: "block", background: "#fbbf24", color: "#78350f", textAlign: "center", padding: "13px 0", borderRadius: 14, fontWeight: 700, fontSize: 15, textDecoration: "none", marginBottom: 10 }}
-                        >
-                            ⭐ Leave a Google Review
-                        </a>
-                        <Link href="/customer/book" style={{ display: "block", background: ACTION, color: "#fff", textAlign: "center", padding: "13px 0", borderRadius: 14, fontWeight: 700, fontSize: 15, textDecoration: "none" }}>
-                            🔁 Book Again
-                        </Link>
-                    </div>
+                            <Button asChild className="mb-2.5 w-full bg-amber-400 text-amber-950 hover:bg-amber-400/90">
+                                <a href="https://g.page/r/smartouchclean/review" target="_blank" rel="noopener noreferrer"><Star className="size-4" /> Leave a Google Review</a>
+                            </Button>
+                            <Button asChild className="w-full">
+                                <Link href="/customer/book"><Repeat className="size-4" /> Book Again</Link>
+                            </Button>
+                        </CardContent>
+                    </Card>
                 )}
 
-                {/* Booking details */}
-                <div style={{ background: "#fff", borderRadius: 18, padding: "18px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)", marginBottom: 16 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 12 }}>Details</div>
-                    {[
-                        ["Service", booking?.service],
-                        ["Date", booking?.date],
-                        ["Time", booking?.time || "TBD"],
-                        ["Address", [booking?.address1, booking?.address2, booking?.city, booking?.postalCode].filter(Boolean).join(", ")],
-                        booking?.estimateNumber && ["Estimate #", booking.estimateNumber],
-                        booking?.invoiceNumber && ["Invoice #", booking.invoiceNumber],
-                    ].filter(Boolean).map(([label, value]) => value ? (
-                        <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #f1f5f9", fontSize: 13 }}>
-                            <span style={{ color: "#64748b" }}>{label}</span>
-                            <span style={{ fontWeight: 600, color: "#0f172a", maxWidth: "60%", textAlign: "right" }}>{value}</span>
+                <Card>
+                    <CardContent className="p-4">
+                        <p className="mb-2.5 text-xs font-bold uppercase tracking-wide text-muted-foreground">Details</p>
+                        <div className="flex flex-col">
+                            {[
+                                ["Service", booking?.service],
+                                ["Date", booking?.date],
+                                ["Time", booking?.time || "TBD"],
+                                ["Address", [booking?.address1, booking?.address2, booking?.city, booking?.postalCode].filter(Boolean).join(", ")],
+                                booking?.estimateNumber && ["Estimate #", booking.estimateNumber],
+                                booking?.invoiceNumber && ["Invoice #", booking.invoiceNumber],
+                            ].filter(Boolean).map(([label, value]) => value ? (
+                                <div key={label} className="flex items-start justify-between gap-3 border-b border-border py-2 text-sm last:border-0">
+                                    <span className="text-muted-foreground">{label}</span>
+                                    <span className="max-w-[60%] text-right font-semibold text-foreground">{value}</span>
+                                </div>
+                            ) : null)}
                         </div>
-                    ) : null)}
-                </div>
+                    </CardContent>
+                </Card>
 
-                {/* Job chat with your assigned cleaner — locks once the job closes */}
-                <div style={{ marginBottom: 24 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 8 }}>Chat</div>
-                    <JobChatCard bookingId={id} getAuthHeaders={getPortalAuthHeaders} title="💬 Chat with Your Cleaner" />
+                <div>
+                    <p className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                        <MessageCircle className="size-3.5" /> Chat
+                    </p>
+                    <JobChatCard bookingId={id} getAuthHeaders={getPortalAuthHeaders} title="Chat with Your Cleaner" />
                 </div>
             </div>
         </div>

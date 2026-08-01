@@ -1,54 +1,56 @@
 "use client";
-import { use } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { CircleCheck, ArrowRight } from "lucide-react";
 
-const BRAND = "#005691";
-const ACTION = "#0A6CB8";
-const GREEN = "#78A53E";
+const STEPS = [
+    "We review your booking request",
+    "Team reaches out to confirm date & time",
+    "Invoice sent to your email",
+    "Cleaner arrives on your scheduled day",
+];
 
 function ConfirmationContent() {
     const searchParams = useSearchParams();
     const bookingId = searchParams.get("bookingId");
 
     return (
-        <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px", background: "#f8fafc" }}>
-            <div style={{ width: "100%", maxWidth: 380, textAlign: "center" }}>
-                <div style={{ width: 80, height: 80, borderRadius: "50%", background: GREEN + "20", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", fontSize: 40 }}>
-                    ✓
+        <div className="flex min-h-screen flex-col items-center justify-center bg-background px-6 py-10">
+            <div className="w-full max-w-sm text-center">
+                <div className="mx-auto mb-5 flex size-20 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-950/40">
+                    <CircleCheck className="size-10 text-emerald-600" />
                 </div>
-                <h1 style={{ fontSize: 24, fontWeight: 900, color: "#0f172a", marginBottom: 10 }}>
-                    Booking Requested!
-                </h1>
-                <p style={{ fontSize: 15, color: "#475569", lineHeight: 1.7, marginBottom: 28 }}>
+                <h1 className="text-2xl font-black text-foreground">Booking Requested!</h1>
+                <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground">
                     Your booking request has been submitted. Our team will review it and reach out to confirm the details and send your invoice.
                 </p>
 
-                <div style={{ background: "#fff", borderRadius: 18, padding: "18px 20px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)", marginBottom: 24, textAlign: "left" }}>
-                    <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 4 }}>What happens next</div>
-                    {[
-                        "We review your booking request",
-                        "Team reaches out to confirm date & time",
-                        "Invoice sent to your email",
-                        "Cleaner arrives on your scheduled day",
-                    ].map((step, i) => (
-                        <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, marginTop: 10 }}>
-                            <div style={{ width: 22, height: 22, borderRadius: "50%", background: ACTION, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, flexShrink: 0, marginTop: 1 }}>
-                                {i + 1}
-                            </div>
-                            <div style={{ fontSize: 14, color: "#374151", lineHeight: 1.5 }}>{step}</div>
+                <Card className="mb-6 mt-6 text-left">
+                    <CardContent className="p-4">
+                        <p className="mb-1 text-xs text-muted-foreground">What happens next</p>
+                        <div className="flex flex-col gap-2.5 pt-2">
+                            {STEPS.map((step, i) => (
+                                <div key={i} className="flex items-start gap-2.5">
+                                    <span className="mt-0.5 flex size-5.5 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">
+                                        {i + 1}
+                                    </span>
+                                    <p className="text-sm leading-relaxed text-foreground/85">{step}</p>
+                                </div>
+                            ))}
                         </div>
-                    ))}
-                </div>
+                    </CardContent>
+                </Card>
 
-                <Link href="/customer/home" style={{ display: "block", background: ACTION, color: "#fff", borderRadius: 14, padding: "15px 0", fontWeight: 700, fontSize: 16, textDecoration: "none", marginBottom: 12 }}>
-                    Go to My Portal →
-                </Link>
+                <Button asChild size="lg" className="mb-3 w-full">
+                    <Link href="/customer/home">Go to My Portal <ArrowRight className="size-4" /></Link>
+                </Button>
                 {bookingId && (
-                    <Link href={`/customer/jobs/${bookingId}`} style={{ display: "block", background: "#f1f5f9", color: BRAND, borderRadius: 14, padding: "14px 0", fontWeight: 600, fontSize: 15, textDecoration: "none" }}>
-                        View This Booking
-                    </Link>
+                    <Button asChild variant="secondary" size="lg" className="w-full">
+                        <Link href={`/customer/jobs/${bookingId}`}>View This Booking</Link>
+                    </Button>
                 )}
             </div>
         </div>
@@ -57,7 +59,7 @@ function ConfirmationContent() {
 
 export default function ConfirmationPage() {
     return (
-        <Suspense fallback={<div style={{ padding: 40, textAlign: "center", color: "#94a3b8" }}>Loading…</div>}>
+        <Suspense fallback={<div className="p-10 text-center text-sm text-muted-foreground">Loading…</div>}>
             <ConfirmationContent />
         </Suspense>
     );

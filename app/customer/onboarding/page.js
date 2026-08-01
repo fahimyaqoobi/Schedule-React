@@ -1,17 +1,14 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-
-const BRAND = "#005691";
-const ACTION = "#0A6CB8";
-const GREEN = "#78A53E";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Progress } from "@/components/ui/progress";
+import { cn } from "@/lib/utils";
 
 const PROVINCES = ["ON", "QC", "BC", "AB", "MB", "SK", "NS", "NB", "PE", "NL", "NT", "YT", "NU"];
-
-const inputStyle = {
-    width: "100%", border: "1.5px solid #e2e8f0", borderRadius: 14, padding: "15px 16px",
-    fontSize: 17, fontFamily: "inherit", outline: "none", boxSizing: "border-box", color: "#0f172a",
-};
 
 const STEPS = ["Your Name", "Email Address", "Service Address"];
 
@@ -70,129 +67,90 @@ export default function CustomerOnboardingPage() {
     const progress = ((step + 1) / STEPS.length) * 100;
 
     return (
-        <div style={{ minHeight: "100dvh", background: "linear-gradient(160deg,#f0f7ff 0%,#f8fafc 60%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px 20px" }}>
-            <div style={{ background: "#fff", borderRadius: 24, padding: "36px 24px 28px", width: "100%", maxWidth: 400, boxShadow: "0 8px 40px rgba(0,86,145,0.13)" }}>
+        <div className="flex min-h-dvh flex-col items-center justify-center bg-gradient-to-br from-background to-muted/40 px-5 py-6">
+            <Card className="w-full max-w-sm shadow-lg">
+                <CardContent className="p-8">
+                    <div className="mb-6 text-center">
+                        <div className="text-2xl font-black tracking-tight text-primary">Smartouch Clean</div>
+                        <div className="mt-1 text-sm text-muted-foreground">Let&apos;s get you set up</div>
+                    </div>
 
-                {/* Logo */}
-                <div style={{ textAlign: "center", marginBottom: 28 }}>
-                    <div style={{ fontSize: 26, fontWeight: 900, color: BRAND }}>Smartouch Clean</div>
-                    <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>Let&apos;s get you set up</div>
-                </div>
+                    <div className="mb-6">
+                        <div className="mb-1.5 flex justify-between">
+                            {STEPS.map((label, i) => (
+                                <span key={label} className={cn("text-[10px] font-bold uppercase tracking-wide", i <= step ? "text-primary" : "text-muted-foreground/50")}>
+                                    {label}
+                                </span>
+                            ))}
+                        </div>
+                        <Progress value={progress} />
+                    </div>
 
-                {/* Progress bar */}
-                <div style={{ marginBottom: 28 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                        {STEPS.map((label, i) => (
-                            <div key={label} style={{ fontSize: 10, fontWeight: 700, color: i <= step ? ACTION : "#cbd5e1", letterSpacing: "0.06em", textTransform: "uppercase" }}>
-                                {label}
+                    {step === 0 && (
+                        <>
+                            <p className="mb-1 text-lg font-extrabold text-foreground">What&apos;s your name?</p>
+                            <p className="mb-4 text-sm leading-relaxed text-muted-foreground">
+                                This is how we&apos;ll greet you and personalize your experience.
+                            </p>
+                            <Input autoFocus value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === "Enter" && next()} placeholder="Full Name" className="h-12 text-base" />
+                        </>
+                    )}
+
+                    {step === 1 && (
+                        <>
+                            <p className="mb-1 text-lg font-extrabold text-foreground">Email address?</p>
+                            <p className="mb-4 text-sm leading-relaxed text-muted-foreground">
+                                For receipts, invoices, and appointment reminders. You can skip this for now.
+                            </p>
+                            <Input autoFocus type="email" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === "Enter" && next()} placeholder="you@example.com (optional)" className="h-12 text-base" />
+                        </>
+                    )}
+
+                    {step === 2 && (
+                        <>
+                            <p className="mb-1 text-lg font-extrabold text-foreground">Your service address?</p>
+                            <p className="mb-4 text-sm leading-relaxed text-muted-foreground">
+                                Where do you want us to clean? You can update this anytime.
+                            </p>
+                            <div className="flex flex-col gap-2.5">
+                                <Input autoFocus value={address} onChange={e => setAddress(e.target.value)} placeholder="Street address" className="h-12 text-base" />
+                                <Input value={city} onChange={e => setCity(e.target.value)} placeholder="City" className="h-12 text-base" />
+                                <div className="flex gap-2.5">
+                                    <Select value={province} onValueChange={setProvince}>
+                                        <SelectTrigger className="h-12 flex-1"><SelectValue /></SelectTrigger>
+                                        <SelectContent>{PROVINCES.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
+                                    </Select>
+                                    <Input value={postalCode} onChange={e => setPostalCode(e.target.value.toUpperCase())} placeholder="Postal Code" maxLength={7} className="h-12 flex-1 text-base" />
+                                </div>
                             </div>
-                        ))}
-                    </div>
-                    <div style={{ height: 4, background: "#f1f5f9", borderRadius: 4, overflow: "hidden" }}>
-                        <div style={{ height: "100%", background: ACTION, borderRadius: 4, width: `${progress}%`, transition: "width 0.3s ease" }} />
-                    </div>
-                </div>
+                        </>
+                    )}
 
-                {/* Step 0 — Name */}
-                {step === 0 && (
-                    <>
-                        <div style={{ fontSize: 20, fontWeight: 800, color: "#0f172a", marginBottom: 6 }}>What&apos;s your name?</div>
-                        <div style={{ fontSize: 13, color: "#64748b", marginBottom: 20, lineHeight: 1.5 }}>
-                            This is how we&apos;ll greet you and personalize your experience.
-                        </div>
-                        <input
-                            autoFocus
-                            value={name}
-                            onChange={e => setName(e.target.value)}
-                            onKeyDown={e => e.key === "Enter" && next()}
-                            placeholder="Full Name"
-                            style={inputStyle}
-                        />
-                    </>
-                )}
+                    {err && <p className="mt-3 text-center text-sm text-destructive">{err}</p>}
 
-                {/* Step 1 — Email */}
-                {step === 1 && (
-                    <>
-                        <div style={{ fontSize: 20, fontWeight: 800, color: "#0f172a", marginBottom: 6 }}>Email address?</div>
-                        <div style={{ fontSize: 13, color: "#64748b", marginBottom: 20, lineHeight: 1.5 }}>
-                            For receipts, invoices, and appointment reminders. You can skip this for now.
-                        </div>
-                        <input
-                            autoFocus
-                            type="email"
-                            value={email}
-                            onChange={e => setEmail(e.target.value)}
-                            onKeyDown={e => e.key === "Enter" && next()}
-                            placeholder="you@example.com (optional)"
-                            style={inputStyle}
-                        />
-                    </>
-                )}
+                    <Button size="lg" className="mt-5 w-full" onClick={next} disabled={saving}>
+                        {saving ? "Saving…" : step < STEPS.length - 1 ? "Continue →" : "All Done — Let's Go!"}
+                    </Button>
 
-                {/* Step 2 — Address */}
-                {step === 2 && (
-                    <>
-                        <div style={{ fontSize: 20, fontWeight: 800, color: "#0f172a", marginBottom: 6 }}>Your service address?</div>
-                        <div style={{ fontSize: 13, color: "#64748b", marginBottom: 20, lineHeight: 1.5 }}>
-                            Where do you want us to clean? You can update this anytime.
-                        </div>
-                        <input
-                            autoFocus
-                            value={address}
-                            onChange={e => setAddress(e.target.value)}
-                            placeholder="Street address"
-                            style={{ ...inputStyle, marginBottom: 10 }}
-                        />
-                        <input
-                            value={city}
-                            onChange={e => setCity(e.target.value)}
-                            placeholder="City"
-                            style={{ ...inputStyle, marginBottom: 10 }}
-                        />
-                        <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
-                            <select value={province} onChange={e => setProvince(e.target.value)} style={{ ...inputStyle, flex: 1 }}>
-                                {PROVINCES.map(p => <option key={p}>{p}</option>)}
-                            </select>
-                            <input
-                                value={postalCode}
-                                onChange={e => setPostalCode(e.target.value.toUpperCase())}
-                                placeholder="Postal Code"
-                                maxLength={7}
-                                style={{ ...inputStyle, flex: 1 }}
-                            />
-                        </div>
-                    </>
-                )}
+                    {step > 0 && (
+                        <button className="mt-3 w-full py-2 text-center text-xs text-muted-foreground" onClick={() => { setStep(s => s - 1); setErr(""); }}>
+                            ← Back
+                        </button>
+                    )}
 
-                {err && <div style={{ color: "#dc2626", fontSize: 13, marginBottom: 12, textAlign: "center" }}>{err}</div>}
+                    {step === 1 && (
+                        <button className="mt-1 w-full py-1 text-center text-xs text-muted-foreground" onClick={next}>
+                            Skip for now
+                        </button>
+                    )}
 
-                <button
-                    onClick={next}
-                    disabled={saving}
-                    style={{ width: "100%", background: ACTION, color: "#fff", border: "none", borderRadius: 14, padding: "15px 0", fontSize: 16, fontWeight: 700, cursor: "pointer", marginTop: 20, opacity: saving ? 0.7 : 1 }}
-                >
-                    {saving ? "Saving…" : step < STEPS.length - 1 ? "Continue →" : "All Done — Let's Go!"}
-                </button>
-
-                {step > 0 && (
-                    <button onClick={() => { setStep(s => s - 1); setErr(""); }} style={{ width: "100%", background: "none", border: "none", color: "#94a3b8", fontSize: 13, cursor: "pointer", marginTop: 12, padding: "8px 0" }}>
-                        ← Back
-                    </button>
-                )}
-
-                {step === 1 && (
-                    <button onClick={next} style={{ width: "100%", background: "none", border: "none", color: "#94a3b8", fontSize: 13, cursor: "pointer", marginTop: 4, padding: "4px 0" }}>
-                        Skip for now
-                    </button>
-                )}
-
-                {step === 2 && (
-                    <button onClick={finish} disabled={saving} style={{ width: "100%", background: "none", border: "none", color: "#94a3b8", fontSize: 13, cursor: "pointer", marginTop: 4, padding: "4px 0" }}>
-                        Skip address for now
-                    </button>
-                )}
-            </div>
+                    {step === 2 && (
+                        <button className="mt-1 w-full py-1 text-center text-xs text-muted-foreground" onClick={finish} disabled={saving}>
+                            Skip address for now
+                        </button>
+                    )}
+                </CardContent>
+            </Card>
         </div>
     );
 }

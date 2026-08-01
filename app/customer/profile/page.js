@@ -1,10 +1,13 @@
 "use client";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-
-const BRAND = "#005691";
-const ACTION = "#0A6CB8";
-const GREEN = "#78A53E";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Camera, Gift, MessageCircle, LogOut, BadgeCheck } from "lucide-react";
 
 function formatPhoneDisplay(raw) {
     const d = String(raw || "").replace(/\D/g, "");
@@ -14,10 +17,18 @@ function formatPhoneDisplay(raw) {
 
 const PROVINCES = ["ON", "QC", "BC", "AB", "MB", "SK", "NS", "NB", "PE", "NL", "NT", "YT", "NU"];
 
-const inputStyle = { width: "100%", border: "1.5px solid #e2e8f0", borderRadius: 12, padding: "12px 14px", fontSize: 15, fontFamily: "inherit", outline: "none", boxSizing: "border-box" };
-const labelStyle = { display: "block", fontSize: 11, fontWeight: 700, color: "#475569", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 6 };
-const valueStyle = { fontSize: 15, color: "#0f172a", padding: "12px 0", borderBottom: "1px solid #f1f5f9" };
-const emptyStyle = { fontSize: 15, color: "#94a3b8", padding: "12px 0", borderBottom: "1px solid #f1f5f9", fontStyle: "italic" };
+function Field({ label, editing, value, empty, children }) {
+    return (
+        <div className="flex flex-col gap-1.5">
+            <Label className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{label}</Label>
+            {editing ? children : value ? (
+                <p className="border-b border-border py-2 text-sm text-foreground">{value}</p>
+            ) : (
+                <p className="border-b border-border py-2 text-sm italic text-muted-foreground">{empty || "Not set — tap Edit to add"}</p>
+            )}
+        </div>
+    );
+}
 
 export default function CustomerProfilePage() {
     const router = useRouter();
@@ -112,153 +123,124 @@ export default function CustomerProfilePage() {
 
     return (
         <div>
-            {/* Header with editable photo */}
-            <div style={{ background: `linear-gradient(135deg,${BRAND},${ACTION})`, padding: "52px 20px 28px", color: "#fff" }}>
-                <div style={{ position: "relative", width: 72, height: 72, marginBottom: 12 }}>
-                    {profile?.photoURL ? (
-                        <img src={profile.photoURL} alt="Profile" style={{ width: 72, height: 72, borderRadius: "50%", objectFit: "cover", border: "3px solid rgba(255,255,255,0.4)" }} />
-                    ) : (
-                        <div style={{ width: 72, height: 72, borderRadius: "50%", background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, fontWeight: 700, border: "3px solid rgba(255,255,255,0.35)" }}>
-                            {initials}
-                        </div>
-                    )}
+            <div className="bg-gradient-to-br from-primary to-primary/80 px-5 pt-13 pb-7 text-primary-foreground">
+                <div className="relative mb-3 size-18">
+                    <Avatar className="size-18 ring-2 ring-white/40">
+                        {profile?.photoURL && <AvatarImage src={profile.photoURL} alt="Profile" />}
+                        <AvatarFallback className="bg-white/20 text-2xl font-bold text-primary-foreground">{initials}</AvatarFallback>
+                    </Avatar>
                     <button
                         onClick={() => fileRef.current?.click()}
                         disabled={photoUploading}
                         title="Change photo"
-                        style={{ position: "absolute", bottom: 0, right: 0, width: 26, height: 26, borderRadius: "50%", background: "#fff", border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: "0 2px 6px rgba(0,0,0,0.2)" }}
+                        className="absolute bottom-0 right-0 flex size-6.5 items-center justify-center rounded-full bg-white text-primary shadow"
                     >
-                        {photoUploading ? (
-                            <span style={{ fontSize: 10, color: ACTION }}>…</span>
-                        ) : (
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={ACTION} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" />
-                            </svg>
-                        )}
+                        {photoUploading ? <span className="text-[10px]">…</span> : <Camera className="size-3.5" />}
                     </button>
-                    <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handlePhotoChange} />
+                    <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
                 </div>
-                <div style={{ fontSize: 20, fontWeight: 800 }}>{profile?.name || "My Account"}</div>
-                <div style={{ fontSize: 13, opacity: 0.85, marginTop: 2 }}>{formatPhoneDisplay(profile?.phone)}</div>
+                <div className="text-xl font-extrabold">{profile?.name || "My Account"}</div>
+                <div className="mt-0.5 text-sm opacity-85">{formatPhoneDisplay(profile?.phone)}</div>
             </div>
 
-            <div style={{ padding: "20px 16px 0" }}>
+            <div className="flex flex-col gap-3.5 p-4">
                 {loading ? (
-                    <div style={{ textAlign: "center", padding: "40px 0", color: "#94a3b8" }}>Loading…</div>
+                    <div className="py-10 text-center text-sm text-muted-foreground">Loading…</div>
                 ) : (
                     <>
-                        {msg && <div style={{ color: GREEN, fontSize: 13, fontWeight: 700, textAlign: "center", marginBottom: 12 }}>{msg}</div>}
-                        {err && <div style={{ color: "#dc2626", fontSize: 13, textAlign: "center", marginBottom: 12 }}>{err}</div>}
+                        {msg && <p className="text-center text-sm font-semibold text-emerald-600">{msg}</p>}
+                        {err && <p className="text-center text-sm text-destructive">{err}</p>}
 
-                        {/* Personal Info */}
-                        <div style={{ background: "#fff", borderRadius: 20, padding: "20px 18px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)", marginBottom: 14 }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                                <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.12em", textTransform: "uppercase" }}>Personal Info</div>
-                                {!editing ? (
-                                    <button onClick={() => { setEditing(true); setMsg(""); setErr(""); }} style={{ background: "none", border: `1.5px solid ${ACTION}`, color: ACTION, borderRadius: 10, padding: "5px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Edit</button>
-                                ) : (
-                                    <button onClick={cancelEdit} style={{ background: "none", border: "1.5px solid #e2e8f0", color: "#64748b", borderRadius: 10, padding: "5px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Cancel</button>
-                                )}
-                            </div>
-
-                            {/* Full Name */}
-                            <div style={{ marginBottom: 14 }}>
-                                <label style={labelStyle}>Full Name</label>
-                                {editing
-                                    ? <input value={name} onChange={e => setName(e.target.value)} placeholder="Enter your name" style={inputStyle} />
-                                    : profile?.name ? <div style={valueStyle}>{profile.name}</div> : <div style={emptyStyle}>Not set — tap Edit to add</div>
-                                }
-                            </div>
-
-                            {/* Email */}
-                            <div style={{ marginBottom: 14 }}>
-                                <label style={labelStyle}>Email</label>
-                                {editing
-                                    ? <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="For receipts and updates" style={inputStyle} />
-                                    : profile?.email ? <div style={valueStyle}>{profile.email}</div> : <div style={emptyStyle}>Not set — tap Edit to add</div>
-                                }
-                            </div>
-
-                            {/* Phone — always locked */}
-                            <div style={{ marginBottom: 4 }}>
-                                <label style={labelStyle}>Phone Number</label>
-                                <div style={{ ...valueStyle, color: "#64748b" }}>
-                                    {formatPhoneDisplay(profile?.phone)}
-                                    <span style={{ fontSize: 11, color: "#94a3b8", marginLeft: 8 }}>• verified</span>
+                        <Card>
+                            <CardContent className="flex flex-col gap-4 p-4">
+                                <div className="flex items-center justify-between">
+                                    <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Personal Info</p>
+                                    {!editing ? (
+                                        <Button size="sm" variant="outline" onClick={() => { setEditing(true); setMsg(""); setErr(""); }}>Edit</Button>
+                                    ) : (
+                                        <Button size="sm" variant="ghost" onClick={cancelEdit}>Cancel</Button>
+                                    )}
                                 </div>
-                            </div>
-                        </div>
 
-                        {/* Default Address */}
-                        <div style={{ background: "#fff", borderRadius: 20, padding: "20px 18px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)", marginBottom: 14 }}>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 16 }}>Default Address</div>
+                                <Field label="Full Name" editing={editing} value={profile?.name}>
+                                    <Input value={name} onChange={e => setName(e.target.value)} placeholder="Enter your name" />
+                                </Field>
 
-                            <div style={{ marginBottom: 14 }}>
-                                <label style={labelStyle}>Street Address</label>
-                                {editing
-                                    ? <input value={address} onChange={e => setAddress(e.target.value)} placeholder="123 Main St" style={inputStyle} />
-                                    : profile?.address ? <div style={valueStyle}>{profile.address}</div> : <div style={emptyStyle}>Not set — tap Edit to add</div>
-                                }
-                            </div>
+                                <Field label="Email" editing={editing} value={profile?.email}>
+                                    <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="For receipts and updates" />
+                                </Field>
 
-                            <div style={{ marginBottom: 14 }}>
-                                <label style={labelStyle}>City</label>
-                                {editing
-                                    ? <input value={city} onChange={e => setCity(e.target.value)} placeholder="Ottawa" style={inputStyle} />
-                                    : profile?.city ? <div style={valueStyle}>{profile.city}</div> : <div style={emptyStyle}>Not set — tap Edit to add</div>
-                                }
-                            </div>
-
-                            <div style={{ display: "flex", gap: 12, marginBottom: 14 }}>
-                                <div style={{ flex: 1 }}>
-                                    <label style={labelStyle}>Province</label>
-                                    {editing
-                                        ? <select value={province} onChange={e => setProvince(e.target.value)} style={inputStyle}>{PROVINCES.map(p => <option key={p}>{p}</option>)}</select>
-                                        : <div style={valueStyle}>{profile?.province || "ON"}</div>
-                                    }
+                                <div className="flex flex-col gap-1.5">
+                                    <Label className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Phone Number</Label>
+                                    <p className="flex items-center gap-1.5 border-b border-border py-2 text-sm text-muted-foreground">
+                                        {formatPhoneDisplay(profile?.phone)}
+                                        <span className="flex items-center gap-0.5 text-xs text-emerald-600"><BadgeCheck className="size-3" /> verified</span>
+                                    </p>
                                 </div>
-                                <div style={{ flex: 1 }}>
-                                    <label style={labelStyle}>Postal Code</label>
-                                    {editing
-                                        ? <input value={postalCode} onChange={e => setPostalCode(e.target.value.toUpperCase())} placeholder="K1A 0A6" maxLength={7} style={inputStyle} />
-                                        : profile?.postalCode ? <div style={valueStyle}>{profile.postalCode}</div> : <div style={emptyStyle}>—</div>
-                                    }
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardContent className="flex flex-col gap-4 p-4">
+                                <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Default Address</p>
+
+                                <Field label="Street Address" editing={editing} value={profile?.address}>
+                                    <Input value={address} onChange={e => setAddress(e.target.value)} placeholder="123 Main St" />
+                                </Field>
+
+                                <Field label="City" editing={editing} value={profile?.city}>
+                                    <Input value={city} onChange={e => setCity(e.target.value)} placeholder="Ottawa" />
+                                </Field>
+
+                                <div className="flex gap-3">
+                                    <div className="flex-1">
+                                        <Field label="Province" editing={editing} value={profile?.province || "ON"}>
+                                            <Select value={province} onValueChange={setProvince}>
+                                                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                                                <SelectContent>{PROVINCES.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
+                                            </Select>
+                                        </Field>
+                                    </div>
+                                    <div className="flex-1">
+                                        <Field label="Postal Code" editing={editing} value={profile?.postalCode} empty="—">
+                                            <Input value={postalCode} onChange={e => setPostalCode(e.target.value.toUpperCase())} placeholder="K1A 0A6" maxLength={7} />
+                                        </Field>
+                                    </div>
                                 </div>
-                            </div>
-                        </div>
+                            </CardContent>
+                        </Card>
 
                         {editing && (
-                            <button onClick={saveProfile} disabled={saving} style={{ width: "100%", background: ACTION, color: "#fff", border: "none", borderRadius: 14, padding: "15px 0", fontSize: 16, fontWeight: 700, cursor: "pointer", marginBottom: 14, opacity: saving ? 0.7 : 1 }}>
-                                {saving ? "Saving…" : "Save Changes"}
-                            </button>
+                            <Button size="lg" onClick={saveProfile} disabled={saving}>{saving ? "Saving…" : "Save Changes"}</Button>
                         )}
 
-                        {/* Stats */}
-                        <div style={{ background: "#fff", borderRadius: 20, padding: "18px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)", marginBottom: 14 }}>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 12 }}>Account Stats</div>
-                            <div style={{ display: "flex", gap: 12 }}>
-                                <div style={{ flex: 1, background: "#f8fafc", borderRadius: 14, padding: "14px", textAlign: "center" }}>
-                                    <div style={{ fontSize: 26, fontWeight: 900, color: ACTION }}>{profile?.rewardPoints || 0}</div>
-                                    <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>Reward Points</div>
+                        <Card>
+                            <CardContent className="p-4">
+                                <p className="mb-3 text-xs font-bold uppercase tracking-wide text-muted-foreground">Account Stats</p>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="rounded-lg bg-muted/50 p-3.5 text-center">
+                                        <p className="text-2xl font-black text-primary">{profile?.rewardPoints || 0}</p>
+                                        <p className="mt-0.5 text-xs text-muted-foreground">Reward Points</p>
+                                    </div>
+                                    <div className="rounded-lg bg-muted/50 p-3.5 text-center">
+                                        <p className="text-2xl font-black text-emerald-600">{(profile?.bookingRefs || []).length}</p>
+                                        <p className="mt-0.5 text-xs text-muted-foreground">Total Bookings</p>
+                                    </div>
                                 </div>
-                                <div style={{ flex: 1, background: "#f8fafc", borderRadius: 14, padding: "14px", textAlign: "center" }}>
-                                    <div style={{ fontSize: 26, fontWeight: 900, color: GREEN }}>{(profile?.bookingRefs || []).length}</div>
-                                    <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>Total Bookings</div>
-                                </div>
-                            </div>
-                        </div>
+                            </CardContent>
+                        </Card>
 
-                        <button onClick={() => router.push("/customer/rewards")} style={{ width: "100%", background: "#fff", color: GREEN, border: `1.5px solid ${GREEN}`, borderRadius: 14, padding: "14px 0", fontSize: 15, fontWeight: 700, cursor: "pointer", marginBottom: 10 }}>
-                            🎁 Rewards & Referrals
-                        </button>
+                        <Button variant="outline" size="lg" className="border-emerald-400 text-emerald-700 hover:bg-emerald-50" onClick={() => router.push("/customer/rewards")}>
+                            <Gift className="size-4" /> Rewards &amp; Referrals
+                        </Button>
 
-                        <button onClick={() => router.push("/customer/chat")} style={{ width: "100%", background: ACTION, color: "#fff", border: "none", borderRadius: 14, padding: "14px 0", fontSize: 15, fontWeight: 700, cursor: "pointer", marginBottom: 10 }}>
-                            💬 Chat & Support
-                        </button>
+                        <Button size="lg" onClick={() => router.push("/customer/chat")}>
+                            <MessageCircle className="size-4" /> Chat &amp; Support
+                        </Button>
 
-                        <button onClick={logout} disabled={logoutLoading} style={{ width: "100%", background: "#f1f5f9", color: "#dc2626", border: "none", borderRadius: 14, padding: "14px 0", fontSize: 15, fontWeight: 700, cursor: "pointer", marginBottom: 8 }}>
-                            {logoutLoading ? "Signing out…" : "Sign Out"}
-                        </button>
+                        <Button variant="ghost" size="lg" className="text-destructive hover:text-destructive" onClick={logout} disabled={logoutLoading}>
+                            <LogOut className="size-4" /> {logoutLoading ? "Signing out…" : "Sign Out"}
+                        </Button>
                     </>
                 )}
             </div>

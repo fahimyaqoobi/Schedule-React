@@ -3,10 +3,13 @@ import { use, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { getServiceCard, SIZE_MAP, ADD_ONS } from "../../../../lib/bookingServices";
 import { addCartItem } from "../../../../lib/customerCart";
-
-const BRAND = "#005691";
-const ACTION = "#0A6CB8";
-const GREEN = "#78A53E";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
+import { ChevronLeft, Check } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const BATHROOMS = ["1", "1.5", "2", "2.5", "3", "3+"];
 
@@ -41,9 +44,9 @@ export default function ServiceConfigurePage({ params }) {
 
     if (!svc) {
         return (
-            <div style={{ padding: "60px 20px", textAlign: "center" }}>
-                <div style={{ fontSize: 14, color: "#94a3b8" }}>Service not found.</div>
-                <button onClick={() => router.push("/customer/book")} style={{ marginTop: 20, background: ACTION, color: "#fff", border: "none", borderRadius: 12, padding: "12px 24px", fontWeight: 700, cursor: "pointer" }}>← Back</button>
+            <div className="p-10 text-center">
+                <p className="text-sm text-muted-foreground">Service not found.</p>
+                <Button className="mt-5" onClick={() => router.push("/customer/book")}><ChevronLeft className="size-4" /> Back</Button>
             </div>
         );
     }
@@ -94,224 +97,207 @@ export default function ServiceConfigurePage({ params }) {
     // ─── FLAT SERVICE ─────────────────────────────────────
     if (svc.type === "flat") {
         return (
-            <div style={{ paddingBottom: 100 }}>
-                <div style={{ background: `linear-gradient(135deg,${BRAND},${ACTION})`, padding: "52px 20px 28px", color: "#fff" }}>
-                    <button onClick={() => router.push("/customer/book")} style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", borderRadius: 10, padding: "6px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 12 }}>
-                        ← Back
-                    </button>
-                    <div style={{ fontSize: 32, marginBottom: 8 }}>{svc.icon}</div>
-                    <div style={{ fontSize: 22, fontWeight: 800 }}>{svc.name}</div>
-                    <div style={{ fontSize: 13, opacity: 0.85, marginTop: 2 }}>{svc.subtitle}</div>
+            <div className="pb-24">
+                <div className="bg-gradient-to-br from-primary to-primary/80 px-5 pt-13 pb-7 text-primary-foreground">
+                    <Button variant="ghost" size="sm" className="mb-3 h-auto gap-1 bg-white/15 px-3 py-1.5 text-primary-foreground hover:bg-white/25 hover:text-primary-foreground" onClick={() => router.push("/customer/book")}>
+                        <ChevronLeft className="size-4" /> Back
+                    </Button>
+                    <div className="mb-1.5 text-3xl">{svc.icon}</div>
+                    <div className="text-xl font-extrabold">{svc.name}</div>
+                    <div className="mt-0.5 text-sm opacity-85">{svc.subtitle}</div>
                 </div>
 
-                <div style={{ padding: "20px 16px 0" }}>
-                    <div style={{ background: "#fff", borderRadius: 18, padding: "20px 18px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)", marginBottom: 14 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <div style={{ fontWeight: 700, fontSize: 15, color: "#0f172a" }}>Service Price</div>
-                            <div style={{ fontSize: 22, fontWeight: 900, color: ACTION }}>{fmt$(flatPrice)}</div>
-                        </div>
-                        <div style={{ fontSize: 13, color: "#64748b", marginTop: 8, lineHeight: 1.6 }}>
-                            Final price confirmed after booking review. HST not included.
-                        </div>
-                    </div>
+                <div className="flex flex-col gap-3.5 p-4">
+                    <Card>
+                        <CardContent className="p-4">
+                            <div className="flex items-center justify-between">
+                                <p className="text-base font-bold text-foreground">Service Price</p>
+                                <p className="text-2xl font-black text-primary">{fmt$(flatPrice)}</p>
+                            </div>
+                            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">Final price confirmed after booking review. HST not included.</p>
+                        </CardContent>
+                    </Card>
 
-                    <div style={{ background: "#fff", borderRadius: 18, padding: "20px 18px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)", marginBottom: 14 }}>
-                        <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#475569", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 10 }}>
-                            Notes / Special Access
-                        </label>
-                        <textarea
-                            value={notes}
-                            onChange={e => setNotes(e.target.value)}
-                            placeholder="Any details we should know — access instructions, areas to focus on, etc."
-                            style={{ width: "100%", border: "1.5px solid #e2e8f0", borderRadius: 12, padding: "13px 14px", fontSize: 15, fontFamily: "inherit", outline: "none", boxSizing: "border-box", minHeight: 90, resize: "vertical" }}
-                        />
-                    </div>
+                    <Card>
+                        <CardContent className="p-4">
+                            <Label className="mb-2.5 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Notes / Special Access</Label>
+                            <Textarea
+                                value={notes}
+                                onChange={e => setNotes(e.target.value)}
+                                placeholder="Any details we should know — access instructions, areas to focus on, etc."
+                                className="min-h-22"
+                            />
+                        </CardContent>
+                    </Card>
 
-                    <button
-                        onClick={handleAddToCart}
-                        disabled={added}
-                        style={{ width: "100%", background: added ? GREEN : ACTION, color: "#fff", border: "none", borderRadius: 14, padding: "16px 0", fontSize: 16, fontWeight: 700, cursor: "pointer", opacity: added ? 0.9 : 1 }}
-                    >
-                        {added ? "✓ Added to Cart!" : `Add to Cart — ${fmt$(flatPrice)}`}
-                    </button>
+                    <Button size="lg" className={cn("w-full text-base", added && "bg-emerald-600 hover:bg-emerald-600/90")} onClick={handleAddToCart} disabled={added}>
+                        {added ? <><Check className="size-4" /> Added to Cart!</> : `Add to Cart — ${fmt$(flatPrice)}`}
+                    </Button>
                 </div>
             </div>
         );
     }
 
     // ─── CONFIGURABLE SERVICE ─────────────────────────────
-    const inputStyle = { width: "100%", border: "1.5px solid #e2e8f0", borderRadius: 12, padding: "13px 14px", fontSize: 15, fontFamily: "inherit", outline: "none", boxSizing: "border-box" };
-    const sectionLabel = { display: "block", fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 14 };
-
     const stepTitles = ["Choose Size", "Add-Ons", "Notes"];
     const progress = (step / 3) * 100;
 
     return (
-        <div style={{ paddingBottom: 100 }}>
-            {/* Header */}
-            <div style={{ background: `linear-gradient(135deg,${BRAND},${ACTION})`, padding: "52px 20px 20px", color: "#fff" }}>
-                <button onClick={() => step > 1 ? setStep(s => s - 1) : router.push("/customer/book")} style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", borderRadius: 10, padding: "6px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 12 }}>
-                    ← {step > 1 ? "Back" : "Services"}
-                </button>
-                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-                    <div style={{ fontSize: 32 }}>{svc.icon}</div>
+        <div className="pb-24">
+            <div className="bg-gradient-to-br from-primary to-primary/80 px-5 pt-13 pb-5 text-primary-foreground">
+                <Button
+                    variant="ghost" size="sm"
+                    className="mb-3 h-auto gap-1 bg-white/15 px-3 py-1.5 text-primary-foreground hover:bg-white/25 hover:text-primary-foreground"
+                    onClick={() => step > 1 ? setStep(s => s - 1) : router.push("/customer/book")}
+                >
+                    <ChevronLeft className="size-4" /> {step > 1 ? "Back" : "Services"}
+                </Button>
+                <div className="mb-3 flex items-center gap-3">
+                    <div className="text-3xl">{svc.icon}</div>
                     <div>
-                        <div style={{ fontSize: 20, fontWeight: 800 }}>{svc.name}</div>
-                        <div style={{ fontSize: 12, opacity: 0.8 }}>Step {step} of 3 — {stepTitles[step - 1]}</div>
+                        <div className="text-lg font-extrabold">{svc.name}</div>
+                        <div className="text-xs opacity-80">Step {step} of 3 — {stepTitles[step - 1]}</div>
                     </div>
                 </div>
-                {/* Progress bar */}
-                <div style={{ height: 3, background: "rgba(255,255,255,0.25)", borderRadius: 4 }}>
-                    <div style={{ height: "100%", width: `${progress}%`, background: "#fff", borderRadius: 4, transition: "width 0.3s" }} />
-                </div>
+                <Progress value={progress} className="[&_[data-slot=progress-track]]:bg-white/25 [&_[data-slot=progress-indicator]]:bg-white" />
             </div>
 
-            <div style={{ padding: "20px 16px 0" }}>
-
-                {/* ── Step 1: Size ── */}
+            <div className="flex flex-col gap-3.5 p-4">
                 {step === 1 && (
                     <>
-                        <div style={{ background: "#fff", borderRadius: 18, padding: "20px 18px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)", marginBottom: 14 }}>
-                            <span style={sectionLabel}>Select Home Size</span>
-                            {(sizeOptions.length > 0 ? sizeOptions : SIZE_MAP.map(s => ({ ...s, price: 0 }))).map(size => (
-                                <button
-                                    key={size.key}
-                                    onClick={() => setSizeKey(size.key)}
-                                    style={{
-                                        width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center",
-                                        background: sizeKey === size.key ? ACTION + "12" : "#f8fafc",
-                                        border: `1.5px solid ${sizeKey === size.key ? ACTION : "#e2e8f0"}`,
-                                        borderRadius: 14, padding: "14px 16px", marginBottom: 8,
-                                        cursor: "pointer", fontFamily: "inherit",
-                                    }}
-                                >
-                                    <div style={{ textAlign: "left" }}>
-                                        <div style={{ fontSize: 14, fontWeight: 700, color: sizeKey === size.key ? ACTION : "#0f172a" }}>{size.label}</div>
-                                        <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>{size.sub}</div>
-                                    </div>
-                                    {size.price > 0 && (
-                                        <div style={{ fontSize: 15, fontWeight: 800, color: sizeKey === size.key ? ACTION : "#475569", flexShrink: 0 }}>
-                                            {fmt$(size.price)}
-                                        </div>
-                                    )}
-                                </button>
-                            ))}
-                        </div>
+                        <Card>
+                            <CardContent className="p-4">
+                                <Label className="mb-3 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Select Home Size</Label>
+                                <div className="flex flex-col gap-2">
+                                    {(sizeOptions.length > 0 ? sizeOptions : SIZE_MAP.map(s => ({ ...s, price: 0 }))).map(size => {
+                                        const active = sizeKey === size.key;
+                                        return (
+                                            <button
+                                                key={size.key}
+                                                onClick={() => setSizeKey(size.key)}
+                                                className={cn(
+                                                    "flex items-center justify-between rounded-lg border p-3.5 text-left",
+                                                    active ? "border-primary bg-primary/10" : "border-input bg-muted/30"
+                                                )}
+                                            >
+                                                <div>
+                                                    <p className={cn("text-sm font-bold", active ? "text-primary" : "text-foreground")}>{size.label}</p>
+                                                    <p className="mt-0.5 text-xs text-muted-foreground">{size.sub}</p>
+                                                </div>
+                                                {size.price > 0 && <p className={cn("shrink-0 text-sm font-extrabold", active ? "text-primary" : "text-foreground/70")}>{fmt$(size.price)}</p>}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </CardContent>
+                        </Card>
 
-                        <button
-                            onClick={() => setStep(2)}
-                            disabled={!sizeKey}
-                            style={{ width: "100%", background: ACTION, color: "#fff", border: "none", borderRadius: 14, padding: "15px 0", fontSize: 16, fontWeight: 700, cursor: sizeKey ? "pointer" : "default", opacity: sizeKey ? 1 : 0.4 }}
-                        >
+                        <Button size="lg" className="w-full text-base" disabled={!sizeKey} onClick={() => setStep(2)}>
                             Next: Add-Ons →
-                        </button>
+                        </Button>
                     </>
                 )}
 
-                {/* ── Step 2: Bathrooms + Add-ons ── */}
                 {step === 2 && (
                     <>
-                        {/* Bathrooms */}
-                        <div style={{ background: "#fff", borderRadius: 18, padding: "20px 18px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)", marginBottom: 14 }}>
-                            <span style={sectionLabel}>Number of Bathrooms</span>
-                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                                {BATHROOMS.map(b => (
-                                    <button
-                                        key={b}
-                                        onClick={() => setBathrooms(b)}
-                                        style={{
-                                            flex: "1 1 calc(33% - 8px)", padding: "12px 0", borderRadius: 12, fontFamily: "inherit",
-                                            border: `1.5px solid ${bathrooms === b ? ACTION : "#e2e8f0"}`,
-                                            background: bathrooms === b ? ACTION : "#f8fafc",
-                                            color: bathrooms === b ? "#fff" : "#0f172a",
-                                            fontWeight: 700, fontSize: 15, cursor: "pointer",
-                                        }}
-                                    >
-                                        {b}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
+                        <Card>
+                            <CardContent className="p-4">
+                                <Label className="mb-3 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Number of Bathrooms</Label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {BATHROOMS.map(b => (
+                                        <button
+                                            key={b}
+                                            onClick={() => setBathrooms(b)}
+                                            className={cn(
+                                                "rounded-lg border py-3 text-center text-base font-bold",
+                                                bathrooms === b ? "border-primary bg-primary text-primary-foreground" : "border-input bg-muted/30 text-foreground"
+                                            )}
+                                        >
+                                            {b}
+                                        </button>
+                                    ))}
+                                </div>
+                            </CardContent>
+                        </Card>
 
-                        {/* Add-ons */}
-                        <div style={{ background: "#fff", borderRadius: 18, padding: "20px 18px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)", marginBottom: 14 }}>
-                            <span style={sectionLabel}>Add-Ons (optional)</span>
-                            {ADD_ONS.map(({ key, label, price }) => {
-                                const on = addOns.includes(key);
-                                return (
-                                    <button
-                                        key={key}
-                                        onClick={() => toggleAddOn(key)}
-                                        style={{
-                                            width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center",
-                                            background: on ? ACTION + "10" : "#f8fafc",
-                                            border: `1.5px solid ${on ? ACTION : "#e2e8f0"}`,
-                                            borderRadius: 12, padding: "12px 14px", marginBottom: 8,
-                                            cursor: "pointer", fontFamily: "inherit",
-                                        }}
-                                    >
-                                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                            <div style={{ width: 20, height: 20, borderRadius: 6, border: `2px solid ${on ? ACTION : "#cbd5e1"}`, background: on ? ACTION : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                                                {on && <span style={{ color: "#fff", fontSize: 12, fontWeight: 900 }}>✓</span>}
-                                            </div>
-                                            <span style={{ fontSize: 14, color: on ? ACTION : "#0f172a", fontWeight: on ? 700 : 400, textAlign: "left" }}>{label}</span>
-                                        </div>
-                                        <span style={{ fontSize: 13, fontWeight: 700, color: on ? ACTION : "#64748b", flexShrink: 0, marginLeft: 8 }}>+{fmt$(price)}</span>
-                                    </button>
-                                );
-                            })}
-                        </div>
+                        <Card>
+                            <CardContent className="p-4">
+                                <Label className="mb-3 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Add-Ons (optional)</Label>
+                                <div className="flex flex-col gap-2">
+                                    {ADD_ONS.map(({ key, label, price }) => {
+                                        const on = addOns.includes(key);
+                                        return (
+                                            <button
+                                                key={key}
+                                                onClick={() => toggleAddOn(key)}
+                                                className={cn(
+                                                    "flex items-center justify-between rounded-lg border p-3",
+                                                    on ? "border-primary bg-primary/5" : "border-input bg-muted/30"
+                                                )}
+                                            >
+                                                <span className="flex items-center gap-2.5">
+                                                    <span className={cn(
+                                                        "flex size-5 items-center justify-center rounded-[5px] border-2",
+                                                        on ? "border-primary bg-primary text-primary-foreground" : "border-input"
+                                                    )}>
+                                                        {on && <Check className="size-3" />}
+                                                    </span>
+                                                    <span className={cn("text-left text-sm", on ? "font-bold text-primary" : "text-foreground")}>{label}</span>
+                                                </span>
+                                                <span className={cn("shrink-0 text-sm font-bold", on ? "text-primary" : "text-muted-foreground")}>+{fmt$(price)}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </CardContent>
+                        </Card>
 
-                        <button onClick={() => setStep(3)} style={{ width: "100%", background: ACTION, color: "#fff", border: "none", borderRadius: 14, padding: "15px 0", fontSize: 16, fontWeight: 700, cursor: "pointer" }}>
-                            Next: Notes →
-                        </button>
+                        <Button size="lg" className="w-full text-base" onClick={() => setStep(3)}>Next: Notes →</Button>
                     </>
                 )}
 
-                {/* ── Step 3: Notes + Price Summary + Add to Cart ── */}
                 {step === 3 && (
                     <>
-                        <div style={{ background: "#fff", borderRadius: 18, padding: "20px 18px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)", marginBottom: 14 }}>
-                            <label style={{ ...sectionLabel, display: "block" }}>Notes / Special Access</label>
-                            <textarea
-                                value={notes}
-                                onChange={e => setNotes(e.target.value)}
-                                placeholder="e.g. Dogs on premises, alarm code, key under mat, focus on kitchen…"
-                                style={{ ...inputStyle, minHeight: 90, resize: "vertical" }}
-                            />
-                        </div>
+                        <Card>
+                            <CardContent className="p-4">
+                                <Label className="mb-2.5 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Notes / Special Access</Label>
+                                <Textarea
+                                    value={notes}
+                                    onChange={e => setNotes(e.target.value)}
+                                    placeholder="e.g. Dogs on premises, alarm code, key under mat, focus on kitchen…"
+                                    className="min-h-22"
+                                />
+                            </CardContent>
+                        </Card>
 
-                        {/* Price summary */}
-                        <div style={{ background: "#fff", borderRadius: 18, padding: "20px 18px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)", marginBottom: 14 }}>
-                            <span style={sectionLabel}>Price Estimate</span>
-                            <div style={{ fontSize: 12, color: "#64748b", marginBottom: 10 }}>Final price confirmed after booking review.</div>
-                            {[
-                                { label: SIZE_MAP.find(s => s.key === sizeKey)?.label || "Base service", val: fmt$(basePrice) },
-                                ...addOns.map(k => {
-                                    const ao = ADD_ONS.find(a => a.key === k);
-                                    return { label: ao?.label || k, val: `+${fmt$(ao?.price || 0)}` };
-                                }),
-                            ].map(({ label, val }, i) => (
-                                <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: "#475569", marginBottom: 8 }}>
-                                    <span>{label}</span><span style={{ fontWeight: 600 }}>{val}</span>
+                        <Card>
+                            <CardContent className="p-4">
+                                <Label className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Price Estimate</Label>
+                                <p className="mb-2.5 mt-1 text-xs text-muted-foreground">Final price confirmed after booking review.</p>
+                                <div className="flex flex-col gap-2 text-sm">
+                                    {[
+                                        { label: SIZE_MAP.find(s => s.key === sizeKey)?.label || "Base service", val: fmt$(basePrice) },
+                                        ...addOns.map(k => {
+                                            const ao = ADD_ONS.find(a => a.key === k);
+                                            return { label: ao?.label || k, val: `+${fmt$(ao?.price || 0)}` };
+                                        }),
+                                    ].map(({ label, val }, i) => (
+                                        <div key={i} className="flex justify-between text-muted-foreground">
+                                            <span>{label}</span><span className="font-semibold text-foreground">{val}</span>
+                                        </div>
+                                    ))}
                                 </div>
-                            ))}
-                            <div style={{ borderTop: "1px solid #f1f5f9", marginTop: 10, paddingTop: 10, display: "flex", justifyContent: "space-between", fontWeight: 800, fontSize: 16, color: ACTION }}>
-                                <span>Subtotal</span><span>{fmt$(subtotal)}</span>
-                            </div>
-                            <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>+ HST applied at checkout</div>
-                        </div>
+                                <div className="mt-2.5 flex justify-between border-t border-border pt-2.5 text-lg font-black text-primary">
+                                    <span>Subtotal</span><span>{fmt$(subtotal)}</span>
+                                </div>
+                                <p className="mt-1 text-[11px] text-muted-foreground">+ HST applied at checkout</p>
+                            </CardContent>
+                        </Card>
 
-                        <button
-                            onClick={handleAddToCart}
-                            disabled={added || !canAddToCart}
-                            style={{ width: "100%", background: added ? GREEN : ACTION, color: "#fff", border: "none", borderRadius: 14, padding: "16px 0", fontSize: 16, fontWeight: 700, cursor: "pointer", opacity: added ? 0.9 : 1 }}
-                        >
-                            {added ? "✓ Added to Cart! Returning…" : `Add to Cart — ${fmt$(subtotal)}`}
-                        </button>
-                        <p style={{ fontSize: 12, color: "#94a3b8", textAlign: "center", marginTop: 10 }}>
-                            You can add more services before checking out.
-                        </p>
+                        <Button size="lg" className={cn("w-full text-base", added && "bg-emerald-600 hover:bg-emerald-600/90")} onClick={handleAddToCart} disabled={added || !canAddToCart}>
+                            {added ? <><Check className="size-4" /> Added to Cart! Returning…</> : `Add to Cart — ${fmt$(subtotal)}`}
+                        </Button>
+                        <p className="text-center text-xs text-muted-foreground">You can add more services before checking out.</p>
                     </>
                 )}
             </div>

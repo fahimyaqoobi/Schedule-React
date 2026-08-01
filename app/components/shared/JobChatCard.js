@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import ChatPanel from "./ChatPanel";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 
 // Per-job chat between the customer and their assigned cleaner (support staff
 // can see it too). Locks to read-only once the job is Completed/Cancelled —
@@ -46,18 +47,22 @@ export default function JobChatCard({ bookingId, getAuthHeaders, currentActorId,
     if (error) return null;
 
     return (
-        <div className="detail-card">
-            <div className="detail-card-title">{title}</div>
-            <ChatPanel
-                messages={messages}
-                currentActorId={currentActorId}
-                onSend={handleSend}
-                locked={locked}
-                lockedMessage="This job is closed — this chat is now read-only. Use Support for further questions."
-                loading={loading}
-                placeholder="Message about this job…"
-                height={260}
-            />
-        </div>
+        <Card>
+            <CardHeader className="pb-3">
+                <CardTitle className="text-sm">{title}</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <ChatPanel
+                    messages={messages}
+                    currentActorId={currentActorId}
+                    onSend={handleSend}
+                    locked={locked}
+                    lockedMessage="This job is closed — this chat is now read-only. Use Support for further questions."
+                    loading={loading}
+                    placeholder="Message about this job…"
+                    height={260}
+                />
+            </CardContent>
+        </Card>
     );
 }

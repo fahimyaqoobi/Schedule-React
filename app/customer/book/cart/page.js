@@ -1,13 +1,15 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { getCartItems, removeCartItem, clearCart } from "../../../../lib/customerCart";
 import { TIME_SLOTS, POINTS_PER_DOLLAR } from "../../../../lib/bookingServices";
-
-const BRAND = "#005691";
-const ACTION = "#0A6CB8";
-const GREEN = "#78A53E";
-const RED = "#ef4444";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { ChevronLeft, ShoppingCart, X, Plus, ArrowRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 function fmt$(n) { return `$${parseFloat(n || 0).toFixed(2)}`; }
 
@@ -143,220 +145,165 @@ export default function CartPage() {
         }
     }
 
-    const inputStyle = { width: "100%", border: "1.5px solid #e2e8f0", borderRadius: 12, padding: "12px 14px", fontSize: 15, fontFamily: "inherit", outline: "none", boxSizing: "border-box", background: "#fff" };
-    const label = { display: "block", fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 };
-    const card = { background: "#fff", borderRadius: 18, padding: "18px 16px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)", marginBottom: 14 };
-
     return (
-        <div style={{ paddingBottom: 110 }}>
-            {/* Header */}
-            <div style={{ background: `linear-gradient(135deg,${BRAND},${ACTION})`, padding: "52px 20px 22px", color: "#fff" }}>
-                <button onClick={() => router.back()} style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", borderRadius: 10, padding: "6px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 12 }}>
-                    ← Back
-                </button>
-                <div style={{ fontSize: 22, fontWeight: 800 }}>Your Cart</div>
-                <div style={{ fontSize: 13, opacity: 0.85, marginTop: 2 }}>Review, schedule, and request booking</div>
+        <div className="pb-24">
+            <div className="bg-gradient-to-br from-primary to-primary/80 px-5 pt-13 pb-5 text-primary-foreground">
+                <Button variant="ghost" size="sm" className="mb-3 h-auto gap-1 bg-white/15 px-3 py-1.5 text-primary-foreground hover:bg-white/25 hover:text-primary-foreground" onClick={() => router.back()}>
+                    <ChevronLeft className="size-4" /> Back
+                </Button>
+                <div className="text-xl font-extrabold">Your Cart</div>
+                <div className="mt-0.5 text-sm opacity-85">Review, schedule, and request booking</div>
             </div>
 
-            <div style={{ padding: "20px 16px 0" }}>
-
-                {/* Empty state */}
+            <div className="flex flex-col gap-3.5 p-4">
                 {items.length === 0 && (
-                    <div style={{ textAlign: "center", padding: "50px 20px" }}>
-                        <div style={{ fontSize: 48, marginBottom: 12 }}>🛒</div>
-                        <div style={{ fontSize: 17, fontWeight: 700, color: "#0f172a", marginBottom: 6 }}>Cart is empty</div>
-                        <div style={{ fontSize: 13, color: "#64748b", marginBottom: 20 }}>Add a service to get started.</div>
-                        <button onClick={() => router.push("/customer/book")} style={{ background: ACTION, color: "#fff", border: "none", borderRadius: 14, padding: "14px 28px", fontWeight: 700, fontSize: 15, cursor: "pointer" }}>
-                            Browse Services
-                        </button>
+                    <div className="py-12 text-center">
+                        <ShoppingCart className="mx-auto mb-3 size-10 text-muted-foreground/40" />
+                        <p className="text-base font-bold text-foreground">Cart is empty</p>
+                        <p className="mt-1 mb-5 text-sm text-muted-foreground">Add a service to get started.</p>
+                        <Button onClick={() => router.push("/customer/book")}>Browse Services</Button>
                     </div>
                 )}
 
                 {items.length > 0 && (
                     <>
-                        {/* Cart items */}
-                        <div style={card}>
-                            <span style={label}>Services ({items.length})</span>
-                            {items.map((item, idx) => (
-                                <div key={item.id} style={{ borderTop: idx > 0 ? "1px solid #f1f5f9" : "none", paddingTop: idx > 0 ? 12 : 0, marginTop: idx > 0 ? 12 : 0 }}>
-                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                                        <div style={{ flex: 1, minWidth: 0 }}>
-                                            <div style={{ fontWeight: 700, fontSize: 14, color: "#0f172a" }}>
-                                                {item.serviceIcon} {item.serviceName}
+                        <Card>
+                            <CardContent className="p-4">
+                                <Label className="mb-1 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Services ({items.length})</Label>
+                                <div className="flex flex-col divide-y divide-border">
+                                    {items.map(item => (
+                                        <div key={item.id} className="flex items-start justify-between gap-2 py-3 first:pt-2">
+                                            <div className="min-w-0 flex-1">
+                                                <p className="text-sm font-bold text-foreground">{item.serviceIcon} {item.serviceName}</p>
+                                                {item.sizeLabel && <p className="mt-0.5 text-xs text-muted-foreground">{item.sizeLabel}</p>}
+                                                {item.bathrooms && <p className="text-xs text-muted-foreground">{item.bathrooms} bathroom{item.bathrooms !== "1" ? "s" : ""}</p>}
+                                                {item.addOns?.length > 0 && <p className="mt-0.5 text-xs text-muted-foreground">+ {item.addOns.map(a => a.label).join(", ")}</p>}
+                                                {item.notes && <p className="mt-0.5 text-xs italic text-muted-foreground/80">&quot;{item.notes}&quot;</p>}
                                             </div>
-                                            {item.sizeLabel && (
-                                                <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>{item.sizeLabel}</div>
-                                            )}
-                                            {item.bathrooms && (
-                                                <div style={{ fontSize: 12, color: "#64748b" }}>{item.bathrooms} bathroom{item.bathrooms !== "1" ? "s" : ""}</div>
-                                            )}
-                                            {item.addOns?.length > 0 && (
-                                                <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
-                                                    + {item.addOns.map(a => a.label).join(", ")}
-                                                </div>
-                                            )}
-                                            {item.notes && (
-                                                <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 3, fontStyle: "italic" }}>"{item.notes}"</div>
-                                            )}
+                                            <div className="flex shrink-0 items-center gap-2.5">
+                                                <span className="text-sm font-extrabold text-primary">{fmt$(item.subtotal)}</span>
+                                                <button onClick={() => removeItem(item.id)} className="flex size-7 items-center justify-center rounded-md bg-destructive/10 text-destructive">
+                                                    <X className="size-3.5" />
+                                                </button>
+                                            </div>
                                         </div>
-                                        <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0, marginLeft: 8 }}>
-                                            <div style={{ fontSize: 15, fontWeight: 800, color: ACTION }}>{fmt$(item.subtotal)}</div>
-                                            <button
-                                                onClick={() => removeItem(item.id)}
-                                                style={{ background: "#fef2f2", border: "none", color: RED, borderRadius: 8, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 14, fontWeight: 700 }}
-                                            >
-                                                ×
-                                            </button>
-                                        </div>
-                                    </div>
+                                    ))}
                                 </div>
-                            ))}
-                            <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid #f1f5f9" }}>
-                                <button onClick={() => router.push("/customer/book")} style={{ background: "transparent", border: `1.5px dashed ${ACTION}50`, borderRadius: 12, padding: "10px 0", width: "100%", color: ACTION, fontWeight: 600, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>
-                                    + Add Another Service
-                                </button>
-                            </div>
-                        </div>
+                                <Button variant="outline" className="mt-3 w-full border-dashed" onClick={() => router.push("/customer/book")}>
+                                    <Plus className="size-4" /> Add Another Service
+                                </Button>
+                            </CardContent>
+                        </Card>
 
-                        {/* Date & Time */}
-                        <div style={card}>
-                            <span style={label}>Preferred Date & Time</span>
-                            <input
-                                type="date"
-                                value={date}
-                                min={minDate}
-                                onChange={e => setDate(e.target.value)}
-                                style={{ ...inputStyle, marginBottom: 14 }}
-                            />
-                            <div style={{ display: "flex", gap: 8 }}>
-                                {TIME_SLOTS.map(t => (
-                                    <button
-                                        key={t.value}
-                                        onClick={() => setTimeSlot(t.value)}
-                                        style={{
-                                            flex: 1, padding: "10px 0", borderRadius: 12, fontFamily: "inherit",
-                                            border: `1.5px solid ${timeSlot === t.value ? ACTION : "#e2e8f0"}`,
-                                            background: timeSlot === t.value ? ACTION : "#f8fafc",
-                                            color: timeSlot === t.value ? "#fff" : "#475569",
-                                            fontWeight: 600, fontSize: 12, cursor: "pointer",
-                                        }}
-                                    >
-                                        <div>{t.label}</div>
-                                        <div style={{ fontSize: 10, opacity: 0.8, marginTop: 2 }}>{t.sub}</div>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Address */}
-                        <div style={card}>
-                            <span style={label}>Service Address</span>
-                            <input placeholder="Street address" value={address1} onChange={e => setAddress1(e.target.value)} style={{ ...inputStyle, marginBottom: 8 }} />
-                            <input placeholder="Apt / Unit (optional)" value={address2} onChange={e => setAddress2(e.target.value)} style={{ ...inputStyle, marginBottom: 8 }} />
-                            <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                                <input placeholder="City" value={city} onChange={e => setCity(e.target.value)} style={{ ...inputStyle, flex: 2 }} />
-                                <input placeholder="Prov" value={province} onChange={e => setProvince(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
-                            </div>
-                            <input placeholder="Postal code" value={postalCode} onChange={e => setPostalCode(e.target.value)} style={inputStyle} />
-                        </div>
-
-                        {/* Promo code */}
-                        <div style={card}>
-                            <span style={label}>Promo Code</span>
-                            <div style={{ display: "flex", gap: 8 }}>
-                                <input
-                                    placeholder="Enter code"
-                                    value={promoInput}
-                                    onChange={e => { setPromoInput(e.target.value.toUpperCase()); setPromo(null); }}
-                                    onKeyDown={e => e.key === "Enter" && applyPromo()}
-                                    style={{ ...inputStyle, flex: 1 }}
-                                />
-                                <button
-                                    onClick={applyPromo}
-                                    disabled={promoLoading || !promoInput.trim()}
-                                    style={{ background: ACTION, color: "#fff", border: "none", borderRadius: 12, padding: "0 18px", fontWeight: 700, fontSize: 14, cursor: "pointer", flexShrink: 0, opacity: promoInput.trim() ? 1 : 0.4 }}
-                                >
-                                    {promoLoading ? "…" : "Apply"}
-                                </button>
-                            </div>
-                            {promo && (
-                                <div style={{ marginTop: 10, padding: "10px 14px", borderRadius: 12, background: promo.ok ? "#f0fdf4" : "#fef2f2", color: promo.ok ? GREEN : RED, fontSize: 13, fontWeight: 600 }}>
-                                    {promo.ok ? "✓ " : "✕ "}{promo.message}
+                        <Card>
+                            <CardContent className="p-4">
+                                <Label className="mb-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Preferred Date &amp; Time</Label>
+                                <Input type="date" value={date} min={minDate} onChange={e => setDate(e.target.value)} className="mb-3" />
+                                <div className="flex gap-2">
+                                    {TIME_SLOTS.map(t => (
+                                        <button
+                                            key={t.value}
+                                            onClick={() => setTimeSlot(t.value)}
+                                            className={cn(
+                                                "flex-1 rounded-lg border py-2.5 text-center font-semibold",
+                                                timeSlot === t.value ? "border-primary bg-primary text-primary-foreground" : "border-input bg-muted/30 text-foreground"
+                                            )}
+                                        >
+                                            <div className="text-xs">{t.label}</div>
+                                            <div className="mt-0.5 text-[10px] opacity-80">{t.sub}</div>
+                                        </button>
+                                    ))}
                                 </div>
-                            )}
-                        </div>
+                            </CardContent>
+                        </Card>
 
-                        {/* Reward points */}
-                        {availablePoints > 0 && (
-                            <div style={card}>
-                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                    <div>
-                                        <span style={label}>Reward Points</span>
-                                        <div style={{ fontSize: 14, color: "#475569" }}>
-                                            You have <strong style={{ color: BRAND }}>{availablePoints.toLocaleString()} pts</strong>
-                                            <span style={{ color: "#94a3b8", fontSize: 12 }}> (= {fmt$(availablePoints / POINTS_PER_DOLLAR)})</span>
-                                        </div>
-                                    </div>
-                                    <button
-                                        onClick={() => setUsePoints(p => !p)}
-                                        style={{
-                                            background: usePoints ? GREEN : "#f1f5f9",
-                                            color: usePoints ? "#fff" : "#475569",
-                                            border: "none", borderRadius: 12, padding: "10px 18px",
-                                            fontWeight: 700, fontSize: 14, cursor: "pointer",
-                                        }}
-                                    >
-                                        {usePoints ? "✓ Applied" : "Use"}
-                                    </button>
+                        <Card>
+                            <CardContent className="flex flex-col gap-2 p-4">
+                                <Label className="mb-0.5 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Service Address</Label>
+                                <Input placeholder="Street address" value={address1} onChange={e => setAddress1(e.target.value)} />
+                                <Input placeholder="Apt / Unit (optional)" value={address2} onChange={e => setAddress2(e.target.value)} />
+                                <div className="flex gap-2">
+                                    <Input placeholder="City" value={city} onChange={e => setCity(e.target.value)} className="flex-[2]" />
+                                    <Input placeholder="Prov" value={province} onChange={e => setProvince(e.target.value)} className="flex-1" />
                                 </div>
-                                {usePoints && pointsDiscount > 0 && (
-                                    <div style={{ marginTop: 10, padding: "10px 14px", borderRadius: 12, background: "#f0fdf4", color: GREEN, fontSize: 13, fontWeight: 600 }}>
-                                        ✓ {pointsUsed.toLocaleString()} pts → −{fmt$(pointsDiscount)} off your order
-                                    </div>
+                                <Input placeholder="Postal code" value={postalCode} onChange={e => setPostalCode(e.target.value)} />
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardContent className="p-4">
+                                <Label className="mb-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Promo Code</Label>
+                                <div className="flex gap-2">
+                                    <Input
+                                        placeholder="Enter code"
+                                        value={promoInput}
+                                        onChange={e => { setPromoInput(e.target.value.toUpperCase()); setPromo(null); }}
+                                        onKeyDown={e => e.key === "Enter" && applyPromo()}
+                                        className="flex-1"
+                                    />
+                                    <Button onClick={applyPromo} disabled={promoLoading || !promoInput.trim()}>{promoLoading ? "…" : "Apply"}</Button>
+                                </div>
+                                {promo && (
+                                    <p className={cn("mt-2.5 rounded-lg px-3.5 py-2.5 text-sm font-semibold", promo.ok ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30" : "bg-destructive/10 text-destructive")}>
+                                        {promo.ok ? "✓ " : "✕ "}{promo.message}
+                                    </p>
                                 )}
-                            </div>
+                            </CardContent>
+                        </Card>
+
+                        {availablePoints > 0 && (
+                            <Card>
+                                <CardContent className="p-4">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <div>
+                                            <Label className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Reward Points</Label>
+                                            <p className="mt-1 text-sm text-foreground/80">
+                                                You have <strong className="text-primary">{availablePoints.toLocaleString()} pts</strong>
+                                                <span className="text-xs text-muted-foreground"> (= {fmt$(availablePoints / POINTS_PER_DOLLAR)})</span>
+                                            </p>
+                                        </div>
+                                        <Button variant={usePoints ? "default" : "secondary"} className={usePoints ? "bg-emerald-600 hover:bg-emerald-600/90" : ""} onClick={() => setUsePoints(p => !p)}>
+                                            {usePoints ? "✓ Applied" : "Use"}
+                                        </Button>
+                                    </div>
+                                    {usePoints && pointsDiscount > 0 && (
+                                        <p className="mt-2.5 rounded-lg bg-emerald-50 px-3.5 py-2.5 text-sm font-semibold text-emerald-700 dark:bg-emerald-950/30">
+                                            ✓ {pointsUsed.toLocaleString()} pts → −{fmt$(pointsDiscount)} off your order
+                                        </p>
+                                    )}
+                                </CardContent>
+                            </Card>
                         )}
 
-                        {/* Price breakdown */}
-                        <div style={card}>
-                            <span style={label}>Price Estimate</span>
-                            <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 12 }}>
-                                Final price confirmed after booking review.
-                            </div>
-                            {[
-                                { label: "Subtotal", val: fmt$(subtotal) },
-                                ...(promoDiscount > 0 ? [{ label: `Promo (${promo?.promo?.code || promoInput})`, val: `−${fmt$(promoDiscount)}`, color: GREEN }] : []),
-                                ...(usePoints && pointsDiscount > 0 ? [{ label: `Reward Points (−${pointsUsed.toLocaleString()} pts)`, val: `−${fmt$(pointsDiscount)}`, color: GREEN }] : []),
-                                { label: `HST (${Math.round(taxRate * 100)}%)`, val: fmt$(tax) },
-                            ].map(({ label: lbl, val, color }, i) => (
-                                <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: color || "#475569", marginBottom: 8 }}>
-                                    <span>{lbl}</span><span style={{ fontWeight: 600 }}>{val}</span>
+                        <Card>
+                            <CardContent className="p-4">
+                                <Label className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Price Estimate</Label>
+                                <p className="mb-3 mt-1 text-[11px] text-muted-foreground">Final price confirmed after booking review.</p>
+                                <div className="flex flex-col gap-2 text-sm">
+                                    <div className="flex justify-between text-muted-foreground"><span>Subtotal</span><span className="font-semibold text-foreground">{fmt$(subtotal)}</span></div>
+                                    {promoDiscount > 0 && (
+                                        <div className="flex justify-between text-emerald-600"><span>Promo ({promo?.promo?.code || promoInput})</span><span className="font-semibold">−{fmt$(promoDiscount)}</span></div>
+                                    )}
+                                    {usePoints && pointsDiscount > 0 && (
+                                        <div className="flex justify-between text-emerald-600"><span>Reward Points (−{pointsUsed.toLocaleString()} pts)</span><span className="font-semibold">−{fmt$(pointsDiscount)}</span></div>
+                                    )}
+                                    <div className="flex justify-between text-muted-foreground"><span>HST ({Math.round(taxRate * 100)}%)</span><span className="font-semibold text-foreground">{fmt$(tax)}</span></div>
                                 </div>
-                            ))}
-                            <div style={{ borderTop: "1px solid #f1f5f9", marginTop: 8, paddingTop: 10, display: "flex", justifyContent: "space-between", fontWeight: 900, fontSize: 18, color: ACTION }}>
-                                <span>Estimated Total</span><span>{fmt$(total)}</span>
-                            </div>
-                            <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>No payment required now — we confirm and invoice you first.</div>
-                        </div>
+                                <div className="mt-2 flex justify-between border-t border-border pt-2.5 text-lg font-black text-primary">
+                                    <span>Estimated Total</span><span>{fmt$(total)}</span>
+                                </div>
+                                <p className="mt-1 text-[11px] text-muted-foreground">No payment required now — we confirm and invoice you first.</p>
+                            </CardContent>
+                        </Card>
 
-                        {/* Error */}
                         {error && (
-                            <div style={{ background: "#fef2f2", color: RED, borderRadius: 12, padding: "12px 16px", fontSize: 14, fontWeight: 600, marginBottom: 14 }}>
-                                {error}
-                            </div>
+                            <p className="rounded-lg bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">{error}</p>
                         )}
 
-                        {/* Submit */}
-                        <button
-                            onClick={handleSubmit}
-                            disabled={submitting}
-                            style={{ width: "100%", background: submitting ? "#94a3b8" : ACTION, color: "#fff", border: "none", borderRadius: 16, padding: "17px 0", fontSize: 17, fontWeight: 800, cursor: submitting ? "default" : "pointer" }}
-                        >
-                            {submitting ? "Submitting…" : "Request Booking →"}
-                        </button>
-                        <p style={{ textAlign: "center", fontSize: 12, color: "#94a3b8", marginTop: 10 }}>
-                            We'll review and reach out to confirm your booking.
-                        </p>
+                        <Button size="lg" className="w-full text-base" onClick={handleSubmit} disabled={submitting}>
+                            {submitting ? "Submitting…" : <>Request Booking <ArrowRight className="size-4" /></>}
+                        </Button>
+                        <p className="text-center text-xs text-muted-foreground">We&apos;ll review and reach out to confirm your booking.</p>
                     </>
                 )}
             </div>

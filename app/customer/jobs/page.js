@@ -1,10 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-
-const BRAND = "#005691";
-const ACTION = "#0A6CB8";
-const GREEN = "#78A53E";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ClipboardList, MapPin } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const STEP_LABELS = ["Estimate", "Confirmed", "Invoice", "Complete"];
 
@@ -15,45 +16,48 @@ function lifecycleStep(b) {
     return 0;
 }
 
-function stepColor(idx) {
-    return idx === 3 ? GREEN : idx >= 1 ? ACTION : "#e2e8f0";
-}
+const STATUS_BADGE = [
+    { label: "Awaiting Confirm", className: "border-amber-300 bg-amber-50 text-amber-700" },
+    { label: "Confirmed", className: "border-primary/30 bg-primary/10 text-primary" },
+    { label: "Invoice Ready", className: "border-violet-300 bg-violet-50 text-violet-700" },
+    { label: "Complete", className: "border-emerald-300 bg-emerald-50 text-emerald-700" },
+];
 
 function JobCard({ b }) {
     const step = lifecycleStep(b);
-    const badge = [
-        { label: "Awaiting Confirm", color: "#f59e0b" },
-        { label: "Confirmed", color: ACTION },
-        { label: "Invoice Ready", color: "#8b5cf6" },
-        { label: "Complete", color: GREEN },
-    ][step];
+    const badge = STATUS_BADGE[step];
 
     return (
-        <Link href={`/customer/jobs/${b.id}`} style={{ display: "block", background: "#fff", borderRadius: 16, padding: "16px 18px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", marginBottom: 10, textDecoration: "none", color: "inherit" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-                <div>
-                    <div style={{ fontWeight: 700, fontSize: 15, color: "#0f172a" }}>{b.service}</div>
-                    <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>{b.date} · {b.time || "TBD"}</div>
-                    {b.address1 && <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 1 }}>{b.address1}</div>}
-                </div>
-                <span style={{ background: badge.color + "18", color: badge.color, borderRadius: 8, padding: "3px 9px", fontSize: 10, fontWeight: 700, whiteSpace: "nowrap", marginLeft: 8 }}>
-                    {badge.label}
-                </span>
-            </div>
-            {/* Mini stepper */}
-            <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
-                {STEP_LABELS.map((label, i) => (
-                    <div key={label} style={{ display: "flex", alignItems: "center", flex: i < STEP_LABELS.length - 1 ? "1 1 0" : "none" }}>
-                        <div style={{ width: 7, height: 7, borderRadius: "50%", background: i <= step ? stepColor(step) : "#e2e8f0", flexShrink: 0 }} />
-                        {i < STEP_LABELS.length - 1 && <div style={{ flex: 1, height: 1.5, background: i < step ? stepColor(step) : "#e2e8f0" }} />}
+        <Link href={`/customer/jobs/${b.id}`}>
+            <Card className="mb-2.5 transition-colors hover:bg-muted/40">
+                <CardContent className="p-4">
+                    <div className="mb-2 flex items-start justify-between gap-2">
+                        <div>
+                            <p className="text-sm font-bold text-foreground">{b.service}</p>
+                            <p className="mt-0.5 text-xs text-muted-foreground">{b.date} · {b.time || "TBD"}</p>
+                            {b.address1 && (
+                                <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground/80">
+                                    <MapPin className="size-3 shrink-0" /> {b.address1}
+                                </p>
+                            )}
+                        </div>
+                        <Badge variant="outline" className={cn("shrink-0 whitespace-nowrap text-[10px]", badge.className)}>{badge.label}</Badge>
                     </div>
-                ))}
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
-                {STEP_LABELS.map((label, i) => (
-                    <span key={label} style={{ fontSize: 9, color: i <= step ? stepColor(step) : "#cbd5e1", fontWeight: 600 }}>{label}</span>
-                ))}
-            </div>
+                    <div className="flex items-center">
+                        {STEP_LABELS.map((label, i) => (
+                            <div key={label} className="flex flex-1 items-center last:flex-none">
+                                <span className={cn("size-1.5 rounded-full", i <= step ? "bg-primary" : "bg-muted")} />
+                                {i < STEP_LABELS.length - 1 && <div className={cn("mx-0.5 h-px flex-1", i < step ? "bg-primary" : "bg-muted")} />}
+                            </div>
+                        ))}
+                    </div>
+                    <div className="mt-1.5 flex justify-between">
+                        {STEP_LABELS.map((label, i) => (
+                            <span key={label} className={cn("text-[9px] font-semibold", i <= step ? "text-primary" : "text-muted-foreground/50")}>{label}</span>
+                        ))}
+                    </div>
+                </CardContent>
+            </Card>
         </Link>
     );
 }
@@ -77,32 +81,36 @@ export default function CustomerJobsPage() {
 
     return (
         <div>
-            <div style={{ background: `linear-gradient(135deg,${BRAND},${ACTION})`, padding: "52px 20px 24px", color: "#fff" }}>
-                <div style={{ fontSize: 22, fontWeight: 800 }}>My Jobs</div>
-                <div style={{ fontSize: 13, opacity: 0.85, marginTop: 2 }}>Track all your cleanings</div>
+            <div className="bg-gradient-to-br from-primary to-primary/80 px-5 pt-13 pb-6 text-primary-foreground">
+                <div className="text-xl font-extrabold">My Jobs</div>
+                <div className="mt-0.5 text-sm opacity-85">Track all your cleanings</div>
             </div>
 
-            <div style={{ padding: "16px 16px 0" }}>
+            <div className="p-4">
                 {loading ? (
-                    <div style={{ textAlign: "center", padding: "40px 0", color: "#94a3b8", fontSize: 14 }}>Loading…</div>
+                    <div className="py-10 text-center text-sm text-muted-foreground">Loading…</div>
                 ) : bookings.length === 0 ? (
-                    <div style={{ textAlign: "center", padding: "48px 16px" }}>
-                        <div style={{ fontSize: 40, marginBottom: 12 }}>🧹</div>
-                        <div style={{ fontWeight: 700, color: "#0f172a", marginBottom: 6 }}>No bookings yet</div>
-                        <div style={{ fontSize: 13, color: "#64748b", marginBottom: 20 }}>Your cleaning history will appear here.</div>
-                        <Link href="/customer/book" style={{ display: "inline-block", background: ACTION, color: "#fff", borderRadius: 12, padding: "11px 28px", fontWeight: 700, fontSize: 14, textDecoration: "none" }}>Book Now</Link>
-                    </div>
+                    <Card>
+                        <CardContent className="flex flex-col items-center gap-3 p-8 text-center">
+                            <ClipboardList className="size-8 text-muted-foreground/50" />
+                            <div>
+                                <p className="font-bold text-foreground">No bookings yet</p>
+                                <p className="mt-1 text-sm text-muted-foreground">Your cleaning history will appear here.</p>
+                            </div>
+                            <Button asChild><Link href="/customer/book">Book Now</Link></Button>
+                        </CardContent>
+                    </Card>
                 ) : (
                     <>
                         {active.length > 0 && (
                             <>
-                                <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 10 }}>Upcoming</div>
+                                <p className="mb-2.5 text-xs font-bold uppercase tracking-wide text-muted-foreground">Upcoming</p>
                                 {active.map(b => <JobCard key={b.id} b={b} />)}
                             </>
                         )}
                         {past.length > 0 && (
                             <>
-                                <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 10, marginTop: 8 }}>Past</div>
+                                <p className="mt-2 mb-2.5 text-xs font-bold uppercase tracking-wide text-muted-foreground">Past</p>
                                 {past.map(b => <JobCard key={b.id} b={b} />)}
                             </>
                         )}
