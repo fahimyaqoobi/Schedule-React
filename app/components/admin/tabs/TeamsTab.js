@@ -1,4 +1,10 @@
 "use client";
+import { Card, CardContent } from "@/components/ui/card";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Camera } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export default function TeamsTab({
     isViewingOwnCleanerProfile,
@@ -151,51 +157,57 @@ export default function TeamsTab({
                     {selectedStaffMember && activeStaffProfileDraft && (
                         <section className="people-profile-canvas">
                             <section className={`people-mobile-profile-shell ${isViewingOwnCleanerProfile ? "people-mobile-profile-shell-self" : ""}`}>
-                                <div className="people-mobile-profile-top">
-                                    <div className="people-mobile-profile-avatar-wrap">
-                                        <div className={`people-mobile-profile-avatar ${selectedStaffMember.photoURL ? "people-mobile-profile-avatar-photo" : ""}`}>
-                                            {selectedStaffMember.photoURL ? (
-                                                <img src={selectedStaffMember.photoURL} alt={selectedStaffMember.name || selectedStaffMember.email} className="avatar-image" />
-                                            ) : getInitials(selectedStaffMember.name || selectedStaffMember.email || "FS")}
+                                <Card className="border-none shadow-none">
+                                    <CardContent className="flex flex-col items-center gap-3 p-4 text-center">
+                                        <div className="relative">
+                                            <Avatar className="size-20 ring-4 ring-primary/15">
+                                                {selectedStaffMember.photoURL && <AvatarImage src={selectedStaffMember.photoURL} alt={selectedStaffMember.name || selectedStaffMember.email} />}
+                                                <AvatarFallback className="text-lg font-bold">{getInitials(selectedStaffMember.name || selectedStaffMember.email || "FS")}</AvatarFallback>
+                                            </Avatar>
+                                            <span className="absolute bottom-0 right-0 size-4 rounded-full border-2 border-background bg-emerald-500" />
                                         </div>
-                                        <span className="people-mobile-profile-presence"></span>
-                                    </div>
-                                    <h3>{selectedStaffMember.name}</h3>
-                                    <div className="people-mobile-profile-status">
-                                        <span></span>
-                                        Active
-                                    </div>
-                                    {canEditSelectedStaffProfile && (
-                                        <label className="people-photo-upload-button">
-                                            <input
-                                                type="file"
-                                                accept="image/*"
-                                                capture="user"
-                                                onChange={e => handleProfilePhotoCapture(e.target.files?.[0])}
-                                                disabled={profilePhotoUploading}
-                                            />
-                                            {profilePhotoUploading ? "Uploading Photo..." : "Take Live Photo"}
-                                        </label>
-                                    )}
-                                </div>
+                                        <div>
+                                            <h3 className="text-lg font-extrabold text-foreground">{selectedStaffMember.name}</h3>
+                                            <Badge variant="secondary" className="mt-1 gap-1">
+                                                <span className="size-1.5 rounded-full bg-emerald-500" /> Active
+                                            </Badge>
+                                        </div>
+                                        {canEditSelectedStaffProfile && (
+                                            <label className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-primary hover:underline">
+                                                <Camera className="size-3.5" />
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    capture="user"
+                                                    className="hidden"
+                                                    onChange={e => handleProfilePhotoCapture(e.target.files?.[0])}
+                                                    disabled={profilePhotoUploading}
+                                                />
+                                                {profilePhotoUploading ? "Uploading Photo…" : "Take Live Photo"}
+                                            </label>
+                                        )}
+                                    </CardContent>
+                                </Card>
 
-                                <div className="people-mobile-profile-stats">
-                                    <div>
-                                        <strong>4.9</strong>
-                                        <span>Rating</span>
-                                    </div>
-                                    <div>
-                                        <strong>{selectedStaffCompletedJobs.length}</strong>
-                                        <span>Jobs</span>
-                                    </div>
-                                    <div>
-                                        <strong>98%</strong>
-                                        <span>On-Time</span>
-                                    </div>
-                                </div>
+                                <Card>
+                                    <CardContent className="grid grid-cols-3 divide-x divide-border p-4 text-center">
+                                        <div>
+                                            <p className="text-xl font-extrabold text-primary">4.9</p>
+                                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Rating</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-xl font-extrabold text-primary">{selectedStaffCompletedJobs.length}</p>
+                                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Jobs</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-xl font-extrabold text-primary">98%</p>
+                                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">On-Time</p>
+                                        </div>
+                                    </CardContent>
+                                </Card>
 
                                 {staffProfileFeedback && (
-                                    <div className="people-profile-message people-mobile-profile-message">
+                                    <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-center text-sm text-primary">
                                         {staffProfileFeedback}
                                     </div>
                                 )}
@@ -225,114 +237,131 @@ export default function TeamsTab({
                                     </div>
                                 )}
 
-                                <nav className="people-mobile-profile-tabs">
-                                    <button type="button" className={staffProfileMobileTab === "identity" ? "active" : ""} onClick={() => setStaffProfileMobileTab("identity")}>Identity</button>
-                                    <button type="button" className={staffProfileMobileTab === "employment" ? "active" : ""} onClick={() => setStaffProfileMobileTab("employment")}>Employment</button>
-                                    <button type="button" className={staffProfileMobileTab === "availability" ? "active" : ""} onClick={() => setStaffProfileMobileTab("availability")}>Availability</button>
-                                </nav>
+                                <Tabs value={staffProfileMobileTab} onValueChange={setStaffProfileMobileTab}>
+                                    <TabsList className="w-full">
+                                        <TabsTrigger value="identity">Identity</TabsTrigger>
+                                        <TabsTrigger value="employment">Employment</TabsTrigger>
+                                        <TabsTrigger value="availability">Availability</TabsTrigger>
+                                    </TabsList>
+                                </Tabs>
 
                                 <div className="people-mobile-profile-content">
                                     {staffProfileMobileTab === "identity" && !staffProfileEditOpen && (
-                                        <div className="people-mobile-section-stack">
-                                            <section className="people-mobile-card-group">
-                                                <label>Contact Information</label>
-                                                <div className="people-mobile-info-stack">
+                                        <div className="flex flex-col gap-4">
+                                            <section className="flex flex-col gap-2">
+                                                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Contact Information</p>
+                                                <div className="flex flex-col gap-2">
                                                     {selectedStaffIdentityCards.map(card => (
-                                                        <article key={card.key} className="people-mobile-info-card">
-                                                            <div className="people-mobile-info-icon">{card.icon}</div>
-                                                            <div>
-                                                                <span>{card.label}</span>
-                                                                <strong>{card.value}</strong>
-                                                            </div>
-                                                        </article>
+                                                        <Card key={card.key}>
+                                                            <CardContent className="flex items-center gap-3 p-3">
+                                                                <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">{card.icon}</div>
+                                                                <div className="min-w-0">
+                                                                    <p className="text-xs text-muted-foreground">{card.label}</p>
+                                                                    <p className="truncate text-sm font-semibold text-foreground">{card.value}</p>
+                                                                </div>
+                                                            </CardContent>
+                                                        </Card>
                                                     ))}
                                                 </div>
                                             </section>
-                                            <section className="people-mobile-card-group">
-                                                <label>Emergency Contact</label>
-                                                <article className="people-mobile-emergency-card">
-                                                    <div>
-                                                        <strong>{activeStaffProfileDraft.emergency.contactName || "Not submitted"}</strong>
-                                                        <span>{activeStaffProfileDraft.emergency.relationship || "Relationship pending"}</span>
-                                                        <p>{activeStaffProfileDraft.emergency.phone || "Phone pending"}</p>
-                                                    </div>
-                                                    <div className="people-mobile-info-icon">{Icons.Contact()}</div>
-                                                </article>
+                                            <section className="flex flex-col gap-2">
+                                                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Emergency Contact</p>
+                                                <Card>
+                                                    <CardContent className="flex items-center justify-between gap-3 p-3">
+                                                        <div>
+                                                            <p className="text-sm font-bold text-foreground">{activeStaffProfileDraft.emergency.contactName || "Not submitted"}</p>
+                                                            <p className="text-xs text-muted-foreground">{activeStaffProfileDraft.emergency.relationship || "Relationship pending"}</p>
+                                                            <p className="text-xs text-muted-foreground">{activeStaffProfileDraft.emergency.phone || "Phone pending"}</p>
+                                                        </div>
+                                                        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">{Icons.Contact()}</div>
+                                                    </CardContent>
+                                                </Card>
                                             </section>
                                         </div>
                                     )}
 
                                     {staffProfileMobileTab === "employment" && !staffProfileEditOpen && (
-                                        <div className="people-mobile-section-stack">
-                                            <section className="people-mobile-card-group">
-                                                <label>Employment</label>
-                                                <div className="people-mobile-mini-grid">
+                                        <div className="flex flex-col gap-4">
+                                            <section className="flex flex-col gap-2">
+                                                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Employment</p>
+                                                <div className="grid grid-cols-2 gap-2">
                                                     {selectedStaffEmploymentCards.map(card => (
-                                                        <article key={card.key} className="people-mobile-mini-card">
-                                                            <span>{card.label}</span>
-                                                            <strong>{card.value}</strong>
-                                                        </article>
+                                                        <Card key={card.key}>
+                                                            <CardContent className="p-3">
+                                                                <p className="text-xs text-muted-foreground">{card.label}</p>
+                                                                <p className="text-sm font-semibold text-foreground">{card.value}</p>
+                                                            </CardContent>
+                                                        </Card>
                                                     ))}
                                                 </div>
                                                 {canManagePeopleProfiles && (
-                                                    <div className="people-mobile-mini-card" style={{ marginTop: 8 }}>
-                                                        <span>Employment Status</span>
-                                                        <select
-                                                            value={selectedStaffMember.employmentStatus || "Active"}
-                                                            onChange={e => handleUpdateEmploymentStatus(selectedStaffMember.uid, e.target.value)}
-                                                            disabled={staffProfileSaving}
-                                                            className="people-employment-status-select"
-                                                        >
-                                                            <option value="Active">Active</option>
-                                                            <option value="Inactive">Inactive</option>
-                                                            <option value="Suspended">Suspended</option>
-                                                            <option value="On Leave">On Leave</option>
-                                                        </select>
-                                                    </div>
+                                                    <Card>
+                                                        <CardContent className="flex items-center justify-between gap-3 p-3">
+                                                            <span className="text-xs text-muted-foreground">Employment Status</span>
+                                                            <select
+                                                                value={selectedStaffMember.employmentStatus || "Active"}
+                                                                onChange={e => handleUpdateEmploymentStatus(selectedStaffMember.uid, e.target.value)}
+                                                                disabled={staffProfileSaving}
+                                                                className="rounded-md border border-input bg-transparent px-2 py-1 text-sm"
+                                                            >
+                                                                <option value="Active">Active</option>
+                                                                <option value="Inactive">Inactive</option>
+                                                                <option value="Suspended">Suspended</option>
+                                                                <option value="On Leave">On Leave</option>
+                                                            </select>
+                                                        </CardContent>
+                                                    </Card>
                                                 )}
                                             </section>
-                                            <section className="people-mobile-card-group">
-                                                <label>Internal Notes</label>
-                                                <article className="people-mobile-note-card">
-                                                    {activeStaffProfileDraft.employment.availabilityNotes || "Staff profile notes will appear here after branch admin approval."}
-                                                </article>
+                                            <section className="flex flex-col gap-2">
+                                                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Internal Notes</p>
+                                                <Card>
+                                                    <CardContent className="p-3 text-sm text-muted-foreground">
+                                                        {activeStaffProfileDraft.employment.availabilityNotes || "Staff profile notes will appear here after branch admin approval."}
+                                                    </CardContent>
+                                                </Card>
                                             </section>
                                         </div>
                                     )}
 
                                     {staffProfileMobileTab === "availability" && !staffProfileEditOpen && (
-                                        <div className="people-mobile-section-stack">
-                                            <section className="people-mobile-availability-hero">
+                                        <div className="flex flex-col gap-3">
+                                            <div className="flex items-center justify-between">
                                                 <div>
-                                                    <strong>Weekly Schedule</strong>
-                                                    <span>Live scheduling data from Firestore</span>
+                                                    <p className="text-sm font-bold text-foreground">Weekly Schedule</p>
+                                                    <p className="text-xs text-muted-foreground">Live scheduling data from Firestore</p>
                                                 </div>
-                                                <span>Max {selectedStaffAvailability.maxJobsPerDay} Jobs/Week</span>
-                                            </section>
-                                            <section className="people-mobile-availability-card">
-                                                <div className="people-mobile-availability-week">
-                                                    {selectedStaffAvailability.weekdays.map((day, index) => (
-                                                        <div key={`${day.label}-${index}`} className="people-mobile-availability-day">
-                                                            <span>{day.label}</span>
-                                                            <div className={`people-mobile-day-pill ${day.status !== "A" ? "passive" : ""}`}>{day.status}</div>
-                                                            <small>{day.shifts?.morning ? "M" : "-"}/{day.shifts?.afternoon ? "A" : "-"}/{day.shifts?.evening ? "E" : "-"}</small>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                                <div className="people-mobile-availability-shifts">
-                                                    <div className="people-mobile-shift-row"><div><span className="people-mobile-shift-dot"></span><p>Morning (08:00 - 12:00)</p></div><strong>Per day</strong></div>
-                                                    <div className="people-mobile-shift-row"><div><span className="people-mobile-shift-dot"></span><p>Afternoon (13:00 - 17:00)</p></div><strong>Per day</strong></div>
-                                                    <div className="people-mobile-shift-row muted"><div><span className="people-mobile-shift-dot"></span><p>Evening (18:00+)</p></div><strong>Per day</strong></div>
-                                                </div>
-                                                <div className="people-mobile-blocked-wrap">
-                                                    <label>Upcoming Blocked Dates</label>
-                                                    <div className="people-blocked-dates people-mobile-blocked-dates">
-                                                        {selectedStaffBlockedDates.length > 0 ? selectedStaffBlockedDates.map(date => (
-                                                            <span key={date}>{date}</span>
-                                                        )) : <span>No blocked dates</span>}
+                                                <Badge variant="secondary">Max {selectedStaffAvailability.maxJobsPerDay} Jobs/Week</Badge>
+                                            </div>
+                                            <Card>
+                                                <CardContent className="flex flex-col gap-4 p-4">
+                                                    <div className="grid grid-cols-7 gap-1 text-center">
+                                                        {selectedStaffAvailability.weekdays.map((day, index) => (
+                                                            <div key={`${day.label}-${index}`} className="flex flex-col items-center gap-1">
+                                                                <span className="text-[10px] font-semibold text-muted-foreground">{day.label}</span>
+                                                                <div className={cn(
+                                                                    "flex size-7 items-center justify-center rounded-full text-xs font-bold",
+                                                                    day.status !== "A" ? "bg-muted text-muted-foreground" : "bg-primary text-primary-foreground"
+                                                                )}>{day.status}</div>
+                                                                <span className="text-[9px] text-muted-foreground">{day.shifts?.morning ? "M" : "-"}/{day.shifts?.afternoon ? "A" : "-"}/{day.shifts?.evening ? "E" : "-"}</span>
+                                                            </div>
+                                                        ))}
                                                     </div>
-                                                </div>
-                                            </section>
+                                                    <div className="flex flex-col gap-1.5 border-t border-border pt-3 text-xs">
+                                                        <div className="flex items-center justify-between"><span className="text-muted-foreground">Morning (08:00 – 12:00)</span><span className="font-semibold text-foreground">Per day</span></div>
+                                                        <div className="flex items-center justify-between"><span className="text-muted-foreground">Afternoon (13:00 – 17:00)</span><span className="font-semibold text-foreground">Per day</span></div>
+                                                        <div className="flex items-center justify-between"><span className="text-muted-foreground/60">Evening (18:00+)</span><span className="font-semibold text-muted-foreground/60">Per day</span></div>
+                                                    </div>
+                                                    <div>
+                                                        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Upcoming Blocked Dates</p>
+                                                        <div className="flex flex-wrap gap-1.5">
+                                                            {selectedStaffBlockedDates.length > 0 ? selectedStaffBlockedDates.map(date => (
+                                                                <Badge key={date} variant="outline">{date}</Badge>
+                                                            )) : <span className="text-sm text-muted-foreground">No blocked dates</span>}
+                                                        </div>
+                                                    </div>
+                                                </CardContent>
+                                            </Card>
                                         </div>
                                     )}
 

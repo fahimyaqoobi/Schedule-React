@@ -1,15 +1,25 @@
 "use client";
 import { useState } from "react";
 import { EXPENSE_CATEGORIES, EXPENSE_PAYMENT_METHODS } from "../../../../lib/expenses";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { Pencil, Trash2, Upload, TriangleAlert, ExternalLink, Receipt } from "lucide-react";
 
 function StatusPill({ status }) {
     const map = {
-        pending_approval: { label: "Pending", cls: "status-badge status-pending" },
-        approved: { label: "Approved", cls: "status-badge status-completed" },
-        rejected: { label: "Rejected", cls: "status-badge status-cancelled" }
+        pending_approval: { label: "Pending", variant: "secondary" },
+        approved: { label: "Approved", variant: "default" },
+        rejected: { label: "Rejected", variant: "destructive" },
     };
-    const item = map[status] || { label: status, cls: "status-badge" };
-    return <span className={item.cls}>{item.label}</span>;
+    const item = map[status] || { label: status, variant: "outline" };
+    return <Badge variant={item.variant}>{item.label}</Badge>;
 }
 
 function EditRow({ expense, onSave, onCancel }) {
@@ -19,34 +29,35 @@ function EditRow({ expense, onSave, onCancel }) {
         isReimbursable: Boolean(expense.isReimbursable),
     });
     return (
-        <tr style={{ background: "#fffbeb" }}>
-            <td><input type="date" value={draft.date} onChange={e => setDraft(p => ({ ...p, date: e.target.value }))} style={{ width: 130 }} /></td>
-            <td colSpan={2}>
-                <input type="text" value={draft.vendor} onChange={e => setDraft(p => ({ ...p, vendor: e.target.value }))} placeholder="Vendor" style={{ width: "100%" }} />
-                <select value={draft.category} onChange={e => setDraft(p => ({ ...p, category: e.target.value }))} style={{ width: "100%", marginTop: 4 }}>
-                    {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-            </td>
-            <td><input type="number" step="0.01" value={draft.amount} onChange={e => setDraft(p => ({ ...p, amount: e.target.value }))} style={{ width: 90 }} /></td>
-            <td colSpan={3}>
-                <select value={draft.paymentMethod} onChange={e => setDraft(p => ({ ...p, paymentMethod: e.target.value }))} style={{ width: "100%" }}>
-                    {EXPENSE_PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
-                <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, marginTop: 4 }}>
-                    <input type="checkbox" checked={draft.isReimbursable} onChange={e => setDraft(p => ({ ...p, isReimbursable: e.target.checked }))} />
+        <TableRow className="bg-amber-50 dark:bg-amber-950/20">
+            <TableCell><Input type="date" value={draft.date} onChange={e => setDraft(p => ({ ...p, date: e.target.value }))} className="w-36" /></TableCell>
+            <TableCell colSpan={2}>
+                <Input type="text" value={draft.vendor} onChange={e => setDraft(p => ({ ...p, vendor: e.target.value }))} placeholder="Vendor" className="mb-1.5" />
+                <Select value={draft.category} onValueChange={v => setDraft(p => ({ ...p, category: v }))}>
+                    <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                    <SelectContent>{EXPENSE_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                </Select>
+            </TableCell>
+            <TableCell><Input type="number" step="0.01" value={draft.amount} onChange={e => setDraft(p => ({ ...p, amount: e.target.value }))} className="w-24" /></TableCell>
+            <TableCell colSpan={3}>
+                <Select value={draft.paymentMethod} onValueChange={v => setDraft(p => ({ ...p, paymentMethod: v }))}>
+                    <SelectTrigger className="mb-1.5 w-full"><SelectValue /></SelectTrigger>
+                    <SelectContent>{EXPENSE_PAYMENT_METHODS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                </Select>
+                <label className="flex items-center gap-1.5 text-xs">
+                    <Checkbox checked={draft.isReimbursable} onCheckedChange={c => setDraft(p => ({ ...p, isReimbursable: Boolean(c) }))} />
                     Reimbursable
                 </label>
-            </td>
-            <td style={{ whiteSpace: "nowrap" }}>
-                <button type="button" className="team-primary-action" onClick={() => onSave(draft)}>Save</button>
-                <button type="button" className="team-secondary-action" onClick={onCancel} style={{ marginLeft: 4 }}>Cancel</button>
-            </td>
-        </tr>
+            </TableCell>
+            <TableCell className="whitespace-nowrap">
+                <Button size="sm" onClick={() => onSave(draft)}>Save</Button>
+                <Button size="sm" variant="outline" className="ml-1" onClick={onCancel}>Cancel</Button>
+            </TableCell>
+        </TableRow>
     );
 }
 
 export default function ExpensesTab({
-    Icons,
     canReviewExpenses,
     myExpenses,
     pendingExpenseApprovals,
@@ -73,218 +84,224 @@ export default function ExpensesTab({
         : [];
 
     return (
-        <div className="animate-fade flex flex-col gap-6">
-            <div className="ops-control-header">
-                <div>
-                    <p className="ops-eyebrow">Expense Management</p>
-                    <h3 className="ops-title">Receipts & Reimbursements</h3>
-                    <p className="ops-copy">
+        <div className="animate-fade flex flex-col gap-4">
+            <Card>
+                <CardHeader>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-primary">Expense Management</p>
+                    <CardTitle className="text-xl">Receipts &amp; Reimbursements</CardTitle>
+                    <p className="mt-1 text-sm text-muted-foreground">
                         {canReviewExpenses
                             ? "Add expenses directly, or review what staff submit. Approved expenses feed the Finance dashboard."
                             : "Upload a receipt photo to submit an expense for manager approval."}
                     </p>
-                </div>
-            </div>
+                </CardHeader>
+            </Card>
 
             {expenseFeedback && (
-                <div className="people-profile-message">{expenseFeedback}</div>
+                <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm text-primary">{expenseFeedback}</div>
             )}
 
             {canReviewExpenses && pendingReimbursements.length > 0 && (
-                <div className="settings-card" style={{ border: "1.5px solid #fde68a", background: "#fffbeb" }}>
-                    <div className="panel-header border-b border-slate-100 pb-3 flex justify-between items-center">
-                        <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">⚠ Reimbursements Pending</h4>
-                        <span className="badge badge-warning">{pendingReimbursements.length}</span>
-                    </div>
-                    <div className="flex flex-col gap-3 pt-3">
+                <Card className="border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20">
+                    <CardHeader className="flex-row items-center justify-between gap-2">
+                        <CardTitle className="flex items-center gap-2 text-sm">
+                            <TriangleAlert className="size-4 text-amber-600" /> Reimbursements Pending
+                        </CardTitle>
+                        <Badge variant="outline" className="border-amber-400 text-amber-700">{pendingReimbursements.length}</Badge>
+                    </CardHeader>
+                    <CardContent className="flex flex-col gap-2">
                         {pendingReimbursements.map(expense => (
-                            <div key={expense.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fff", border: "1px solid #fde68a", borderRadius: 10, padding: "10px 14px" }}>
+                            <div key={expense.id} className="flex items-center justify-between gap-3 rounded-lg border border-amber-300 bg-card px-3.5 py-2.5">
                                 <div>
-                                    <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>{expense.vendor || expense.description || expense.category} — ${Number(expense.amount).toFixed(2)}</div>
-                                    <div style={{ fontSize: 11, color: "#64748b" }}>Owed to {expense.submittedByName} · {expense.date}</div>
+                                    <div className="text-sm font-bold text-foreground">{expense.vendor || expense.description || expense.category} — ${Number(expense.amount).toFixed(2)}</div>
+                                    <div className="text-xs text-muted-foreground">Owed to {expense.submittedByName} · {expense.date}</div>
                                 </div>
                                 {reimbursingId === expense.id ? (
-                                    <div style={{ display: "flex", gap: 6 }}>
-                                        <button type="button" className="team-primary-action" onClick={() => { handleReviewExpense(expense.id, "mark_reimbursed", { reimbursedVia: "bank" }); setReimbursingId(null); }}>From Bank</button>
-                                        <button type="button" className="team-primary-action" onClick={() => { handleReviewExpense(expense.id, "mark_reimbursed", { reimbursedVia: "cash" }); setReimbursingId(null); }}>From Cash</button>
-                                        <button type="button" className="team-secondary-action" onClick={() => setReimbursingId(null)}>Cancel</button>
+                                    <div className="flex gap-1.5">
+                                        <Button size="sm" onClick={() => { handleReviewExpense(expense.id, "mark_reimbursed", { reimbursedVia: "bank" }); setReimbursingId(null); }}>From Bank</Button>
+                                        <Button size="sm" onClick={() => { handleReviewExpense(expense.id, "mark_reimbursed", { reimbursedVia: "cash" }); setReimbursingId(null); }}>From Cash</Button>
+                                        <Button size="sm" variant="outline" onClick={() => setReimbursingId(null)}>Cancel</Button>
                                     </div>
                                 ) : (
-                                    <button type="button" className="team-primary-action" onClick={() => setReimbursingId(expense.id)}>Mark Reimbursed</button>
+                                    <Button size="sm" onClick={() => setReimbursingId(expense.id)}>Mark Reimbursed</Button>
                                 )}
                             </div>
                         ))}
-                    </div>
-                </div>
+                    </CardContent>
+                </Card>
             )}
 
-            <div className="settings-card">
-                <div className="panel-header border-b border-slate-100 pb-3">
-                    <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">
-                        {expenseForm.adminDirect ? "Add an Expense" : "Submit a New Expense"}
-                    </h4>
-                </div>
-                <div className="settings-form">
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-base">{expenseForm.adminDirect ? "Add an Expense" : "Submit a New Expense"}</CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-4">
                     {canReviewExpenses && (
-                        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, fontWeight: 600, color: "#475569" }}>
-                            <input type="checkbox" checked={expenseForm.adminDirect} onChange={e => setExpenseForm(prev => ({ ...prev, adminDirect: e.target.checked }))} />
+                        <label className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+                            <Checkbox checked={expenseForm.adminDirect} onCheckedChange={c => setExpenseForm(prev => ({ ...prev, adminDirect: Boolean(c) }))} />
                             Add directly as admin — auto-approved, no receipt required
                         </label>
                     )}
-                    <div className="form-group">
-                        <label>Vendor</label>
-                        <input type="text" value={expenseForm.vendor || ""} onChange={e => setExpenseForm(prev => ({ ...prev, vendor: e.target.value }))} placeholder="e.g. Home Depot" />
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div className="flex flex-col gap-1.5">
+                            <Label>Vendor</Label>
+                            <Input type="text" value={expenseForm.vendor || ""} onChange={e => setExpenseForm(prev => ({ ...prev, vendor: e.target.value }))} placeholder="e.g. Home Depot" />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                            <Label>Amount ($)</Label>
+                            <Input type="number" min="0" step="0.01" value={expenseForm.amount} onChange={e => setExpenseForm(prev => ({ ...prev, amount: e.target.value }))} placeholder="0.00" />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                            <Label>Category</Label>
+                            <Select value={expenseForm.category} onValueChange={v => setExpenseForm(prev => ({ ...prev, category: v }))}>
+                                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                                <SelectContent>{EXPENSE_CATEGORIES.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}</SelectContent>
+                            </Select>
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                            <Label>Date</Label>
+                            <Input type="date" value={expenseForm.date} onChange={e => setExpenseForm(prev => ({ ...prev, date: e.target.value }))} />
+                        </div>
                     </div>
-                    <div className="form-group">
-                        <label>Amount ($)</label>
-                        <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={expenseForm.amount}
-                            onChange={e => setExpenseForm(prev => ({ ...prev, amount: e.target.value }))}
-                            placeholder="0.00"
-                        />
+                    <div className="flex flex-col gap-1.5">
+                        <Label>Description (optional)</Label>
+                        <Textarea value={expenseForm.description} onChange={e => setExpenseForm(prev => ({ ...prev, description: e.target.value }))} placeholder="What was this for?" />
                     </div>
-                    <div className="form-group">
-                        <label>Category</label>
-                        <select value={expenseForm.category} onChange={e => setExpenseForm(prev => ({ ...prev, category: e.target.value }))}>
-                            {EXPENSE_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                        </select>
-                    </div>
-                    <div className="form-group">
-                        <label>Date</label>
-                        <input type="date" value={expenseForm.date} onChange={e => setExpenseForm(prev => ({ ...prev, date: e.target.value }))} />
-                    </div>
-                    <div className="form-group">
-                        <label>Description (optional)</label>
-                        <textarea value={expenseForm.description} onChange={e => setExpenseForm(prev => ({ ...prev, description: e.target.value }))} placeholder="What was this for?" />
-                    </div>
-                    <div className="form-group">
-                        <label>Paid Via</label>
-                        <select value={expenseForm.paymentMethod || "Personal (Reimbursable)"} onChange={e => setExpenseForm(prev => ({ ...prev, paymentMethod: e.target.value, isReimbursable: e.target.value === "Personal (Reimbursable)" }))}>
-                            {EXPENSE_PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
-                        </select>
+                    <div className="flex flex-col gap-1.5">
+                        <Label>Paid Via</Label>
+                        <Select
+                            value={expenseForm.paymentMethod || "Personal (Reimbursable)"}
+                            onValueChange={v => setExpenseForm(prev => ({ ...prev, paymentMethod: v, isReimbursable: v === "Personal (Reimbursable)" }))}
+                        >
+                            <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                            <SelectContent>{EXPENSE_PAYMENT_METHODS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                        </Select>
                         {expenseForm.paymentMethod === "Personal (Reimbursable)" && (
-                            <small className="text-slate-400">Paid personally — flagged for reimbursement once approved.</small>
+                            <small className="text-muted-foreground">Paid personally — flagged for reimbursement once approved.</small>
                         )}
                     </div>
-                    <label className="settings-photo-upload">
+                    <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-input px-4 py-6 text-center text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted">
+                        <Upload className="size-4" />
                         <input
                             type="file"
                             accept="image/*"
                             capture="environment"
+                            className="hidden"
                             onChange={e => handleExpenseReceiptCapture(e.target.files?.[0])}
                             disabled={expenseReceiptUploading}
                         />
-                        {expenseReceiptUploading ? "Uploading Receipt..." : (expenseForm.receiptUrl ? `Receipt attached: ${expenseForm.receiptName}` : (expenseForm.adminDirect ? "Attach Receipt Photo (optional)" : "Take Or Upload Receipt Photo"))}
+                        {expenseReceiptUploading ? "Uploading Receipt…" : (expenseForm.receiptUrl ? `Receipt attached: ${expenseForm.receiptName}` : (expenseForm.adminDirect ? "Attach Receipt Photo (optional)" : "Take Or Upload Receipt Photo"))}
                     </label>
-                    <button
-                        type="button"
-                        onClick={handleSubmitExpense}
-                        disabled={expenseSubmitting || expenseReceiptUploading}
-                        className="btn btn-primary h-[44px] rounded-lg text-white font-bold transition mt-2"
-                    >
-                        {expenseSubmitting ? "Saving..." : (expenseForm.adminDirect ? "Add Expense" : "Submit Expense")}
-                    </button>
-                </div>
-            </div>
+                    <Button onClick={handleSubmitExpense} disabled={expenseSubmitting || expenseReceiptUploading}>
+                        {expenseSubmitting ? "Saving…" : (expenseForm.adminDirect ? "Add Expense" : "Submit Expense")}
+                    </Button>
+                </CardContent>
+            </Card>
 
             {canReviewExpenses && pendingExpenseApprovals.length > 0 && (
-                <div className="settings-card">
-                    <div className="panel-header border-b border-slate-100 pb-3 flex justify-between items-center">
-                        <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">Pending Approvals</h4>
-                        <span className="badge badge-warning">{pendingExpenseApprovals.length} Pending</span>
-                    </div>
-                    <div className="flex flex-col gap-3 pt-3">
+                <Card>
+                    <CardHeader className="flex-row items-center justify-between gap-2">
+                        <CardTitle className="text-sm">Pending Approvals</CardTitle>
+                        <Badge variant="outline">{pendingExpenseApprovals.length} Pending</Badge>
+                    </CardHeader>
+                    <CardContent className="flex flex-col gap-3">
                         {pendingExpenseApprovals.map(expense => (
-                            <div key={expense.id} className="people-review-panel">
-                                <div>
-                                    <p className="ops-eyebrow">{expense.category} • ${Number(expense.amount).toFixed(2)}</p>
-                                    <h4>{expense.vendor ? `${expense.vendor} — ` : ""}{expense.submittedByName}</h4>
-                                    <p>{expense.date} — {expense.description || "No description provided."}</p>
-                                    {expense.receiptUrl && <a href={expense.receiptUrl} target="_blank" rel="noreferrer">View receipt photo</a>}
-                                </div>
-                                <textarea
+                            <div key={expense.id} className="rounded-lg border border-border p-3.5">
+                                <p className="text-xs font-semibold uppercase tracking-wide text-primary">{expense.category} • ${Number(expense.amount).toFixed(2)}</p>
+                                <h4 className="mt-0.5 text-sm font-bold text-foreground">{expense.vendor ? `${expense.vendor} — ` : ""}{expense.submittedByName}</h4>
+                                <p className="mt-0.5 text-xs text-muted-foreground">{expense.date} — {expense.description || "No description provided."}</p>
+                                {expense.receiptUrl && (
+                                    <a href={expense.receiptUrl} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline">
+                                        View receipt photo <ExternalLink className="size-3" />
+                                    </a>
+                                )}
+                                <Textarea
                                     placeholder="Optional rejection reason"
                                     value={expenseRejectReason[expense.id] || ""}
                                     onChange={e => setExpenseRejectReason(prev => ({ ...prev, [expense.id]: e.target.value }))}
+                                    className="mt-2"
                                 />
-                                <div className="people-review-actions">
-                                    <button type="button" className="team-primary-action" onClick={() => handleReviewExpense(expense.id, "approve")}>
-                                        Approve
-                                    </button>
-                                    <button type="button" className="team-secondary-action" onClick={() => handleReviewExpense(expense.id, "reject")}>
-                                        Reject
-                                    </button>
+                                <div className="mt-2 flex gap-2">
+                                    <Button size="sm" onClick={() => handleReviewExpense(expense.id, "approve")}>Approve</Button>
+                                    <Button size="sm" variant="outline" onClick={() => handleReviewExpense(expense.id, "reject")}>Reject</Button>
                                 </div>
                             </div>
                         ))}
-                    </div>
-                </div>
+                    </CardContent>
+                </Card>
             )}
 
-            <div className="settings-card">
-                <div className="panel-header border-b border-slate-100 pb-3">
-                    <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">
-                        {canReviewExpenses ? "All Expense History" : "My Expense History"}
-                    </h4>
-                </div>
-                <div className="table-container">
-                    <table className="data-table">
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th>Vendor</th>
-                                <th>Category</th>
-                                <th>Amount</th>
-                                <th>Status</th>
-                                <th>Reimbursement</th>
-                                <th>Receipt</th>
-                                {canReviewExpenses && <th>Actions</th>}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {list.length === 0 ? (
-                                <tr><td colSpan={canReviewExpenses ? 8 : 7} className="text-center p-8 text-slate-400 text-xs">No expenses recorded yet.</td></tr>
-                            ) : list.map(expense => (
-                                editingId === expense.id ? (
-                                    <EditRow
-                                        key={expense.id}
-                                        expense={expense}
-                                        onCancel={() => setEditingId(null)}
-                                        onSave={(patch) => { handleEditExpense(expense.id, patch); setEditingId(null); }}
-                                    />
-                                ) : (
-                                    <tr key={expense.id}>
-                                        <td>{expense.date}</td>
-                                        <td>{expense.vendor || "—"}{expense.autoGenerated && <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, color: "#7c3aed", background: "#f5f3ff", borderRadius: 99, padding: "1px 6px" }}>AUTO</span>}</td>
-                                        <td>{expense.category}</td>
-                                        <td>${Number(expense.amount).toFixed(2)}</td>
-                                        <td><StatusPill status={expense.status} /></td>
-                                        <td>
-                                            {!expense.isReimbursable ? (
-                                                <span className="text-slate-300 text-xs">—</span>
-                                            ) : expense.reimbursementStatus === "paid" ? (
-                                                <span className="status-badge status-completed">Reimbursed ({expense.reimbursedVia})</span>
-                                            ) : (
-                                                <span className="status-badge status-pending">Pending</span>
+            <Card className="p-0">
+                <CardHeader className="p-4 pb-0">
+                    <CardTitle className="text-sm">{canReviewExpenses ? "All Expense History" : "My Expense History"}</CardTitle>
+                </CardHeader>
+                <CardContent className="p-4">
+                    {list.length === 0 ? (
+                        <div className="flex flex-col items-center gap-2 py-10 text-center text-sm text-muted-foreground">
+                            <Receipt className="size-6 opacity-50" />
+                            No expenses recorded yet.
+                        </div>
+                    ) : (
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead>Vendor</TableHead>
+                                    <TableHead>Category</TableHead>
+                                    <TableHead>Amount</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead>Reimbursement</TableHead>
+                                    <TableHead>Receipt</TableHead>
+                                    {canReviewExpenses && <TableHead>Actions</TableHead>}
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {list.map(expense => (
+                                    editingId === expense.id ? (
+                                        <EditRow
+                                            key={expense.id}
+                                            expense={expense}
+                                            onCancel={() => setEditingId(null)}
+                                            onSave={(patch) => { handleEditExpense(expense.id, patch); setEditingId(null); }}
+                                        />
+                                    ) : (
+                                        <TableRow key={expense.id}>
+                                            <TableCell>{expense.date}</TableCell>
+                                            <TableCell>
+                                                {expense.vendor || "—"}
+                                                {expense.autoGenerated && <Badge variant="outline" className="ml-1.5 text-[9px]">AUTO</Badge>}
+                                            </TableCell>
+                                            <TableCell>{expense.category}</TableCell>
+                                            <TableCell>${Number(expense.amount).toFixed(2)}</TableCell>
+                                            <TableCell><StatusPill status={expense.status} /></TableCell>
+                                            <TableCell>
+                                                {!expense.isReimbursable ? (
+                                                    <span className="text-xs text-muted-foreground/50">—</span>
+                                                ) : expense.reimbursementStatus === "paid" ? (
+                                                    <Badge>Reimbursed ({expense.reimbursedVia})</Badge>
+                                                ) : (
+                                                    <Badge variant="secondary">Pending</Badge>
+                                                )}
+                                            </TableCell>
+                                            <TableCell>
+                                                {expense.receiptUrl ? (
+                                                    <a href={expense.receiptUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline">View</a>
+                                                ) : "—"}
+                                            </TableCell>
+                                            {canReviewExpenses && (
+                                                <TableCell className="whitespace-nowrap">
+                                                    <Button variant="ghost" size="icon-xs" onClick={() => setEditingId(expense.id)} title="Edit"><Pencil className="size-3.5" /></Button>
+                                                    <Button variant="ghost" size="icon-xs" onClick={() => handleDeleteExpense(expense.id)} title="Delete"><Trash2 className="size-3.5" /></Button>
+                                                </TableCell>
                                             )}
-                                        </td>
-                                        <td>{expense.receiptUrl ? <a href={expense.receiptUrl} target="_blank" rel="noreferrer">View</a> : "—"}</td>
-                                        {canReviewExpenses && (
-                                            <td style={{ whiteSpace: "nowrap" }}>
-                                                <button type="button" className="action-btn btn-edit" onClick={() => setEditingId(expense.id)} title="Edit">{Icons.Edit()}</button>
-                                                <button type="button" className="action-btn btn-delete" onClick={() => handleDeleteExpense(expense.id)} title="Delete">{Icons.Trash()}</button>
-                                            </td>
-                                        )}
-                                    </tr>
-                                )
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+                                        </TableRow>
+                                    )
+                                ))}
+                            </TableBody>
+                        </Table>
+                    )}
+                </CardContent>
+            </Card>
         </div>
     );
 }

@@ -69,6 +69,7 @@ import JobChatCard from "./components/shared/JobChatCard";
 import ChatHub from "./components/shared/ChatHub";
 import NotificationBell from "./components/shared/NotificationBell";
 import CleanerNav, { CLEANER_NAV_TABS } from "./components/cleaner/CleanerNav";
+import JobWizard from "./components/cleaner/JobWizard";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { customerKeyForBooking } from "../lib/phone";
 
@@ -6343,295 +6344,31 @@ export default function Home() {
                             <form onSubmit={handleBookingSubmit} className="modal-form-scroll">
                                 <div className="modal-body flex flex-col gap-4 text-xs p-6">
                                     {isCleanerBookingEditor ? (
-                                        <>
-                                            {/* ── CLEANER JOB WIZARD (modernized, .cjw-* classes in globals.css) ── */}
-                                            {cleanerWizardPhase !== "submitted" && cleanerWizardPhase !== "read_only" && (
-                                                <div className="cjw-progress">
-                                                    {[["Check In", 0], ["Working", 1], ["Submit", 2]].map(([label, i]) => {
-                                                        const phases = ["before_start", "in_progress", "after_photos"];
-                                                        const cur = phases.indexOf(cleanerWizardPhase);
-                                                        const active = cur >= i;
-                                                        const done = cur > i;
-                                                        return (
-                                                            <div key={label} className="cjw-progress-step">
-                                                                <div className="cjw-progress-col">
-                                                                    <div className={`cjw-progress-dot${done ? " done" : active ? " active" : ""}`}>
-                                                                        {done
-                                                                            ? <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 6.5l3.5 3.5 5.5-6" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                                                                            : <span>{i + 1}</span>
-                                                                        }
-                                                                    </div>
-                                                                    <span className={`cjw-progress-label${active ? " active" : ""}`}>{label}</span>
-                                                                </div>
-                                                                {i < 2 && <div className={`cjw-progress-connector${done ? " done" : ""}`} />}
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            )}
-
-                                            {/* ── SUBMITTED ── */}
-                                            {cleanerWizardPhase === "submitted" && (
-                                                <div className="cjw-success">
-                                                    <div className="cjw-success-badge">
-                                                        <svg width="36" height="36" viewBox="0 0 36 36" fill="none"><path d="M6 18l9 9 15-15" stroke="#059669" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                                                    </div>
-                                                    <div className="cjw-success-title">Job Submitted!</div>
-                                                    <div className="cjw-success-body">Your work has been submitted for admin review. You will be notified once it is approved.</div>
-                                                </div>
-                                            )}
-
-                                            {/* ── READ ONLY (past/future job) ── */}
-                                            {cleanerWizardPhase === "read_only" && (
-                                                <>
-                                                    <div className="cjw-hero">
-                                                        <div className="cjw-hero-service">🧹 {bookingForm.service}</div>
-                                                        <div className="cjw-hero-meta">
-                                                            <div className="cjw-hero-meta-item"><span className="l">Date</span><span className="v">{bookingForm.date}</span></div>
-                                                            <div className="cjw-hero-meta-item"><span className="l">Time</span><span className="v">{bookingForm.time}</span></div>
-                                                            <div className="cjw-hero-meta-item"><span className="l">Duration</span><span className="v">{bookingForm.duration} hrs</span></div>
-                                                        </div>
-                                                    </div>
-                                                    <a href={getGoogleMapsDirectionsUrl(bookingForm)} target="_blank" rel="noreferrer" className="cjw-address-card">
-                                                        <div className="cjw-address-icon">📍</div>
-                                                        <div className="cjw-address-text">
-                                                            <div className="cjw-address-label">Tap for Directions</div>
-                                                            <div className="cjw-address-value">{formatAddress(bookingForm)}</div>
-                                                        </div>
-                                                        <span className="cjw-address-chevron">›</span>
-                                                    </a>
-                                                </>
-                                            )}
-
-                                            {/* ── BEFORE START ── */}
-                                            {cleanerWizardPhase === "before_start" && (() => {
-                                                const tasks = activeCleanerJobDraft?.tasks || [];
-                                                const reqTasks = tasks.filter(t => t.requiresPhoto);
-                                                const beforeDone = reqTasks.every(t => (t.beforePhotos || []).some(p => p.url));
-                                                return (
-                                                    <>
-                                                        <div className="cjw-hero">
-                                                            <div className="cjw-hero-service">🧹 {bookingForm.service}</div>
-                                                            <div className="cjw-hero-meta">
-                                                                <div className="cjw-hero-meta-item"><span className="l">Client</span><span className="v">{bookingForm.firstName || "Client"}</span></div>
-                                                                <div className="cjw-hero-meta-item"><span className="l">Date &amp; Time</span><span className="v">{bookingForm.date} · {bookingForm.time}</span></div>
-                                                                <div className="cjw-hero-meta-item"><span className="l">Duration</span><span className="v">{bookingForm.duration} hrs</span></div>
-                                                                <div className="cjw-hero-meta-item"><span className="l">Frequency</span><span className="v">{bookingForm.frequency || "One-Time"}</span></div>
-                                                            </div>
-                                                        </div>
-                                                        <a href={getGoogleMapsDirectionsUrl(bookingForm)} target="_blank" rel="noreferrer" className="cjw-address-card">
-                                                            <div className="cjw-address-icon">📍</div>
-                                                            <div className="cjw-address-text">
-                                                                <div className="cjw-address-label">Tap for Directions</div>
-                                                                <div className="cjw-address-value">{formatAddress(bookingForm)}</div>
-                                                            </div>
-                                                            <span className="cjw-address-chevron">›</span>
-                                                        </a>
-                                                        {(bookingForm.accessMode || bookingForm.accessDetails || bookingForm.specialNotes) && (
-                                                            <div className="cjw-notice">
-                                                                <div className="cjw-notice-title">🔑 Access &amp; Instructions</div>
-                                                                {bookingForm.accessMode && <div className="cjw-notice-row"><b>Access:</b> {bookingForm.accessMode}</div>}
-                                                                {bookingForm.accessDetails && <div className="cjw-notice-row">{bookingForm.accessDetails}</div>}
-                                                                {bookingForm.specialNotes && <div className="cjw-notice-row">{bookingForm.specialNotes}</div>}
-                                                            </div>
-                                                        )}
-
-                                                        <JobChatCard
-                                                            bookingId={bookingForm.id}
-                                                            getAuthHeaders={getAuthHeaders}
-                                                            currentActorId={currentUser?.uid}
-                                                            title="💬 Chat with Customer"
-                                                        />
-
-                                                        <div>
-                                                            <div className="cjw-section-label">📸 Before Photos</div>
-                                                            {tasks.length === 0 ? (
-                                                                <div className="cjw-empty">No tasks defined for this service.</div>
-                                                            ) : (
-                                                                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                                                                    {tasks.map(task => (
-                                                                        <div key={task.id} className="cjw-task-card">
-                                                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                                                                <span className="cjw-task-label">{task.label}</span>
-                                                                                {task.requiresPhoto && <span className="cjw-task-tag required">Required</span>}
-                                                                            </div>
-                                                                            <div className="cjw-photo-grid" style={{ marginTop: 10 }}>
-                                                                                {(task.beforePhotos || []).map(photo => (
-                                                                                    <div key={photo.id} className="cjw-photo-thumb">
-                                                                                        {photo.url
-                                                                                            ? <img src={photo.url} alt="" />
-                                                                                            : <div className="cjw-photo-thumb pending">{photo.uploading ? "…" : "?"}</div>
-                                                                                        }
-                                                                                        {!photo.uploading && <button type="button" onClick={() => removeCleanerJobPhoto(bookingForm.id, task.id, "beforePhotos", photo.id)} className="cjw-photo-remove">×</button>}
-                                                                                    </div>
-                                                                                ))}
-                                                                                <label className="cjw-photo-add">
-                                                                                    +
-                                                                                    <input type="file" accept="image/*" capture="environment" multiple style={{ display: "none" }} onChange={e => updateCleanerJobPhotos(bookingForm.id, task.id, "beforePhotos", e.target.files)} />
-                                                                                </label>
-                                                                            </div>
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                        {reqTasks.length > 0 && !beforeDone && (
-                                                            <div className="cjw-hint">Upload required before photos to unlock Start Job</div>
-                                                        )}
-                                                        <button type="button" onClick={() => handleStartCleanerJob(bookingForm)} disabled={!beforeDone || timeEntrySaving} className="cjw-cta primary">
-                                                            {timeEntrySaving ? "Starting…" : "▶  Start Job"}
-                                                        </button>
-                                                        {jobsFeedback && <div className="people-profile-message">{jobsFeedback}</div>}
-                                                    </>
-                                                );
-                                            })()}
-
-                                            {/* ── IN PROGRESS ── */}
-                                            {cleanerWizardPhase === "in_progress" && (() => {
-                                                const tasks = activeCleanerJobDraft?.tasks || [];
-                                                const completedCount = tasks.filter(t => t.completed).length;
-                                                return (
-                                                    <>
-                                                        <div className="cjw-banner live">
-                                                            <div>
-                                                                <div className="cjw-banner-title">🟢 Job in Progress</div>
-                                                                <div className="cjw-banner-sub">{activeTimeEntry?.startedAt ? formatRuntime(activeTimeEntry.startedAt, jobsNow) : "—"}</div>
-                                                            </div>
-                                                            <div className="cjw-banner-count">{completedCount}/{tasks.length}</div>
-                                                        </div>
-
-                                                        <JobChatCard
-                                                            bookingId={bookingForm.id}
-                                                            getAuthHeaders={getAuthHeaders}
-                                                            currentActorId={currentUser?.uid}
-                                                            title="💬 Chat with Customer"
-                                                        />
-
-                                                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                                                            <div className="cjw-section-label">Your Tasks</div>
-                                                            {tasks.map(task => (
-                                                                <div key={task.id} className={`cjw-task-card${task.completed ? " done" : ""}`}>
-                                                                    <div className="cjw-task-top">
-                                                                        <button type="button" onClick={() => toggleCleanerTaskComplete(bookingForm.id, task.id)} className={`cjw-task-check${task.completed ? " done" : ""}`}>
-                                                                            {task.completed && <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2.5 6.5l3 3 5-5" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                                                                        </button>
-                                                                        <div className="cjw-task-body">
-                                                                            <div className={`cjw-task-label${task.completed ? " done" : ""}`}>{task.label}</div>
-                                                                            {task.requiresPhoto && <span className="cjw-task-tag needed">📷 Photo needed</span>}
-                                                                            {((task.beforePhotos || []).length > 0 || (task.afterPhotos || []).length > 0) && (
-                                                                                <div className="cjw-photo-mini-row">
-                                                                                    {[...(task.beforePhotos || []), ...(task.afterPhotos || [])].map(photo => (
-                                                                                        <div key={photo.id} className="cjw-photo-mini">
-                                                                                            {photo.url ? <img src={photo.url} alt="" /> : (photo.uploading ? "…" : "?")}
-                                                                                        </div>
-                                                                                    ))}
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            ))}
-                                                            {cleanerExtraTaskOpen ? (
-                                                                <div className="cjw-add-task-row">
-                                                                    <input
-                                                                        type="text"
-                                                                        autoFocus
-                                                                        placeholder="Describe the extra task…"
-                                                                        value={cleanerExtraTaskInput}
-                                                                        onChange={e => setCleanerExtraTaskInput(e.target.value)}
-                                                                        onKeyDown={e => {
-                                                                            if (e.key === "Enter") {
-                                                                                addCleanerExtraTask(bookingForm.id, cleanerExtraTaskInput);
-                                                                                setCleanerExtraTaskInput("");
-                                                                                setCleanerExtraTaskOpen(false);
-                                                                            }
-                                                                        }}
-                                                                    />
-                                                                    <button type="button" className="cjw-confirm" onClick={() => { addCleanerExtraTask(bookingForm.id, cleanerExtraTaskInput); setCleanerExtraTaskInput(""); setCleanerExtraTaskOpen(false); }}>Add</button>
-                                                                    <button type="button" className="cjw-cancel" onClick={() => { setCleanerExtraTaskInput(""); setCleanerExtraTaskOpen(false); }}>Cancel</button>
-                                                                </div>
-                                                            ) : (
-                                                                <button type="button" onClick={() => setCleanerExtraTaskOpen(true)} className="cjw-add-task-btn">
-                                                                    + Add extra task
-                                                                </button>
-                                                            )}
-                                                        </div>
-
-                                                        <button type="button" onClick={() => handleEndCleanerJob(bookingForm)} disabled={timeEntrySaving} className="cjw-cta danger">
-                                                            {timeEntrySaving ? "Saving…" : "⏹  End Job & Add After Photos"}
-                                                        </button>
-                                                        {jobsFeedback && <div className="people-profile-message">{jobsFeedback}</div>}
-                                                    </>
-                                                );
-                                            })()}
-
-                                            {/* ── AFTER PHOTOS ── */}
-                                            {cleanerWizardPhase === "after_photos" && (() => {
-                                                const tasks = activeCleanerJobDraft?.tasks || [];
-                                                const reqTasks = tasks.filter(t => t.requiresPhoto);
-                                                const afterDone = reqTasks.every(t => (t.afterPhotos || []).some(p => p.url));
-                                                return (
-                                                    <>
-                                                        <div className="cjw-banner warn" style={{ flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
-                                                            <div className="cjw-banner-title" style={{ color: "#c2410c" }}>Almost done!</div>
-                                                            <div className="cjw-banner-sub">Tasks: {tasks.filter(t => t.completed).length}/{tasks.length} completed · Upload after photos then submit for review.</div>
-                                                        </div>
-
-                                                        <JobChatCard
-                                                            bookingId={bookingForm.id}
-                                                            getAuthHeaders={getAuthHeaders}
-                                                            currentActorId={currentUser?.uid}
-                                                            title="💬 Chat with Customer"
-                                                        />
-
-                                                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                                                            <div className="cjw-section-label">📸 After Photos &amp; Task Review</div>
-                                                            {tasks.map(task => (
-                                                                <div key={task.id} className="cjw-task-card">
-                                                                    <div className="cjw-task-top" style={{ marginBottom: 4 }}>
-                                                                        <button type="button" onClick={() => toggleCleanerTaskComplete(bookingForm.id, task.id)} className={`cjw-task-check${task.completed ? " done" : ""}`}>
-                                                                            {task.completed && <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                                                                        </button>
-                                                                        <div className="cjw-task-body">
-                                                                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                                                                                <span className={`cjw-task-label${task.completed ? " done" : ""}`}>{task.label}</span>
-                                                                                {task.requiresPhoto && <span className="cjw-task-tag required">Required</span>}
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div style={{ paddingLeft: 40 }}>
-                                                                        <div className="cjw-photo-caption">After Photos</div>
-                                                                        <div className="cjw-photo-grid">
-                                                                            {(task.afterPhotos || []).map(photo => (
-                                                                                <div key={photo.id} className="cjw-photo-thumb">
-                                                                                    {photo.url
-                                                                                        ? <img src={photo.url} alt="" />
-                                                                                        : <div className="cjw-photo-thumb pending">{photo.uploading ? "…" : "?"}</div>
-                                                                                    }
-                                                                                    {!photo.uploading && <button type="button" onClick={() => removeCleanerJobPhoto(bookingForm.id, task.id, "afterPhotos", photo.id)} className="cjw-photo-remove">×</button>}
-                                                                                </div>
-                                                                            ))}
-                                                                            <label className="cjw-photo-add">
-                                                                                +
-                                                                                <input type="file" accept="image/*" capture="environment" multiple style={{ display: "none" }} onChange={e => updateCleanerJobPhotos(bookingForm.id, task.id, "afterPhotos", e.target.files)} />
-                                                                            </label>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-
-                                                        {reqTasks.length > 0 && !afterDone && (
-                                                            <div className="cjw-hint">Upload required after photos to submit for review</div>
-                                                        )}
-                                                        <button type="button" onClick={() => handleSubmitJobForReview(bookingForm)} disabled={!afterDone || timeEntrySaving} className="cjw-cta success">
-                                                            {timeEntrySaving ? "Submitting…" : "✅  Submit Job for Review"}
-                                                        </button>
-                                                        {jobsFeedback && <div className="people-profile-message">{jobsFeedback}</div>}
-                                                    </>
-                                                );
-                                            })()}
-                                        </>
+                                        <JobWizard
+                                            phase={cleanerWizardPhase}
+                                            bookingForm={bookingForm}
+                                            activeCleanerJobDraft={activeCleanerJobDraft}
+                                            activeTimeEntry={activeTimeEntry}
+                                            jobsNow={jobsNow}
+                                            jobsFeedback={jobsFeedback}
+                                            timeEntrySaving={timeEntrySaving}
+                                            cleanerExtraTaskOpen={cleanerExtraTaskOpen}
+                                            setCleanerExtraTaskOpen={setCleanerExtraTaskOpen}
+                                            cleanerExtraTaskInput={cleanerExtraTaskInput}
+                                            setCleanerExtraTaskInput={setCleanerExtraTaskInput}
+                                            getAuthHeaders={getAuthHeaders}
+                                            currentUser={currentUser}
+                                            getGoogleMapsDirectionsUrl={getGoogleMapsDirectionsUrl}
+                                            formatAddress={formatAddress}
+                                            formatRuntime={formatRuntime}
+                                            removeCleanerJobPhoto={removeCleanerJobPhoto}
+                                            updateCleanerJobPhotos={updateCleanerJobPhotos}
+                                            handleStartCleanerJob={handleStartCleanerJob}
+                                            toggleCleanerTaskComplete={toggleCleanerTaskComplete}
+                                            addCleanerExtraTask={addCleanerExtraTask}
+                                            handleEndCleanerJob={handleEndCleanerJob}
+                                            handleSubmitJobForReview={handleSubmitJobForReview}
+                                        />
                                     ) : (
                                         <>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

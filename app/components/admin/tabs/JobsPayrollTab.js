@@ -1,5 +1,10 @@
 "use client";
 import { useState } from "react";
+import { Clock, Banknote, ChevronRight } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 export default function JobsPayrollTab({
     isCleanerSelfServiceView,
@@ -42,110 +47,126 @@ export default function JobsPayrollTab({
     return (
         <div className={`animate-fade ${isCleanerSelfServiceView ? "cleaner-jobs-shell" : "admin-payroll-shell"}`}>
             {isCleanerSelfServiceView ? (
-                <div className="cleaner-jobs-mobile">
-                    <section className="cleaner-payroll-summary-card">
-                        <div className="cleaner-payroll-summary-head">
-                            <div>
-                                <span>Current Pay Period</span>
-                                <h3>{cleanerPayPeriod.label}</h3>
-                            </div>
-                            <div className="cleaner-period-badge">Active Period</div>
-                        </div>
-                        <div className="cleaner-payroll-summary-stats">
-                            <div>
-                                <span>Total Hours</span>
-                                <strong>{formatDurationMinutes(weeklyTimeSummary.totalMinutes)}</strong>
-                            </div>
-                            <div>
-                                <span>Est. Gross Pay</span>
-                                <strong>${weeklyTimeSummary.grossPay.toFixed(2)}</strong>
-                            </div>
-                        </div>
-                        <div className="cleaner-payroll-summary-foot">
-                            <span>{Icons.Cash()}</span>
-                            <strong>Cutoff {cleanerPayPeriod.cutoffLabel}</strong>
-                            <em>Payday {cleanerPayPeriod.payDateLabel}</em>
-                        </div>
-                    </section>
-
-                    <section className="cleaner-active-shift-card">
-                        <button
-                            type="button"
-                            className={`cleaner-shift-button ${activeTimeEntry ? "clock-out" : "clock-in"}`}
-                            disabled={timeEntrySaving || (!activeTimeEntry && cleanerTodayConfirmedJobs.length === 0)}
-                            onClick={() => {
-                                const targetJob = activeJobForCleaner || cleanerTodayConfirmedJobs[0];
-                                if (targetJob) {
-                                    handleOpenCleanerJob(targetJob, activeTimeEntry ? "task-list" : "overview");
-                                }
-                            }}
-                        >
-                            <span>{Icons.Clock()}</span>
-                            <strong>{activeTimeEntry ? "End Job" : "Start Job"}</strong>
-                            <em>{activeTimeEntry ? formatRuntime(activeTimeEntry.startedAt, jobsNow) : "Open workspace"}</em>
-                        </button>
-                        <div className="cleaner-active-shift-meta">
-                            <h4>{activeJobForCleaner?.service || cleanerTodayConfirmedJobs[0]?.service || "No job for today"}</h4>
-                            <p>
-                                {activeJobForCleaner
-                                    ? `${getBookingCustomerFirstName(activeJobForCleaner)} • ${getBookingLocationLabel(activeJobForCleaner)}`
-                                    : cleanerTodayConfirmedJobs[0]
-                                        ? `${getBookingCustomerFirstName(cleanerTodayConfirmedJobs[0])} • ${getBookingLocationLabel(cleanerTodayConfirmedJobs[0])}`
-                                        : "Only confirmed jobs scheduled for today appear here."}
-                            </p>
-                            {activeTimeEntry && <span>Started at {new Date(activeTimeEntry.startedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</span>}
-                        </div>
-                        {jobsFeedback && <div className="people-profile-message">{jobsFeedback}</div>}
-                    </section>
-
-                    <section className="cleaner-assigned-jobs-list">
-                        <div className="cleaner-section-head">
-                            <h4>Today&apos;s Confirmed Jobs</h4>
-                            <span>{cleanerTodayConfirmedJobs.length}</span>
-                        </div>
-                        {cleanerTodayConfirmedJobs.length === 0 ? (
-                            <div className="admin-cart-empty">No confirmed jobs scheduled for today.</div>
-                        ) : cleanerTodayConfirmedJobs.map(job => {
-                            const isCurrent = activeTimeEntry?.bookingId === job.id;
-                            return (
-                                <article key={job.id} className={`cleaner-job-card ${isCurrent ? "active" : ""}`}>
-                                    <div className="cleaner-job-card-head">
-                                        <div>
-                                            <strong>{job.service}</strong>
-                                            <span>{getBookingCustomerFirstName(job)} • {getBookingLocationLabel(job)}</span>
-                                        </div>
-                                        <em>{job.date}</em>
-                                    </div>
-                                    <div className="cleaner-job-card-foot">
-                                        <span>{job.time} • {job.duration}h</span>
-                                        <button type="button" onClick={() => handleOpenCleanerJob(job, isCurrent ? "task-list" : "overview")} disabled={timeEntrySaving}>
-                                            {isCurrent ? "In Progress" : "Open Job"}
-                                        </button>
-                                    </div>
-                                </article>
-                            );
-                        })}
-                    </section>
-
-                    <section className="cleaner-recent-time-list">
-                        <div className="cleaner-section-head">
-                            <h4>Recent Entries</h4>
-                        </div>
-                        {recentOwnTimeEntries.length === 0 ? (
-                            <div className="admin-cart-empty">No completed time entries yet.</div>
-                        ) : recentOwnTimeEntries.map(entry => (
-                            <article key={entry.id} className="cleaner-recent-entry-card">
+                <div className="flex flex-col gap-4">
+                    <Card className="overflow-hidden border-none bg-gradient-to-br from-primary to-primary/80 text-primary-foreground">
+                        <CardContent className="flex flex-col gap-4 p-5">
+                            <div className="flex items-start justify-between gap-3">
                                 <div>
-                                    <strong>{entry.serviceName}</strong>
-                                    <span>{entry.bookingDate} • {formatDurationMinutes(entry.durationMinutes || 0)}</span>
+                                    <p className="text-xs font-semibold uppercase tracking-wide opacity-80">Current Pay Period</p>
+                                    <h3 className="mt-1 text-xl font-extrabold">{cleanerPayPeriod.label}</h3>
                                 </div>
-                                <div className={`cleaner-entry-status status-${entry.status}`}>
-                                    <strong>{entry.status.replace("_", " ")}</strong>
-                                    <em>${Number(entry.grossPayEstimate || 0).toFixed(2)}</em>
+                                <Badge className="border-none bg-white/20 text-primary-foreground hover:bg-white/20">Active Period</Badge>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <p className="text-xs opacity-80">Total Hours</p>
+                                    <p className="text-lg font-bold">{formatDurationMinutes(weeklyTimeSummary.totalMinutes)}</p>
                                 </div>
-                            </article>
-                        ))}
-                    </section>
+                                <div>
+                                    <p className="text-xs opacity-80">Est. Gross Pay</p>
+                                    <p className="text-lg font-bold">${weeklyTimeSummary.grossPay.toFixed(2)}</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2 border-t border-white/20 pt-3 text-xs opacity-90">
+                                <Banknote className="size-4" />
+                                <strong>Cutoff {cleanerPayPeriod.cutoffLabel}</strong>
+                                <span className="italic">Payday {cleanerPayPeriod.payDateLabel}</span>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardContent className="flex flex-col items-center gap-4 p-6 text-center">
+                            <button
+                                type="button"
+                                disabled={timeEntrySaving || (!activeTimeEntry && cleanerTodayConfirmedJobs.length === 0)}
+                                onClick={() => {
+                                    const targetJob = activeJobForCleaner || cleanerTodayConfirmedJobs[0];
+                                    if (targetJob) {
+                                        handleOpenCleanerJob(targetJob, activeTimeEntry ? "task-list" : "overview");
+                                    }
+                                }}
+                                className={cn(
+                                    "flex size-40 flex-col items-center justify-center gap-1 rounded-full text-primary-foreground shadow-lg transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-50",
+                                    activeTimeEntry ? "bg-gradient-to-br from-destructive to-destructive/80 shadow-destructive/30" : "bg-gradient-to-br from-primary to-primary/80 shadow-primary/30"
+                                )}
+                            >
+                                <Clock className="size-6" />
+                                <strong className="text-lg font-extrabold">{activeTimeEntry ? "End Job" : "Start Job"}</strong>
+                                <em className="text-xs not-italic opacity-90">{activeTimeEntry ? formatRuntime(activeTimeEntry.startedAt, jobsNow) : "Open workspace"}</em>
+                            </button>
+                            <div>
+                                <h4 className="font-bold text-foreground">{activeJobForCleaner?.service || cleanerTodayConfirmedJobs[0]?.service || "No job for today"}</h4>
+                                <p className="mt-0.5 text-sm text-muted-foreground">
+                                    {activeJobForCleaner
+                                        ? `${getBookingCustomerFirstName(activeJobForCleaner)} • ${getBookingLocationLabel(activeJobForCleaner)}`
+                                        : cleanerTodayConfirmedJobs[0]
+                                            ? `${getBookingCustomerFirstName(cleanerTodayConfirmedJobs[0])} • ${getBookingLocationLabel(cleanerTodayConfirmedJobs[0])}`
+                                            : "Only confirmed jobs scheduled for today appear here."}
+                                </p>
+                                {activeTimeEntry && <p className="mt-1 text-xs text-muted-foreground">Started at {new Date(activeTimeEntry.startedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</p>}
+                            </div>
+                            {jobsFeedback && <div className="w-full rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm text-primary">{jobsFeedback}</div>}
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardContent className="flex flex-col gap-3 p-4">
+                            <div className="flex items-center justify-between">
+                                <h4 className="text-sm font-bold text-foreground">Today&apos;s Confirmed Jobs</h4>
+                                <Badge variant="secondary">{cleanerTodayConfirmedJobs.length}</Badge>
+                            </div>
+                            {cleanerTodayConfirmedJobs.length === 0 ? (
+                                <div className="py-6 text-center text-sm text-muted-foreground">No confirmed jobs scheduled for today.</div>
+                            ) : cleanerTodayConfirmedJobs.map(job => {
+                                const isCurrent = activeTimeEntry?.bookingId === job.id;
+                                return (
+                                    <div key={job.id} className={cn("rounded-lg border p-3", isCurrent ? "border-primary bg-primary/5" : "border-border")}>
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div>
+                                                <p className="text-sm font-bold text-foreground">{job.service}</p>
+                                                <p className="text-xs text-muted-foreground">{getBookingCustomerFirstName(job)} • {getBookingLocationLabel(job)}</p>
+                                            </div>
+                                            <span className="text-xs italic text-muted-foreground">{job.date}</span>
+                                        </div>
+                                        <div className="mt-2 flex items-center justify-between">
+                                            <span className="text-xs text-muted-foreground">{job.time} • {job.duration}h</span>
+                                            <Button
+                                                size="sm"
+                                                variant={isCurrent ? "secondary" : "default"}
+                                                onClick={() => handleOpenCleanerJob(job, isCurrent ? "task-list" : "overview")}
+                                                disabled={timeEntrySaving}
+                                            >
+                                                {isCurrent ? "In Progress" : "Open Job"} <ChevronRight className="size-3.5" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardContent className="flex flex-col gap-3 p-4">
+                            <h4 className="text-sm font-bold text-foreground">Recent Entries</h4>
+                            {recentOwnTimeEntries.length === 0 ? (
+                                <div className="py-6 text-center text-sm text-muted-foreground">No completed time entries yet.</div>
+                            ) : recentOwnTimeEntries.map(entry => (
+                                <div key={entry.id} className="flex items-center justify-between gap-2 rounded-lg border border-border p-3">
+                                    <div>
+                                        <p className="text-sm font-bold text-foreground">{entry.serviceName}</p>
+                                        <p className="text-xs text-muted-foreground">{entry.bookingDate} • {formatDurationMinutes(entry.durationMinutes || 0)}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <Badge variant={entry.status === "approved" ? "default" : entry.status === "rejected" ? "destructive" : "secondary"} className="capitalize">
+                                            {entry.status.replace("_", " ")}
+                                        </Badge>
+                                        <p className="mt-1 text-xs font-semibold text-muted-foreground">${Number(entry.grossPayEstimate || 0).toFixed(2)}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </CardContent>
+                    </Card>
                 </div>
             ) : (
                 <div className="admin-payroll-grid">

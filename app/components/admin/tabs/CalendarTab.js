@@ -1,4 +1,9 @@
 "use client";
+import { ChevronLeft, ChevronRight, MapPin, Eye, Pencil } from "lucide-react";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 export default function CalendarTab({
     monthNames,
@@ -9,7 +14,6 @@ export default function CalendarTab({
     isCleanerSelfServiceView,
     teams,
     agendaBookings,
-    Icons,
     changeMonth,
     setSelectedCalDate,
     getBookingCustomerFirstName,
@@ -18,23 +22,23 @@ export default function CalendarTab({
     openEditBookingModal,
 }) {
     return (
-        <div className="calendar-split-container animate-fade">
-            <div className="calendar-card panel-card">
-                <div className="panel-header flex justify-between items-center">
-                    <h4>Calendar Dispatch Matrix</h4>
-                    <div className="flex items-center gap-3">
-                        <button onClick={() => changeMonth(-1)} className="action-btn">{Icons.ChevronLeft()}</button>
-                        <span className="font-bold text-sm text-slate-700">{monthNames[currentCalMonth.getMonth()]} {currentCalMonth.getFullYear()}</span>
-                        <button onClick={() => changeMonth(1)} className="action-btn">{Icons.ChevronRight()}</button>
+        <div className="animate-fade grid grid-cols-1 gap-4 lg:grid-cols-[1fr_360px]">
+            <Card className="gap-3">
+                <CardHeader className="flex-row items-center justify-between gap-3">
+                    <CardTitle className="text-base">Calendar Dispatch Matrix</CardTitle>
+                    <div className="flex items-center gap-2">
+                        <Button variant="outline" size="icon-sm" onClick={() => changeMonth(-1)}><ChevronLeft className="size-4" /></Button>
+                        <span className="min-w-32 text-center text-sm font-bold text-foreground">{monthNames[currentCalMonth.getMonth()]} {currentCalMonth.getFullYear()}</span>
+                        <Button variant="outline" size="icon-sm" onClick={() => changeMonth(1)}><ChevronRight className="size-4" /></Button>
                     </div>
-                </div>
-                <div className="panel-body">
-                    <div className="calendar-grid-header">
+                </CardHeader>
+                <CardContent>
+                    <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
                         <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
                     </div>
-                    <div className="calendar-grid-days border-t border-slate-100 pt-2">
+                    <div className="mt-2 grid grid-cols-7 gap-1 border-t border-border pt-2">
                         {calendarDays.map((cell, idx) => {
-                            if (!cell.day) return <div key={`empty-${idx}`} className="cal-day empty"></div>;
+                            if (!cell.day) return <div key={`empty-${idx}`} className="aspect-square" />;
 
                             // Admin calendar shows Confirmed (upcoming) and Completed (done)
                             // bookings — Cancelled or anything still Pending/Lead/Quote stays
@@ -44,71 +48,72 @@ export default function CalendarTab({
                             const isToday = cell.dateStr === new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' });
 
                             return (
-                                <div
+                                <button
                                     key={cell.dateStr}
+                                    type="button"
                                     onClick={() => setSelectedCalDate(cell.dateStr)}
-                                    className={`cal-day ${isSelected ? 'selected' : ''} ${isToday ? 'today' : ''}`}
+                                    className={cn(
+                                        "flex aspect-square flex-col items-center justify-center gap-1 rounded-lg border text-sm transition-colors",
+                                        isSelected ? "border-primary bg-primary/10 font-bold text-primary" : "border-transparent hover:bg-muted",
+                                        isToday && !isSelected && "border-primary/40 font-semibold text-primary"
+                                    )}
                                 >
-                                    <span className="cal-day-num">{cell.day}</span>
-                                    <div className="cal-events-dots">
-                                        {dayBookings.slice(0, 3).map(b => {
-                                            const teamColor = teams.find(t => t.name === b.team)?.color || "sparkle";
-                                            const dotColor = b.status === "Completed" ? "completed" : teamColor;
-                                            return (
-                                                <span
-                                                    key={b.id}
-                                                    className={`event-dot ${dotColor}`}
-                                                    title={`${isCleanerSelfServiceView ? getBookingCustomerFirstName(b) : b.clientName} - ${b.service}${b.status === "Completed" ? " (Completed)" : ""}`}
-                                                ></span>
-                                            );
-                                        })}
-                                        {dayBookings.length > 3 && <span className="text-[9px] text-slate-400 font-bold">+{dayBookings.length - 3}</span>}
+                                    <span>{cell.day}</span>
+                                    <div className="flex items-center gap-0.5">
+                                        {dayBookings.slice(0, 3).map(b => (
+                                            <span
+                                                key={b.id}
+                                                title={`${isCleanerSelfServiceView ? getBookingCustomerFirstName(b) : b.clientName} - ${b.service}${b.status === "Completed" ? " (Completed)" : ""}`}
+                                                className={cn(
+                                                    "size-1.5 rounded-full",
+                                                    b.status === "Completed" ? "bg-muted-foreground/50" : "bg-primary"
+                                                )}
+                                            />
+                                        ))}
+                                        {dayBookings.length > 3 && <span className="text-[9px] font-bold text-muted-foreground">+{dayBookings.length - 3}</span>}
                                     </div>
-                                </div>
+                                </button>
                             );
                         })}
                     </div>
-                </div>
-            </div>
+                </CardContent>
+            </Card>
 
-            <div className="agenda-card">
-                <div className="panel-header agenda-panel-header">
+            <Card className="gap-3">
+                <CardHeader className="flex-row items-start justify-between gap-3">
                     <div>
-                        <h4 className="agenda-panel-kicker">Day agenda list</h4>
-                        <h3 className="font-extrabold text-slate-800 text-sm mt-1">{selectedCalDate}</h3>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-primary">Day agenda list</p>
+                        <CardTitle className="text-sm">{selectedCalDate}</CardTitle>
                     </div>
-                    <span className="badge">{agendaBookings.length} Job{agendaBookings.length === 1 ? '' : 's'}</span>
-                </div>
-                <div className="agenda-list">
+                    <Badge variant="secondary">{agendaBookings.length} Job{agendaBookings.length === 1 ? '' : 's'}</Badge>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-2">
                     {agendaBookings.length === 0 ? (
-                        <div className="text-center p-8 text-slate-400 text-xs">No dispatches scheduled on this date.</div>
+                        <div className="p-8 text-center text-xs text-muted-foreground">No dispatches scheduled on this date.</div>
                     ) : (
-                        agendaBookings.map(b => {
-                            const teamColor = (teams.find(t => t.name === b.team)?.color || "sparkle").toLowerCase();
-                            return (
-                                <div key={b.id} className={`agenda-item ${teamColor}`}>
-                                    <div className="agenda-item-header">
-                                        <span className="agenda-item-title">{isCleanerSelfServiceView ? getBookingCustomerFirstName(b) : b.clientName}</span>
-                                        <span className="agenda-item-time">{b.time}</span>
-                                    </div>
-                                    <div className="agenda-item-desc">{b.service} ({b.duration} hrs)</div>
-                                    <div className="agenda-item-addr">
-                                        {Icons.MapPin()}
-                                        <span className="agenda-address-text">{b.address1}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center mt-2 border-t border-slate-100 pt-2">
-                                        <span className={`status-badge status-${b.status.toLowerCase()}`}>{b.status}</span>
-                                        <div className="actions-cell">
-                                            <button onClick={() => { setSelectedBooking(b); setDetailsModalOpen(true); }} className="action-btn btn-view">{Icons.Eye()}</button>
-                                            <button onClick={() => openEditBookingModal(b)} className="action-btn btn-edit">{Icons.Edit()}</button>
-                                        </div>
+                        agendaBookings.map(b => (
+                            <div key={b.id} className="rounded-lg border border-border p-3">
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="text-sm font-bold text-foreground">{isCleanerSelfServiceView ? getBookingCustomerFirstName(b) : b.clientName}</span>
+                                    <span className="text-xs font-semibold text-muted-foreground">{b.time}</span>
+                                </div>
+                                <div className="mt-0.5 text-xs text-muted-foreground">{b.service} ({b.duration} hrs)</div>
+                                <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                                    <MapPin className="size-3 shrink-0" />
+                                    <span className="truncate">{b.address1}</span>
+                                </div>
+                                <div className="mt-2 flex items-center justify-between border-t border-border pt-2">
+                                    <Badge variant="outline" className="text-[10px]">{b.status}</Badge>
+                                    <div className="flex items-center gap-1">
+                                        <Button variant="ghost" size="icon-xs" onClick={() => { setSelectedBooking(b); setDetailsModalOpen(true); }}><Eye className="size-3.5" /></Button>
+                                        <Button variant="ghost" size="icon-xs" onClick={() => openEditBookingModal(b)}><Pencil className="size-3.5" /></Button>
                                     </div>
                                 </div>
-                            );
-                        })
+                            </div>
+                        ))
                     )}
-                </div>
-            </div>
+                </CardContent>
+            </Card>
         </div>
     );
 }
