@@ -63,11 +63,13 @@ import RecurringTab from "./components/admin/tabs/RecurringTab";
 import ExpensesTab from "./components/admin/tabs/ExpensesTab";
 import CustomersTab from "./components/admin/tabs/CustomersTab";
 import MessagesTab from "./components/admin/tabs/MessagesTab";
-import CleanerSupportChat from "./components/shared/CleanerSupportChat";
 import CustomerProfileModal from "./components/admin/CustomerProfileModal";
 import FinanceTab from "./components/admin/tabs/FinanceTab";
 import JobChatCard from "./components/shared/JobChatCard";
+import ChatHub from "./components/shared/ChatHub";
 import NotificationBell from "./components/shared/NotificationBell";
+import CleanerNav, { CLEANER_NAV_TABS } from "./components/cleaner/CleanerNav";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { customerKeyForBooking } from "../lib/phone";
 
 const V2SettingsManager = dynamic(() => import("./components/V2SettingsManager"), {
@@ -4714,32 +4716,16 @@ export default function Home() {
                             </div>
                         </div>
                     )}
-                    {/* Cleaner self-service: show Jobs, Expenses & Profile outside group */}
-                    {isCleanerSelfServiceView && canViewOperations && (
-                        <button onClick={() => setActiveTab("jobs")} className={`nav-item ${activeTab === "jobs" ? "active" : ""}`} title="Jobs">
-                            {Icons.Clock()}
-                            <span className="nav-label">Jobs</span>
-                        </button>
-                    )}
-                    {isCleanerSelfServiceView && canViewOperations && (
-                        <button onClick={() => setActiveTab("expenses")} className={`nav-item ${activeTab === "expenses" ? "active" : ""}`} title="Expenses">
-                            {Icons.Cash()}
-                            <span className="nav-label">Expenses</span>
-                        </button>
-                    )}
-                    {isCleanerSelfServiceView && canViewOperations && (
-                        <button onClick={() => setActiveTab("messages")} className={`nav-item ${activeTab === "messages" ? "active" : ""}`} title="Support">
-                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                            </svg>
-                            <span className="nav-label">Support</span>
-                        </button>
-                    )}
-                    {isCleanerSelfServiceView && canViewPeople && (
-                        <button onClick={() => setActiveTab("teams")} className={`nav-item ${activeTab === "teams" ? "active" : ""}`} title="Profile">
-                            {Icons.Teams()}
-                            <span className="nav-label">Profile</span>
-                        </button>
+                    {/* Cleaner self-service: Jobs, Expenses, Chat & Profile — Schedule is
+                        the shared "canViewOperations" Calendar button above (relabeled),
+                        so it's deliberately left out of this list to avoid a duplicate. */}
+                    {isCleanerSelfServiceView && (
+                        <CleanerNav
+                            activeTab={activeTab}
+                            onChange={setActiveTab}
+                            variant="sidebar"
+                            tabs={CLEANER_NAV_TABS.filter(t => t.key !== "calendar")}
+                        />
                     )}
                     {canViewAdministration && (
                         <button onClick={() => setActiveTab("edit-requests")} className={`nav-item ${activeTab === "edit-requests" ? "active" : ""}`} title="Edit Review">
@@ -5015,14 +5001,31 @@ export default function Home() {
 
                 {activeTab === "messages" && isCleanerSelfServiceView && (
                     <div className="animate-fade">
-                        <div className="ops-control-header">
-                            <div>
-                                <p className="ops-eyebrow">Support</p>
-                                <h3 className="ops-title">Message Support</h3>
-                                <p className="ops-copy">One ongoing conversation with the office — spans every job you've worked. Chat about a specific job stays on that job's details until it's completed.</p>
-                            </div>
-                        </div>
-                        <CleanerSupportChat getAuthHeaders={getAuthHeaders} currentUser={currentUser} />
+                        <Card>
+                            <CardHeader>
+                                <p className="text-xs font-semibold uppercase tracking-wide text-primary">Chat</p>
+                                <CardTitle className="text-xl">Messages</CardTitle>
+                                <p className="mt-1 text-sm text-muted-foreground">
+                                    Office Support is one ongoing conversation that spans every job. Each job below has its own chat with the customer, open until that job closes.
+                                </p>
+                            </CardHeader>
+                            <CardContent>
+                                <ChatHub
+                                    getAuthHeaders={getAuthHeaders}
+                                    currentActorId={currentUser?.uid}
+                                    supportType="cleaner"
+                                    supportRefId={currentUser?.uid}
+                                    supportRefName={currentUser?.name}
+                                    jobs={cleanerAssignedJobs.map(b => ({
+                                        id: b.id,
+                                        name: b.clientName || "Customer",
+                                        subtitle: [b.service, b.date].filter(Boolean).join(" · "),
+                                        detail: b.address1,
+                                        locked: b.status === "Completed" || b.status === "Cancelled",
+                                    }))}
+                                />
+                            </CardContent>
+                        </Card>
                     </div>
                 )}
 
@@ -5170,6 +5173,9 @@ export default function Home() {
             </main>
 
             {/* High Fidelity iOS Fixed Bottom Navigation Bar on Mobile Viewports */}
+            {isCleanerSelfServiceView ? (
+                <CleanerNav activeTab={activeTab} onChange={setActiveTab} variant="bottom" />
+            ) : (
             <div className="mobile-nav-bar">
                 {!isPendingCleanerOnboarding && !isCleanerSelfServiceView && (
                     <button onClick={() => setActiveTab("dashboard")} className={`mobile-nav-item ${activeTab === "dashboard" ? "active" : ""}`}>
@@ -5261,6 +5267,7 @@ export default function Home() {
                     </button>
                 )}
             </div>
+            )}
 
             {bookingServiceCartOpen && (
                 <div className="modal-backdrop show" style={{ zIndex: 15000 }}>

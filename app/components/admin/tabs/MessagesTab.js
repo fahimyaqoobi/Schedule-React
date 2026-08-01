@@ -36,15 +36,25 @@ export default function MessagesTab({ getAuthHeaders, currentUser, Icons, fieldS
     const [activeThread, setActiveThread] = useState(null);
     const [messages, setMessages] = useState([]);
     const [chatLoading, setChatLoading] = useState(false);
+    const [chatLocked, setChatLocked] = useState(false);
     const [composeOpen, setComposeOpen] = useState(false);
     const [composeSearch, setComposeSearch] = useState("");
 
+    // Support threads (persistent, one per customer/cleaner) and job threads
+    // (scoped to one booking, lock on completion) are two different backends
+    // — merged into one list here so admins don't have to know which is
+    // which to find a conversation.
     const loadThreads = useCallback(async () => {
         try {
             const headers = await getAuthHeaders();
-            const res = await fetch("/api/chat/support", { headers });
-            const data = await res.json();
-            if (res.ok) setThreads(data);
+            const [supportRes, jobRes] = await Promise.all([
+                fetch("/api/chat/support", { headers }),
+                fetch("/api/chat/job/threads", { headers }),
+            ]);
+            const [supportData, jobData] = await Promise.all([supportRes.json(), jobRes.json()]);
+            const supportThreads = supportRes.ok ? supportData.map(t => ({ ...t, kind: "support" })) : [];
+            const jobThreads = jobRes.ok ? jobData : [];
+            setThreads([...supportThreads, ...jobThreads].sort((a, b) => new Date(b.lastMessageAt || 0) - new Date(a.lastMessageAt || 0)));
         } finally {
             setLoading(false);
         }
@@ -59,9 +69,15 @@ export default function MessagesTab({ getAuthHeaders, currentUser, Icons, fieldS
         if (!silent) setChatLoading(true);
         try {
             const headers = await getAuthHeaders();
-            const res = await fetch(`/api/chat/support?type=${thread.type}&refId=${encodeURIComponent(thread.refId)}`, { headers });
-            const data = await res.json();
-            if (res.ok) setMessages(data.messages || []);
+            if (thread.kind === "job") {
+                const res = await fetch(`/api/chat/job?bookingId=${encodeURIComponent(thread.bookingId)}`, { headers });
+                const data = await res.json();
+                if (res.ok) { setMessages(data.messages || []); setChatLocked(Boolean(data.locked)); }
+            } else {
+                const res = await fetch(`/api/chat/support?type=${thread.type}&refId=${encodeURIComponent(thread.refId)}`, { headers });
+                const data = await res.json();
+                if (res.ok) { setMessages(data.messages || []); setChatLocked(false); }
+            }
         } finally {
             if (!silent) setChatLoading(false);
         }
@@ -82,15 +98,22 @@ export default function MessagesTab({ getAuthHeaders, currentUser, Icons, fieldS
 
     const handleSend = async (text) => {
         const headers = await getAuthHeaders();
-        await fetch("/api/chat/support", {
-            method: "POST", headers,
-            body: JSON.stringify({ type: activeThread.type, refId: activeThread.refId, refName: activeThread.refName, text }),
-        });
+        if (activeThread.kind === "job") {
+            await fetch("/api/chat/job", {
+                method: "POST", headers,
+                body: JSON.stringify({ bookingId: activeThread.bookingId, text }),
+            });
+        } else {
+            await fetch("/api/chat/support", {
+                method: "POST", headers,
+                body: JSON.stringify({ type: activeThread.type, refId: activeThread.refId, refName: activeThread.refName, text }),
+            });
+        }
         await loadMessages(activeThread, { silent: true });
         await loadThreads();
     };
 
-    const visibleThreads = threads.filter(t => !filterType || t.type === filterType);
+    const visibleThreads = threads.filter(t => !filterType || (filterType === "job" ? t.kind === "job" : t.type === filterType));
 
     // Support staff starting a conversation, not waiting on the cleaner to
     // message first — a thread doesn't exist server-side until the first
@@ -119,7 +142,7 @@ export default function MessagesTab({ getAuthHeaders, currentUser, Icons, fieldS
                         <p className="text-xs font-semibold uppercase tracking-wide text-primary">Support</p>
                         <CardTitle className="text-xl">Messages</CardTitle>
                         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                            One persistent thread per customer and per cleaner — spans every job. Job-specific chats live on the booking itself and lock once the job closes. Messages also go out as a real text, and replies text back in here.
+                            Persistent support threads (one per customer, one per cleaner) plus recent per-job chats, all in one inbox. Job threads lock once that job closes. Messages also go out as a real text, and replies text back in here.
                         </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -137,6 +160,7 @@ export default function MessagesTab({ getAuthHeaders, currentUser, Icons, fieldS
                     <TabsTrigger value="all">All</TabsTrigger>
                     <TabsTrigger value="customer">Customers</TabsTrigger>
                     <TabsTrigger value="cleaner">Cleaners</TabsTrigger>
+                    <TabsTrigger value="job">Jobs</TabsTrigger>
                 </TabsList>
             </Tabs>
 
@@ -211,10 +235,16 @@ export default function MessagesTab({ getAuthHeaders, currentUser, Icons, fieldS
                                 <div className="min-w-0 flex-1">
                                     <div className="flex items-center justify-between gap-2">
                                         <strong className="truncate text-sm text-foreground">{t.refName || t.refId}</strong>
-                                        <Badge variant={t.type === "customer" ? "outline" : "secondary"} className="shrink-0 text-[9px]">
-                                            {t.type === "customer" ? "Customer" : "Cleaner"}
+                                        <Badge
+                                            variant={t.kind === "job" ? "default" : t.type === "customer" ? "outline" : "secondary"}
+                                            className="shrink-0 text-[9px]"
+                                        >
+                                            {t.kind === "job" ? "Job" : t.type === "customer" ? "Customer" : "Cleaner"}
                                         </Badge>
                                     </div>
+                                    {t.kind === "job" && (
+                                        <p className="truncate text-xs text-muted-foreground/80">{t.service} · {t.date}</p>
+                                    )}
                                     <p className="truncate text-xs text-muted-foreground">{t.lastMessagePreview}</p>
                                     <p className="text-[10px] text-muted-foreground/70">{timeAgo(t.lastMessageAt)}</p>
                                 </div>
@@ -232,7 +262,9 @@ export default function MessagesTab({ getAuthHeaders, currentUser, Icons, fieldS
                                 </Avatar>
                                 <div>
                                     <CardTitle className="text-sm">{activeThread.refName || activeThread.refId}</CardTitle>
-                                    {activeThread.type === "customer" && (
+                                    {activeThread.kind === "job" ? (
+                                        <p className="text-xs text-muted-foreground">{activeThread.service} · {activeThread.date}</p>
+                                    ) : activeThread.type === "customer" && (
                                         <p className="text-xs text-muted-foreground">{activeThread.refId}</p>
                                     )}
                                 </div>
@@ -242,8 +274,10 @@ export default function MessagesTab({ getAuthHeaders, currentUser, Icons, fieldS
                                     messages={messages}
                                     currentActorId={currentUser?.uid}
                                     onSend={handleSend}
+                                    locked={chatLocked}
+                                    lockedMessage="This job is closed — read-only. Further questions go to the customer/cleaner's support thread instead."
                                     loading={chatLoading}
-                                    placeholder={`Message this ${activeThread.type}…`}
+                                    placeholder={activeThread.kind === "job" ? "Message about this job…" : `Message this ${activeThread.type}…`}
                                     height={460}
                                 />
                             </CardContent>

@@ -248,8 +248,12 @@ export default function CustomerProfilePage() {
                             </div>
                         </div>
 
-                        <button onClick={() => router.push("/customer/support")} style={{ width: "100%", background: ACTION, color: "#fff", border: "none", borderRadius: 14, padding: "14px 0", fontSize: 15, fontWeight: 700, cursor: "pointer", marginBottom: 10 }}>
-                            💬 Message Support
+                        <button onClick={() => router.push("/customer/rewards")} style={{ width: "100%", background: "#fff", color: GREEN, border: `1.5px solid ${GREEN}`, borderRadius: 14, padding: "14px 0", fontSize: 15, fontWeight: 700, cursor: "pointer", marginBottom: 10 }}>
+                            🎁 Rewards & Referrals
+                        </button>
+
+                        <button onClick={() => router.push("/customer/chat")} style={{ width: "100%", background: ACTION, color: "#fff", border: "none", borderRadius: 14, padding: "14px 0", fontSize: 15, fontWeight: 700, cursor: "pointer", marginBottom: 10 }}>
+                            💬 Chat & Support
                         </button>
 
                         <button onClick={logout} disabled={logoutLoading} style={{ width: "100%", background: "#f1f5f9", color: "#dc2626", border: "none", borderRadius: 14, padding: "14px 0", fontSize: 15, fontWeight: 700, cursor: "pointer", marginBottom: 8 }}>
