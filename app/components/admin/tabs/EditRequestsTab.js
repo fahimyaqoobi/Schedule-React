@@ -1,5 +1,13 @@
 "use client";
 import { useMemo, useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Calendar, MapPin, Sparkles, DollarSign, Check } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 // Human-relevant booking fields to diff between originalData and requestedData.
 const DIFF_FIELDS = [
@@ -69,33 +77,22 @@ function initialsOf(nameOrEmail = "") {
     return base.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("") || "?";
 }
 
-const STATUS_CHIP = {
-    Pending:  { bg: "#fffbeb", border: "#fde68a", color: "#b45309" },
-    Approved: { bg: "#f0fdf4", border: "#bbf7d0", color: "#15803d" },
-    Rejected: { bg: "#fef2f2", border: "#fecaca", color: "#dc2626" },
+const STATUS_STYLE = {
+    Pending: "border-amber-300 bg-amber-50 text-amber-700 dark:bg-amber-950/30",
+    Approved: "border-emerald-300 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30",
+    Rejected: "border-red-300 bg-red-50 text-red-700 dark:bg-red-950/30",
 };
 
 function StatusChip({ status }) {
-    const st = STATUS_CHIP[status] || STATUS_CHIP.Pending;
-    return (
-        <span style={{ fontSize: 10, fontWeight: 800, background: st.bg, border: `1px solid ${st.border}`, color: st.color, borderRadius: 99, padding: "3px 10px", whiteSpace: "nowrap" }}>
-            {status}
-        </span>
-    );
+    return <Badge variant="outline" className={cn("rounded-full whitespace-nowrap", STATUS_STYLE[status] || STATUS_STYLE.Pending)}>{status}</Badge>;
 }
 
 function RequesterLine({ req }) {
     return (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
-            <span style={{
-                width: 26, height: 26, borderRadius: "50%", background: "#e0e9ff", color: "#1d4ed8",
-                display: "inline-flex", alignItems: "center", justifyContent: "center",
-                fontSize: 10, fontWeight: 800, flexShrink: 0,
-            }}>
-                {initialsOf(req.requestedBy)}
-            </span>
-            <span style={{ fontSize: 11, color: "#475569", minWidth: 0, overflowWrap: "anywhere" }}>
-                <strong style={{ color: "#1e293b" }}>{req.requestedBy}</strong>
+        <div className="mt-1.5 flex items-center gap-2">
+            <Avatar size="sm"><AvatarFallback className="text-[10px]">{initialsOf(req.requestedBy)}</AvatarFallback></Avatar>
+            <span className="min-w-0 text-xs text-muted-foreground" style={{ overflowWrap: "anywhere" }}>
+                <strong className="text-foreground">{req.requestedBy}</strong>
                 {req.requestedByRole ? ` (${req.requestedByRole})` : ""} · {formatWhen(req.createdAt)}
             </span>
         </div>
@@ -104,10 +101,10 @@ function RequesterLine({ req }) {
 
 function ChangeDiff({ changes }) {
     if (changes.length === 0) {
-        return <div style={{ fontSize: 12, color: "#94a3b8", fontStyle: "italic", padding: "6px 0" }}>No field changes detected — review checklist/photos or reject.</div>;
+        return <p className="py-1.5 text-xs italic text-muted-foreground">No field changes detected — review checklist/photos or reject.</p>;
     }
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <div className="flex flex-col gap-1.5">
             {changes.map((c) => (
                 <div key={c.label} className="edit-req-diff-row">
                     <span className="edit-req-diff-label">{c.label}</span>
@@ -122,11 +119,11 @@ function ChangeDiff({ changes }) {
 
 function BookingContext({ data = {} }) {
     return (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 14px", fontSize: 11, color: "#64748b", fontWeight: 600 }}>
-            <span>📅 {data.date || "No date"}{data.time ? ` · ${data.time}` : ""}</span>
-            <span>📍 {[data.address1, data.city].filter(Boolean).join(", ") || "No address"}</span>
-            <span>🧹 {data.service || "Service"}</span>
-            {data.price !== undefined && <span>💲{parseFloat(data.price || 0).toFixed(2)}</span>}
+        <div className="flex flex-wrap gap-x-3.5 gap-y-1 text-[11px] font-semibold text-muted-foreground">
+            <span className="flex items-center gap-1"><Calendar className="size-3" /> {data.date || "No date"}{data.time ? ` · ${data.time}` : ""}</span>
+            <span className="flex items-center gap-1"><MapPin className="size-3" /> {[data.address1, data.city].filter(Boolean).join(", ") || "No address"}</span>
+            <span className="flex items-center gap-1"><Sparkles className="size-3" /> {data.service || "Service"}</span>
+            {data.price !== undefined && <span className="flex items-center gap-1"><DollarSign className="size-3" />{parseFloat(data.price || 0).toFixed(2)}</span>}
         </div>
     );
 }
@@ -171,79 +168,71 @@ export default function EditRequestsTab({
         setResolving(null);
     };
 
-    const filterPill = (name, count, color) => (
-        <button key={name} onClick={() => setFilter(name)}
-            style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
-                padding: "8px 16px", borderRadius: 99, fontSize: 12, fontWeight: 800, cursor: "pointer",
-                border: `1.5px solid ${filter === name ? color : "#e2e8f0"}`,
-                background: filter === name ? color : "#ffffff",
-                color: filter === name ? "#ffffff" : "#475569",
-            }}>
-            {name}
-            <span style={{
-                fontSize: 10, fontWeight: 800, borderRadius: 99, padding: "1px 7px",
-                background: filter === name ? "rgba(255,255,255,0.25)" : "#f1f5f9",
-                color: filter === name ? "#ffffff" : "#64748b",
-            }}>{count}</span>
-        </button>
-    );
-
     return (
         <div className="animate-fade flex flex-col gap-6">
-
-            {/* ── Filters ── */}
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {filterPill("Pending", counts.Pending, "#b45309")}
-                {filterPill("Approved", counts.Approved, "#15803d")}
-                {filterPill("Rejected", counts.Rejected, "#dc2626")}
+            <div className="flex flex-wrap gap-2">
+                {[
+                    ["Pending", counts.Pending],
+                    ["Approved", counts.Approved],
+                    ["Rejected", counts.Rejected],
+                ].map(([name, count]) => (
+                    <button
+                        key={name}
+                        onClick={() => setFilter(name)}
+                        className={cn(
+                            "inline-flex items-center gap-1.5 rounded-full border px-4 py-2 text-xs font-extrabold",
+                            filter === name ? "border-primary bg-primary text-primary-foreground" : "border-input bg-card text-muted-foreground"
+                        )}
+                    >
+                        {name}
+                        <span className={cn("rounded-full px-1.5 py-px text-[10px] font-extrabold", filter === name ? "bg-white/25" : "bg-muted text-muted-foreground")}>{count}</span>
+                    </button>
+                ))}
             </div>
 
             {filter !== "Pending" ? (
-                /* ── RESOLVED HISTORY ── */
                 history.length === 0 ? (
-                    <div className="panel-card p-8 text-center text-slate-400 text-sm">No {filter.toLowerCase()} requests yet.</div>
+                    <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">No {filter.toLowerCase()} requests yet.</CardContent></Card>
                 ) : (
                     <div className="flex flex-col gap-4">
                         {history.map((req) => {
                             const changes = computeChanges(req.originalData, req.requestedData);
                             return (
-                                <div key={req.id} style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 16, padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
-                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
-                                        <div style={{ minWidth: 0 }}>
-                                            <div style={{ fontSize: 13, fontWeight: 800, color: "#1e293b" }}>
-                                                {isCompletion(req) ? "Job Review" : "Edit Request"} — {req.clientName}
+                                <Card key={req.id}>
+                                    <CardContent className="flex flex-col gap-2.5 p-4">
+                                        <div className="flex flex-wrap items-start justify-between gap-2.5">
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-extrabold text-foreground">
+                                                    {isCompletion(req) ? "Job Review" : "Edit Request"} — {req.clientName}
+                                                </p>
+                                                <RequesterLine req={req} />
                                             </div>
-                                            <RequesterLine req={req} />
-                                        </div>
-                                        <div style={{ textAlign: "right", flexShrink: 0 }}>
-                                            <StatusChip status={req.status} />
-                                            <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 5 }}>
-                                                {req.resolvedBy ? `by ${req.resolvedBy}` : ""}{req.resolvedAt ? ` · ${formatWhen(req.resolvedAt)}` : ""}
+                                            <div className="shrink-0 text-right">
+                                                <StatusChip status={req.status} />
+                                                <p className="mt-1 text-[10px] text-muted-foreground">
+                                                    {req.resolvedBy ? `by ${req.resolvedBy}` : ""}{req.resolvedAt ? ` · ${formatWhen(req.resolvedAt)}` : ""}
+                                                </p>
                                             </div>
                                         </div>
-                                    </div>
-                                    {!isCompletion(req) && changes.length > 0 && <ChangeDiff changes={changes} />}
-                                </div>
+                                        {!isCompletion(req) && changes.length > 0 && <ChangeDiff changes={changes} />}
+                                    </CardContent>
+                                </Card>
                             );
                         })}
                     </div>
                 )
             ) : (
                 <>
-                    {/* ── JOB COMPLETION REVIEWS ── */}
                     <section>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-                            <div style={{ width: 4, height: 22, background: "#059669", borderRadius: 99 }} />
-                            <h3 style={{ fontSize: 13, fontWeight: 800, color: "#064e3b", margin: 0 }}>Job Completion Reviews</h3>
-                            {jobCompletions.length > 0 && (
-                                <span style={{ fontSize: 11, fontWeight: 700, background: "#d1fae5", color: "#059669", padding: "2px 9px", borderRadius: 99 }}>{jobCompletions.length}</span>
-                            )}
+                        <div className="mb-3.5 flex items-center gap-2.5">
+                            <div className="h-5.5 w-1 rounded-full bg-emerald-600" />
+                            <h3 className="text-sm font-extrabold text-emerald-900 dark:text-emerald-300">Job Completion Reviews</h3>
+                            {jobCompletions.length > 0 && <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">{jobCompletions.length}</Badge>}
                         </div>
                         {jobCompletions.length === 0 ? (
-                            <div className="panel-card p-6 text-center text-slate-400 text-sm">No job completion reviews pending.</div>
+                            <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">No job completion reviews pending.</CardContent></Card>
                         ) : (
-                            <div className="flex flex-col gap-5">
+                            <div className="flex flex-col gap-4">
                                 {jobCompletions.map((req) => {
                                     const checklist = req.requestedData.cleanerChecklist;
                                     const totalTasks = checklist.tasks.length;
@@ -251,96 +240,87 @@ export default function EditRequestsTab({
                                     const pct = totalTasks ? Math.round((completedTasks / totalTasks) * 100) : 0;
                                     const busy = resolving === req.id;
                                     return (
-                                        <div key={req.id} style={{ background: "#fff", border: "1px solid #d1fae5", borderLeft: "4px solid #059669", borderRadius: 18, padding: 18, display: "flex", flexDirection: "column", gap: 14, boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
-                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
-                                                <div style={{ minWidth: 0 }}>
-                                                    <div style={{ fontSize: 14, fontWeight: 900, color: "#1e293b" }}>Job Review — {req.clientName}</div>
-                                                    <RequesterLine req={{ ...req, createdAt: checklist.submittedAt || req.createdAt }} />
-                                                    <div style={{ marginTop: 8 }}>
-                                                        <BookingContext data={req.requestedData} />
+                                        <Card key={req.id} className="border-l-4 border-l-emerald-600">
+                                            <CardContent className="flex flex-col gap-3.5 p-4.5">
+                                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                                    <div className="min-w-0">
+                                                        <p className="text-sm font-black text-foreground">Job Review — {req.clientName}</p>
+                                                        <RequesterLine req={{ ...req, createdAt: checklist.submittedAt || req.createdAt }} />
+                                                        <div className="mt-2"><BookingContext data={req.requestedData} /></div>
+                                                    </div>
+                                                    <div className="edit-req-actions">
+                                                        <Button size="sm" className="bg-emerald-600 hover:bg-emerald-600/90" disabled={busy} onClick={() => resolveCompletion(req.id, "approve")}>
+                                                            {busy ? "Saving…" : <><Check className="size-3.5" /> Approve &amp; Complete</>}
+                                                        </Button>
+                                                        <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" disabled={busy} onClick={() => resolveCompletion(req.id, "reject")}>
+                                                            Reject
+                                                        </Button>
                                                     </div>
                                                 </div>
-                                                <div className="edit-req-actions">
-                                                    <button disabled={busy} onClick={() => resolveCompletion(req.id, "approve")}
-                                                        style={{ padding: "9px 18px", borderRadius: 10, border: "none", background: busy ? "#94a3b8" : "#059669", color: "#fff", fontSize: 12, fontWeight: 800, cursor: busy ? "wait" : "pointer" }}>
-                                                        {busy ? "Saving…" : "✓ Approve & Complete"}
-                                                    </button>
-                                                    <button disabled={busy} onClick={() => resolveCompletion(req.id, "reject")}
-                                                        style={{ padding: "9px 18px", borderRadius: 10, border: "1px solid #fca5a5", background: "#fef2f2", color: "#dc2626", fontSize: 12, fontWeight: 800, cursor: busy ? "wait" : "pointer" }}>
-                                                        Reject
-                                                    </button>
-                                                </div>
-                                            </div>
 
-                                            {/* Task progress */}
-                                            <div>
-                                                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 5 }}>
-                                                    <span>Checklist progress</span>
-                                                    <span style={{ color: pct === 100 ? "#059669" : "#d97706" }}>{completedTasks}/{totalTasks} tasks · {pct}%</span>
+                                                <div>
+                                                    <div className="mb-1.5 flex justify-between text-xs font-bold text-muted-foreground">
+                                                        <span>Checklist progress</span>
+                                                        <span className={pct === 100 ? "text-emerald-600" : "text-amber-600"}>{completedTasks}/{totalTasks} tasks · {pct}%</span>
+                                                    </div>
+                                                    <div className="h-2 overflow-hidden rounded-full bg-muted">
+                                                        <div className={cn("h-full rounded-full transition-all", pct === 100 ? "bg-emerald-500" : "bg-amber-500")} style={{ width: `${pct}%` }} />
+                                                    </div>
                                                 </div>
-                                                <div style={{ height: 8, borderRadius: 99, background: "#f1f5f9", overflow: "hidden" }}>
-                                                    <div style={{ width: `${pct}%`, height: "100%", borderRadius: 99, background: pct === 100 ? "#22c55e" : "#f59e0b", transition: "width 0.3s" }} />
-                                                </div>
-                                            </div>
 
-                                            {/* Task cards */}
-                                            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                                                {checklist.tasks.map((task) => (
-                                                    <div key={task.id} style={{ background: task.completed ? "#f0fdf4" : "#f8fafc", border: `1px solid ${task.completed ? "#bbf7d0" : "#e2e8f0"}`, borderRadius: 14, padding: "12px 14px" }}>
-                                                        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                                                            <div style={{ width: 22, height: 22, borderRadius: 7, background: task.completed ? "#22c55e" : "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                                                                {task.completed && <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M1.5 5.5l3 3 5-5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
-                                                            </div>
-                                                            <span style={{ fontSize: 12, fontWeight: 700, color: task.completed ? "#15803d" : "#1e293b", flex: 1 }}>{task.label}</span>
-                                                            <span style={{ fontSize: 10, fontWeight: 700, color: task.completed ? "#059669" : "#94a3b8", background: task.completed ? "#d1fae5" : "#f1f5f9", padding: "2px 8px", borderRadius: 99 }}>
-                                                                {task.completed ? "Done" : "Skipped"}
-                                                            </span>
-                                                        </div>
-                                                        <div className="edit-req-photo-grid">
-                                                            {[["📷 Before", task.beforePhotos || []], ["✅ After", task.afterPhotos || []]].map(([label, photos]) => (
-                                                                <div key={label}>
-                                                                    <div style={{ fontSize: 10, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>{label} ({photos.length})</div>
-                                                                    {photos.length === 0 ? (
-                                                                        <div style={{ fontSize: 11, color: "#94a3b8", fontStyle: "italic" }}>No photos</div>
-                                                                    ) : (
-                                                                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                                                                            {photos.map((photo) => (
-                                                                                photo.url ? (
-                                                                                    <a key={photo.id} href={photo.url} target="_blank" rel="noreferrer">
-                                                                                        <img src={photo.url} alt={photo.name || label} style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 10, border: "1px solid #e2e8f0", cursor: "pointer" }} />
-                                                                                    </a>
-                                                                                ) : (
-                                                                                    <div key={photo.id} style={{ width: 64, height: 64, borderRadius: 10, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#94a3b8" }}>No URL</div>
-                                                                                )
-                                                                            ))}
-                                                                        </div>
-                                                                    )}
+                                                <div className="flex flex-col gap-2.5">
+                                                    {checklist.tasks.map((task) => (
+                                                        <div key={task.id} className={cn("rounded-lg border p-3.5", task.completed ? "border-emerald-300 bg-emerald-50 dark:bg-emerald-950/20" : "border-border bg-muted/30")}>
+                                                            <div className="mb-2.5 flex items-center gap-2.5">
+                                                                <div className={cn("flex size-5.5 shrink-0 items-center justify-center rounded-md", task.completed ? "bg-emerald-500" : "bg-muted")}>
+                                                                    {task.completed && <Check className="size-3 text-white" />}
                                                                 </div>
-                                                            ))}
+                                                                <span className={cn("flex-1 text-xs font-bold", task.completed ? "text-emerald-700 dark:text-emerald-400" : "text-foreground")}>{task.label}</span>
+                                                                <Badge variant="secondary" className="text-[10px]">{task.completed ? "Done" : "Skipped"}</Badge>
+                                                            </div>
+                                                            <div className="edit-req-photo-grid">
+                                                                {[["Before", task.beforePhotos || []], ["After", task.afterPhotos || []]].map(([label, photos]) => (
+                                                                    <div key={label}>
+                                                                        <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{label} ({photos.length})</p>
+                                                                        {photos.length === 0 ? (
+                                                                            <p className="text-[11px] italic text-muted-foreground">No photos</p>
+                                                                        ) : (
+                                                                            <div className="flex flex-wrap gap-1.5">
+                                                                                {photos.map((photo) => (
+                                                                                    photo.url ? (
+                                                                                        <a key={photo.id} href={photo.url} target="_blank" rel="noreferrer">
+                                                                                            <img src={photo.url} alt={photo.name || label} className="size-16 rounded-lg border border-border object-cover" />
+                                                                                        </a>
+                                                                                    ) : (
+                                                                                        <div key={photo.id} className="flex size-16 items-center justify-center rounded-lg bg-muted text-[10px] text-muted-foreground">No URL</div>
+                                                                                    )
+                                                                                ))}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                ))}
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
+                                                    ))}
+                                                </div>
+                                            </CardContent>
+                                        </Card>
                                     );
                                 })}
                             </div>
                         )}
                     </section>
 
-                    {/* ── BOOKING EDIT REQUESTS ── */}
                     <section>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-                            <div style={{ width: 4, height: 22, background: "#f59e0b", borderRadius: 99 }} />
-                            <h3 style={{ fontSize: 13, fontWeight: 800, color: "#78350f", margin: 0 }}>Booking Edit Requests</h3>
-                            {bookingEdits.length > 0 && (
-                                <span style={{ fontSize: 11, fontWeight: 700, background: "#fef3c7", color: "#b45309", padding: "2px 9px", borderRadius: 99 }}>{bookingEdits.length}</span>
-                            )}
+                        <div className="mb-3.5 flex items-center gap-2.5">
+                            <div className="h-5.5 w-1 rounded-full bg-amber-500" />
+                            <h3 className="text-sm font-extrabold text-amber-900 dark:text-amber-300">Booking Edit Requests</h3>
+                            {bookingEdits.length > 0 && <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">{bookingEdits.length}</Badge>}
                         </div>
                         {bookingEdits.length === 0 ? (
-                            <div className="panel-card p-6 text-center text-slate-400 text-sm">No booking edit requests pending.</div>
+                            <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">No booking edit requests pending.</CardContent></Card>
                         ) : (
-                            <div className="flex flex-col gap-5">
+                            <div className="flex flex-col gap-4">
                                 {bookingEdits.map((req) => {
                                     const orig = req.originalData || {};
                                     const reqd = req.requestedData || {};
@@ -351,64 +331,63 @@ export default function EditRequestsTab({
                                         paymentStatus: reqd.paymentStatus || orig.paymentStatus || "unpaid",
                                     };
                                     return (
-                                        <div key={req.id} style={{ background: "#fff", border: "1px solid #fde68a", borderLeft: "4px solid #f59e0b", borderRadius: 18, padding: 18, display: "flex", flexDirection: "column", gap: 14, boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
-                                            {/* Header */}
-                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
-                                                <div style={{ minWidth: 0 }}>
-                                                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                                                        <span style={{ fontSize: 14, fontWeight: 900, color: "#1e293b" }}>Edit Request — {req.clientName}</span>
-                                                        <span style={{ fontSize: 10, fontWeight: 800, background: "#fef3c7", color: "#b45309", borderRadius: 99, padding: "2px 9px" }}>
-                                                            {changes.length} change{changes.length === 1 ? "" : "s"}
-                                                        </span>
-                                                    </div>
-                                                    <RequesterLine req={req} />
-                                                    <div style={{ marginTop: 8 }}>
-                                                        <BookingContext data={orig} />
+                                        <Card key={req.id} className="border-l-4 border-l-amber-500">
+                                            <CardContent className="flex flex-col gap-3.5 p-4.5">
+                                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                                    <div className="min-w-0">
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            <span className="text-sm font-black text-foreground">Edit Request — {req.clientName}</span>
+                                                            <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">{changes.length} change{changes.length === 1 ? "" : "s"}</Badge>
+                                                        </div>
+                                                        <RequesterLine req={req} />
+                                                        <div className="mt-2"><BookingContext data={orig} /></div>
                                                     </div>
                                                 </div>
-                                            </div>
 
-                                            {/* Field-level diff */}
-                                            <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 12, padding: "12px 14px" }}>
-                                                <div style={{ fontSize: 9, fontWeight: 800, color: "#b45309", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Requested Changes</div>
-                                                <ChangeDiff changes={changes} />
-                                            </div>
+                                                <div className="rounded-lg border border-amber-300 bg-amber-50 p-3.5 dark:bg-amber-950/20">
+                                                    <p className="mb-2.5 text-[9px] font-extrabold uppercase tracking-wide text-amber-700 dark:text-amber-400">Requested Changes</p>
+                                                    <ChangeDiff changes={changes} />
+                                                </div>
 
-                                            {/* Admin Decision */}
-                                            <div style={{ background: "#f8fafc", borderRadius: 12, padding: "12px 14px", border: "1px solid #e2e8f0" }}>
-                                                <div style={{ fontSize: 9, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Admin Final Decision</div>
-                                                <div className="edit-req-decision-grid">
-                                                    <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11 }}>
-                                                        <strong>Final Job Status</strong>
-                                                        <select value={resolution.finalStatus} onChange={(e) => setEditRequestResolutions((prev) => ({ ...prev, [req.id]: { ...resolution, finalStatus: e.target.value } }))} className="border border-slate-200 rounded-lg p-2 bg-white">
-                                                            <option value="Pending">Pending</option>
-                                                            <option value="Confirmed">Confirmed</option>
-                                                            <option value="Completed">Completed</option>
-                                                            <option value="Cancelled">Cancelled</option>
-                                                        </select>
-                                                    </label>
-                                                    <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11 }}>
-                                                        <strong>Payment Status</strong>
-                                                        <select value={resolution.paymentStatus} onChange={(e) => setEditRequestResolutions((prev) => ({ ...prev, [req.id]: { ...resolution, paymentStatus: e.target.value } }))} className="border border-slate-200 rounded-lg p-2 bg-white">
-                                                            <option value="unpaid">Unpaid</option>
-                                                            <option value="paid">Paid</option>
-                                                            <option value="pending">Pending</option>
-                                                            <option value="redo">Redo</option>
-                                                        </select>
-                                                    </label>
+                                                <div className="rounded-lg border border-border bg-muted/30 p-3.5">
+                                                    <p className="mb-2.5 text-[9px] font-extrabold uppercase tracking-wide text-muted-foreground">Admin Final Decision</p>
+                                                    <div className="edit-req-decision-grid">
+                                                        <div className="flex flex-col gap-1">
+                                                            <Label className="text-xs font-bold">Final Job Status</Label>
+                                                            <Select value={resolution.finalStatus} onValueChange={(v) => setEditRequestResolutions((prev) => ({ ...prev, [req.id]: { ...resolution, finalStatus: v } }))}>
+                                                                <SelectTrigger className="w-full bg-card"><SelectValue /></SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="Pending">Pending</SelectItem>
+                                                                    <SelectItem value="Confirmed">Confirmed</SelectItem>
+                                                                    <SelectItem value="Completed">Completed</SelectItem>
+                                                                    <SelectItem value="Cancelled">Cancelled</SelectItem>
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </div>
+                                                        <div className="flex flex-col gap-1">
+                                                            <Label className="text-xs font-bold">Payment Status</Label>
+                                                            <Select value={resolution.paymentStatus} onValueChange={(v) => setEditRequestResolutions((prev) => ({ ...prev, [req.id]: { ...resolution, paymentStatus: v } }))}>
+                                                                <SelectTrigger className="w-full bg-card"><SelectValue /></SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="unpaid">Unpaid</SelectItem>
+                                                                    <SelectItem value="paid">Paid</SelectItem>
+                                                                    <SelectItem value="pending">Pending</SelectItem>
+                                                                    <SelectItem value="redo">Redo</SelectItem>
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </div>
+                                                    </div>
+                                                    <div className="edit-req-actions mt-3">
+                                                        <Button size="sm" disabled={busy} onClick={() => resolveEdit(req.id, "approve")}>
+                                                            {busy ? "Saving…" : <><Check className="size-3.5" /> Approve &amp; Merge</>}
+                                                        </Button>
+                                                        <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" disabled={busy} onClick={() => resolveEdit(req.id, "reject")}>
+                                                            Reject
+                                                        </Button>
+                                                    </div>
                                                 </div>
-                                                <div className="edit-req-actions" style={{ marginTop: 12 }}>
-                                                    <button disabled={busy} onClick={() => resolveEdit(req.id, "approve")}
-                                                        style={{ padding: "10px 18px", borderRadius: 10, border: "none", background: busy ? "#94a3b8" : "#1d4ed8", color: "#fff", fontSize: 12, fontWeight: 800, cursor: busy ? "wait" : "pointer" }}>
-                                                        {busy ? "Saving…" : "✓ Approve & Merge"}
-                                                    </button>
-                                                    <button disabled={busy} onClick={() => resolveEdit(req.id, "reject")}
-                                                        style={{ padding: "10px 18px", borderRadius: 10, border: "1px solid #fca5a5", background: "#fef2f2", color: "#dc2626", fontSize: 12, fontWeight: 800, cursor: busy ? "wait" : "pointer" }}>
-                                                        Reject
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
+                                            </CardContent>
+                                        </Card>
                                     );
                                 })}
                             </div>
