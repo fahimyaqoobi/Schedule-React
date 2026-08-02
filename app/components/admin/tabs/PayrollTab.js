@@ -1,6 +1,7 @@
 "use client";
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { calculatePayrollBreakdown, getPayPeriod } from "../../../../lib/payroll";
+import { getZonedDateKey, formatZonedDate } from "../../../../lib/timezone";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -84,7 +85,10 @@ export default function PayrollTab({
                 };
             }
             byPerson[uid].totalMinutes += Number(e.durationMinutes || 0);
-            const date = (e.startedAt || e.bookingDate || "").slice(0, 10);
+            // Group by the branch's calendar date, not a raw UTC-string slice
+            // of `startedAt` — an evening Eastern shift can fall after
+            // midnight UTC and would otherwise land under the wrong day.
+            const date = e.startedAt ? getZonedDateKey(new Date(e.startedAt)) : (e.bookingDate || "").slice(0, 10);
             if (date) byPerson[uid].byDate[date] = (byPerson[uid].byDate[date] || 0) + Number(e.durationMinutes || 0);
         });
 
@@ -328,7 +332,7 @@ export default function PayrollTab({
                                         ) : row.sortedDays.map(([date, mins]) => (
                                             <div key={date} className="flex justify-between border-b border-border py-1.5 text-sm">
                                                 <span className="text-foreground/80">
-                                                    {new Date(date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                                                    {formatZonedDate(new Date(date + "T12:00:00Z"), { weekday: "short", month: "short", day: "numeric" })}
                                                 </span>
                                                 <span className="font-semibold text-foreground">{fmtMin(mins)}</span>
                                             </div>

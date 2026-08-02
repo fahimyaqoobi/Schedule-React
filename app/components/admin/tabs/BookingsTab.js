@@ -13,6 +13,7 @@ import {
     Columns3, FileSpreadsheet, Eye, Pencil, Trash2, CircleCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatZonedDate, formatZonedDateTime } from "@/lib/timezone";
 
 const STATUS_OPTIONS = [
     { value: "Lead", label: "Lead", color: "#78716c", bg: "#fafaf9", border: "#e7e5e4" },
@@ -469,7 +470,7 @@ export default function BookingsTab({
             "Promo Code": b.promoCode || "",
             "Assigned Staff": (b.assignedStaff || []).map(s => s.name || s).join(", "),
             "Notes": b.specialNotes || b.notes || "",
-            "Created": b.createdAt ? new Date(b.createdAt).toLocaleString() : "",
+            "Created": b.createdAt ? formatZonedDateTime(new Date(b.createdAt), {}, tz) : "",
         }));
         const ws = XLSX.utils.json_to_sheet(rows);
         const colWidths = Object.keys(rows[0] || {}).map(key => ({ wch: Math.max(key.length, 14) }));
@@ -679,7 +680,7 @@ export default function BookingsTab({
             case "notes":
                 return <div className="max-w-50 truncate text-xs text-muted-foreground" title={b.specialNotes || b.notes || ""}>{b.specialNotes || b.notes || "—"}</div>;
             case "created":
-                return <span className="text-[11px] text-muted-foreground/70">{b.createdAt ? new Date(b.createdAt).toLocaleDateString() : "—"}</span>;
+                return <span className="text-[11px] text-muted-foreground/70">{b.createdAt ? formatZonedDate(new Date(b.createdAt), {}, tz) : "—"}</span>;
             default:
                 return null;
         }

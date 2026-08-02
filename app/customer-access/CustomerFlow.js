@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { formatZonedDate } from "@/lib/timezone";
 
 const BRAND = "#005691";
 const ACTION = "#0A6CB8";
@@ -16,9 +17,9 @@ function maskPhone(phone = "") {
 
 function formatDate(val = "") {
     if (!val) return "";
-    const d = new Date(`${val}T00:00:00`);
+    const d = new Date(`${val}T12:00:00Z`);
     if (isNaN(d)) return val;
-    return d.toLocaleDateString("en-CA", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+    return formatZonedDate(d, { weekday: "long", year: "numeric", month: "long", day: "numeric" }, undefined, "en-CA");
 }
 
 const S = {

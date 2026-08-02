@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatZonedDate, formatZonedTime, zonedIsoToDatetimeLocalValue } from "@/lib/timezone";
 
 const STATUS_STYLE = {
     active: "border-emerald-300 bg-emerald-100 text-emerald-800",
@@ -25,25 +26,24 @@ function StatusBadge({ status }) {
     );
 }
 
+// All clock-in/out and card-date displays below render in the branch's
+// timezone (Eastern), not the viewer's own device/browser timezone — a
+// supervisor reviewing time cards from anywhere must see the same clock
+// times a person standing at the branch would.
 function fmtTime(iso) {
     if (!iso) return "—";
-    return new Date(iso).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+    return formatZonedTime(new Date(iso));
 }
 
 function fmtDate(iso) {
     if (!iso) return "—";
-    return new Date(iso + (iso.length === 10 ? "T12:00:00" : "")).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    return formatZonedDate(new Date(iso + (iso.length === 10 ? "T12:00:00Z" : "")), { month: "short", day: "numeric" });
 }
 
-// Convert a UTC ISO string → "YYYY-MM-DDTHH:MM" in the browser's local timezone
-// so datetime-local inputs show the correct local time rather than UTC.
-function toLocalDatetimeInput(iso) {
-    if (!iso) return "";
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return "";
-    const pad = n => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
+// Convert a stored UTC ISO string → "YYYY-MM-DDTHH:MM" in the branch's
+// timezone so datetime-local inputs show (and, on save, are interpreted
+// as) branch-local time rather than whatever zone the viewer's browser is on.
+const toLocalDatetimeInput = zonedIsoToDatetimeLocalValue;
 
 function fmtMin(mins) {
     if (!mins && mins !== 0) return "—";

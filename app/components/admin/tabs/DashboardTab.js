@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { formatZonedDate, getZonedDateKey, addDaysToKey } from "@/lib/timezone";
 
 function fmtMoney(n) {
     return `$${Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
@@ -83,40 +84,50 @@ const CHART_FILTERS = [
     { key: "1y", label: "Annual" },
 ];
 
+// Boundaries here must be the branch's calendar days, computed consistently
+// in one timezone throughout — the previous version mixed ambient-local
+// Date arithmetic (`new Date()`, `.setDate()`) with `.toISOString()` (always
+// UTC) to derive the day-key, which quietly shifted every bucket by a day
+// whenever it was evening in a negative-UTC-offset zone like Eastern (i.e.
+// most of the business day). Everything below stays in explicit
+// branch-calendar-date-key space until the very end, when a label is formatted.
 function getPeriods(filter) {
-    const now = new Date();
-    const fmt = d => d.toISOString().split("T")[0];
+    const todayKey = getZonedDateKey(new Date());
     const periods = [];
+
+    const labelFor = (dayKey, opts) => formatZonedDate(new Date(`${dayKey}T12:00:00Z`), opts);
 
     if (filter === "7d") {
         for (let i = 6; i >= 0; i--) {
-            const d = new Date(now);
-            d.setDate(d.getDate() - i);
-            const ds = fmt(d);
+            const dayKey = addDaysToKey(todayKey, -i);
             periods.push({
-                label: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-                start: ds,
-                end: ds,
+                label: labelFor(dayKey, { month: "short", day: "numeric" }),
+                start: dayKey,
+                end: dayKey,
             });
         }
     } else if (filter === "4w") {
         for (let i = 3; i >= 0; i--) {
-            const endD = new Date(now);
-            endD.setDate(endD.getDate() - i * 7);
-            const startD = new Date(endD);
-            startD.setDate(startD.getDate() - 6);
-            periods.push({ label: `Wk ${4 - i}`, start: fmt(startD), end: fmt(endD) });
+            const endKey = addDaysToKey(todayKey, -i * 7);
+            const startKey = addDaysToKey(endKey, -6);
+            periods.push({ label: `Wk ${4 - i}`, start: startKey, end: endKey });
         }
     } else {
         const months = filter === "3m" ? 3 : filter === "6m" ? 6 : 12;
         const withYear = months > 6;
+        const [ty, tm] = todayKey.split("-").map(Number);
         for (let i = months - 1; i >= 0; i--) {
-            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-            const dEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
+            // Month arithmetic anchored to a neutral UTC scratch instant
+            // (noon, day 1) — never exposed, just used to compute the
+            // month's first/last calendar day without ambient-zone drift.
+            const monthStart = new Date(Date.UTC(ty, tm - 1 - i, 1, 12));
+            const monthEnd = new Date(Date.UTC(ty, tm - i, 0, 12));
+            const startKey = monthStart.toISOString().slice(0, 10);
+            const endKey = monthEnd.toISOString().slice(0, 10);
             const label = withYear
-                ? d.toLocaleDateString("en-US", { month: "short", year: "2-digit" })
-                : d.toLocaleDateString("en-US", { month: "short" });
-            periods.push({ label, start: fmt(d), end: fmt(dEnd) });
+                ? formatZonedDate(monthStart, { month: "short", year: "2-digit" })
+                : formatZonedDate(monthStart, { month: "short" });
+            periods.push({ label, start: startKey, end: endKey });
         }
     }
     return periods;
@@ -335,11 +346,14 @@ export default function DashboardTab({
                                                                     ↻ Next Scheduled: {
                                                                         (() => {
                                                                             const freq = b.cartItems.find(i => ["Weekly", "Bi-Weekly", "Monthly"].includes(i.frequency))?.frequency;
-                                                                            const d = new Date(b.date);
-                                                                            if (freq === "Weekly") d.setDate(d.getDate() + 7);
-                                                                            if (freq === "Bi-Weekly") d.setDate(d.getDate() + 14);
-                                                                            if (freq === "Monthly") d.setMonth(d.getMonth() + 1);
-                                                                            return d.toLocaleDateString('en-CA');
+                                                                            // Anchored to UTC noon, not local midnight, so this
+                                                                            // date-only add/format can't roll onto the wrong
+                                                                            // branch calendar day depending on viewer/server tz.
+                                                                            const d = new Date(`${b.date}T12:00:00Z`);
+                                                                            if (freq === "Weekly") d.setUTCDate(d.getUTCDate() + 7);
+                                                                            if (freq === "Bi-Weekly") d.setUTCDate(d.getUTCDate() + 14);
+                                                                            if (freq === "Monthly") d.setUTCMonth(d.getUTCMonth() + 1);
+                                                                            return formatZonedDate(d, {}, undefined, "en-CA");
                                                                         })()
                                                                     } ({b.cartItems.find(i => ["Weekly", "Bi-Weekly", "Monthly"].includes(i.frequency))?.frequency})
                                                                 </div>

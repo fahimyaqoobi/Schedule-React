@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { formatZonedTime } from "@/lib/timezone";
 
 export default function JobsPayrollTab({
     isCleanerSelfServiceView,
@@ -104,7 +105,7 @@ export default function JobsPayrollTab({
                                             ? `${getBookingCustomerFirstName(cleanerTodayConfirmedJobs[0])} • ${getBookingLocationLabel(cleanerTodayConfirmedJobs[0])}`
                                             : "Only confirmed jobs scheduled for today appear here."}
                                 </p>
-                                {activeTimeEntry && <p className="mt-1 text-xs text-muted-foreground">Started at {new Date(activeTimeEntry.startedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</p>}
+                                {activeTimeEntry && <p className="mt-1 text-xs text-muted-foreground">Started at {formatZonedTime(new Date(activeTimeEntry.startedAt), { hour: "2-digit" })}</p>}
                             </div>
                             {jobsFeedback && <div className="w-full rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm text-primary">{jobsFeedback}</div>}
                         </CardContent>
@@ -202,7 +203,7 @@ export default function JobsPayrollTab({
                                                 <div>
                                                     <div className="font-semibold text-sm text-emerald-800">🟢 {entry.cleanerName}</div>
                                                     <div className="text-[11px] text-emerald-700">{entry.serviceName} · {entry.locationLabel}</div>
-                                                    <div className="text-[11px] text-emerald-600">Clocked in: {entry.startedAt ? new Date(entry.startedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : "—"}{entry.source?.includes("admin_override") ? " (admin)" : ""}</div>
+                                                    <div className="text-[11px] text-emerald-600">Clocked in: {entry.startedAt ? formatZonedTime(new Date(entry.startedAt), { hour: "2-digit" }) : "—"}{entry.source?.includes("admin_override") ? " (admin)" : ""}</div>
                                                 </div>
                                                 <button
                                                     type="button"

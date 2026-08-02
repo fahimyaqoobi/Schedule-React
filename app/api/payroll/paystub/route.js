@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { adminAuth, adminDb } from "../../../../lib/firebase-admin";
 import { canManageBranch, getRoleLabel } from "../../../../lib/permissions";
 import { calculatePayrollBreakdown, getPayPeriodFromKey } from "../../../../lib/payroll";
+import { getBranchById } from "../../../../lib/branches";
 import { buildPaystubPdf } from "../../../../lib/paystubPdf";
 
 async function authenticateRequest(request) {
@@ -71,10 +72,16 @@ export async function GET(request) {
         });
         entries.sort((a, b) => new Date(a.startedAt || 0).getTime() - new Date(b.startedAt || 0).getTime());
 
-        const payRate = Number(entries[0]?.payRate ?? cleaner.staffProfile?.employment?.hourlyRate ?? 20);
-        const overtimeRate = Number(entries[0]?.overtimeRate ?? cleaner.staffProfile?.employment?.overtimeRate ?? 30);
-        const overtimeAfterHours = Number(entries[0]?.overtimeAfterHours ?? cleaner.staffProfile?.employment?.overtimeAfterHours ?? 44);
-        const bonusAmount = Number(cleaner.staffProfile?.employment?.bonusAmount ?? 0);
+        // The staff profile's employment settings are the current, admin-
+        // configured rate — the source of truth. The rate snapshotted onto
+        // each time entry at creation only backs that up if the profile is
+        // somehow missing rate data (e.g. a very old entry), since a rate
+        // edited after the entry was created would otherwise go stale here.
+        const employment = cleaner.staffProfile?.employment || {};
+        const payRate = Number(employment.hourlyRate ?? entries[0]?.payRate ?? 20);
+        const overtimeRate = Number(employment.overtimeRate ?? entries[0]?.overtimeRate ?? 30);
+        const overtimeAfterHours = Number(employment.overtimeAfterHours ?? entries[0]?.overtimeAfterHours ?? 44);
+        const bonusAmount = Number(employment.bonusAmount ?? 0);
 
         const totalMinutes = entries.reduce((sum, e) => sum + Number(e.durationMinutes || 0), 0);
         const breakdown = calculatePayrollBreakdown(totalMinutes, {
@@ -104,6 +111,8 @@ export async function GET(request) {
         const settings = settingsSnap.exists ? settingsSnap.data() : {};
         const company = { companyName: settings.companyName || "SmarTouch Clean" };
 
+        const branchTimeZone = getBranchById(cleaner.branchId).timezone;
+
         const logoBuffer = await loadLogoBuffer(origin);
         const pdfBuffer = await buildPaystubPdf({
             employee: {
@@ -117,7 +126,7 @@ export async function GET(request) {
             breakdown,
             company,
             payrollRecord,
-        }, { logoBuffer });
+        }, { logoBuffer, timeZone: branchTimeZone });
 
         const safeName = (cleaner.name || "employee").replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "");
         return new NextResponse(pdfBuffer, {

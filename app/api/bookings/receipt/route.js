@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import { adminAuth, adminDb } from "../../../../lib/firebase-admin";
 import { canManageBranch } from "../../../../lib/permissions";
+import { formatZonedDate } from "../../../../lib/timezone";
 
 function getMailConfig() {
     const host = process.env.SMTP_HOST || "";
@@ -22,11 +23,13 @@ function appendAuditLog(existingLog = [], event = {}) {
 
 function buildReceiptHtml(booking) {
     const dateStr = booking.date
-        ? new Date(`${booking.date}T00:00:00`).toLocaleDateString("en-CA", { weekday: "long", year: "numeric", month: "long", day: "numeric" })
+        ? formatZonedDate(new Date(`${booking.date}T12:00:00Z`), { weekday: "long", year: "numeric", month: "long", day: "numeric" }, undefined, "en-CA")
         : booking.date || "";
     const docNumber = booking.invoiceNumber || booking.estimateNumber || booking.orderNumber || booking.id;
+    // booking.paidAt is a real timestamp (not date-only) — must be shown in
+    // branch time, or a late-night Eastern payment shows as the wrong day.
     const paidAt = booking.paidAt
-        ? new Date(booking.paidAt).toLocaleDateString("en-CA", { year: "numeric", month: "long", day: "numeric" })
+        ? formatZonedDate(new Date(booking.paidAt), { year: "numeric", month: "long", day: "numeric" }, undefined, "en-CA")
         : "";
 
     return `

@@ -4,6 +4,7 @@ import { adminDb } from "../../../../lib/firebase-admin";
 import Stripe from "stripe";
 import { upsertCustomerProfile, recordCustomerPayment } from "../../../../lib/customerProfile";
 import { maybeRecordCardProcessingFee } from "../../../../lib/cardFees";
+import { formatZonedDate } from "../../../../lib/timezone";
 
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -24,7 +25,7 @@ async function sendReceiptEmail(booking) {
     if (!mail.host || !mail.user || !mail.pass) return;
 
     const dateStr = booking.date
-        ? new Date(`${booking.date}T00:00:00`).toLocaleDateString("en-CA", { weekday: "long", year: "numeric", month: "long", day: "numeric" })
+        ? formatZonedDate(new Date(`${booking.date}T12:00:00Z`), { weekday: "long", year: "numeric", month: "long", day: "numeric" }, undefined, "en-CA")
         : "";
     const docNumber = booking.invoiceNumber || booking.estimateNumber || booking.orderNumber || "";
 

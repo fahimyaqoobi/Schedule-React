@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MessageCircle, Smartphone, Share2, Copy, Check, Users, CreditCard, Gift } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatZonedDate } from "@/lib/timezone";
 
 function ShareButton({ label, className, onClick, Icon }) {
     return (
@@ -142,7 +143,7 @@ export default function CustomerRewardsPage() {
                                         <div key={i} className="flex items-center justify-between border-b border-border py-2.5 last:border-0">
                                             <div>
                                                 <p className="text-sm font-bold text-foreground">{p.code}</p>
-                                                <p className="text-xs text-muted-foreground">{p.usedAt ? new Date(p.usedAt).toLocaleDateString() : ""}</p>
+                                                <p className="text-xs text-muted-foreground">{p.usedAt ? formatZonedDate(new Date(p.usedAt)) : ""}</p>
                                             </div>
                                             <span className="text-base font-bold text-emerald-600">-${parseFloat(p.discount || 0).toFixed(2)}</span>
                                         </div>

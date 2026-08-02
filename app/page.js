@@ -33,7 +33,8 @@ import {
     normalizeStaffProfile,
     STAFF_SELF_SERVICE_ROLES
 } from "../lib/staffProfiles";
-import { calculatePayrollBreakdown } from "../lib/payroll";
+import { calculatePayrollBreakdown, getPayPeriod } from "../lib/payroll";
+import { getZonedDateKey, formatZonedDate, formatZonedDateTime, zonedDatetimeLocalToIso } from "../lib/timezone";
 import {
     buildBookingDocumentHtml,
     buildDocumentPricingBreakdown,
@@ -167,10 +168,16 @@ function formatDurationMinutes(totalMinutes = 0) {
 
 // Convert a datetime-local string (local time, no TZ) to UTC ISO for API storage.
 // The browser treats bare "YYYY-MM-DDTHH:MM" as local time, so new Date() gives the right UTC offset.
+// Every datetime-local input in the app (time-card clock in/out edits,
+// admin manual clock-in/out overrides, manual entries) is shown and edited
+// as branch-local wall-clock time — not the browser's own device timezone —
+// via zonedIsoToDatetimeLocalValue on display. This is the matching save
+// side: the value the admin typed/edited is branch-local, so it must be
+// converted back to UTC using the branch's timezone, not `new Date(s)`
+// (which would silently reinterpret it using the browser's ambient zone).
 function localDtToIso(s) {
     if (!s) return s;
-    const d = new Date(s);
-    return isNaN(d.getTime()) ? s : d.toISOString();
+    return zonedDatetimeLocalToIso(s) || s;
 }
 
 function formatRuntime(startedAt, now) {
@@ -195,32 +202,23 @@ function getWeekRangeLabel(now = new Date()) {
 }
 
 function getCurrentTorontoDateKey(now = new Date()) {
-    return now.toLocaleDateString("en-CA", { timeZone: "America/Toronto" });
+    return getZonedDateKey(now);
 }
 
-function getCleanerPayPeriodSummary(now = new Date()) {
-    const anchorCutoff = new Date("2026-06-14T23:59:59-04:00");
-    const periodDays = 14;
-    const payDelayDays = 5;
-    const msPerDay = 24 * 60 * 60 * 1000;
-    let cutoff = new Date(anchorCutoff);
-
-    while (cutoff.getTime() < now.getTime()) {
-        cutoff = new Date(cutoff.getTime() + (periodDays * msPerDay));
-    }
-
-    const periodStart = new Date(cutoff.getTime() - ((periodDays - 1) * msPerDay));
-    periodStart.setHours(0, 0, 0, 0);
-    const payDate = new Date(cutoff.getTime() + (payDelayDays * msPerDay));
-    payDate.setHours(0, 0, 0, 0);
-
+// Delegates to lib/payroll.js's getPayPeriod (the same branch-timezone-safe
+// biweekly calculation the admin Payroll tab and paystub PDF use) so the
+// cleaner's own self-service pay period card can never drift from what an
+// admin sees. Previously this was a second, independent copy of the period
+// math that never got the branch-timezone fix — it computed "midnight"
+// using the ambient runtime timezone, which is Eastern on a developer's own
+// machine (so it looked right in testing) but UTC on the production server,
+// silently shifting the cleaner's displayed pay period by hours.
+function getCleanerPayPeriodSummary() {
+    const period = getPayPeriod(0);
     return {
-        periodStart,
-        cutoffDate: cutoff,
-        payDate,
-        label: `${periodStart.toLocaleDateString("en-US", { month: "short", day: "numeric" })} - ${cutoff.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`,
-        cutoffLabel: cutoff.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-        payDateLabel: payDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+        ...period,
+        cutoffLabel: formatZonedDate(period.cutoffDate, { month: "short", day: "numeric" }),
+        payDateLabel: formatZonedDate(period.payDate, { month: "short", day: "numeric" }),
     };
 }
 
@@ -1357,7 +1355,7 @@ export default function Home() {
         return cleanerAssignedJobs.find(job => job.id === activeTimeEntry.bookingId) || null;
     }, [activeTimeEntry, cleanerAssignedJobs]);
 
-    const cleanerPayPeriod = useMemo(() => getCleanerPayPeriodSummary(jobsNow ? new Date(jobsNow) : new Date()), [jobsNow]);
+    const cleanerPayPeriod = useMemo(() => getCleanerPayPeriodSummary(), [jobsNow]);
 
     const recentOwnTimeEntries = useMemo(() => {
         return ownTimeEntries.filter(entry => entry.status !== "active" && entry.status !== "rejected").slice(0, 6);
@@ -1389,7 +1387,7 @@ export default function Home() {
             totalPayroll: approved.reduce((sum, entry) => sum + Number(entry.grossPayEstimate || 0), 0),
             trackedMinutes: currentPeriodEntries.reduce((sum, entry) => sum + Number(entry.durationMinutes || 0), 0),
             pendingCount: pending.length,
-            nextPayDate: cleanerPayPeriod.payDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+            nextPayDate: formatZonedDate(cleanerPayPeriod.payDate, { month: "short", day: "numeric", year: "numeric" }),
             pendingEntries: pending
         };
     }, [cleanerPayPeriod, timeEntries]);
@@ -1640,12 +1638,14 @@ export default function Home() {
 
 
 
-    // Live clock utility
+    // Live clock utility — always shows the branch's local time, not the
+    // viewer's own device/browser timezone, so an admin signing in from
+    // anywhere sees the same clock a person standing in the branch would.
     useEffect(() => {
         const updateTime = () => {
             const now = new Date();
             const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
-            setClockString(now.toLocaleDateString('en-US', options));
+            setClockString(formatZonedDateTime(now, options));
         };
         updateTime();
         const interval = setInterval(updateTime, 60000);
@@ -6142,7 +6142,7 @@ export default function Home() {
                                             <div className="detail-row">
                                                 <span className="detail-label">Customer Confirmed</span>
                                                 <span className="detail-value" style={{color:"#16a34a",fontWeight:700}}>
-                                                    ✓ Yes{b.customerConfirmedAt ? ` · ${new Date(b.customerConfirmedAt).toLocaleString("en-CA", {dateStyle:"medium",timeStyle:"short"})}` : ""}
+                                                    ✓ Yes{b.customerConfirmedAt ? ` · ${formatZonedDateTime(new Date(b.customerConfirmedAt), {dateStyle:"medium",timeStyle:"short"}, undefined, "en-CA")}` : ""}
                                                 </span>
                                             </div>
                                         )}
@@ -6250,7 +6250,7 @@ export default function Home() {
                                                         <strong className="text-sm text-slate-800">{entry.summary || entry.type || "Update"}</strong>
                                                         <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{entry.status || "logged"}</span>
                                                     </div>
-                                                    <p className="mt-1 text-xs text-slate-500">{entry.by || "system"} · {entry.at ? new Date(entry.at).toLocaleString() : "No timestamp"}</p>
+                                                    <p className="mt-1 text-xs text-slate-500">{entry.by || "system"} · {entry.at ? formatZonedDateTime(new Date(entry.at)) : "No timestamp"}</p>
                                                 </div>
                                             ))}
                                         </div>

@@ -8,6 +8,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { Label } from "@/components/ui/label";
 import { Calendar, MapPin, Sparkles, DollarSign, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatZonedDate } from "@/lib/timezone";
 
 // Human-relevant booking fields to diff between originalData and requestedData.
 const DIFF_FIELDS = [
@@ -69,7 +70,7 @@ function formatWhen(iso) {
     if (!iso) return "";
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return iso.split("T")[0] || iso;
-    return d.toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+    return formatZonedDate(d, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }, undefined, "en-CA");
 }
 
 function initialsOf(nameOrEmail = "") {
