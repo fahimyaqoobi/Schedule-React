@@ -1,35 +1,11 @@
 "use client";
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { calculatePayrollBreakdown } from "../../../../lib/payroll";
+import { calculatePayrollBreakdown, getPayPeriod } from "../../../../lib/payroll";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Download, ChevronLeft, ChevronRight, ChevronRight as ExpandChevron } from "lucide-react";
+import { Download, ChevronLeft, ChevronRight, ChevronRight as ExpandChevron, FileDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const ANCHOR = "2026-06-14T23:59:59-04:00";
-const MS_DAY = 86400000;
-const PERIOD_MS = 14 * MS_DAY;
-
-function getPayPeriod(offset = 0) {
-    const now = new Date();
-    let cutoff = new Date(ANCHOR);
-    while (cutoff < now) cutoff = new Date(cutoff.getTime() + PERIOD_MS);
-    cutoff = new Date(cutoff.getTime() + offset * PERIOD_MS);
-    const periodStart = new Date(cutoff.getTime() - 13 * MS_DAY);
-    periodStart.setHours(0, 0, 0, 0);
-    const payDate = new Date(cutoff.getTime() + 5 * MS_DAY);
-    payDate.setHours(0, 0, 0, 0);
-    const fmt = d => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-    return {
-        periodStart,
-        cutoffDate: cutoff,
-        payDate,
-        key: periodStart.toISOString().split("T")[0],
-        label: `${fmt(periodStart)} – ${fmt(cutoff)}`,
-        payDateFull: payDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-    };
-}
 
 function fmtMin(mins) {
     if (!mins) return "0h";
@@ -44,7 +20,7 @@ const STATUS_STYLE = {
 };
 const STATUS_LABEL = { pending: "Pending", processing: "Processing", paid: "Paid ✓" };
 
-const COLS = "1fr 90px 90px 80px 110px 110px";
+const COLS = "1fr 90px 90px 80px 110px 168px";
 
 export default function PayrollTab({
     timeEntries,
@@ -59,6 +35,7 @@ export default function PayrollTab({
     const [statusMap, setStatusMap] = useState({});
     const [saving, setSaving] = useState(false);
     const [feedback, setFeedback] = useState("");
+    const [downloadingUid, setDownloadingUid] = useState(null);
 
     const period = useMemo(() => getPayPeriod(periodOffset), [periodOffset]);
 
@@ -146,6 +123,33 @@ export default function PayrollTab({
             setFeedback(`Error: ${err.message}`);
         } finally {
             setSaving(false);
+        }
+    }, [getAuthHeaders, period]);
+
+    const handleDownloadPaystub = useCallback(async (uid, name) => {
+        setDownloadingUid(uid);
+        setFeedback("");
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch(`/api/payroll/paystub?cleanerUid=${encodeURIComponent(uid)}&periodKey=${encodeURIComponent(period.key)}`, { headers });
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                throw new Error(data.error || "Failed to generate paystub.");
+            }
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const safeName = (name || "employee").replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "");
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `${safeName}-paystub-${period.key}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            setFeedback(`Error: ${err.message}`);
+        } finally {
+            setDownloadingUid(null);
         }
     }, [getAuthHeaders, period]);
 
@@ -304,6 +308,15 @@ export default function PayrollTab({
                                                 Undo
                                             </Button>
                                         )}
+                                        <Button
+                                            size="icon-sm"
+                                            variant="outline"
+                                            title={`Download ${row.name}'s paystub`}
+                                            onClick={() => handleDownloadPaystub(row.uid, row.name)}
+                                            disabled={downloadingUid === row.uid}
+                                        >
+                                            <FileDown className={cn("size-3.5", downloadingUid === row.uid && "animate-pulse")} />
+                                        </Button>
                                     </div>
                                 </div>
 
