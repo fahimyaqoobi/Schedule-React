@@ -57,7 +57,6 @@ export default function TeamsTab({
     handleUpdateEmploymentStatus,
 }) {
     const approvedEmployees = peopleRoster.filter(member => member.status === "approved");
-    const newApplications = peopleRoster.filter(member => member.status !== "approved");
 
     const renderRosterCard = (member) => {
         const assignedJobs = bookings.filter(b => b.assignedStaffIds?.includes(member.uid) && b.status !== "Cancelled");
@@ -127,17 +126,6 @@ export default function TeamsTab({
                 <div className="people-management-shell">
                     {!isViewingOwnCleanerProfile && (
                         <>
-                            {newApplications.length > 0 && (
-                                <div className="people-roster-section">
-                                    <div className="people-roster-section-head">
-                                        <h4>New Applications</h4>
-                                        <span className="ops-chip">{newApplications.length}</span>
-                                    </div>
-                                    <div className="grid grid-cols-4 gap-3 md:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10">
-                                        {newApplications.map(renderRosterCard)}
-                                    </div>
-                                </div>
-                            )}
                             <div className="people-roster-section">
                                 <div className="people-roster-section-head">
                                     <h4>Approved Employees</h4>
@@ -190,18 +178,14 @@ export default function TeamsTab({
                                 </Card>
 
                                 <Card>
-                                    <CardContent className="grid grid-cols-3 divide-x divide-border p-4 text-center">
-                                        <div>
-                                            <p className="text-xl font-extrabold text-primary">4.9</p>
-                                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Rating</p>
-                                        </div>
+                                    <CardContent className="grid grid-cols-2 divide-x divide-border p-4 text-center">
                                         <div>
                                             <p className="text-xl font-extrabold text-primary">{selectedStaffCompletedJobs.length}</p>
-                                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Jobs</p>
+                                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Jobs Completed</p>
                                         </div>
                                         <div>
-                                            <p className="text-xl font-extrabold text-primary">98%</p>
-                                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">On-Time</p>
+                                            <p className="text-xl font-extrabold text-primary">{activeStaffProfileDraft.employment.yearsExperience || "0"}</p>
+                                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Years Exp.</p>
                                         </div>
                                     </CardContent>
                                 </Card>
@@ -520,16 +504,8 @@ export default function TeamsTab({
 
                                 <div className="people-profile-stat-grid people-profile-stat-grid-top">
                                     <div className="people-profile-stat-card">
-                                        <p>Rating</p>
-                                        <strong>4.9</strong>
-                                    </div>
-                                    <div className="people-profile-stat-card">
                                         <p>Jobs Completed</p>
                                         <strong>{selectedStaffCompletedJobs.length}</strong>
-                                    </div>
-                                    <div className="people-profile-stat-card">
-                                        <p>On-Time</p>
-                                        <strong>98.5%</strong>
                                     </div>
                                     <div className="people-profile-stat-card">
                                         <p>Exp. Level</p>
@@ -653,23 +629,6 @@ export default function TeamsTab({
 
                                         <article className="people-profile-section">
                                             <div className="people-profile-section-head">
-                                                <p className="ops-eyebrow">Performance</p>
-                                                <h4>Performance</h4>
-                                            </div>
-                                            <div className="people-performance-rating">
-                                                <span>Customer Rating</span>
-                                                <strong>4.9 ★</strong>
-                                            </div>
-                                            <div className="people-performance-bar"><span></span></div>
-                                            <div className="people-performance-metrics">
-                                                <div><span>No-Shows</span><strong>0</strong></div>
-                                                <div><span>Late (&gt;15m)</span><strong>2</strong></div>
-                                                <div><span>Cancellations</span><strong>1</strong></div>
-                                            </div>
-                                        </article>
-
-                                        <article className="people-profile-section">
-                                            <div className="people-profile-section-head">
                                                 <p className="ops-eyebrow">Employment</p>
                                                 <h4>Employment</h4>
                                             </div>
@@ -715,29 +674,6 @@ export default function TeamsTab({
                                                 <div><span>Start Date</span><strong>{selectedStaffMember.createdAt ? selectedStaffMember.createdAt.split("T")[0] : "Pending"}</strong></div>
                                                 <div className="people-note-card">
                                                     &ldquo;{activeStaffProfileDraft.employment.availabilityNotes || "Staff profile notes will appear here after branch admin approval."}&rdquo;
-                                                </div>
-                                            </div>
-                                        </article>
-
-                                        <article className="people-profile-section">
-                                            <div className="people-profile-section-head">
-                                                <p className="ops-eyebrow">Skills & Restrictions</p>
-                                                <h4>Skills & Restrictions</h4>
-                                            </div>
-                                            <div className="people-skill-group">
-                                                <span className="people-subsection-title">Approved Services</span>
-                                                <div className="people-chip-list">
-                                                    <span>Standard Cleaning</span>
-                                                    <span>Deep Cleaning</span>
-                                                    <span>Move-in/out</span>
-                                                    <span>Carpet Steam</span>
-                                                </div>
-                                            </div>
-                                            <div className="people-skill-group">
-                                                <span className="people-subsection-title">Work Restrictions</span>
-                                                <div className="people-restrictions-list">
-                                                    <div><strong>No Pets</strong><span>(Allergy)</span></div>
-                                                    <div><strong>Can work alone</strong></div>
                                                 </div>
                                             </div>
                                         </article>

@@ -56,6 +56,7 @@ import JobsPayrollTab from "./components/admin/tabs/JobsPayrollTab";
 import TimeCardsTab from "./components/admin/tabs/TimeCardsTab";
 import PayrollTab from "./components/admin/tabs/PayrollTab";
 import TeamsTab from "./components/admin/tabs/TeamsTab";
+import PipelineBoard from "./components/admin/tabs/hr/PipelineBoard";
 import DashboardTab from "./components/admin/tabs/DashboardTab";
 import BookingsTab from "./components/admin/tabs/BookingsTab";
 import BookingWizard from "./components/admin/BookingWizard";
@@ -72,6 +73,7 @@ import NotificationBell from "./components/shared/NotificationBell";
 import CleanerNav, { CLEANER_NAV_TABS } from "./components/cleaner/CleanerNav";
 import JobWizard from "./components/cleaner/JobWizard";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { customerKeyForBooking } from "../lib/phone";
 
 const V2SettingsManager = dynamic(() => import("./components/V2SettingsManager"), {
@@ -921,6 +923,7 @@ export default function Home() {
     const [currentUser, setCurrentUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState("dashboard");
+    const [staffSubTab, setStaffSubTab] = useState("roster");
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [hrHubOpen, setHrHubOpen] = useState(true);
     const [clockString, setClockString] = useState("");
@@ -4863,6 +4866,8 @@ export default function Home() {
                         setFilterStatus={setFilterStatus}
                         handleResolveUserApproval={handleResolveUserApproval}
                         getRoleLabel={getRoleLabel}
+                        getAuthHeaders={getAuthHeaders}
+                        setStaffSubTab={setStaffSubTab}
                     />
                 )}
 
@@ -4918,7 +4923,7 @@ export default function Home() {
                 {activeTab === "calendar" && (
                     <CalendarTab
                         bookings={bookings}
-                        fieldStaff={fieldStaff}
+                        fieldStaff={assignableFieldStaff}
                         isCleanerSelfServiceView={isCleanerSelfServiceView}
                         currentUser={currentUser}
                         handleQuickBookingUpdate={handleQuickBookingUpdate}
@@ -5066,7 +5071,20 @@ export default function Home() {
                 )}
 
                 {/* TAB 4: FIELD STAFF ASSIGNMENTS VIEW */}
-                {activeTab === "teams" && (
+                {activeTab === "teams" && !isViewingOwnCleanerProfile && (
+                    <Tabs value={staffSubTab} onValueChange={setStaffSubTab} className="mb-4">
+                        <TabsList>
+                            <TabsTrigger value="roster">Team Roster</TabsTrigger>
+                            <TabsTrigger value="pipeline">Hiring Pipeline</TabsTrigger>
+                        </TabsList>
+                    </Tabs>
+                )}
+
+                {activeTab === "teams" && staffSubTab === "pipeline" && !isViewingOwnCleanerProfile && (
+                    <PipelineBoard getAuthHeaders={getAuthHeaders} />
+                )}
+
+                {activeTab === "teams" && (staffSubTab === "roster" || isViewingOwnCleanerProfile) && (
                     <TeamsTab
                         isViewingOwnCleanerProfile={isViewingOwnCleanerProfile}
                         peopleRoster={peopleRoster}

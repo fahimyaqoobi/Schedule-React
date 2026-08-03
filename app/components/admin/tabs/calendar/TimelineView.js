@@ -8,10 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectTrigger, SelectContent, SelectItem } from "@/components/ui/select";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import { useIsMobile } from "@/hooks/use-mobile";
 import JobCard from "./JobCard";
 import StaffAvatarStack from "./StaffAvatarStack";
 import { applyTimelineDrag } from "./dragHandlers";
+import { checkStaffAvailability, isStaffWorkingOnDate } from "@/lib/staffAvailability";
 
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -48,14 +50,24 @@ function DraggableTimelineCard({ booking, staffUid, ...cardProps }) {
     );
 }
 
-function TimelineCell({ staffUid, dateStr, bookings, cardProps, draggable }) {
-    const { setNodeRef, isOver } = useDroppable({ id: `${staffUid || UNASSIGNED_KEY}::${dateStr}`, disabled: !draggable });
+// A cell is "off" when the staff member's own weekly schedule doesn't work
+// this date at all (day disabled, or the date is in their blockedDates) —
+// shift-specific mismatches (e.g. works mornings, card is an evening job)
+// are still caught at drop-time in handleDragEnd, since that depends on the
+// specific booking being dragged, not the cell itself. The Unassigned
+// column is never "off" — it's not a real person's schedule.
+function TimelineCell({ staffUid, staffMember, dateStr, bookings, cardProps, draggable }) {
+    const dayCheck = staffUid ? isStaffWorkingOnDate(staffMember, dateStr) : { available: true };
+    const isOff = !dayCheck.available;
+    const { setNodeRef, isOver } = useDroppable({ id: `${staffUid || UNASSIGNED_KEY}::${dateStr}`, disabled: !draggable || isOff });
     return (
         <div
             ref={draggable ? setNodeRef : undefined}
+            title={isOff ? dayCheck.reason : undefined}
             className={cn(
                 "flex min-h-20 flex-col gap-1.5 rounded-lg border border-dashed border-border/60 p-1.5 transition-colors",
-                isOver && "border-primary bg-primary/5"
+                isOver && "border-primary bg-primary/5",
+                isOff && "cursor-not-allowed border-none bg-[repeating-linear-gradient(135deg,var(--color-muted)_0px,var(--color-muted)_6px,transparent_6px,transparent_12px)] opacity-60"
             )}
         >
             {bookings.map(b => (
@@ -139,6 +151,15 @@ export default function TimelineView({
         return [{ uid: null, name: "Unassigned", photoURL: "" }, ...base];
     }, [fieldStaff]);
 
+    // Full member records (with staffProfile.availability), keyed by uid —
+    // staffColumns above is a stripped-down {uid,name,photoURL} shape for
+    // headers/avatars, but availability checks need the real profile.
+    const staffByUid = useMemo(() => {
+        const map = {};
+        (fieldStaff || []).forEach(m => { map[m.uid] = m; });
+        return map;
+    }, [fieldStaff]);
+
     const scopedStaffColumns = useMemo(() => {
         if (!isCleanerSelfServiceView) return staffColumns;
         return staffColumns.filter(s => s.uid === currentUser?.uid);
@@ -182,6 +203,19 @@ export default function TimelineView({
         if (toUid === fromUid && toDate === fromDate) return;
         const booking = (bookings || []).find(b => b.id === bookingId);
         if (!booking) return;
+
+        // Block the drop if the target staff member's own weekly schedule
+        // has this day/shift off, or they've blocked this specific date —
+        // dropping a job on an off day should never silently assign it.
+        if (toUid) {
+            const targetStaff = (fieldStaff || []).find(m => m.uid === toUid);
+            const result = checkStaffAvailability(targetStaff, { ...booking, date: toDate });
+            if (!result.available) {
+                toast.error(result.reason || "This staff member isn't available then.");
+                return;
+            }
+        }
+
         await applyTimelineDrag(booking, { fromUid, toUid, newDate: toDate }, fieldStaff || [], handleQuickBookingUpdate);
     }
 
@@ -280,7 +314,7 @@ export default function TimelineView({
                             {scopedStaffColumns.map(s => (
                                 <div key={s.uid || UNASSIGNED_KEY} className="border-b border-border pb-1">
                                     <TimelineCell
-                                        staffUid={s.uid} dateStr={dStr}
+                                        staffUid={s.uid} staffMember={staffByUid[s.uid]} dateStr={dStr}
                                         bookings={grid[s.uid || UNASSIGNED_KEY]?.[dStr] || []}
                                         cardProps={cardProps} draggable={draggable}
                                     />

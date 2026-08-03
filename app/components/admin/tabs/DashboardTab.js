@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import {
     DollarSign, TrendingUp, TriangleAlert, CalendarDays, Users,
     Wallet, UserPlus, FileText, CheckCircle2, ArrowRight, Sparkles,
@@ -289,8 +289,28 @@ export default function DashboardTab({
     setFilterStatus,
     handleResolveUserApproval,
     getRoleLabel,
+    getAuthHeaders,
+    setStaffSubTab,
 }) {
     const [chartFilter, setChartFilter] = useState("6m");
+    const [pipelineActiveCount, setPipelineActiveCount] = useState(0);
+
+    const loadPipelineCount = useCallback(async () => {
+        try {
+            const headers = await getAuthHeaders?.();
+            if (!headers?.Authorization) return;
+            const res = await fetch("/api/hr/applications", { headers });
+            const data = await res.json();
+            if (res.ok) {
+                const active = (data.applications || []).filter(a => a.status !== "hired" && a.status !== "rejected" && a.status !== "withdrawn");
+                setPipelineActiveCount(active.length);
+            }
+        } catch {
+            // Silent — the card just shows 0 until the next load.
+        }
+    }, [getAuthHeaders]);
+
+    useEffect(() => { loadPipelineCount(); }, [loadPipelineCount]);
 
     const chartData = useMemo(() => {
         const periods = getPeriods(chartFilter);
@@ -683,16 +703,16 @@ export default function DashboardTab({
                                 <CardHeader className="flex-row items-center justify-between">
                                     <div>
                                         <CardTitle>HR &amp; Compliance Queue</CardTitle>
-                                        <p className="text-xs text-muted-foreground">Employee/subcontractor readiness.</p>
+                                        <p className="text-xs text-muted-foreground">Hiring pipeline &amp; staff readiness.</p>
                                     </div>
-                                    <Badge variant="secondary">{pendingUsers.length} Pending</Badge>
+                                    <Badge variant="secondary">{pipelineActiveCount} In Pipeline</Badge>
                                 </CardHeader>
                                 <CardContent className="flex flex-col gap-4">
                                     <div className="grid grid-cols-3 gap-3">
                                         {[
-                                            { value: fieldStaff.length, label: "Approved field staff" },
-                                            { value: pendingUsers.length, label: "Pending approvals", alert: pendingUsers.length > 0 },
-                                            { value: bookings.filter(b => b.assignedStaffIds?.length > 0).length, label: "Assigned jobs" },
+                                            { value: fieldStaff.length, label: "Active field staff" },
+                                            { value: pipelineActiveCount, label: "In hiring pipeline", alert: pipelineActiveCount > 0 },
+                                            { value: pendingUsers.length, label: "Pending accounts" },
                                         ].map(s => (
                                             <div key={s.label} className="flex flex-col items-center gap-0.5 rounded-lg bg-muted/50 px-2 py-3 text-center">
                                                 <strong className={cn("text-xl font-bold tabular-nums", s.alert ? "text-destructive" : "text-foreground")}>{s.value}</strong>
@@ -700,8 +720,8 @@ export default function DashboardTab({
                                             </div>
                                         ))}
                                     </div>
-                                    <Button variant="secondary" onClick={() => setActiveTab("departments")} type="button">
-                                        Open HR modules
+                                    <Button variant="secondary" onClick={() => { setActiveTab("teams"); setStaffSubTab?.("pipeline"); }} type="button">
+                                        Open Hiring Pipeline
                                     </Button>
                                 </CardContent>
                             </Card>

@@ -35,7 +35,7 @@ function StatusColumn({ status, bookings, cardProps, draggable }) {
     const meta = getStatusMeta(status.value);
     const { setNodeRef, isOver } = useDroppable({ id: status.value, disabled: !draggable });
     return (
-        <div className="flex w-72 shrink-0 flex-col rounded-xl border border-border bg-muted/30 sm:w-80">
+        <div className="flex w-[82vw] max-w-96 shrink-0 snap-start flex-col rounded-xl border border-border bg-muted/30 sm:w-72 lg:w-80">
             <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2.5">
                 <div className="flex items-center gap-2">
                     <span className="size-2.5 shrink-0 rounded-full" style={{ background: meta.fill }} />
@@ -49,7 +49,7 @@ function StatusColumn({ status, bookings, cardProps, draggable }) {
                     "flex min-h-24 flex-1 flex-col gap-2 overflow-y-auto p-2.5 transition-colors",
                     isOver && "bg-primary/10"
                 )}
-                style={{ maxHeight: "calc(100vh - 340px)" }}
+                style={{ maxHeight: "min(calc(100vh - 340px), 60vh)" }}
             >
                 {bookings.length === 0 ? (
                     <div className="flex flex-1 items-center justify-center py-6 text-center text-[11px] text-muted-foreground">No jobs</div>
@@ -126,7 +126,7 @@ export default function BoardView({
     }
 
     const columnsRow = (
-        <div className="flex gap-3 overflow-x-auto pb-2">
+        <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
             {columns.map(status => (
                 <StatusColumn key={status.value} status={status} bookings={byStatus[status.value] || []} cardProps={cardProps} draggable={draggable} />
             ))}

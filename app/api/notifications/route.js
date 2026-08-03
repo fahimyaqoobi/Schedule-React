@@ -18,7 +18,7 @@ async function authenticateRequest(request) {
 }
 
 function canViewNotifications(user) {
-    return canManageBranch(user) || roleHasDepartment(user.role, "sales") || roleHasDepartment(user.role, "operations");
+    return canManageBranch(user) || roleHasDepartment(user.role, "sales") || roleHasDepartment(user.role, "operations") || roleHasDepartment(user.role, "people");
 }
 
 // GET: the most recent notifications for this user's branch scope, newest first.

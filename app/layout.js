@@ -1,9 +1,11 @@
 import "./globals.css";
+import { Toaster } from "@/components/ui/sonner";
+import RegisterServiceWorker from "./components/shared/RegisterServiceWorker";
+import InstallPrompt from "./components/shared/InstallPrompt";
 
 export const metadata = {
   title: "SmarTouch Clean - Admin Client Scheduling System",
   description: "Secure, real-time client booking and operational crew dispatch manager.",
-  manifest: "/manifest.json",
 };
 
 export const viewport = {
@@ -19,6 +21,9 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <body>
         {children}
+        <Toaster position="top-center" richColors />
+        <RegisterServiceWorker src="/sw-staff.js" scope="/" />
+        <InstallPrompt accentColor="#005691" appLabel="SmarTouch app" />
       </body>
     </html>
   );
