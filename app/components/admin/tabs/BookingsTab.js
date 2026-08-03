@@ -14,17 +14,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatZonedDate, formatZonedDateTime } from "@/lib/timezone";
-
-const STATUS_OPTIONS = [
-    { value: "Lead", label: "Lead", color: "#78716c", bg: "#fafaf9", border: "#e7e5e4" },
-    { value: "Follow Up", label: "Follow Up", color: "#a16207", bg: "#fefce8", border: "#fef08a" },
-    { value: "Quote", label: "💬 Quote", color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe" },
-    { value: "awaiting_approval", label: "⏳ Awaiting Approval", color: "#f59e0b", bg: "#fffbeb", border: "#fde68a" },
-    { value: "Pending", label: "Pending", color: "#6366f1", bg: "#eef2ff", border: "#c7d2fe" },
-    { value: "Confirmed", label: "✓ Confirmed", color: "#0891b2", bg: "#ecfeff", border: "#a5f3fc" },
-    { value: "Completed", label: "★ Completed", color: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0" },
-    { value: "Cancelled", label: "✕ Cancelled", color: "#dc2626", bg: "#fef2f2", border: "#fecaca" },
-];
+import { BOOKING_STATUSES, STATUS_FILTER_OPTIONS, getStatusMeta } from "@/lib/bookingStatus";
+import StaffAvatarStack, { StaffAvatar } from "./calendar/StaffAvatarStack";
 
 const PAYMENT_OPTIONS = [
     { value: "unpaid", label: "Unpaid", color: "#dc2626", bg: "#fef2f2", border: "#fecaca" },
@@ -91,36 +82,6 @@ function loadColumnPrefs() {
     }
 }
 
-function initials(name = "") {
-    return name.split(" ").filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join("");
-}
-
-const AVATAR_COLORS = ["#6366f1", "#0891b2", "#16a34a", "#d97706", "#dc2626", "#7c3aed", "#0d9488"];
-function avatarColor(uid = "") {
-    let n = 0;
-    for (const c of uid) n = (n * 31 + c.charCodeAt(0)) & 0xffff;
-    return AVATAR_COLORS[n % AVATAR_COLORS.length];
-}
-
-function StaffAvatar({ member, size = 30 }) {
-    const [imgError, setImgError] = useState(false);
-    const hasPhoto = member.photoURL && !imgError;
-    const label = member.name || member.displayName || member.email || "?";
-    return (
-        <div
-            title={label}
-            className="flex shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-background ring-1 ring-border"
-            style={{ width: size, height: size, background: hasPhoto ? "transparent" : avatarColor(member.uid || label) }}
-        >
-            {hasPhoto ? (
-                <img src={member.photoURL} alt={label} onError={() => setImgError(true)} className="size-full object-cover" />
-            ) : (
-                <span className="font-bold text-white" style={{ fontSize: size * 0.36, lineHeight: 1 }}>{initials(label)}</span>
-            )}
-        </div>
-    );
-}
-
 function ColorBadge({ opt }) {
     return (
         <span
@@ -133,8 +94,7 @@ function ColorBadge({ opt }) {
 }
 
 function StatusBadge({ status }) {
-    const opt = STATUS_OPTIONS.find(o => o.value === status) || { label: status, color: "#64748b", bg: "#f1f5f9", border: "#e2e8f0" };
-    return <ColorBadge opt={opt} />;
+    return <ColorBadge opt={getStatusMeta(status)} />;
 }
 
 function PaymentBadge({ status }) {
@@ -562,22 +522,7 @@ export default function BookingsTab({
                             <StaffPopover booking={b} fieldStaff={fieldStaff} onSave={f => quickUpdate(b.id, f)} onClose={stopEditing} />
                         )}
                         <div onClick={() => startEditing(b.id, "staff")} className="cursor-pointer" title="Click to assign staff">
-                            {enrichedStaff.length > 0 ? (
-                                <div className="flex">
-                                    {enrichedStaff.slice(0, 4).map((m, i) => (
-                                        <div key={m.uid || i} style={{ marginLeft: i === 0 ? 0 : -7, zIndex: 10 - i }}>
-                                            <StaffAvatar member={m} size={28} />
-                                        </div>
-                                    ))}
-                                    {enrichedStaff.length > 4 && (
-                                        <div className="-ml-1.75 flex size-7 items-center justify-center rounded-full border-2 border-background bg-muted text-[9px] font-extrabold text-muted-foreground">
-                                            +{enrichedStaff.length - 4}
-                                        </div>
-                                    )}
-                                </div>
-                            ) : (
-                                <span className="text-[11px] italic text-muted-foreground/60">Unassigned</span>
-                            )}
+                            <StaffAvatarStack staff={enrichedStaff} size={28} max={4} />
                         </div>
                     </div>
                 );
@@ -590,7 +535,7 @@ export default function BookingsTab({
                                 onChange={async e => { await quickUpdate(b.id, { status: e.target.value }); }}
                                 onBlur={stopEditing}
                                 className="w-full cursor-pointer rounded-md border-2 border-primary px-1.5 py-1 text-xs">
-                                {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                {BOOKING_STATUSES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                             </select>
                         ) : (
                             <div onClick={() => startEditing(b.id, "status")} className="cursor-pointer">
@@ -723,7 +668,7 @@ export default function BookingsTab({
                             <SelectTrigger className="flex-1 basis-40"><SelectValue placeholder="All Statuses" /></SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="all">All Statuses</SelectItem>
-                                {STATUS_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                                {STATUS_FILTER_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
                             </SelectContent>
                         </Select>
 
@@ -868,7 +813,7 @@ export default function BookingsTab({
                         <span className="text-xs font-bold text-sky-700 dark:text-sky-400">{selectedIds.size} selected</span>
                         <Select value={bulkStatus} onValueChange={setBulkStatus}>
                             <SelectTrigger className="h-8 w-52 bg-card text-xs"><SelectValue placeholder="Change status to…" /></SelectTrigger>
-                            <SelectContent>{STATUS_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                            <SelectContent>{BOOKING_STATUSES.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
                         </Select>
                         <Button size="sm" disabled={!bulkStatus} onClick={applyBulkStatus}>Apply</Button>
                         <Button size="sm" variant="ghost" className="ml-auto" onClick={() => setSelectedIds(new Set())}>Clear</Button>

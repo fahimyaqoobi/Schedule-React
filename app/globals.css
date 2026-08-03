@@ -565,6 +565,9 @@ label {
 .main-content {
     margin-left: var(--sidebar-width);
     flex-grow: 1;
+    min-width: 0; /* flex items default to min-width:auto, which lets a wide
+        descendant (e.g. the Scheduling Calendar's horizontal-scroll columns)
+        blow out the whole page instead of scrolling within its own bounds */
     min-height: 100vh;
     padding: 32px;
     transition: padding var(--transition-speed) ease;

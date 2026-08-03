@@ -59,7 +59,7 @@ import TeamsTab from "./components/admin/tabs/TeamsTab";
 import DashboardTab from "./components/admin/tabs/DashboardTab";
 import BookingsTab from "./components/admin/tabs/BookingsTab";
 import BookingWizard from "./components/admin/BookingWizard";
-import CalendarTab from "./components/admin/tabs/CalendarTab";
+import CalendarTab from "./components/admin/tabs/calendar/CalendarTab";
 import RecurringTab from "./components/admin/tabs/RecurringTab";
 import ExpensesTab from "./components/admin/tabs/ExpensesTab";
 import CustomersTab from "./components/admin/tabs/CustomersTab";
@@ -2588,10 +2588,22 @@ export default function Home() {
         }
     }, [bookings, createRecurringChildren, currentUser, syncDatabaseData]);
 
+    // Optimistic — the affected fields are patched into local state before
+    // the network call resolves (so drag-and-drop reads as instant, not
+    // drop-freeze-snap), then rolled back to their pre-call values if the
+    // request fails OR lands as a 202 (team-leader roles don't write the
+    // booking directly; they create an editRequests doc for admin approval,
+    // so nothing actually changed yet and the optimistic patch must revert).
+    // Rollback restores only the specific fields that were touched on this
+    // one booking, not a whole-array snapshot, so it can't clobber an
+    // unrelated concurrent update to a different booking (or a different
+    // field on the same one) that resolved in between.
     const handleQuickBookingUpdate = useCallback(async (bookingId, fields) => {
+        const existing = bookings.find(b => b.id === bookingId) || {};
+        const previousFieldValues = Object.fromEntries(Object.keys(fields).map(k => [k, existing[k]]));
+        setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, ...fields } : b));
         try {
             const headers = await getAuthHeaders();
-            const existing = bookings.find(b => b.id === bookingId) || {};
             const res = await fetch("/api/bookings", {
                 method: "PUT",
                 headers,
@@ -2599,12 +2611,18 @@ export default function Home() {
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(data.error || "Update failed");
-            setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, ...fields } : b));
+            if (res.status === 202) {
+                setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, ...previousFieldValues } : b));
+                return { ok: true, pending: true, requestId: data.requestId, message: data.message };
+            }
             if (fields.status === "Completed") {
                 await maybeExtendRecurringSeries({ ...existing, ...fields, id: bookingId });
             }
+            return { ok: true, pending: false };
         } catch (err) {
+            setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, ...previousFieldValues } : b));
             alert(`Quick update failed: ${err.message}`);
+            return { ok: false, error: err.message };
         }
     }, [bookings, getAuthHeaders, maybeExtendRecurringSeries]);
 
@@ -4777,7 +4795,7 @@ export default function Home() {
             </aside>
 
             {/* Main view body content */}
-            <main className="main-content">
+            <main className="main-content min-w-0">
                 <header className="top-header">
                     <div className="header-left">
                         <h2 className="view-title text-xl font-extrabold text-slate-800 uppercase tracking-tight">
@@ -4899,21 +4917,16 @@ export default function Home() {
                 {/* TAB 3: CALENDAR & DAY AGENDA PANEL */}
                 {activeTab === "calendar" && (
                     <CalendarTab
-                        monthNames={monthNames}
-                        currentCalMonth={currentCalMonth}
-                        calendarDays={calendarDays}
                         bookings={bookings}
-                        selectedCalDate={selectedCalDate}
+                        fieldStaff={fieldStaff}
                         isCleanerSelfServiceView={isCleanerSelfServiceView}
-                        teams={teams}
-                        agendaBookings={agendaBookings}
-                        Icons={Icons}
-                        changeMonth={changeMonth}
-                        setSelectedCalDate={setSelectedCalDate}
+                        currentUser={currentUser}
+                        handleQuickBookingUpdate={handleQuickBookingUpdate}
                         getBookingCustomerFirstName={getBookingCustomerFirstName}
                         setSelectedBooking={setSelectedBooking}
                         setDetailsModalOpen={setDetailsModalOpen}
                         openEditBookingModal={openEditBookingModal}
+                        branchTimezone={activeBranch?.timezone || "America/Toronto"}
                     />
                 )}
 
