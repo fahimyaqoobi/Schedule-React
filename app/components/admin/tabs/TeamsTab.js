@@ -1,10 +1,124 @@
 "use client";
+import { useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Camera } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectTrigger, SelectContent, SelectItem } from "@/components/ui/select";
+import {
+    AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader,
+    AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction,
+} from "@/components/ui/alert-dialog";
+import { Camera, Search, UserX, UserCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+const ROLE_FILTER_OPTIONS = [
+    { value: "all", label: "All Roles" },
+    { value: "cleaner", label: "Cleaner" },
+    { value: "supervisor", label: "Supervisor" },
+    { value: "employee", label: "Employee" },
+    { value: "subcontractor", label: "Subcontractor" },
+];
+
+function isEmploymentActive(member) {
+    return (member.employmentStatus || "Active") === "Active";
+}
+
+const EMPLOYMENT_STATUS_OPTIONS = [
+    { value: "Active", label: "Active" },
+    { value: "Inactive", label: "Inactive" },
+    { value: "Suspended", label: "Suspended" },
+    { value: "On Leave", label: "On Leave" },
+];
+
+// Employment-status controls shown on a staff profile: a quick Active/
+// Inactive switch for day-to-day availability, a granular status select for
+// Suspended/On Leave nuance, and a destructive Retire/Terminate action
+// (confirmed via AlertDialog) that also revokes login — separate from a
+// simple Inactive toggle since it's a harder-to-reverse step. Reused by
+// both the mobile and desktop profile layouts so the two never drift.
+function EmploymentActions({ member, canManagePeopleProfiles, staffProfileSaving, handleUpdateEmploymentStatus }) {
+    if (!canManagePeopleProfiles) return null;
+    const active = isEmploymentActive(member);
+    const disabled = member.status === "disabled";
+
+    return (
+        <Card>
+            <CardContent className="flex flex-col gap-3 p-3">
+                <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs text-muted-foreground">Quick Toggle</span>
+                    <label className="flex items-center gap-2">
+                        <Switch
+                            checked={active}
+                            disabled={staffProfileSaving}
+                            onCheckedChange={checked => handleUpdateEmploymentStatus(member.uid, checked ? "Active" : "Inactive")}
+                        />
+                        <span className="text-xs font-semibold">{active ? "Active" : "Inactive"}</span>
+                    </label>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs text-muted-foreground">Status Detail</span>
+                    <select
+                        value={member.employmentStatus || "Active"}
+                        onChange={e => handleUpdateEmploymentStatus(member.uid, e.target.value)}
+                        disabled={staffProfileSaving}
+                        className="rounded-md border border-input bg-transparent px-2 py-1 text-sm"
+                    >
+                        {EMPLOYMENT_STATUS_OPTIONS.map(opt => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                    </select>
+                </div>
+                <div className="border-t border-border pt-3">
+                    {disabled ? (
+                        <div className="flex items-center justify-between gap-3">
+                            <div>
+                                <p className="text-xs font-semibold text-destructive">Retired — login revoked</p>
+                                <p className="text-[11px] text-muted-foreground">Historical jobs and payroll remain intact.</p>
+                            </div>
+                            <Button
+                                size="sm"
+                                variant="secondary"
+                                disabled={staffProfileSaving}
+                                onClick={() => handleUpdateEmploymentStatus(member.uid, "Active", "approved")}
+                            >
+                                <UserCheck className="size-3.5" /> Reactivate
+                            </Button>
+                        </div>
+                    ) : (
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button size="sm" variant="destructive" disabled={staffProfileSaving} className="w-full">
+                                    <UserX className="size-3.5" /> Retire / Terminate Employee
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Retire {member.name}?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        This sets their employment status to Inactive and revokes their login access immediately. They will disappear from the Calendar and job assignment. Historical jobs, time cards, and payroll records stay intact and this can be reversed later.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                        className="bg-destructive text-white hover:bg-destructive/90"
+                                        onClick={() => handleUpdateEmploymentStatus(member.uid, "Inactive", "disabled")}
+                                    >
+                                        Retire Employee
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    )}
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
 
 export default function TeamsTab({
     isViewingOwnCleanerProfile,
@@ -58,15 +172,38 @@ export default function TeamsTab({
 }) {
     const approvedEmployees = peopleRoster.filter(member => member.status === "approved");
 
+    const [rosterSearch, setRosterSearch] = useState("");
+    const [rosterRoleFilter, setRosterRoleFilter] = useState("all");
+    const [showInactiveStaff, setShowInactiveStaff] = useState(false);
+
+    const filteredEmployees = useMemo(() => {
+        const query = rosterSearch.trim().toLowerCase();
+        return approvedEmployees.filter(member => {
+            if (!showInactiveStaff && !isEmploymentActive(member)) return false;
+            if (rosterRoleFilter !== "all" && member.role !== rosterRoleFilter) return false;
+            if (query && !(member.name || member.email || "").toLowerCase().includes(query)) return false;
+            return true;
+        });
+    }, [approvedEmployees, rosterSearch, rosterRoleFilter, showInactiveStaff]);
+
+    const inactiveCount = approvedEmployees.filter(member => !isEmploymentActive(member)).length;
+
     const renderRosterCard = (member) => {
         const assignedJobs = bookings.filter(b => b.assignedStaffIds?.includes(member.uid) && b.status !== "Cancelled");
         const completedCount = assignedJobs.filter(b => b.status === "Completed").length;
         const initials = getInitials(member.name || member.email || "FS");
         const requestPending = member.staffProfileRequest?.requestedProfile;
+        const active = isEmploymentActive(member);
+        const isSelected = selectedStaffMember?.uid === member.uid;
+
         return (
-            <button
+            <Card
                 key={member.uid}
-                type="button"
+                className={cn(
+                    "cursor-pointer gap-3 py-3 transition hover:border-primary/40",
+                    isSelected && "border-primary shadow-md",
+                    !active && "opacity-70"
+                )}
                 onClick={() => {
                     setSelectedStaffUid(member.uid);
                     setStaffProfileDraftOwnerUid(member.uid);
@@ -75,30 +212,40 @@ export default function TeamsTab({
                     setStaffProfileRejectReason("");
                     setStaffProfileEditOpen(false);
                 }}
-                className={`rounded-[28px] border p-3 text-left shadow-sm transition ${selectedStaffMember?.uid === member.uid ? "border-blue-500 bg-blue-50 shadow-md" : "border-slate-200 bg-white hover:border-slate-300"}`}
             >
-                <div className="flex flex-col items-center gap-2">
-                    <div className={`relative h-16 w-16 overflow-hidden rounded-full border-4 ${selectedStaffMember?.uid === member.uid ? "border-blue-500" : "border-slate-100"} bg-blue-600 text-white flex items-center justify-center text-lg font-extrabold`}>
-                        {member.photoURL ? (
-                            <img src={member.photoURL} alt={member.name || member.email} className="h-full w-full object-cover" />
-                        ) : initials}
-                        <span className={`absolute bottom-0 right-0 h-4 w-4 rounded-full border-2 border-white ${member.status === "approved" ? "bg-emerald-500" : "bg-amber-400"}`}></span>
+                <CardContent className="flex flex-col items-center gap-2 px-3 text-center">
+                    <div className="relative">
+                        <Avatar className={cn("size-14 ring-2", isSelected ? "ring-primary" : "ring-border")}>
+                            {member.photoURL && <AvatarImage src={member.photoURL} alt={member.name || member.email} />}
+                            <AvatarFallback className="font-bold">{initials}</AvatarFallback>
+                        </Avatar>
+                        <span className={cn("absolute -bottom-0.5 -right-0.5 size-3.5 rounded-full border-2 border-background", active ? "bg-emerald-500" : "bg-slate-400")} />
+                    </div>
+                    <div className="min-w-0">
+                        <h4 className="line-clamp-2 text-xs font-bold text-foreground">{member.name}</h4>
+                        <span className="text-[10px] text-muted-foreground">{getRoleLabel(member.role)}</span>
                     </div>
                     <div className="flex flex-wrap justify-center gap-1">
-                        <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${member.staffProfileMeta?.status === "approved" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>P</span>
-                        <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${assignedJobs.length > 0 ? "bg-blue-50 text-blue-700" : "bg-slate-100 text-slate-600"}`}>J{assignedJobs.length}</span>
-                        <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${completedCount > 0 ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>C{completedCount}</span>
-                        {requestPending && <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold text-amber-700">R</span>}
-                        {member.status === "approved" && member.employmentStatus && member.employmentStatus !== "Active" && (
-                            <span className="rounded-full bg-rose-100 px-2 py-1 text-[10px] font-bold text-rose-700">{member.employmentStatus}</span>
-                        )}
+                        <Badge variant="secondary" className="px-1.5 py-0 text-[9px]">J{assignedJobs.length}</Badge>
+                        <Badge variant="secondary" className="px-1.5 py-0 text-[9px]">C{completedCount}</Badge>
+                        {requestPending && <Badge className="bg-amber-100 px-1.5 py-0 text-[9px] text-amber-700 hover:bg-amber-100">Review</Badge>}
+                        {!active && <Badge variant="destructive" className="px-1.5 py-0 text-[9px]">{member.employmentStatus}</Badge>}
                     </div>
-                    <div className="text-center">
-                        <h4 className="line-clamp-2 text-xs font-bold text-slate-800">{member.name}</h4>
-                        <span className="text-[10px] text-slate-500">{getRoleLabel(member.role)}</span>
-                    </div>
-                </div>
-            </button>
+                    {canManagePeopleProfiles && (
+                        <label
+                            className="flex items-center gap-1.5 pt-1 text-[10px] font-semibold text-muted-foreground"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <Switch
+                                checked={active}
+                                disabled={staffProfileSaving}
+                                onCheckedChange={checked => handleUpdateEmploymentStatus(member.uid, checked ? "Active" : "Inactive")}
+                            />
+                            {active ? "Active" : "Inactive"}
+                        </label>
+                    )}
+                </CardContent>
+            </Card>
         );
     };
 
@@ -125,21 +272,48 @@ export default function TeamsTab({
             ) : (
                 <div className="people-management-shell">
                     {!isViewingOwnCleanerProfile && (
-                        <>
-                            <div className="people-roster-section">
+                        <div className="people-roster-section flex flex-col gap-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
                                 <div className="people-roster-section-head">
-                                    <h4>Approved Employees</h4>
-                                    <span className="ops-chip">{approvedEmployees.length}</span>
+                                    <h4>Team Roster</h4>
+                                    <span className="ops-chip">{filteredEmployees.length} of {approvedEmployees.length}</span>
                                 </div>
-                                {approvedEmployees.length === 0 ? (
-                                    <div className="text-xs text-slate-400 py-4">No approved employees yet.</div>
-                                ) : (
-                                    <div className="grid grid-cols-4 gap-3 md:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10">
-                                        {approvedEmployees.map(renderRosterCard)}
-                                    </div>
-                                )}
                             </div>
-                        </>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <div className="relative w-full sm:w-56">
+                                    <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                                    <Input
+                                        value={rosterSearch}
+                                        onChange={e => setRosterSearch(e.target.value)}
+                                        placeholder="Search staff..."
+                                        className="h-8 pl-8 text-xs"
+                                    />
+                                </div>
+                                <Select value={rosterRoleFilter} onValueChange={setRosterRoleFilter}>
+                                    <SelectTrigger className="h-8 w-full text-xs sm:w-40">
+                                        <span data-slot="select-value">
+                                            {ROLE_FILTER_OPTIONS.find(o => o.value === rosterRoleFilter)?.label}
+                                        </span>
+                                    </SelectTrigger>
+                                    <SelectContent align="start" alignItemWithTrigger={false}>
+                                        {ROLE_FILTER_OPTIONS.map(opt => (
+                                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <label className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+                                    <Switch checked={showInactiveStaff} onCheckedChange={setShowInactiveStaff} />
+                                    Show Inactive {inactiveCount > 0 && `(${inactiveCount})`}
+                                </label>
+                            </div>
+                            {filteredEmployees.length === 0 ? (
+                                <div className="py-4 text-xs text-muted-foreground">No staff match these filters.</div>
+                            ) : (
+                                <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10">
+                                    {filteredEmployees.map(renderRosterCard)}
+                                </div>
+                            )}
+                        </div>
                     )}
 
                     {selectedStaffMember && activeStaffProfileDraft && (
@@ -152,12 +326,14 @@ export default function TeamsTab({
                                                 {selectedStaffMember.photoURL && <AvatarImage src={selectedStaffMember.photoURL} alt={selectedStaffMember.name || selectedStaffMember.email} />}
                                                 <AvatarFallback className="text-lg font-bold">{getInitials(selectedStaffMember.name || selectedStaffMember.email || "FS")}</AvatarFallback>
                                             </Avatar>
-                                            <span className="absolute bottom-0 right-0 size-4 rounded-full border-2 border-background bg-emerald-500" />
+                                            <span className={cn("absolute bottom-0 right-0 size-4 rounded-full border-2 border-background", isEmploymentActive(selectedStaffMember) ? "bg-emerald-500" : "bg-slate-400")} />
                                         </div>
                                         <div>
                                             <h3 className="text-lg font-extrabold text-foreground">{selectedStaffMember.name}</h3>
-                                            <Badge variant="secondary" className="mt-1 gap-1">
-                                                <span className="size-1.5 rounded-full bg-emerald-500" /> Active
+                                            <Badge variant={isEmploymentActive(selectedStaffMember) ? "secondary" : "destructive"} className="mt-1 gap-1">
+                                                <span className={cn("size-1.5 rounded-full", isEmploymentActive(selectedStaffMember) ? "bg-emerald-500" : "bg-current")} />
+                                                {selectedStaffMember.employmentStatus || "Active"}
+                                                {selectedStaffMember.status === "disabled" && " · Login Revoked"}
                                             </Badge>
                                         </div>
                                         {canEditSelectedStaffProfile && (
@@ -278,24 +454,12 @@ export default function TeamsTab({
                                                         </Card>
                                                     ))}
                                                 </div>
-                                                {canManagePeopleProfiles && (
-                                                    <Card>
-                                                        <CardContent className="flex items-center justify-between gap-3 p-3">
-                                                            <span className="text-xs text-muted-foreground">Employment Status</span>
-                                                            <select
-                                                                value={selectedStaffMember.employmentStatus || "Active"}
-                                                                onChange={e => handleUpdateEmploymentStatus(selectedStaffMember.uid, e.target.value)}
-                                                                disabled={staffProfileSaving}
-                                                                className="rounded-md border border-input bg-transparent px-2 py-1 text-sm"
-                                                            >
-                                                                <option value="Active">Active</option>
-                                                                <option value="Inactive">Inactive</option>
-                                                                <option value="Suspended">Suspended</option>
-                                                                <option value="On Leave">On Leave</option>
-                                                            </select>
-                                                        </CardContent>
-                                                    </Card>
-                                                )}
+                                                <EmploymentActions
+                                                    member={selectedStaffMember}
+                                                    canManagePeopleProfiles={canManagePeopleProfiles}
+                                                    staffProfileSaving={staffProfileSaving}
+                                                    handleUpdateEmploymentStatus={handleUpdateEmploymentStatus}
+                                                />
                                             </section>
                                             <section className="flex flex-col gap-2">
                                                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Internal Notes</p>
@@ -521,7 +685,12 @@ export default function TeamsTab({
                                                     <img src={selectedStaffMember.photoURL} alt={selectedStaffMember.name || selectedStaffMember.email} className="avatar-image" />
                                                 ) : getInitials(selectedStaffMember.name || selectedStaffMember.email || "FS")}
                                             </div>
-                                            <span className="people-profile-active-badge">Active</span>
+                                            <span
+                                                className="people-profile-active-badge"
+                                                style={!isEmploymentActive(selectedStaffMember) ? { background: "#7f1d1d" } : undefined}
+                                            >
+                                                {selectedStaffMember.employmentStatus || "Active"}
+                                            </span>
                                         </div>
                                         <div className="people-profile-headings">
                                             <h3>{selectedStaffMember.name}</h3>
@@ -632,24 +801,16 @@ export default function TeamsTab({
                                                 <p className="ops-eyebrow">Employment</p>
                                                 <h4>Employment</h4>
                                             </div>
+                                            {canManagePeopleProfiles && (
+                                                <EmploymentActions
+                                                    member={selectedStaffMember}
+                                                    canManagePeopleProfiles={canManagePeopleProfiles}
+                                                    staffProfileSaving={staffProfileSaving}
+                                                    handleUpdateEmploymentStatus={handleUpdateEmploymentStatus}
+                                                />
+                                            )}
                                             <div className="people-profile-read-list">
                                                 <div><span>Worker Type</span><strong>{activeStaffProfileDraft.employment.workerType || getRoleLabel(selectedStaffMember.role)}</strong></div>
-                                                {canManagePeopleProfiles && (
-                                                    <div>
-                                                        <span>Employment Status</span>
-                                                        <select
-                                                            value={selectedStaffMember.employmentStatus || "Active"}
-                                                            onChange={e => handleUpdateEmploymentStatus(selectedStaffMember.uid, e.target.value)}
-                                                            disabled={staffProfileSaving}
-                                                            className="people-employment-status-select"
-                                                        >
-                                                            <option value="Active">Active</option>
-                                                            <option value="Inactive">Inactive</option>
-                                                            <option value="Suspended">Suspended</option>
-                                                            <option value="On Leave">On Leave</option>
-                                                        </select>
-                                                    </div>
-                                                )}
                                                 <div><span>Hourly Rate</span><strong>${Number(activeStaffProfileDraft.employment.hourlyRate || 20).toFixed(2)}/hr</strong></div>
                                                 <div><span>Overtime Rate</span><strong>${Number(activeStaffProfileDraft.employment.overtimeRate || 30).toFixed(2)}/hr</strong></div>
                                                 <div><span>Overtime After</span><strong>{Number(activeStaffProfileDraft.employment.overtimeAfterHours || 44)} hrs/week</strong></div>

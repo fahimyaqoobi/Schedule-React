@@ -3003,7 +3003,7 @@ export default function Home() {
         }
     };
 
-    const handleUpdateEmploymentStatus = async (targetUid, employmentStatus) => {
+    const handleUpdateEmploymentStatus = async (targetUid, employmentStatus, accountStatus) => {
         if (!targetUid) return;
         setStaffProfileSaving(true);
         setStaffProfileFeedback("");
@@ -3012,11 +3012,22 @@ export default function Home() {
             const res = await fetch("/api/users", {
                 method: "PUT",
                 headers,
-                body: JSON.stringify({ targetUid, employmentStatus })
+                body: JSON.stringify({
+                    updateEmploymentStatus: true,
+                    targetUid,
+                    ...(employmentStatus !== undefined ? { employmentStatus } : {}),
+                    ...(accountStatus !== undefined ? { status: accountStatus } : {}),
+                })
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "Failed to update employment status.");
-            setStaffProfileFeedback(`Employment status set to ${employmentStatus}.`);
+            setStaffProfileFeedback(
+                accountStatus === "disabled"
+                    ? "Employee retired — login access revoked."
+                    : accountStatus === "approved"
+                        ? "Employee reactivated."
+                        : `Employment status set to ${employmentStatus}.`
+            );
             syncDatabaseData(currentUser);
         } catch (err) {
             setStaffProfileFeedback(err.message || "Failed to update employment status.");

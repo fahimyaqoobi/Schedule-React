@@ -6,8 +6,11 @@ import {
 } from "@dnd-kit/core";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectTrigger, SelectContent, SelectItem } from "@/components/ui/select";
+import { CalendarRange } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BOOKING_STATUSES, getStatusMeta } from "@/lib/bookingStatus";
+import { DATE_FILTER_OPTIONS, getDateRangeForPeriod, DEFAULT_TIMEZONE } from "@/lib/timezone";
 import JobCard from "./JobCard";
 import { applyStatusDrag } from "./dragHandlers";
 
@@ -77,8 +80,10 @@ export default function BoardView({
     setSelectedBooking,
     setDetailsModalOpen,
     openEditBookingModal,
+    branchTimezone = DEFAULT_TIMEZONE,
 }) {
     const [hideCancelled, setHideCancelled] = useState(true);
+    const [dateFilter, setDateFilter] = useState("all");
     const [activeBooking, setActiveBooking] = useState(null);
     const [pendingMessage, setPendingMessage] = useState("");
 
@@ -90,9 +95,13 @@ export default function BoardView({
     const draggable = !isCleanerSelfServiceView;
 
     const scopedBookings = useMemo(() => {
-        if (!isCleanerSelfServiceView) return bookings;
-        return bookings.filter(b => (b.assignedStaffIds || []).includes(currentUser?.uid));
-    }, [bookings, isCleanerSelfServiceView, currentUser]);
+        const base = isCleanerSelfServiceView
+            ? bookings.filter(b => (b.assignedStaffIds || []).includes(currentUser?.uid))
+            : bookings;
+        const range = getDateRangeForPeriod(dateFilter, branchTimezone);
+        if (!range) return base;
+        return base.filter(b => b.date >= range.startKey && b.date <= range.endKey);
+    }, [bookings, isCleanerSelfServiceView, currentUser, dateFilter, branchTimezone]);
 
     const columns = useMemo(
         () => BOOKING_STATUSES.filter(s => !(hideCancelled && s.value === "Cancelled")),
@@ -135,11 +144,28 @@ export default function BoardView({
 
     return (
         <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between gap-3">
-                <label className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-                    <Switch checked={!hideCancelled} onCheckedChange={v => setHideCancelled(!v)} />
-                    Show Cancelled
-                </label>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-3">
+                    <Select value={dateFilter} onValueChange={setDateFilter}>
+                        <SelectTrigger className="h-8 w-full min-w-[9.5rem] text-xs sm:w-auto">
+                            <div className="flex items-center gap-1.5">
+                                <CalendarRange className="size-3.5 text-muted-foreground" />
+                                <span data-slot="select-value">
+                                    {DATE_FILTER_OPTIONS.find(o => o.value === dateFilter)?.label || "All Time"}
+                                </span>
+                            </div>
+                        </SelectTrigger>
+                        <SelectContent align="start" alignItemWithTrigger={false}>
+                            {DATE_FILTER_OPTIONS.map(opt => (
+                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    <label className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+                        <Switch checked={!hideCancelled} onCheckedChange={v => setHideCancelled(!v)} />
+                        Show Cancelled
+                    </label>
+                </div>
                 {pendingMessage && <span className="text-xs font-semibold text-amber-600">{pendingMessage}</span>}
             </div>
 

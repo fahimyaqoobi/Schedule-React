@@ -456,10 +456,41 @@ export async function PUT(request) {
             return NextResponse.json({ message: `Staff profile request ${action}d successfully.`, user: normalizeStaffMember(nextData) }, { status: 200 });
         }
         
+        if (body.updateEmploymentStatus) {
+            if (!canManageBranch(user)) {
+                return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+            }
+            const { targetUid, employmentStatus, status } = body;
+            if (!targetUid) {
+                return NextResponse.json({ error: "Missing target user UID" }, { status: 400 });
+            }
+            const VALID_EMPLOYMENT_STATUSES = ["Active", "Inactive", "Suspended", "On Leave"];
+            if (employmentStatus !== undefined && !VALID_EMPLOYMENT_STATUSES.includes(employmentStatus)) {
+                return NextResponse.json({ error: "Invalid employment status." }, { status: 400 });
+            }
+            if (status !== undefined && !["approved", "disabled"].includes(status)) {
+                return NextResponse.json({ error: "Invalid account status." }, { status: 400 });
+            }
+
+            const userRef = adminDb.collection("users").doc(targetUid);
+            const docSnap = await userRef.get();
+            if (!docSnap.exists) {
+                return NextResponse.json({ error: "User profile not found" }, { status: 404 });
+            }
+
+            const patch = { updatedAt: new Date().toISOString() };
+            if (employmentStatus !== undefined) patch.employmentStatus = employmentStatus;
+            if (status !== undefined) patch.status = status;
+            await userRef.update(patch);
+
+            const updatedSnap = await userRef.get();
+            return NextResponse.json({ message: "Employment status updated.", user: normalizeStaffMember(updatedSnap.data()) }, { status: 200 });
+        }
+
         if (!canManageSystem(user)) {
             return NextResponse.json({ error: "Forbidden: Only Administrators can update user details." }, { status: 403 });
         }
-        
+
         const { targetUid, teamId, role, branchId, branchName, branchIds, departmentIds, applicantStatus, employmentStatus } = body;
         if (!targetUid) {
             return NextResponse.json({ error: "Missing target user UID" }, { status: 400 });

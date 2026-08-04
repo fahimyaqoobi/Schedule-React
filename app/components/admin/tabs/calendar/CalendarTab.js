@@ -35,6 +35,7 @@ export default function CalendarTab({
             setSelectedBooking={setSelectedBooking}
             setDetailsModalOpen={setDetailsModalOpen}
             openEditBookingModal={openEditBookingModal}
+            branchTimezone={branchTimezone}
         />
     );
 
