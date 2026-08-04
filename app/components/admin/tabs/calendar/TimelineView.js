@@ -67,7 +67,7 @@ function TimelineCell({ staffUid, staffMember, dateStr, bookings, cardProps, dra
             className={cn(
                 "flex min-h-20 flex-col gap-1.5 rounded-lg border border-dashed border-border/60 p-1.5 transition-colors",
                 isOver && "border-primary bg-primary/5",
-                isOff && "cursor-not-allowed border-none bg-[repeating-linear-gradient(135deg,var(--color-muted)_0px,var(--color-muted)_6px,transparent_6px,transparent_12px)] opacity-60"
+                isOff && "cursor-not-allowed border-none bg-[repeating-linear-gradient(135deg,var(--color-muted-foreground)_0px,var(--color-muted-foreground)_5px,var(--color-muted)_5px,var(--color-muted)_10px)] opacity-80 dark:opacity-90"
             )}
         >
             {bookings.map(b => (
