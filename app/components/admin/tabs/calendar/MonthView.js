@@ -39,7 +39,7 @@ function MonthDayButton({ day, modifiers, className, bookingsByDate, ...props })
             type="button"
             data-day={dateKey}
             className={cn(
-                "flex size-full min-h-12 flex-col items-center justify-start gap-1 rounded-md p-1 text-sm transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-40",
+                "flex size-full min-h-14 flex-col items-start gap-1.5 p-1.5 text-left transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-40 sm:min-h-20 sm:p-2 lg:min-h-24 lg:p-2.5",
                 modifiers.selected && "bg-primary text-primary-foreground hover:bg-primary/90",
                 modifiers.today && !modifiers.selected && "bg-accent font-bold text-accent-foreground",
                 modifiers.outside && "text-muted-foreground/40",
@@ -47,18 +47,18 @@ function MonthDayButton({ day, modifiers, className, bookingsByDate, ...props })
             )}
             {...props}
         >
-            <span>{day.date.getDate()}</span>
+            <span className="text-sm font-semibold sm:text-base lg:text-lg">{day.date.getDate()}</span>
             {dots.length > 0 && (
-                <span className="flex items-center gap-0.5">
+                <span className="flex flex-wrap items-center gap-1">
                     {dots.map((b, i) => (
                         <span
                             key={b.id || i}
-                            className="size-1.5 rounded-full"
+                            className="size-1.5 rounded-full sm:size-2"
                             style={{ background: modifiers.selected ? "currentColor" : getStatusMeta(b.status).fill }}
                         />
                     ))}
                     {overflow > 0 && (
-                        <span className="text-[9px] font-semibold leading-none opacity-80">+{overflow}</span>
+                        <span className="text-[10px] font-semibold leading-none opacity-80">+{overflow}</span>
                     )}
                 </span>
             )}
@@ -108,7 +108,7 @@ export default function MonthView({
 
     return (
         <div className="flex flex-col gap-4 lg:flex-row">
-            <div className="rounded-lg border border-border bg-card p-3 lg:flex-1">
+            <div className="relative rounded-lg border border-border bg-card p-3 sm:p-4 lg:flex-1">
                 <DayPicker
                     mode="single"
                     month={month}
@@ -121,14 +121,13 @@ export default function MonthView({
                     classNames={{
                         months: "w-full",
                         month: "w-full flex flex-col gap-3",
-                        nav: "flex items-center justify-between absolute inset-x-1 top-1 h-8 z-10",
-                        month_caption: "flex h-8 items-center justify-center text-base font-bold",
-                        button_previous: "flex size-8 items-center justify-center rounded-md hover:bg-muted",
-                        button_next: "flex size-8 items-center justify-center rounded-md hover:bg-muted",
-                        weekdays: "flex",
-                        weekday: "flex-1 text-center text-xs font-semibold text-muted-foreground pb-1",
-                        week: "flex w-full mt-1 gap-1",
-                        day: "flex-1",
+                        nav: "flex items-center justify-between absolute inset-x-0 top-0 h-9 z-10 px-0.5",
+                        month_caption: "flex h-9 items-center justify-center text-base font-bold sm:text-lg",
+                        button_previous: "flex size-9 items-center justify-center rounded-md border border-border bg-background text-foreground transition-colors hover:bg-muted",
+                        button_next: "flex size-9 items-center justify-center rounded-md border border-border bg-background text-foreground transition-colors hover:bg-muted",
+                        month_grid: "w-full table-fixed border-collapse",
+                        weekday: "border-b border-border pb-2 text-center text-[11px] font-semibold uppercase tracking-wide text-muted-foreground sm:text-xs",
+                        day: "border border-border/60 p-0 align-top",
                     }}
                     components={{
                         Chevron: ({ orientation, ...p }) => orientation === "left" ? <ChevronLeft className="size-4" {...p} /> : <ChevronRight className="size-4" {...p} />,
