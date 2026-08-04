@@ -1,15 +1,25 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Search, MessageSquare, MessagesSquare } from "lucide-react";
+import { Plus, Search, MessageSquare, MessagesSquare, Megaphone } from "lucide-react";
+import { toast } from "sonner";
 import ChatPanel from "../../shared/ChatPanel";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Select, SelectTrigger, SelectContent, SelectItem } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import {
+    AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader,
+    AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+
+const ANNOUNCE_AUDIENCE_LABELS = { customer: "All Customers", cleaner: "All Cleaners & Staff" };
 
 function initials(name) {
     return (name || "?").trim().split(/\s+/).slice(0, 2).map(p => p[0]?.toUpperCase()).join("") || "?";
@@ -39,6 +49,13 @@ export default function MessagesTab({ getAuthHeaders, currentUser, Icons, fieldS
     const [chatLocked, setChatLocked] = useState(false);
     const [composeOpen, setComposeOpen] = useState(false);
     const [composeSearch, setComposeSearch] = useState("");
+    const [announceOpen, setAnnounceOpen] = useState(false);
+    const [announceAudience, setAnnounceAudience] = useState("customer");
+    const [announceText, setAnnounceText] = useState("");
+    const [announceSendSms, setAnnounceSendSms] = useState(false);
+    const [announceSending, setAnnounceSending] = useState(false);
+    const [announceHistory, setAnnounceHistory] = useState([]);
+    const [announceHistoryLoading, setAnnounceHistoryLoading] = useState(false);
 
     // Support threads (persistent, one per customer/cleaner) and job threads
     // (scoped to one booking, lock on completion) are two different backends
@@ -134,6 +151,44 @@ export default function MessagesTab({ getAuthHeaders, currentUser, Icons, fieldS
         setComposeSearch("");
     };
 
+    const loadAnnouncementHistory = useCallback(async () => {
+        setAnnounceHistoryLoading(true);
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch("/api/chat/announce", { headers });
+            const data = await res.json();
+            if (res.ok) setAnnounceHistory(data);
+        } finally {
+            setAnnounceHistoryLoading(false);
+        }
+    }, [getAuthHeaders]);
+
+    // Sends one message into every recipient's own persistent support
+    // thread (same backend the 1:1 support inbox uses) — not a separate
+    // broadcast feed, so a reply just shows up as a normal message in that
+    // thread, and the announcement itself stays in their history forever.
+    const handleSendAnnouncement = async () => {
+        if (!announceText.trim() || announceSending) return;
+        setAnnounceSending(true);
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch("/api/chat/announce", {
+                method: "POST", headers,
+                body: JSON.stringify({ audience: announceAudience, text: announceText.trim(), sendSms: announceSendSms }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Failed to send announcement.");
+            toast.success(data.message || "Announcement sent.");
+            setAnnounceText("");
+            setAnnounceSendSms(false);
+            await Promise.all([loadThreads(), loadAnnouncementHistory()]);
+        } catch (err) {
+            toast.error(err.message || "Failed to send announcement.");
+        } finally {
+            setAnnounceSending(false);
+        }
+    };
+
     return (
         <div className="animate-fade flex flex-col gap-4">
             <Card>
@@ -147,6 +202,14 @@ export default function MessagesTab({ getAuthHeaders, currentUser, Icons, fieldS
                     </div>
                     <div className="flex items-center gap-2">
                         <Badge variant="secondary">{threads.length} Threads</Badge>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => { setAnnounceOpen(true); loadAnnouncementHistory(); }}
+                        >
+                            <Megaphone className="size-4" />
+                            Announcement
+                        </Button>
                         <Button size="sm" onClick={() => setComposeOpen(true)}>
                             <Plus className="size-4" />
                             New Message
@@ -204,6 +267,101 @@ export default function MessagesTab({ getAuthHeaders, currentUser, Icons, fieldS
                                     </button>
                                 );
                             })
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={announceOpen} onOpenChange={setAnnounceOpen}>
+                <DialogContent className="sm:max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle>Send an announcement</DialogTitle>
+                        <DialogDescription>
+                            Delivers into every recipient's own support thread — it becomes a normal part of their conversation history, and any reply lands right back there for you to see.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="flex flex-col gap-3">
+                        <div>
+                            <label className="text-xs font-semibold text-muted-foreground">Send to</label>
+                            <Select value={announceAudience} onValueChange={setAnnounceAudience}>
+                                <SelectTrigger className="mt-1 w-full">
+                                    <span data-slot="select-value">{ANNOUNCE_AUDIENCE_LABELS[announceAudience]}</span>
+                                </SelectTrigger>
+                                <SelectContent align="start" alignItemWithTrigger={false}>
+                                    <SelectItem value="customer">All Customers</SelectItem>
+                                    <SelectItem value="cleaner">All Cleaners &amp; Staff</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div>
+                            <label className="text-xs font-semibold text-muted-foreground">Message</label>
+                            <Textarea
+                                className="mt-1"
+                                rows={4}
+                                placeholder="Write your announcement…"
+                                value={announceText}
+                                onChange={(e) => setAnnounceText(e.target.value)}
+                            />
+                        </div>
+
+                        <label className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
+                            <span>
+                                <span className="block text-sm font-medium text-foreground">Also send as a text message</span>
+                                <span className="block text-xs text-muted-foreground">Real, billed SMS to everyone with a phone on file, in addition to their in-app thread. Off = in-app only.</span>
+                            </span>
+                            <Switch checked={announceSendSms} onCheckedChange={setAnnounceSendSms} />
+                        </label>
+                    </div>
+
+                    <DialogFooter>
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button disabled={!announceText.trim() || announceSending}>
+                                    <Megaphone className="size-4" />
+                                    Send Announcement
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Send to {ANNOUNCE_AUDIENCE_LABELS[announceAudience]}?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        This message will be added to every {announceAudience === "customer" ? "customer's" : "cleaner's and staff member's"} support thread{announceSendSms ? ", and sent as a real text message to each of them" : ""}. This can't be recalled once sent.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleSendAnnouncement}>
+                                        {announceSending ? "Sending…" : "Yes, Send It"}
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    </DialogFooter>
+
+                    <div className="flex flex-col gap-2 border-t border-border pt-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Recent Announcements</p>
+                        {announceHistoryLoading ? (
+                            <p className="py-3 text-center text-xs text-muted-foreground">Loading…</p>
+                        ) : announceHistory.length === 0 ? (
+                            <p className="py-3 text-center text-xs text-muted-foreground">No announcements sent yet.</p>
+                        ) : (
+                            <div className="flex max-h-48 flex-col gap-2 overflow-y-auto">
+                                {announceHistory.map(a => (
+                                    <div key={a.id} className="rounded-lg border border-border p-2.5">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <Badge variant="outline" className="text-[9px]">{ANNOUNCE_AUDIENCE_LABELS[a.audience]}</Badge>
+                                            <span className="text-[10px] text-muted-foreground">{timeAgo(a.sentAt)}</span>
+                                        </div>
+                                        <p className="mt-1 line-clamp-2 text-xs text-foreground">{a.text}</p>
+                                        <p className="mt-1 text-[10px] text-muted-foreground">
+                                            Sent to {a.sentCount ?? a.recipientCount} of {a.recipientCount} · by {a.sentBy?.name || "Staff"}
+                                            {a.sendSms ? ` · ${a.smsSentCount || 0} texted` : ""}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
                         )}
                     </div>
                 </DialogContent>
