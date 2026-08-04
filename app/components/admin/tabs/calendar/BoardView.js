@@ -14,6 +14,7 @@ import { CalendarRange, CalendarDays, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BOOKING_STATUSES, getStatusMeta } from "@/lib/bookingStatus";
 import { DATE_FILTER_OPTIONS, getDateRangeForPeriod, getZonedDateKey, formatZonedDate, DEFAULT_TIMEZONE } from "@/lib/timezone";
+import { timeSortKey } from "@/lib/bookingTime";
 import JobCard from "./JobCard";
 import { applyStatusDrag } from "./dragHandlers";
 
@@ -118,7 +119,7 @@ export default function BoardView({
     const byStatus = useMemo(() => {
         const map = Object.fromEntries(BOOKING_STATUSES.map(s => [s.value, []]));
         scopedBookings.forEach(b => { if (map[b.status]) map[b.status].push(b); });
-        Object.values(map).forEach(list => list.sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`)));
+        Object.values(map).forEach(list => list.sort((a, b) => a.date === b.date ? timeSortKey(a.time) - timeSortKey(b.time) : a.date.localeCompare(b.date)));
         return map;
     }, [scopedBookings]);
 

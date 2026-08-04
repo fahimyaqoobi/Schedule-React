@@ -14,6 +14,7 @@ import JobCard from "./JobCard";
 import StaffAvatarStack from "./StaffAvatarStack";
 import { applyTimelineDrag } from "./dragHandlers";
 import { checkStaffAvailability, isStaffWorkingOnDate } from "@/lib/staffAvailability";
+import { timeSortKey } from "@/lib/bookingTime";
 
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -24,15 +25,6 @@ const toDateStr = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getD
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 const mondayOf = d => { const x = new Date(d); const dow = x.getDay(); x.setDate(x.getDate() - (dow === 0 ? 6 : dow - 1)); return x; };
 const shortLabel = d => `${MONTH_NAMES[d.getMonth()].slice(0, 3)} ${d.getDate()}`;
-
-function timeSortKey(timeStr = "") {
-    const m = String(timeStr).match(/(\d+):(\d+)\s*(AM|PM)/i);
-    if (!m) return 9999;
-    let h = parseInt(m[1]);
-    if (m[3].toUpperCase() === "PM" && h !== 12) h += 12;
-    if (m[3].toUpperCase() === "AM" && h === 12) h = 0;
-    return h * 60 + parseInt(m[2]);
-}
 
 function DraggableTimelineCard({ booking, staffUid, ...cardProps }) {
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({

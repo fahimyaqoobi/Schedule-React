@@ -1,0 +1,172 @@
+"use client";
+import { useMemo, useState } from "react";
+import { DayPicker } from "react-day-picker";
+import { ChevronLeft, ChevronRight, CalendarX2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { getStatusMeta } from "@/lib/bookingStatus";
+import { getZonedDateKey, formatZonedDate, DEFAULT_TIMEZONE } from "@/lib/timezone";
+import { timeSortKey } from "@/lib/bookingTime";
+import JobCard from "./JobCard";
+
+const MAX_DOTS = 4;
+
+// Calendar-grid days from react-day-picker are plain local Date objects with
+// no real "instant" meaning — just a Y/M/D box on a grid. Reading/writing
+// them via their local getters (not any UTC/zone conversion) is the correct
+// way to match them against booking.date's "YYYY-MM-DD" keys, which are
+// already branch-local per lib/timezone.js. This sidesteps timezone bugs
+// entirely rather than risking one.
+function dateToKey(date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+}
+
+function keyToDate(key) {
+    const [y, m, d] = key.split("-").map(Number);
+    return new Date(y, m - 1, d);
+}
+
+function MonthDayButton({ day, modifiers, className, bookingsByDate, ...props }) {
+    const dateKey = dateToKey(day.date);
+    const dayBookings = bookingsByDate.get(dateKey) || [];
+    const dots = dayBookings.slice(0, MAX_DOTS);
+    const overflow = dayBookings.length - dots.length;
+
+    return (
+        <button
+            type="button"
+            data-day={dateKey}
+            className={cn(
+                "flex size-full min-h-12 flex-col items-center justify-start gap-1 rounded-md p-1 text-sm transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-40",
+                modifiers.selected && "bg-primary text-primary-foreground hover:bg-primary/90",
+                modifiers.today && !modifiers.selected && "bg-accent font-bold text-accent-foreground",
+                modifiers.outside && "text-muted-foreground/40",
+                className
+            )}
+            {...props}
+        >
+            <span>{day.date.getDate()}</span>
+            {dots.length > 0 && (
+                <span className="flex items-center gap-0.5">
+                    {dots.map((b, i) => (
+                        <span
+                            key={b.id || i}
+                            className="size-1.5 rounded-full"
+                            style={{ background: modifiers.selected ? "currentColor" : getStatusMeta(b.status).fill }}
+                        />
+                    ))}
+                    {overflow > 0 && (
+                        <span className="text-[9px] font-semibold leading-none opacity-80">+{overflow}</span>
+                    )}
+                </span>
+            )}
+        </button>
+    );
+}
+
+// Third Calendar tab — a big month grid (status-colored dots per day) with a
+// side panel listing that day's jobs as cards. Read-only browse/lookup view,
+// not a dispatch tool (no drag) — Board and Timeline already cover dispatch.
+// Defaults to the branch's "today", not the viewer's device today, per this
+// app's standing rule that anything tied to where the work happens must
+// render in branch time.
+export default function MonthView({
+    bookings,
+    isCleanerSelfServiceView,
+    currentUser,
+    getBookingCustomerFirstName,
+    setSelectedBooking,
+    setDetailsModalOpen,
+    openEditBookingModal,
+    branchTimezone = DEFAULT_TIMEZONE,
+}) {
+    const todayKey = useMemo(() => getZonedDateKey(new Date(), branchTimezone), [branchTimezone]);
+    const [selectedDateKey, setSelectedDateKey] = useState(todayKey);
+    const [month, setMonth] = useState(() => keyToDate(todayKey));
+
+    const scopedBookings = useMemo(() => {
+        if (!isCleanerSelfServiceView) return bookings;
+        return bookings.filter(b => (b.assignedStaffIds || []).includes(currentUser?.uid));
+    }, [bookings, isCleanerSelfServiceView, currentUser]);
+
+    const bookingsByDate = useMemo(() => {
+        const map = new Map();
+        scopedBookings.forEach(b => {
+            const list = map.get(b.date) || [];
+            list.push(b);
+            map.set(b.date, list);
+        });
+        map.forEach(list => list.sort((a, b) => timeSortKey(a.time) - timeSortKey(b.time)));
+        return map;
+    }, [scopedBookings]);
+
+    const selectedBookings = bookingsByDate.get(selectedDateKey) || [];
+    const selectedDate = useMemo(() => keyToDate(selectedDateKey), [selectedDateKey]);
+    const isToday = selectedDateKey === todayKey;
+
+    return (
+        <div className="flex flex-col gap-4 lg:flex-row">
+            <div className="rounded-lg border border-border bg-card p-3 lg:flex-1">
+                <DayPicker
+                    mode="single"
+                    month={month}
+                    onMonthChange={setMonth}
+                    selected={selectedDate}
+                    onSelect={(d) => d && setSelectedDateKey(dateToKey(d))}
+                    today={keyToDate(todayKey)}
+                    showOutsideDays
+                    className="w-full"
+                    classNames={{
+                        months: "w-full",
+                        month: "w-full flex flex-col gap-3",
+                        nav: "flex items-center justify-between absolute inset-x-1 top-1 h-8 z-10",
+                        month_caption: "flex h-8 items-center justify-center text-base font-bold",
+                        button_previous: "flex size-8 items-center justify-center rounded-md hover:bg-muted",
+                        button_next: "flex size-8 items-center justify-center rounded-md hover:bg-muted",
+                        weekdays: "flex",
+                        weekday: "flex-1 text-center text-xs font-semibold text-muted-foreground pb-1",
+                        week: "flex w-full mt-1 gap-1",
+                        day: "flex-1",
+                    }}
+                    components={{
+                        Chevron: ({ orientation, ...p }) => orientation === "left" ? <ChevronLeft className="size-4" {...p} /> : <ChevronRight className="size-4" {...p} />,
+                        DayButton: (p) => <MonthDayButton {...p} bookingsByDate={bookingsByDate} />,
+                    }}
+                />
+            </div>
+
+            <div className="flex w-full flex-col gap-2 lg:w-80 lg:shrink-0">
+                <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-bold text-foreground">
+                        {formatZonedDate(new Date(`${selectedDateKey}T12:00:00`), { weekday: "long", month: "long", day: "numeric" }, branchTimezone)}
+                    </h4>
+                    {isToday && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">Today</span>}
+                </div>
+
+                <div className="flex max-h-[32rem] flex-col gap-2 overflow-y-auto lg:max-h-[36rem]">
+                    {selectedBookings.length === 0 ? (
+                        <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border py-10 text-center text-muted-foreground">
+                            <CalendarX2 className="size-6" />
+                            <p className="text-xs">No jobs on this date.</p>
+                        </div>
+                    ) : (
+                        selectedBookings.map(b => (
+                            <JobCard
+                                key={b.id}
+                                booking={b}
+                                variant="board"
+                                isCleanerSelfServiceView={isCleanerSelfServiceView}
+                                getBookingCustomerFirstName={getBookingCustomerFirstName}
+                                setSelectedBooking={setSelectedBooking}
+                                setDetailsModalOpen={setDetailsModalOpen}
+                                openEditBookingModal={openEditBookingModal}
+                            />
+                        ))
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
