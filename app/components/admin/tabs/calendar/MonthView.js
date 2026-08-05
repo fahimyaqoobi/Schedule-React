@@ -87,8 +87,9 @@ export default function MonthView({
     const [month, setMonth] = useState(() => keyToDate(todayKey));
 
     const scopedBookings = useMemo(() => {
-        if (!isCleanerSelfServiceView) return bookings;
-        return bookings.filter(b => (b.assignedStaffIds || []).includes(currentUser?.uid));
+        const notArchived = bookings.filter(b => !b.archived && b.status !== "Cancelled");
+        if (!isCleanerSelfServiceView) return notArchived;
+        return notArchived.filter(b => (b.assignedStaffIds || []).includes(currentUser?.uid));
     }, [bookings, isCleanerSelfServiceView, currentUser]);
 
     const bookingsByDate = useMemo(() => {

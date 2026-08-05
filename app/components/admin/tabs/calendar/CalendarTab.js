@@ -26,7 +26,7 @@ export default function CalendarTab({
     openEditBookingModal,
     branchTimezone,
 }) {
-    const [view, setView] = useState("board");
+    const [view, setView] = useState("month");
 
     const boardView = (
         <BoardView
@@ -60,8 +60,8 @@ export default function CalendarTab({
             <div className="animate-fade flex flex-col gap-4">
                 <Tabs value={view} onValueChange={setView}>
                     <TabsList>
-                        <TabsTrigger value="board"><LayoutGrid className="size-3.5" /> My Jobs</TabsTrigger>
                         <TabsTrigger value="month"><CalendarIcon className="size-3.5" /> Calendar</TabsTrigger>
+                        <TabsTrigger value="board"><LayoutGrid className="size-3.5" /> My Jobs</TabsTrigger>
                     </TabsList>
                 </Tabs>
                 {view === "month" ? monthView : boardView}
@@ -73,9 +73,9 @@ export default function CalendarTab({
         <div className="animate-fade flex flex-col gap-4">
             <Tabs value={view} onValueChange={setView}>
                 <TabsList>
+                    <TabsTrigger value="month"><CalendarIcon className="size-3.5" /> Calendar</TabsTrigger>
                     <TabsTrigger value="board"><LayoutGrid className="size-3.5" /> Status Board</TabsTrigger>
                     <TabsTrigger value="timeline"><CalendarDays className="size-3.5" /> Staff Timeline</TabsTrigger>
-                    <TabsTrigger value="month"><CalendarIcon className="size-3.5" /> Calendar</TabsTrigger>
                 </TabsList>
             </Tabs>
 

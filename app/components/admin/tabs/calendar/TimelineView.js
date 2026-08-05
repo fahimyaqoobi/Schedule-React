@@ -165,7 +165,7 @@ export default function TimelineView({
         staffColumns.forEach(s => { map[s.uid || UNASSIGNED_KEY] = {}; });
         const rangeSet = new Set(dateRange.map(toDateStr));
         (bookings || []).forEach(b => {
-            if (!rangeSet.has(b.date) || b.status === "Cancelled") return;
+            if (!rangeSet.has(b.date) || b.status === "Cancelled" || b.archived) return;
             const staffIds = (b.assignedStaffIds && b.assignedStaffIds.length) ? b.assignedStaffIds : [null];
             staffIds.forEach(uid => {
                 const key = uid || UNASSIGNED_KEY;
@@ -176,6 +176,29 @@ export default function TimelineView({
         Object.values(map).forEach(byDate => Object.values(byDate).forEach(list => list.sort((a, b) => timeSortKey(a.time) - timeSortKey(b.time))));
         return map;
     }, [bookings, staffColumns, dateRange]);
+
+    // Staff rows sort assigned-first, then open (working but idle), then
+    // unavailable — each bucket judged across the WHOLE visible Day/Week/
+    // Month range, not just a single day, since a person's schedule can
+    // vary day to day: someone with a job on any visible day is "assigned",
+    // someone with none but who works at least one visible day is "open",
+    // and someone off every visible day (e.g. on leave that week) sorts
+    // last. Recomputes automatically when the range or view changes.
+    // Unassigned is a bucket, not a person — always pinned first.
+    const sortedStaffRows = useMemo(() => {
+        const unassignedRow = scopedStaffColumns.filter(s => !s.uid);
+        const dayKeys = dateRange.map(toDateStr);
+        const staffRows = scopedStaffColumns
+            .filter(s => s.uid)
+            .map(s => {
+                const hasAssignment = dayKeys.some(dStr => (grid[s.uid]?.[dStr] || []).length > 0);
+                const worksAnyDay = dayKeys.some(dStr => isStaffWorkingOnDate(staffByUid[s.uid], dStr).available);
+                const bucket = hasAssignment ? 0 : worksAnyDay ? 1 : 2;
+                return { ...s, bucket };
+            })
+            .sort((a, b) => a.bucket - b.bucket || a.name.localeCompare(b.name));
+        return [...unassignedRow, ...staffRows];
+    }, [scopedStaffColumns, grid, dateRange, staffByUid]);
 
     const cardProps = { isCleanerSelfServiceView, getBookingCustomerFirstName, setSelectedBooking, setDetailsModalOpen, openEditBookingModal };
 
@@ -235,7 +258,7 @@ export default function TimelineView({
     // Mobile: a wide multi-staff-column grid doesn't work on a phone —
     // swap for a staff picker + that staff's day-by-day agenda list.
     if (isMobile) {
-        const pickable = scopedStaffColumns;
+        const pickable = sortedStaffRows;
         const activeKey = isCleanerSelfServiceView ? (currentUser?.uid || UNASSIGNED_KEY) : mobileStaffKey;
         const hasAny = dateRange.some(d => (grid[activeKey]?.[toDateStr(d)] || []).length > 0);
         return (
@@ -283,38 +306,41 @@ export default function TimelineView({
 
     const gridContent = (
         <div className="overflow-x-auto">
-            <div className="grid gap-1" style={{ gridTemplateColumns: `88px repeat(${scopedStaffColumns.length}, minmax(190px, 1fr))` }}>
+            <div className="grid gap-1" style={{ gridTemplateColumns: `170px repeat(${dateRange.length}, minmax(150px, 1fr))` }}>
                 <div className="sticky left-0 z-10 bg-card" />
-                {scopedStaffColumns.map(s => (
-                    <div key={s.uid || UNASSIGNED_KEY} className="flex items-center gap-2 rounded-t-lg border-b-2 border-border bg-muted/50 px-2.5 py-2">
-                        <StaffAvatarStack staff={s.uid ? [s] : []} size={22} max={1} emptyLabel="—" />
-                        <span className="truncate text-xs font-bold text-foreground">{s.name}</span>
-                    </div>
-                ))}
                 {dateRange.map(d => {
                     const dStr = toDateStr(d);
                     const isToday = dStr === todayStr;
                     return (
-                        <Fragment key={dStr}>
-                            <div className={cn(
-                                "sticky left-0 z-10 flex flex-col items-center justify-center gap-0.5 border-b border-border bg-card px-1 py-2 text-center",
-                                isToday && "text-primary"
-                            )}>
-                                <span className="text-[10px] font-bold uppercase tracking-wide">{DAY_NAMES[(d.getDay() + 6) % 7]}</span>
-                                <span className={cn("text-sm font-extrabold", isToday && "rounded-full bg-primary px-1.5 text-primary-foreground")}>{d.getDate()}</span>
-                            </div>
-                            {scopedStaffColumns.map(s => (
-                                <div key={s.uid || UNASSIGNED_KEY} className="border-b border-border pb-1">
+                        <div key={dStr} className={cn(
+                            "flex flex-col items-center justify-center gap-0.5 rounded-t-lg border-b-2 border-border bg-muted/50 px-1 py-2 text-center",
+                            isToday && "text-primary"
+                        )}>
+                            <span className="text-[10px] font-bold uppercase tracking-wide">{DAY_NAMES[(d.getDay() + 6) % 7]}</span>
+                            <span className={cn("text-sm font-extrabold", isToday && "rounded-full bg-primary px-1.5 text-primary-foreground")}>{d.getDate()}</span>
+                        </div>
+                    );
+                })}
+                {sortedStaffRows.map(s => (
+                    <Fragment key={s.uid || UNASSIGNED_KEY}>
+                        <div className="sticky left-0 z-10 flex items-center gap-2 border-b border-border bg-card px-2.5 py-2">
+                            <StaffAvatarStack staff={s.uid ? [s] : []} size={22} max={1} emptyLabel="—" />
+                            <span className="truncate text-xs font-bold text-foreground">{s.name}</span>
+                        </div>
+                        {dateRange.map(d => {
+                            const dStr = toDateStr(d);
+                            return (
+                                <div key={dStr} className="border-b border-border pb-1">
                                     <TimelineCell
                                         staffUid={s.uid} staffMember={staffByUid[s.uid]} dateStr={dStr}
                                         bookings={grid[s.uid || UNASSIGNED_KEY]?.[dStr] || []}
                                         cardProps={cardProps} draggable={draggable}
                                     />
                                 </div>
-                            ))}
-                        </Fragment>
-                    );
-                })}
+                            );
+                        })}
+                    </Fragment>
+                ))}
             </div>
         </div>
     );

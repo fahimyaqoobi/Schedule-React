@@ -10,8 +10,9 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import {
     Plus, Search, X, ChevronDown, ChevronUp, ArrowUp, ArrowDown, ArrowUpDown,
-    Columns3, FileSpreadsheet, Eye, Pencil, Trash2, CircleCheck,
+    Columns3, FileSpreadsheet, Eye, Pencil, Trash2, CircleCheck, Archive, ArchiveRestore,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { formatZonedDate, formatZonedDateTime } from "@/lib/timezone";
 import { BOOKING_STATUSES, STATUS_FILTER_OPTIONS, getStatusMeta } from "@/lib/bookingStatus";
@@ -283,6 +284,7 @@ export default function BookingsTab({
     const [amountMax, setAmountMax] = useState("");
     const [unassignedOnly, setUnassignedOnly] = useState(false);
     const [recurringOnly, setRecurringOnly] = useState(false);
+    const [showArchived, setShowArchived] = useState(false);
 
     // ── Column visibility / order, persisted to localStorage ──
     const [columnOrder, setColumnOrder] = useState(DEFAULT_COLUMN_ORDER);
@@ -373,8 +375,11 @@ export default function BookingsTab({
 
     // All date comparisons use YYYY-MM-DD string order (lexicographic == chronological).
     // Booking dates are stored as plain YYYY-MM-DD strings so no timezone conversion is needed.
+    const archivedCount = useMemo(() => (filteredBookings || []).filter(b => b.archived).length, [filteredBookings]);
+
     const visibleBookings = useMemo(() => {
         const filtered = (filteredBookings || []).filter(b => {
+            if (!showArchived && b.archived) return false;
             if (dateFrom && (!b.date || b.date < dateFrom)) return false;
             if (dateTo && (!b.date || b.date > dateTo)) return false;
             if (!dateFrom && !dateTo && dateFilter) {
@@ -404,7 +409,7 @@ export default function BookingsTab({
             return 0;
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [filteredBookings, dateFilter, dateFrom, dateTo, filterStaff, filterSource, filterMethod, amountMin, amountMax, unassignedOnly, recurringOnly, sortCol, sortDir, todayStr, mondayStr, sundayStr, monthPrefix]);
+    }, [filteredBookings, showArchived, dateFilter, dateFrom, dateTo, filterStaff, filterSource, filterMethod, amountMin, amountMax, unassignedOnly, recurringOnly, sortCol, sortDir, todayStr, mondayStr, sundayStr, monthPrefix]);
 
     const exportToExcel = useCallback(() => {
         const METHOD_LABELS = { cash: "Cash", "e-transfer": "E-Transfer", "credit-card": "Card", "direct-deposit": "Direct Deposit", cheque: "Cheque" };
@@ -775,6 +780,10 @@ export default function BookingsTab({
                         </button>
                     ))}
                 </div>
+                <label className="flex cursor-pointer items-center gap-2 rounded-full border border-input bg-card px-3 py-1.5 text-[11px] font-semibold text-muted-foreground">
+                    <Switch checked={showArchived} onCheckedChange={setShowArchived} />
+                    Show Archived {archivedCount > 0 ? `(${archivedCount})` : ""}
+                </label>
                 <div className="ml-auto flex items-center gap-2.5">
                     <span className="text-[11px] text-muted-foreground">
                         Showing <strong className="text-foreground">{visibleBookings.length}</strong> of <strong className="text-foreground">{(filteredBookings || []).length}</strong> bookings
@@ -877,6 +886,11 @@ export default function BookingsTab({
                                                 {hasPendingEdit && (
                                                     <Badge variant="outline" className="border-amber-300 bg-amber-50 text-[9px] text-amber-700 dark:bg-amber-950/30">● Review</Badge>
                                                 )}
+                                                {b.archived && (
+                                                    <Badge variant="outline" className="border-border bg-muted text-[9px] text-muted-foreground">
+                                                        <Archive className="size-2.5" /> Archived
+                                                    </Badge>
+                                                )}
                                             </div>
                                         </TableCell>
 
@@ -888,6 +902,13 @@ export default function BookingsTab({
                                             <div className="flex justify-end gap-1">
                                                 <Button variant="ghost" size="icon-xs" onClick={() => { setSelectedBooking(b); setDetailsModalOpen(true); }} title="Details"><Eye className="size-3.5" /></Button>
                                                 <Button variant="ghost" size="icon-xs" onClick={() => openEditBookingModal(b)} title="Edit"><Pencil className="size-3.5" /></Button>
+                                                <Button
+                                                    variant="ghost" size="icon-xs"
+                                                    onClick={() => quickUpdate(b.id, { archived: !b.archived })}
+                                                    title={b.archived ? "Unarchive" : "Archive"}
+                                                >
+                                                    {b.archived ? <ArchiveRestore className="size-3.5" /> : <Archive className="size-3.5" />}
+                                                </Button>
                                                 {canManagePermissions && (
                                                     <Button variant="ghost" size="icon-xs" className="text-destructive hover:text-destructive" onClick={() => handleDeleteBooking(b.id)} title="Cancel"><Trash2 className="size-3.5" /></Button>
                                                 )}

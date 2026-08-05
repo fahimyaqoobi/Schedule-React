@@ -87,7 +87,7 @@ export default function BoardView({
     branchTimezone = DEFAULT_TIMEZONE,
 }) {
     const [hideCancelled, setHideCancelled] = useState(true);
-    const [dateFilter, setDateFilter] = useState("all");
+    const [dateFilter, setDateFilter] = useState("today");
     const [customDate, setCustomDate] = useState(null);
     const [datePickerOpen, setDatePickerOpen] = useState(false);
     const [activeBooking, setActiveBooking] = useState(null);
@@ -101,9 +101,10 @@ export default function BoardView({
     const draggable = !isCleanerSelfServiceView;
 
     const scopedBookings = useMemo(() => {
+        const notArchived = bookings.filter(b => !b.archived);
         const base = isCleanerSelfServiceView
-            ? bookings.filter(b => (b.assignedStaffIds || []).includes(currentUser?.uid))
-            : bookings;
+            ? notArchived.filter(b => (b.assignedStaffIds || []).includes(currentUser?.uid))
+            : notArchived;
         const range = customDate
             ? { startKey: getZonedDateKey(customDate, branchTimezone), endKey: getZonedDateKey(customDate, branchTimezone) }
             : getDateRangeForPeriod(dateFilter, branchTimezone);
