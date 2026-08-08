@@ -1,7 +1,9 @@
 "use client";
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { MapPin, Navigation, Users, Calendar as CalendarIcon, Moon, Sun } from "lucide-react";
+import { MapPin, Navigation, Users, Calendar as CalendarIcon, Moon, Sun, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { getStatusMeta } from "@/lib/bookingStatus";
@@ -22,6 +24,38 @@ const HOME_PIN_OPACITY = 0.55;
 // out or lost signal) and the pin falls back to the static first-job/home
 // rule below, rather than showing a frozen "last seen" dot indefinitely.
 const LIVE_LOCATION_MAX_AGE_MS = 5 * 60 * 1000;
+
+// Local Y/M/D construction (not UTC parsing) — matches the exact pattern
+// MonthView.js already uses to move between a "YYYY-MM-DD" booking-date key
+// and a plain calendar-grid Date, so a date picked here always lands on the
+// same day regardless of the viewer's own timezone offset.
+function dateKeyToDate(key) {
+    const [y, m, d] = key.split("-").map(Number);
+    return new Date(y, m - 1, d);
+}
+
+function dateToDateKey(date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+}
+
+function addDays(key, n) {
+    const d = dateKeyToDate(key);
+    d.setDate(d.getDate() + n);
+    return dateToDateKey(d);
+}
+
+// No explicit timeZone here on purpose — d is a LOCAL-midnight grid Date
+// (see dateKeyToDate above), so formatting it with the browser's own
+// ambient zone reproduces the same calendar day the key represents. Passing
+// an explicit IANA timeZone (the way formatZonedDate does for real
+// timestamps) would re-interpret this local-midnight instant and can shift
+// it a day in either direction depending on the viewer's own offset.
+function formatDateKeyLabel(key, options) {
+    return dateKeyToDate(key).toLocaleDateString("en-US", options);
+}
 
 function buildAddressString(personal) {
     if (!personal) return "";
@@ -89,9 +123,19 @@ export default function DispatchTab({
 }) {
     const isMobile = useIsMobile();
     const todayKey = useMemo(() => getZonedDateKey(new Date(), branchTimezone), [branchTimezone]);
-    const [selectedDateKey] = useState(todayKey);
+    const [selectedDateKey, setSelectedDateKey] = useState(todayKey);
+    const [datePickerOpen, setDatePickerOpen] = useState(false);
     const [selectedJobId, setSelectedJobId] = useState(null);
     const [selectedStaffUid, setSelectedStaffUid] = useState(null);
+
+    // A job/staff selection belongs to whichever date it was made on — jump
+    // to a new date with a clean slate rather than carrying over a
+    // "Assigning: ..." banner that no longer refers to anything visible.
+    const changeDate = useCallback((nextKey) => {
+        setSelectedDateKey(nextKey);
+        setSelectedJobId(null);
+        setSelectedStaffUid(null);
+    }, []);
     // Reads localStorage lazily (useState initializer) so it's correct on
     // first paint rather than flashing light-then-dark; guarded for SSR
     // since this component only ever renders client-side ("use client").
@@ -417,6 +461,7 @@ export default function DispatchTab({
     }
 
     const selectedJob = todayJobs.find(j => j.id === selectedJobId);
+    const isToday = selectedDateKey === todayKey;
 
     // Shared between the mobile (stacked, collapsible) and desktop
     // (fixed 3-column) layouts below so the row-rendering logic exists
@@ -449,7 +494,7 @@ export default function DispatchTab({
                         <div className="min-w-0 flex-1">
                             <p className="truncate text-xs font-bold text-foreground">{member.name || member.displayName}</p>
                             <p className="text-[10px] text-muted-foreground">
-                                {jobsToday.length} job{jobsToday.length === 1 ? "" : "s"} today
+                                {jobsToday.length} job{jobsToday.length === 1 ? "" : "s"} {isToday ? "today" : "that day"}
                                 {etaLabel && ` · ${etaLabel}`}
                             </p>
                         </div>
@@ -463,7 +508,7 @@ export default function DispatchTab({
     const jobsPanelContent = (
         <>
             {sortedJobs.length === 0 && (
-                <p className="px-1 py-4 text-center text-xs text-muted-foreground">No jobs with a mapped address today.</p>
+                <p className="px-1 py-4 text-center text-xs text-muted-foreground">No jobs with a mapped address {isToday ? "today" : "on this date"}.</p>
             )}
             {sortedJobs.map(job => {
                 const meta = getStatusMeta(job.status);
@@ -513,20 +558,35 @@ export default function DispatchTab({
 
     return (
         <div className="animate-fade flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">
-                    {activeBranch?.name || "Ottawa"} · {sortedJobs.length} job{sortedJobs.length === 1 ? "" : "s"} today
-                    {selectedJob && (
-                        <span className="ml-2 font-semibold text-foreground">
-                            Assigning: {selectedJob.clientName} — click a cleaner to toggle assignment
-                        </span>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5">
+                    <Button variant="outline" size="icon-sm" onClick={() => changeDate(addDays(selectedDateKey, -1))} aria-label="Previous day">
+                        <ChevronLeft className="size-3.5" />
+                    </Button>
+                    <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                        <PopoverTrigger
+                            render={
+                                <Button variant={isToday ? "outline" : "secondary"} size="sm" className="gap-1.5 text-xs">
+                                    <CalendarIcon className="size-3.5" />
+                                    {isToday ? "Today" : formatDateKeyLabel(selectedDateKey, { weekday: "short", month: "short", day: "numeric" })}
+                                </Button>
+                            }
+                        />
+                        <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                                mode="single"
+                                selected={dateKeyToDate(selectedDateKey)}
+                                onSelect={(d) => { if (d) changeDate(dateToDateKey(d)); setDatePickerOpen(false); }}
+                            />
+                        </PopoverContent>
+                    </Popover>
+                    <Button variant="outline" size="icon-sm" onClick={() => changeDate(addDays(selectedDateKey, 1))} aria-label="Next day">
+                        <ChevronRight className="size-3.5" />
+                    </Button>
+                    {!isToday && (
+                        <Button variant="ghost" size="sm" className="text-xs" onClick={() => changeDate(todayKey)}>Jump to today</Button>
                     )}
-                    {!selectedJob && selectedStaffUid && (
-                        <span className="ml-2 font-semibold text-foreground">
-                            Showing route — click the cleaner again, or a job, to change selection
-                        </span>
-                    )}
-                </p>
+                </div>
                 <div className="flex items-center gap-2">
                     {(selectedJobId || selectedStaffUid) && (
                         <Button variant="outline" size="sm" onClick={() => { setSelectedJobId(null); setSelectedStaffUid(null); }}>Clear selection</Button>
@@ -541,11 +601,25 @@ export default function DispatchTab({
                 </div>
             </div>
 
+            <p className="text-sm text-muted-foreground">
+                {activeBranch?.name || "Ottawa"} · {sortedJobs.length} job{sortedJobs.length === 1 ? "" : "s"} {isToday ? "today" : `on ${formatDateKeyLabel(selectedDateKey, { weekday: "long", month: "long", day: "numeric" })}`}
+                {selectedJob && (
+                    <span className="ml-2 font-semibold text-foreground">
+                        Assigning: {selectedJob.clientName} — click a cleaner to toggle assignment
+                    </span>
+                )}
+                {!selectedJob && selectedStaffUid && (
+                    <span className="ml-2 font-semibold text-foreground">
+                        Showing route — click the cleaner again, or a job, to change selection
+                    </span>
+                )}
+            </p>
+
             {isMobile ? (
                 <div className="flex flex-col gap-3">
                     <details className="rounded-lg border border-border bg-card" open>
                         <summary className="flex cursor-pointer list-none items-center gap-1.5 px-2 py-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                            <CalendarIcon className="size-3.5" /> Today's Jobs ({sortedJobs.length})
+                            <CalendarIcon className="size-3.5" /> Jobs ({sortedJobs.length})
                         </summary>
                         <div className="flex max-h-64 flex-col gap-1.5 overflow-y-auto p-2 pt-0">{jobsPanelContent}</div>
                     </details>
@@ -570,7 +644,7 @@ export default function DispatchTab({
 
                 <div className="flex max-h-[70vh] flex-col gap-1.5 overflow-y-auto rounded-lg border border-border bg-card p-2">
                     <p className="flex items-center gap-1.5 px-1 py-1 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                        <CalendarIcon className="size-3.5" /> Today's Jobs
+                        <CalendarIcon className="size-3.5" /> Jobs
                     </p>
                     {jobsPanelContent}
                 </div>
