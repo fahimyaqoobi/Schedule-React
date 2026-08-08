@@ -61,6 +61,7 @@ import DashboardTab from "./components/admin/tabs/DashboardTab";
 import BookingsTab from "./components/admin/tabs/BookingsTab";
 import BookingWizard from "./components/admin/BookingWizard";
 import CalendarTab from "./components/admin/tabs/calendar/CalendarTab";
+import DispatchTab from "./components/admin/tabs/DispatchTab";
 import RecurringTab from "./components/admin/tabs/RecurringTab";
 import ExpensesTab from "./components/admin/tabs/ExpensesTab";
 import CustomersTab from "./components/admin/tabs/CustomersTab";
@@ -459,13 +460,12 @@ const DEFAULT_PRICES = {
         'Power Washing': 2.5,
     },
     bathrooms: {
-        '1 Bathroom': 14.00,
-        '2 Bathroom': 28.00,
-        '3 Bathroom': 42.00,
-        '4 Bathroom': 56.00,
-        '5 Bathroom': 70.00,
-        '6 Bathroom': 84.00,
-        '7 Bathroom': 98.00
+        '1 Bathroom': 26.00,
+        '2 Bathrooms': 52.00,
+        '3 Bathrooms': 78.00,
+        '4 Bathrooms': 104.00,
+        '5 Bathrooms': 130.00,
+        '6 Bathrooms': 156.00
     },
     extras: {
         'downtownParking': { name: 'Downtown Street Parking Fee', price: 14.00, qtySelector: false },
@@ -865,13 +865,12 @@ const INITIAL_V2_CATALOG = {
         }
     ],
     bathrooms: {
-        '1 Bathroom': 14.00,
-        '2 Bathroom': 28.00,
-        '3 Bathroom': 42.00,
-        '4 Bathroom': 56.00,
-        '5 Bathroom': 70.00,
-        '6 Bathroom': 84.00,
-        '7 Bathroom': 98.00
+        '1 Bathroom': 26.00,
+        '2 Bathrooms': 52.00,
+        '3 Bathrooms': 78.00,
+        '4 Bathrooms': 104.00,
+        '5 Bathrooms': 130.00,
+        '6 Bathrooms': 156.00
     },
     frequencies: {
         'One-Time':   { name: 'one time service',      discount: 0    },
@@ -1089,6 +1088,11 @@ export default function Home() {
     const [bookingServiceDraft, setBookingServiceDraft] = useState([]);
     const [bookingServicesChanged, setBookingServicesChanged] = useState(false);
     const [bookingPriceOverrideOpen, setBookingPriceOverrideOpen] = useState(false);
+    // Set by a Calendar/Timeline "New Booking" context-menu action or an
+    // empty Timeline slot click so the wizard's checkout step opens
+    // pre-scoped to that date/staff instead of today/nobody. Consumed and
+    // cleared by checkoutAdminCart() the moment the wizard reaches checkout.
+    const [bookingPrefill, setBookingPrefill] = useState(null);
     const [adminCheckoutOpen, setAdminCheckoutOpen] = useState(false);
     const [adminCheckoutStep, setAdminCheckoutStep] = useState(0);
     const [adminScheduleHint, setAdminScheduleHint] = useState("");
@@ -2162,11 +2166,19 @@ export default function Home() {
     // Booking Form Submit Actions
     // ----------------------------------------------------
 
-    const openNewBookingCommand = () => {
+    // useCallback with an empty dep array (only setState calls inside, which
+    // React guarantees are stable) so this keeps one identity for the whole
+    // component's lifetime. Calendar/Timeline thread it into react-day-picker's
+    // `components.DayButton`, which treats that prop as a component TYPE — a
+    // fresh function reference there remounts every day cell on every render,
+    // which was silently closing the Month view's right-click menu ~1s after
+    // opening (the page re-renders every second for the live clock).
+    const openNewBookingCommand = useCallback((initialDate, initialStaffUid) => {
+        setBookingPrefill((initialDate || initialStaffUid) ? { date: initialDate, staffUid: initialStaffUid } : null);
         setAdminCheckoutOpen(false);
         setServiceConfigOpen(false);
         setBookingWizardOpen(true);
-    };
+    }, []);
 
     const openEditBookingModal = (b) => {
         const nameParts = (b.clientName || "").split(" ");
@@ -3283,6 +3295,37 @@ export default function Home() {
         );
     }), []);
 
+    // Live GPS for the Dispatch Map's clocked-in pin override — pings this
+    // cleaner's own position every 75s, but ONLY while a real active time
+    // entry exists. Starts the moment activeTimeEntry appears and the
+    // interval's own cleanup stops it the instant activeTimeEntry clears
+    // (checkout) — never polls location outside a shift, on purpose (no
+    // operational value off-shift, and off-duty tracking is exactly the
+    // kind of thing that needs a disclosed policy under Ontario's ESA that
+    // this app doesn't have — scoping it strictly to on-shift sidesteps
+    // that entirely rather than needing one).
+    useEffect(() => {
+        if (!activeTimeEntry || !currentUser?.uid) return undefined;
+        const ping = async () => {
+            try {
+                const loc = await getCurrentLocation();
+                const headers = await getAuthHeaders();
+                await fetch("/api/users", {
+                    method: "PUT",
+                    headers,
+                    body: JSON.stringify({ updateLiveLocation: true, lat: loc.lat, lng: loc.lng }),
+                });
+            } catch {
+                // Best-effort — a denied permission or transient network
+                // error just means the Dispatch Map falls back to this
+                // cleaner's last-known/static pin until the next tick.
+            }
+        };
+        ping();
+        const interval = setInterval(ping, 75000);
+        return () => clearInterval(interval);
+    }, [activeTimeEntry, currentUser?.uid, getCurrentLocation, getAuthHeaders]);
+
     const geocodeBookingLocation = useCallback((booking) => new Promise((resolve) => {
         if (booking?.location?.lat && booking?.location?.lng) {
             resolve(booking.location);
@@ -3940,11 +3983,14 @@ export default function Home() {
             lastName: isCustomerUser ? (currentUser?.name?.split(" ").slice(1).join(" ") || prev.lastName) : prev.lastName,
             phone: isCustomerUser ? (currentUser?.phone || prev.phone) : prev.phone,
             email: isCustomerUser ? (currentUser?.email || prev.email) : prev.email,
-            customerLoggedIn: isCustomerUser
+            customerLoggedIn: isCustomerUser,
+            date: bookingPrefill?.date || prev.date,
+            assignedStaffIds: bookingPrefill?.staffUid ? [bookingPrefill.staffUid] : prev.assignedStaffIds
         }));
         setAdminCheckoutStep(isCustomerUser ? 1 : 0);
         setAdminCheckoutOpen(true);
-    }, [currentUser]);
+        setBookingPrefill(null);
+    }, [currentUser, bookingPrefill]);
 
     const saveAdminCartBooking = useCallback(async (event) => {
         if (event?.preventDefault) event.preventDefault();
@@ -4699,6 +4745,15 @@ export default function Home() {
                             <span className="nav-label">{isCleanerSelfServiceView ? "Schedule" : "Calendar"}</span>
                         </button>
                     )}
+                    {canViewOperations && !isCleanerSelfServiceView && (
+                        <button onClick={() => setActiveTab("dispatch")} className={`nav-item ${activeTab === "dispatch" ? "active" : ""}`} title="Dispatch">
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                                <circle cx="12" cy="10" r="3"/>
+                            </svg>
+                            <span className="nav-label">Dispatch</span>
+                        </button>
+                    )}
                     {/* HR Hub group */}
                     {(canViewOperations || canViewPeople || canViewAdministration) && !isCleanerSelfServiceView && (
                         <div className={`nav-group${hrHubOpen ? " open" : ""}`}>
@@ -4817,6 +4872,7 @@ export default function Home() {
                                 activeTab === "bookings" ? "Client Booking Manager" :
                                     activeTab === "recurring" ? "Recurring Bookings" :
                                     activeTab === "calendar" ? (isCleanerSelfServiceView ? "Schedule" : "Scheduling Calendar") :
+                                        activeTab === "dispatch" ? "Dispatch Map" :
                                         activeTab === "jobs" ? (isCleanerSelfServiceView ? "Jobs" : "Time Cards") :
                                             activeTab === "payroll" ? "Payroll & Time Hub" :
                                                 activeTab === "expenses" ? "Expense Management" :
@@ -4942,6 +4998,19 @@ export default function Home() {
                         setSelectedBooking={setSelectedBooking}
                         setDetailsModalOpen={setDetailsModalOpen}
                         openEditBookingModal={openEditBookingModal}
+                        openNewBookingCommand={openNewBookingCommand}
+                        branchTimezone={activeBranch?.timezone || "America/Toronto"}
+                    />
+                )}
+
+                {activeTab === "dispatch" && (
+                    <DispatchTab
+                        bookings={bookings}
+                        fieldStaff={assignableFieldStaff}
+                        handleQuickBookingUpdate={handleQuickBookingUpdate}
+                        getAuthHeaders={getAuthHeaders}
+                        googleMapsReady={googlePlacesReady}
+                        activeBranch={activeBranch}
                         branchTimezone={activeBranch?.timezone || "America/Toronto"}
                     />
                 )}

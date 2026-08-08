@@ -1,8 +1,9 @@
 "use client";
 import { useMemo, useState } from "react";
 import { DayPicker } from "react-day-picker";
-import { ChevronLeft, ChevronRight, CalendarX2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, CalendarX2, CalendarPlus, CalendarDays } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem } from "@/components/ui/context-menu";
 import { getStatusMeta } from "@/lib/bookingStatus";
 import { getZonedDateKey, formatZonedDate, DEFAULT_TIMEZONE } from "@/lib/timezone";
 import { timeSortKey } from "@/lib/bookingTime";
@@ -28,13 +29,21 @@ function keyToDate(key) {
     return new Date(y, m - 1, d);
 }
 
-function MonthDayButton({ day, modifiers, className, bookingsByDate, ...props }) {
+// Module-level, not inline JSX — react-day-picker treats `components.*`
+// values as component TYPES, so a fresh function reference on every render
+// (which an inline arrow inside MonthView's JSX would be) makes it remount
+// every day cell on every render, not just re-render them.
+function MonthChevron({ orientation, ...p }) {
+    return orientation === "left" ? <ChevronLeft className="size-4" {...p} /> : <ChevronRight className="size-4" {...p} />;
+}
+
+function MonthDayButton({ day, modifiers, className, bookingsByDate, openNewBookingCommand, onGoToDay, ...props }) {
     const dateKey = dateToKey(day.date);
     const dayBookings = bookingsByDate.get(dateKey) || [];
     const dots = dayBookings.slice(0, MAX_DOTS);
     const overflow = dayBookings.length - dots.length;
 
-    return (
+    const button = (
         <button
             type="button"
             data-day={dateKey}
@@ -64,6 +73,24 @@ function MonthDayButton({ day, modifiers, className, bookingsByDate, ...props })
             )}
         </button>
     );
+
+    if (!openNewBookingCommand) return button;
+
+    return (
+        <ContextMenu>
+            <ContextMenuTrigger className="contents">{button}</ContextMenuTrigger>
+            <ContextMenuContent>
+                <ContextMenuItem onClick={() => openNewBookingCommand(dateKey)}>
+                    <CalendarPlus /> New Booking
+                </ContextMenuItem>
+                {onGoToDay && (
+                    <ContextMenuItem onClick={() => onGoToDay(dateKey)}>
+                        <CalendarDays /> Go to Day
+                    </ContextMenuItem>
+                )}
+            </ContextMenuContent>
+        </ContextMenu>
+    );
 }
 
 // Third Calendar tab — a big month grid (status-colored dots per day) with a
@@ -80,6 +107,8 @@ export default function MonthView({
     setSelectedBooking,
     setDetailsModalOpen,
     openEditBookingModal,
+    openNewBookingCommand,
+    onGoToDay,
     branchTimezone = DEFAULT_TIMEZONE,
 }) {
     const todayKey = useMemo(() => getZonedDateKey(new Date(), branchTimezone), [branchTimezone]);
@@ -107,6 +136,18 @@ export default function MonthView({
     const selectedDate = useMemo(() => keyToDate(selectedDateKey), [selectedDateKey]);
     const isToday = selectedDateKey === todayKey;
 
+    const dayPickerComponents = useMemo(() => ({
+        Chevron: MonthChevron,
+        DayButton: (p) => (
+            <MonthDayButton
+                {...p}
+                bookingsByDate={bookingsByDate}
+                openNewBookingCommand={!isCleanerSelfServiceView ? openNewBookingCommand : undefined}
+                onGoToDay={!isCleanerSelfServiceView ? onGoToDay : undefined}
+            />
+        ),
+    }), [bookingsByDate, openNewBookingCommand, onGoToDay, isCleanerSelfServiceView]);
+
     return (
         <div className="flex flex-col gap-4 lg:flex-row">
             <div className="relative rounded-lg border border-border bg-card p-3 sm:p-4 lg:flex-1">
@@ -130,10 +171,7 @@ export default function MonthView({
                         weekday: "border-b border-border pb-2 text-center text-[11px] font-semibold uppercase tracking-wide text-muted-foreground sm:text-xs",
                         day: "border border-border/60 p-0 align-top",
                     }}
-                    components={{
-                        Chevron: ({ orientation, ...p }) => orientation === "left" ? <ChevronLeft className="size-4" {...p} /> : <ChevronRight className="size-4" {...p} />,
-                        DayButton: (p) => <MonthDayButton {...p} bookingsByDate={bookingsByDate} />,
-                    }}
+                    components={dayPickerComponents}
                 />
             </div>
 

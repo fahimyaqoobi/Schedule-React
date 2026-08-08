@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LayoutGrid, CalendarDays, Calendar as CalendarIcon } from "lucide-react";
 import BoardView from "./BoardView";
@@ -24,9 +24,19 @@ export default function CalendarTab({
     setSelectedBooking,
     setDetailsModalOpen,
     openEditBookingModal,
+    openNewBookingCommand,
     branchTimezone,
 }) {
     const [view, setView] = useState("month");
+    // Set by MonthView's "Go to Day" context-menu item so Staff Timeline
+    // opens anchored on that date instead of wherever it was last left.
+    // TimelineView consumes and clears it via useEffect.
+    const [pendingTimelineAnchor, setPendingTimelineAnchor] = useState(null);
+    // Stable identities — MonthView threads onGoToDay into react-day-picker's
+    // `components.DayButton`, which remounts every day cell whenever that
+    // object's contents change reference, killing any open context menu.
+    const handleGoToDay = useCallback((dateKey) => { setPendingTimelineAnchor(dateKey); setView("timeline"); }, []);
+    const clearPendingTimelineAnchor = useCallback(() => setPendingTimelineAnchor(null), []);
 
     const boardView = (
         <BoardView
@@ -51,6 +61,8 @@ export default function CalendarTab({
             setSelectedBooking={setSelectedBooking}
             setDetailsModalOpen={setDetailsModalOpen}
             openEditBookingModal={openEditBookingModal}
+            openNewBookingCommand={openNewBookingCommand}
+            onGoToDay={!isCleanerSelfServiceView ? handleGoToDay : undefined}
             branchTimezone={branchTimezone}
         />
     );
@@ -91,6 +103,9 @@ export default function CalendarTab({
                     setSelectedBooking={setSelectedBooking}
                     setDetailsModalOpen={setDetailsModalOpen}
                     openEditBookingModal={openEditBookingModal}
+                    openNewBookingCommand={openNewBookingCommand}
+                    pendingTimelineAnchor={pendingTimelineAnchor}
+                    clearPendingTimelineAnchor={clearPendingTimelineAnchor}
                     branchTimezone={branchTimezone}
                 />
             )}

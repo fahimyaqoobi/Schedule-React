@@ -3,19 +3,9 @@ import { adminAuth, adminDb } from "../../../lib/firebase-admin";
 import { canManageBranch, normalizeRole } from "../../../lib/permissions";
 import { DEFAULT_BRANCH_ID, getBranchScopeForUser, userCanAccessBranch } from "../../../lib/branches";
 import { calculatePayrollBreakdown, DEFAULT_PAY_RATE, normalizePayrollSettings } from "../../../lib/payroll";
+import { haversineMeters } from "../../../lib/geo";
 
 const GEO_RADIUS_METERS = 200;
-
-function haversineMeters(pointA, pointB) {
-    const toRadians = (value) => (value * Math.PI) / 180;
-    const earthRadius = 6371000;
-    const dLat = toRadians(pointB.lat - pointA.lat);
-    const dLng = toRadians(pointB.lng - pointA.lng);
-    const lat1 = toRadians(pointA.lat);
-    const lat2 = toRadians(pointB.lat);
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
-    return 2 * earthRadius * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
 
 function getDurationMinutes(startedAt, endedAt) {
     if (!startedAt || !endedAt) return 0;

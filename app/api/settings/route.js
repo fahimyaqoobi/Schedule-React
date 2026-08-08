@@ -82,7 +82,23 @@ export async function POST(request) {
         if (settingsData.documentCopy) {
             payload.documentCopy = normalizeDocumentCopy(settingsData.documentCopy);
         }
-        await adminDb.collection("settings").doc("pricing").set(payload, { merge: true });
+
+        // Firestore's set(data, {merge:true}) recursively merges nested map
+        // fields (e.g. v2_catalog.bathrooms) rather than replacing them —
+        // any key removed client-side (deleting a catalog entry) but absent
+        // from this payload would silently survive in the stored document
+        // and reappear on next load. Using update() for each top-level key
+        // instead makes each field a full replace (no recursive merge
+        // within it), while still leaving OTHER top-level fields not
+        // included in this save untouched — a real delete now actually
+        // deletes. Falls back to set() only when the doc doesn't exist yet.
+        const docRef = adminDb.collection("settings").doc("pricing");
+        const docSnap = await docRef.get();
+        if (docSnap.exists) {
+            await docRef.update(payload);
+        } else {
+            await docRef.set(payload);
+        }
         return NextResponse.json({ message: "Settings saved successfully", settings: settingsData }, { status: 200 });
     } catch (err) {
         console.error("POST Settings Error:", err);

@@ -249,6 +249,25 @@ export async function PUT(request) {
             return NextResponse.json({ message: "Profile updated successfully", user: normalizeStaffMember(docSnap.data()) }, { status: 200 });
         }
 
+        // Periodic location ping while a cleaner is clocked into a shift, for
+        // the Dispatch Map's live-GPS pin override. Always self-scoped (the
+        // caller can only ever write their OWN liveLocation, same as
+        // updateSelf above) — there is no path for anyone else to move
+        // another user's pin. Client-side gating (app/page.js) ensures this
+        // is only ever called while an active time entry exists; nothing
+        // here re-checks that, since a stray extra ping while off-shift is
+        // harmless (the Dispatch Map only reads liveLocation for staff it
+        // already knows are clocked in).
+        if (body.updateLiveLocation) {
+            const { lat, lng } = body;
+            if (typeof lat !== "number" || typeof lng !== "number") {
+                return NextResponse.json({ error: "lat/lng are required" }, { status: 400 });
+            }
+            const userRef = adminDb.collection("users").doc(user.uid);
+            await userRef.update({ liveLocation: { lat, lng, updatedAt: new Date().toISOString() } });
+            return NextResponse.json({ message: "Location updated" }, { status: 200 });
+        }
+
         if (body.updateSelfStaffProfile) {
             const userRef = adminDb.collection("users").doc(user.uid);
             const docSnap = await userRef.get();

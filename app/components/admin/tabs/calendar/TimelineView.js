@@ -1,20 +1,26 @@
 "use client";
-import { useState, useMemo, Fragment } from "react";
+import { useState, useMemo, useEffect, Fragment } from "react";
 import {
     DndContext, DragOverlay, useDraggable, useDroppable,
     PointerSensor, TouchSensor, useSensor, useSensors, closestCenter,
 } from "@dnd-kit/core";
 import { Button } from "@/components/ui/button";
 import { Select, SelectTrigger, SelectContent, SelectItem } from "@/components/ui/select";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import {
+    ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem,
+    ContextMenuSub, ContextMenuSubTrigger, ContextMenuSubContent, ContextMenuSeparator,
+} from "@/components/ui/context-menu";
+import { ChevronLeft, ChevronRight, Pencil, Ban, UserRoundCog, CircleDollarSign, Tag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useIsMobile } from "@/hooks/use-mobile";
 import JobCard from "./JobCard";
 import StaffAvatarStack from "./StaffAvatarStack";
-import { applyTimelineDrag } from "./dragHandlers";
+import { applyTimelineDrag, applyStaffReassignDrag, applyStatusDrag } from "./dragHandlers";
 import { checkStaffAvailability, isStaffWorkingOnDate } from "@/lib/staffAvailability";
 import { timeSortKey } from "@/lib/bookingTime";
+import { BOOKING_STATUSES } from "@/lib/bookingStatus";
+import { PAYMENT_STATUSES } from "@/lib/paymentStatus";
 
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -26,7 +32,7 @@ const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); r
 const mondayOf = d => { const x = new Date(d); const dow = x.getDay(); x.setDate(x.getDate() - (dow === 0 ? 6 : dow - 1)); return x; };
 const shortLabel = d => `${MONTH_NAMES[d.getMonth()].slice(0, 3)} ${d.getDate()}`;
 
-function DraggableTimelineCard({ booking, staffUid, ...cardProps }) {
+function DraggableTimelineCard({ booking, staffUid, fieldStaff, handleQuickBookingUpdate, ...cardProps }) {
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: `${booking.id}::${staffUid || UNASSIGNED_KEY}`,
         data: { bookingId: booking.id, fromUid: staffUid || null, fromDate: booking.date },
@@ -34,11 +40,75 @@ function DraggableTimelineCard({ booking, staffUid, ...cardProps }) {
     const style = transform
         ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, zIndex: isDragging ? 50 : undefined }
         : undefined;
-    return (
+
+    const card = (
         <JobCard
             ref={setNodeRef} booking={booking} variant="timeline" style={style}
             dragHandleProps={{ ...attributes, ...listeners }} isDragging={isDragging} {...cardProps}
         />
+    );
+
+    if (!handleQuickBookingUpdate) return card;
+
+    return (
+        <ContextMenu>
+            {/* Only swallow a right-click's pointerdown (button 2) — a plain
+                left-click pointerdown must still reach dnd-kit's listeners
+                spread onto the card by JobCard, or dragging breaks. */}
+            <ContextMenuTrigger className="contents" onPointerDown={(e) => { if (e.button === 2) e.stopPropagation(); }}>
+                {card}
+            </ContextMenuTrigger>
+            <ContextMenuContent>
+                <ContextMenuItem onClick={() => cardProps.openEditBookingModal(booking)}>
+                    <Pencil /> Edit Booking
+                </ContextMenuItem>
+                <ContextMenuSub>
+                    <ContextMenuSubTrigger><Tag /> Change Status</ContextMenuSubTrigger>
+                    <ContextMenuSubContent>
+                        {BOOKING_STATUSES.map(s => (
+                            <ContextMenuItem key={s.value} onClick={() => applyStatusDrag(booking, s.value, handleQuickBookingUpdate)}>
+                                {s.label}
+                            </ContextMenuItem>
+                        ))}
+                    </ContextMenuSubContent>
+                </ContextMenuSub>
+                <ContextMenuSub>
+                    <ContextMenuSubTrigger><CircleDollarSign /> Payment Status</ContextMenuSubTrigger>
+                    <ContextMenuSubContent>
+                        {PAYMENT_STATUSES.map(p => (
+                            <ContextMenuItem key={p.value} onClick={() => handleQuickBookingUpdate(booking.id, { paymentStatus: p.value })}>
+                                {p.label}
+                            </ContextMenuItem>
+                        ))}
+                    </ContextMenuSubContent>
+                </ContextMenuSub>
+                {fieldStaff && fieldStaff.length > 0 && (
+                    <ContextMenuSub>
+                        <ContextMenuSubTrigger><UserRoundCog /> Reassign Staff</ContextMenuSubTrigger>
+                        <ContextMenuSubContent>
+                            {fieldStaff.map(m => (
+                                <ContextMenuItem
+                                    key={m.uid}
+                                    disabled={m.uid === staffUid}
+                                    onClick={() => applyStaffReassignDrag(booking, staffUid || null, m.uid, fieldStaff, handleQuickBookingUpdate)}
+                                >
+                                    {m.name || m.displayName || m.email}
+                                </ContextMenuItem>
+                            ))}
+                        </ContextMenuSubContent>
+                    </ContextMenuSub>
+                )}
+                <ContextMenuSeparator />
+                <ContextMenuItem
+                    variant="destructive"
+                    onClick={() => {
+                        if (window.confirm("Cancel this booking?")) applyStatusDrag(booking, "Cancelled", handleQuickBookingUpdate);
+                    }}
+                >
+                    <Ban /> Cancel Booking
+                </ContextMenuItem>
+            </ContextMenuContent>
+        </ContextMenu>
     );
 }
 
@@ -48,17 +118,23 @@ function DraggableTimelineCard({ booking, staffUid, ...cardProps }) {
 // are still caught at drop-time in handleDragEnd, since that depends on the
 // specific booking being dragged, not the cell itself. The Unassigned
 // column is never "off" — it's not a real person's schedule.
-function TimelineCell({ staffUid, staffMember, dateStr, bookings, cardProps, draggable }) {
+function TimelineCell({ staffUid, staffMember, dateStr, bookings, cardProps, draggable, openNewBookingCommand }) {
     const dayCheck = staffUid ? isStaffWorkingOnDate(staffMember, dateStr) : { available: true };
     const isOff = !dayCheck.available;
     const { setNodeRef, isOver } = useDroppable({ id: `${staffUid || UNASSIGNED_KEY}::${dateStr}`, disabled: !draggable || isOff });
+    // Empty cells double as an "Add Booking" target — click gets the wizard's
+    // checkout step to open pre-scoped to this exact date + staff, matching
+    // what a sales rep scanning the Timeline for an open slot actually wants.
+    const isEmptyAddable = draggable && !isOff && bookings.length === 0 && Boolean(openNewBookingCommand);
     return (
         <div
             ref={draggable ? setNodeRef : undefined}
-            title={isOff ? dayCheck.reason : undefined}
+            title={isOff ? dayCheck.reason : (isEmptyAddable ? "Click to add a booking" : undefined)}
+            onClick={isEmptyAddable ? () => openNewBookingCommand(dateStr, staffUid || undefined) : undefined}
             className={cn(
                 "flex min-h-20 flex-col gap-1.5 rounded-lg border border-dashed border-border/60 p-1.5 transition-colors",
                 isOver && "border-primary bg-primary/5",
+                isEmptyAddable && "cursor-pointer hover:border-primary/60 hover:bg-primary/5",
                 isOff && "cursor-not-allowed border-none bg-[repeating-linear-gradient(135deg,var(--color-muted-foreground)_0px,var(--color-muted-foreground)_5px,var(--color-muted)_5px,var(--color-muted)_10px)] opacity-80 dark:opacity-90"
             )}
         >
@@ -90,6 +166,9 @@ export default function TimelineView({
     setSelectedBooking,
     setDetailsModalOpen,
     openEditBookingModal,
+    openNewBookingCommand,
+    pendingTimelineAnchor,
+    clearPendingTimelineAnchor,
     branchTimezone,
 }) {
     const [nav, setNav] = useState("week");
@@ -97,6 +176,17 @@ export default function TimelineView({
     const [activeDrag, setActiveDrag] = useState(null);
     const [mobileStaffKey, setMobileStaffKey] = useState(UNASSIGNED_KEY);
     const isMobile = useIsMobile();
+
+    // Consumes a "Go to Day" request from MonthView's context menu — jumps
+    // the Day/Week/Month nav to Day mode anchored on that date, then clears
+    // the request so re-visiting this tab later doesn't keep re-anchoring.
+    useEffect(() => {
+        if (!pendingTimelineAnchor) return;
+        const [y, m, d] = pendingTimelineAnchor.split("-").map(Number);
+        setAnchor(new Date(y, m - 1, d));
+        setNav("day");
+        clearPendingTimelineAnchor?.();
+    }, [pendingTimelineAnchor, clearPendingTimelineAnchor]);
 
     const sensors = useSensors(
         useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -200,7 +290,10 @@ export default function TimelineView({
         return [...unassignedRow, ...staffRows];
     }, [scopedStaffColumns, grid, dateRange, staffByUid]);
 
-    const cardProps = { isCleanerSelfServiceView, getBookingCustomerFirstName, setSelectedBooking, setDetailsModalOpen, openEditBookingModal };
+    const cardProps = {
+        isCleanerSelfServiceView, getBookingCustomerFirstName, setSelectedBooking, setDetailsModalOpen, openEditBookingModal,
+        fieldStaff, handleQuickBookingUpdate,
+    };
 
     function handleDragStart(event) {
         const { bookingId, fromUid } = event.active.data.current;
@@ -335,6 +428,7 @@ export default function TimelineView({
                                         staffUid={s.uid} staffMember={staffByUid[s.uid]} dateStr={dStr}
                                         bookings={grid[s.uid || UNASSIGNED_KEY]?.[dStr] || []}
                                         cardProps={cardProps} draggable={draggable}
+                                        openNewBookingCommand={openNewBookingCommand}
                                     />
                                 </div>
                             );
