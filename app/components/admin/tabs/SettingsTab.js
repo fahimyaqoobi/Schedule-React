@@ -29,11 +29,14 @@ export default function SettingsTab({
     getInitials,
     leadSources,
     handleSaveLeadSources,
+    arrivalWindowMinutes,
+    handleSaveArrivalWindow,
     canViewAdministration,
     setActiveTab,
 }) {
     const [localSources, setLocalSources] = useState(leadSources || []);
     const [newSource, setNewSource] = useState("");
+    const [localArrivalWindow, setLocalArrivalWindow] = useState(arrivalWindowMinutes || 120);
 
     const addSource = () => {
         const trimmed = newSource.trim();
@@ -206,6 +209,29 @@ export default function SettingsTab({
                             <Button variant="secondary" onClick={addSource}>Add</Button>
                         </div>
                         <Button className="w-fit" onClick={saveLeadSources}>Save Lead Sources</Button>
+                    </CardContent>
+                </Card>
+            )}
+
+            {canManagePermissions && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-sm">Arrival Windows</CardTitle>
+                        <p className="text-xs text-muted-foreground">
+                            Customers see a time range instead of an exact time in booking confirmations and receipts — e.g. a 2-hour window on a 9:00 AM job shows as &ldquo;between 9:00 AM and 11:00 AM&rdquo;.
+                        </p>
+                    </CardHeader>
+                    <CardContent className="flex flex-col gap-4">
+                        <div className="flex flex-col gap-1.5">
+                            <Label>Default Window Length (minutes)</Label>
+                            <Input
+                                type="number" min={0} step={15}
+                                value={localArrivalWindow}
+                                onChange={e => setLocalArrivalWindow(Math.max(0, Number(e.target.value) || 0))}
+                                className="max-w-40"
+                            />
+                        </div>
+                        <Button className="w-fit" onClick={() => handleSaveArrivalWindow?.(localArrivalWindow)}>Save Arrival Window</Button>
                     </CardContent>
                 </Card>
             )}

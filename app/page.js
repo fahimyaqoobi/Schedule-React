@@ -1014,6 +1014,12 @@ export default function Home() {
     const [promotionRules, setPromotionRules] = useState(DEFAULT_PROMOTIONS);
     const [customerRewards, setCustomerRewards] = useState(null);
     const [documentCopy, setDocumentCopy] = useState(DEFAULT_DOCUMENT_COPY);
+    // Default "arrival window" length (minutes) told to customers instead of
+    // an exact time — e.g. 120 -> "between 9:00 AM and 11:00 AM" for a job
+    // scheduled at 9:00 AM. Global-only for now (no per-booking override UI
+    // yet); resolved at send-time by the confirmation/receipt emails via
+    // lib/bookingTime.js's formatArrivalWindow().
+    const [arrivalWindowMinutes, setArrivalWindowMinutes] = useState(120);
     const [promotionSaving, setPromotionSaving] = useState(false);
     const [leadSources, setLeadSources] = useState(["bark.com", "EZi App", "internal.com", "Google", "Instagram", "Referral", "Other"]);
 
@@ -1539,6 +1545,9 @@ export default function Home() {
                         }
                         if (data.leadSources && Array.isArray(data.leadSources) && data.leadSources.length > 0) {
                             setLeadSources(data.leadSources);
+                        }
+                        if (data.arrivalWindowMinutes) {
+                            setArrivalWindowMinutes(Number(data.arrivalWindowMinutes));
                         }
                         setPricingRates(prev => {
                             const mergedServices = { ...DEFAULT_PRICES.services, ...data.services };
@@ -2906,6 +2915,21 @@ export default function Home() {
             });
             if (!res.ok) throw new Error("Failed to save lead sources.");
             setLeadSources(sources);
+        } catch (err) {
+            alert(`Save failed: ${err.message}`);
+        }
+    };
+
+    const handleSaveArrivalWindow = async (minutes) => {
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch("/api/settings", {
+                method: "POST",
+                headers,
+                body: JSON.stringify({ arrivalWindowMinutes: minutes })
+            });
+            if (!res.ok) throw new Error("Failed to save arrival window.");
+            setArrivalWindowMinutes(minutes);
         } catch (err) {
             alert(`Save failed: ${err.message}`);
         }
@@ -5277,6 +5301,8 @@ export default function Home() {
                         getInitials={getInitials}
                         leadSources={leadSources}
                         handleSaveLeadSources={handleSaveLeadSources}
+                        arrivalWindowMinutes={arrivalWindowMinutes}
+                        handleSaveArrivalWindow={handleSaveArrivalWindow}
                         canViewAdministration={canViewAdministration}
                         setActiveTab={setActiveTab}
                         Icons={Icons}
@@ -5330,6 +5356,15 @@ export default function Home() {
                     <button onClick={() => setActiveTab("calendar")} className={`mobile-nav-item ${activeTab === "calendar" ? "active" : ""}`}>
                         {Icons.Calendar()}
                         <span>{isCleanerSelfServiceView ? "Schedule" : "Calendar"}</span>
+                    </button>
+                )}
+                {canViewOperations && !isCleanerSelfServiceView && (
+                    <button onClick={() => setActiveTab("dispatch")} className={`mobile-nav-item ${activeTab === "dispatch" ? "active" : ""}`}>
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                            <circle cx="12" cy="10" r="3"/>
+                        </svg>
+                        <span>Dispatch</span>
                     </button>
                 )}
                 {canViewOperations && (

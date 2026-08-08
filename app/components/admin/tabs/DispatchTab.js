@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { MapPin, Navigation, Users, Calendar as CalendarIcon } from "lucide-react";
+import { MapPin, Navigation, Users, Calendar as CalendarIcon, Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { getStatusMeta } from "@/lib/bookingStatus";
 import { getZonedDateKey, DEFAULT_TIMEZONE } from "@/lib/timezone";
 import { timeSortKey } from "@/lib/bookingTime";
@@ -27,6 +28,50 @@ function buildAddressString(personal) {
     return [personal.address, personal.city, personal.province, personal.postalCode].filter(Boolean).join(", ");
 }
 
+// Whether a cleaner drives themselves or gets there by public transit —
+// reuses the existing eligibility.hasVehicle flag (lib/staffProfiles.js)
+// rather than adding a new field. Determines both the Directions travel
+// mode used for ETA/route and the label shown next to it.
+function travelModeFor(member) {
+    return member?.staffProfile?.eligibility?.hasVehicle ? "DRIVING" : "TRANSIT";
+}
+
+function formatDurationSeconds(seconds) {
+    if (seconds == null) return null;
+    const mins = Math.round(seconds / 60);
+    if (mins < 60) return `${mins} min`;
+    return `${Math.floor(mins / 60)}h ${mins % 60}m`;
+}
+
+const DARK_MAP_STORAGE_KEY = "stc_dispatch_dark_map";
+
+// Standard dark-mode Google Maps style — muted slate/charcoal base with
+// desaturated feature colors, matching the dark dispatch-map look the user
+// pointed to as a reference. Scoped to just this map canvas via
+// map.setOptions({styles}) — not a site-wide theme change.
+const MAP_DARK_STYLE = [
+    { elementType: "geometry", stylers: [{ color: "#212121" }] },
+    { elementType: "labels.icon", stylers: [{ visibility: "off" }] },
+    { elementType: "labels.text.fill", stylers: [{ color: "#9e9e9e" }] },
+    { elementType: "labels.text.stroke", stylers: [{ color: "#212121" }] },
+    { featureType: "administrative", elementType: "geometry", stylers: [{ color: "#757575" }] },
+    { featureType: "administrative.country", elementType: "labels.text.fill", stylers: [{ color: "#9e9e9e" }] },
+    { featureType: "administrative.land_parcel", stylers: [{ visibility: "off" }] },
+    { featureType: "administrative.locality", elementType: "labels.text.fill", stylers: [{ color: "#bdbdbd" }] },
+    { featureType: "poi", elementType: "labels.text.fill", stylers: [{ color: "#757575" }] },
+    { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#181818" }] },
+    { featureType: "poi.park", elementType: "labels.text.fill", stylers: [{ color: "#616161" }] },
+    { featureType: "road", elementType: "geometry.fill", stylers: [{ color: "#2c2c2c" }] },
+    { featureType: "road", elementType: "labels.text.fill", stylers: [{ color: "#8a8a8a" }] },
+    { featureType: "road.arterial", elementType: "geometry", stylers: [{ color: "#373737" }] },
+    { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#3c3c3c" }] },
+    { featureType: "road.highway.controlled_access", elementType: "geometry", stylers: [{ color: "#4e4e4e" }] },
+    { featureType: "road.local", elementType: "labels.text.fill", stylers: [{ color: "#616161" }] },
+    { featureType: "transit", elementType: "labels.text.fill", stylers: [{ color: "#757575" }] },
+    { featureType: "water", elementType: "geometry", stylers: [{ color: "#0e1626" }] },
+    { featureType: "water", elementType: "labels.text.fill", stylers: [{ color: "#3d3d3d" }] },
+];
+
 // Dispatch Map — full-screen day view of a branch: today's confirmed jobs
 // and field staff, both pinned on one map, with click-to-assign. Staff pin
 // position rule (per the "cleaner goes job to job, not home" requirement):
@@ -42,12 +87,25 @@ export default function DispatchTab({
     activeBranch,
     branchTimezone = DEFAULT_TIMEZONE,
 }) {
+    const isMobile = useIsMobile();
     const todayKey = useMemo(() => getZonedDateKey(new Date(), branchTimezone), [branchTimezone]);
     const [selectedDateKey] = useState(todayKey);
     const [selectedJobId, setSelectedJobId] = useState(null);
     const [selectedStaffUid, setSelectedStaffUid] = useState(null);
+    // Reads localStorage lazily (useState initializer) so it's correct on
+    // first paint rather than flashing light-then-dark; guarded for SSR
+    // since this component only ever renders client-side ("use client").
+    const [isDarkMap, setIsDarkMap] = useState(() => {
+        if (typeof window === "undefined") return false;
+        return window.localStorage.getItem(DARK_MAP_STORAGE_KEY) === "1";
+    });
     const [homeLocations, setHomeLocations] = useState({}); // uid -> {lat,lng}
     const geocodingRef = useRef(new Set());
+    // { [staffUid]: { [jobId]: { text, seconds } } } — real travel time per
+    // staff→job pair, DRIVING or TRANSIT depending on that cleaner's own
+    // eligibility.hasVehicle flag. Covers both the candidate list for a
+    // selected job and the inline ETA shown on already-assigned jobs.
+    const [etaMatrix, setEtaMatrix] = useState({});
 
     const mapDivRef = useRef(null);
     const mapObjRef = useRef(null);
@@ -134,23 +192,87 @@ export default function DispatchTab({
         }).filter(p => p.location);
     }, [fieldStaff, jobsByStaffToday, homeLocations]);
 
+    // Real travel time (not straight-line distance) for every staff→job pair
+    // that's actually needed right now: every staff member to the currently
+    // selected job (for the candidate/assign list), plus every already-
+    // assigned staff to their own job (for the inline ETA in the jobs
+    // panel). Batched into at most 2 requests total — one DistanceMatrix
+    // call per travel mode (DRIVING/TRANSIT), each covering every relevant
+    // origin×destination pair in one shot — rather than one call per staff.
+    useEffect(() => {
+        if (!googleMapsReady || !window.google?.maps?.DistanceMatrixService) return;
+        const selectedJob = todayJobs.find(j => j.id === selectedJobId);
+        const assignedJobs = todayJobs.filter(j => (j.assignedStaffIds || []).length > 0);
+
+        const neededPairs = []; // {uid, job}
+        if (selectedJob) {
+            (fieldStaff || []).forEach(member => neededPairs.push({ uid: member.uid, job: selectedJob }));
+        }
+        assignedJobs.forEach(job => {
+            const uid = job.assignedStaffIds[0];
+            const member = (fieldStaff || []).find(m => m.uid === uid);
+            if (member) neededPairs.push({ uid, job });
+        });
+        if (neededPairs.length === 0) return;
+
+        const service = new window.google.maps.DistanceMatrixService();
+        ["DRIVING", "TRANSIT"].forEach(mode => {
+            const pairs = neededPairs.filter(p => {
+                const member = (fieldStaff || []).find(m => m.uid === p.uid);
+                return travelModeFor(member) === mode;
+            });
+            if (pairs.length === 0) return;
+            const uids = [...new Set(pairs.map(p => p.uid))];
+            const jobIds = [...new Set(pairs.map(p => p.job.id))];
+            const origins = uids.map(uid => staffPins.find(sp => sp.uid === uid)?.location).filter(Boolean);
+            const destinations = jobIds.map(id => todayJobs.find(j => j.id === id)?.location).filter(Boolean);
+            if (origins.length !== uids.length || destinations.length !== jobIds.length) return;
+
+            service.getDistanceMatrix({
+                origins, destinations, travelMode: window.google.maps.TravelMode[mode],
+            }, (response, status) => {
+                if (status !== "OK") return;
+                setEtaMatrix(prev => {
+                    const next = { ...prev };
+                    uids.forEach((uid, i) => {
+                        const row = response.rows[i]?.elements || [];
+                        next[uid] = { ...next[uid] };
+                        jobIds.forEach((jobId, j) => {
+                            const el = row[j];
+                            if (el?.status === "OK") {
+                                next[uid][jobId] = { text: el.duration.text, seconds: el.duration.value };
+                            }
+                        });
+                    });
+                    return next;
+                });
+            });
+        });
+    }, [googleMapsReady, fieldStaff, staffPins, todayJobs, selectedJobId]);
+
     const sortedFieldStaff = useMemo(() => {
         const selectedJob = todayJobs.find(j => j.id === selectedJobId);
         const list = (fieldStaff || []).map(member => {
             const pin = staffPins.find(p => p.uid === member.uid);
             const jobsToday = jobsByStaffToday[member.uid] || [];
             const distanceMeters = selectedJob?.location && pin?.location ? haversineMeters(pin.location, selectedJob.location) : null;
-            return { member, jobsToday, distanceMeters };
+            const eta = selectedJob ? etaMatrix[member.uid]?.[selectedJob.id] : null;
+            return { member, jobsToday, distanceMeters, eta, travelMode: travelModeFor(member) };
         });
         if (selectedJob) {
             return list.sort((a, b) => {
-                if (a.distanceMeters == null) return 1;
-                if (b.distanceMeters == null) return -1;
-                return a.distanceMeters - b.distanceMeters;
+                // Prefer real travel time once it's back; fall back to
+                // straight-line distance while the Distance Matrix request
+                // is still in flight, so the list isn't empty-sorted.
+                const aKey = a.eta?.seconds ?? (a.distanceMeters != null ? a.distanceMeters / 10 : null);
+                const bKey = b.eta?.seconds ?? (b.distanceMeters != null ? b.distanceMeters / 10 : null);
+                if (aKey == null) return 1;
+                if (bKey == null) return -1;
+                return aKey - bKey;
             });
         }
         return list.sort((a, b) => (a.member.name || "").localeCompare(b.member.name || ""));
-    }, [fieldStaff, staffPins, jobsByStaffToday, todayJobs, selectedJobId]);
+    }, [fieldStaff, staffPins, jobsByStaffToday, todayJobs, selectedJobId, etaMatrix]);
 
     const sortedJobs = useMemo(() => {
         return [...todayJobs].sort((a, b) => {
@@ -169,19 +291,46 @@ export default function DispatchTab({
             .filter(m => nextIds.includes(m.uid))
             .map(m => ({ uid: m.uid, name: m.name || m.displayName || "", email: m.email || "", photoURL: m.photoURL || "" }));
         handleQuickBookingUpdate(booking.id, { assignedStaffIds: nextIds, assignedStaff: nextStaff });
+        // The actual fix for "the cleaner just jumps onto the job with no
+        // ETA or route": on a fresh assignment (not an un-assign), drop the
+        // job selection and switch straight into route mode for that
+        // cleaner, so the pin/route/ETA update together instead of
+        // requiring a second manual click on their pin.
+        if (!isAssigned) {
+            setSelectedJobId(null);
+            setSelectedStaffUid(staffMember.uid);
+        }
     }, [fieldStaff, handleQuickBookingUpdate]);
 
-    // Build the map once the script is loaded and the div exists.
+    // Build the map once the script is loaded and the div exists. Also
+    // re-runs when `isMobile` flips, because the mobile/desktop layouts
+    // below render two DIFFERENT map <div>s (stacked vs 3-column) — if the
+    // viewport crosses the breakpoint, the old div unmounts and the map
+    // instance tied to it would otherwise be left orphaned on a detached
+    // node, showing blank. The cleanup nulls the ref so the effect always
+    // rebuilds against whichever div is currently mounted.
     useEffect(() => {
-        if (!googleMapsReady || !window.google?.maps || mapObjRef.current || !mapDivRef.current) return;
+        if (!googleMapsReady || !window.google?.maps || !mapDivRef.current) return;
         mapObjRef.current = new window.google.maps.Map(mapDivRef.current, {
             center: OTTAWA_CENTER,
             zoom: 11,
             streetViewControl: false,
             mapTypeControl: false,
             fullscreenControl: false,
+            styles: isDarkMap ? MAP_DARK_STYLE : [],
         });
-    }, [googleMapsReady]);
+        return () => { mapObjRef.current = null; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [googleMapsReady, isMobile]);
+
+    // Restyle in place on toggle (after initial creation above) and persist
+    // the choice per-browser — this is a display preference, not account
+    // data, so localStorage rather than a backend write is the right home.
+    useEffect(() => {
+        if (!mapObjRef.current) return;
+        mapObjRef.current.setOptions({ styles: isDarkMap ? MAP_DARK_STYLE : [] });
+        window.localStorage.setItem(DARK_MAP_STORAGE_KEY, isDarkMap ? "1" : "0");
+    }, [isDarkMap]);
 
     // Redraw pins whenever the underlying data changes.
     useEffect(() => {
@@ -253,7 +402,7 @@ export default function DispatchTab({
             origin: pin.location,
             destination: stops[stops.length - 1].location,
             waypoints: stops.slice(0, -1).map(j => ({ location: j.location, stopover: true })),
-            travelMode: window.google.maps.TravelMode.DRIVING,
+            travelMode: window.google.maps.TravelMode[travelModeFor(pin.member)],
         }, (result, status) => {
             if (status === "OK") directionsRendererRef.current.setDirections(result);
         });
@@ -268,6 +417,99 @@ export default function DispatchTab({
     }
 
     const selectedJob = todayJobs.find(j => j.id === selectedJobId);
+
+    // Shared between the mobile (stacked, collapsible) and desktop
+    // (fixed 3-column) layouts below so the row-rendering logic exists
+    // exactly once.
+    const staffPanelContent = (
+        <>
+            {sortedFieldStaff.length === 0 && (
+                <p className="px-1 py-4 text-center text-xs text-muted-foreground">No field staff loaded.</p>
+            )}
+            {sortedFieldStaff.map(({ member, jobsToday, distanceMeters, eta, travelMode }) => {
+                const isAssignedToSelected = selectedJob ? (selectedJob.assignedStaffIds || []).includes(member.uid) : false;
+                const isSelectedForRoute = !selectedJob && selectedStaffUid === member.uid;
+                const etaLabel = selectedJob
+                    ? (eta?.text ? `${eta.text} ${travelMode === "DRIVING" ? "drive" : "transit"}` : (distanceMeters != null ? "calculating…" : null))
+                    : null;
+                return (
+                    <button
+                        key={member.uid}
+                        type="button"
+                        onClick={() => {
+                            if (selectedJob) toggleAssign(selectedJob, member);
+                            else setSelectedStaffUid(prev => prev === member.uid ? null : member.uid);
+                        }}
+                        className={cn(
+                            "flex cursor-pointer items-center gap-2 rounded-md border border-transparent p-1.5 text-left transition-colors hover:border-primary/40 hover:bg-primary/5",
+                            (isAssignedToSelected || isSelectedForRoute) && "border-primary bg-primary/10"
+                        )}
+                    >
+                        <StaffAvatar member={member} size={28} />
+                        <div className="min-w-0 flex-1">
+                            <p className="truncate text-xs font-bold text-foreground">{member.name || member.displayName}</p>
+                            <p className="text-[10px] text-muted-foreground">
+                                {jobsToday.length} job{jobsToday.length === 1 ? "" : "s"} today
+                                {etaLabel && ` · ${etaLabel}`}
+                            </p>
+                        </div>
+                        {isAssignedToSelected && <span className="text-[10px] font-bold text-primary">✓</span>}
+                    </button>
+                );
+            })}
+        </>
+    );
+
+    const jobsPanelContent = (
+        <>
+            {sortedJobs.length === 0 && (
+                <p className="px-1 py-4 text-center text-xs text-muted-foreground">No jobs with a mapped address today.</p>
+            )}
+            {sortedJobs.map(job => {
+                const meta = getStatusMeta(job.status);
+                const isUnassigned = (job.assignedStaffIds || []).length === 0;
+                return (
+                    <button
+                        key={job.id}
+                        type="button"
+                        onClick={() => { setSelectedJobId(job.id === selectedJobId ? null : job.id); setSelectedStaffUid(null); }}
+                        className={cn(
+                            "flex flex-col gap-1 rounded-md border p-2 text-left transition-colors",
+                            job.id === selectedJobId ? "border-primary bg-primary/10" : "border-border hover:bg-muted/50",
+                            isUnassigned && job.id !== selectedJobId && "border-destructive/40"
+                        )}
+                    >
+                        <div className="flex items-center justify-between gap-2">
+                            <span className="truncate text-xs font-bold text-foreground">{job.clientName}</span>
+                            <span className="shrink-0 text-[10px] font-semibold text-muted-foreground">{job.time}</span>
+                        </div>
+                        <span
+                            className="inline-flex w-fit items-center rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+                            style={{ background: meta.fill, color: meta.fillText }}
+                        >
+                            {meta.label}
+                        </span>
+                        <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                            <MapPin className="size-3 shrink-0" />
+                            <span className="truncate">{job.address1}</span>
+                        </div>
+                        {isUnassigned ? (
+                            <span className="text-[10px] font-bold text-destructive">Unassigned</span>
+                        ) : (
+                            <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                <Navigation className="size-3" /> {(job.assignedStaff || []).map(s => s.name).join(", ")}
+                                {etaMatrix[job.assignedStaffIds?.[0]]?.[job.id]?.text && (
+                                    <span className="font-semibold text-primary">
+                                        · ETA {etaMatrix[job.assignedStaffIds[0]][job.id].text}
+                                    </span>
+                                )}
+                            </span>
+                        )}
+                    </button>
+                );
+            })}
+        </>
+    );
 
     return (
         <div className="animate-fade flex flex-col gap-3">
@@ -285,47 +527,43 @@ export default function DispatchTab({
                         </span>
                     )}
                 </p>
-                {(selectedJobId || selectedStaffUid) && (
-                    <Button variant="outline" size="sm" onClick={() => { setSelectedJobId(null); setSelectedStaffUid(null); }}>Clear selection</Button>
-                )}
+                <div className="flex items-center gap-2">
+                    {(selectedJobId || selectedStaffUid) && (
+                        <Button variant="outline" size="sm" onClick={() => { setSelectedJobId(null); setSelectedStaffUid(null); }}>Clear selection</Button>
+                    )}
+                    <Button
+                        variant="outline" size="icon-sm"
+                        onClick={() => setIsDarkMap(v => !v)}
+                        title={isDarkMap ? "Switch to light map" : "Switch to dark map"}
+                    >
+                        {isDarkMap ? <Sun className="size-3.5" /> : <Moon className="size-3.5" />}
+                    </Button>
+                </div>
             </div>
 
+            {isMobile ? (
+                <div className="flex flex-col gap-3">
+                    <details className="rounded-lg border border-border bg-card" open>
+                        <summary className="flex cursor-pointer list-none items-center gap-1.5 px-2 py-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                            <CalendarIcon className="size-3.5" /> Today's Jobs ({sortedJobs.length})
+                        </summary>
+                        <div className="flex max-h-64 flex-col gap-1.5 overflow-y-auto p-2 pt-0">{jobsPanelContent}</div>
+                    </details>
+                    <div ref={mapDivRef} className="h-[50vh] min-h-80 w-full rounded-lg border border-border" />
+                    <details className="rounded-lg border border-border bg-card">
+                        <summary className="flex cursor-pointer list-none items-center gap-1.5 px-2 py-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                            <Users className="size-3.5" /> Field Staff ({sortedFieldStaff.length})
+                        </summary>
+                        <div className="flex max-h-64 flex-col gap-1.5 overflow-y-auto p-2 pt-0">{staffPanelContent}</div>
+                    </details>
+                </div>
+            ) : (
             <div className="grid gap-3 lg:grid-cols-[260px_1fr_300px]">
                 <div className="flex max-h-[70vh] flex-col gap-1.5 overflow-y-auto rounded-lg border border-border bg-card p-2">
                     <p className="flex items-center gap-1.5 px-1 py-1 text-xs font-bold uppercase tracking-wide text-muted-foreground">
                         <Users className="size-3.5" /> Field Staff
                     </p>
-                    {sortedFieldStaff.length === 0 && (
-                        <p className="px-1 py-4 text-center text-xs text-muted-foreground">No field staff loaded.</p>
-                    )}
-                    {sortedFieldStaff.map(({ member, jobsToday, distanceMeters }) => {
-                        const isAssignedToSelected = selectedJob ? (selectedJob.assignedStaffIds || []).includes(member.uid) : false;
-                        const isSelectedForRoute = !selectedJob && selectedStaffUid === member.uid;
-                        return (
-                            <button
-                                key={member.uid}
-                                type="button"
-                                onClick={() => {
-                                    if (selectedJob) toggleAssign(selectedJob, member);
-                                    else setSelectedStaffUid(prev => prev === member.uid ? null : member.uid);
-                                }}
-                                className={cn(
-                                    "flex cursor-pointer items-center gap-2 rounded-md border border-transparent p-1.5 text-left transition-colors hover:border-primary/40 hover:bg-primary/5",
-                                    (isAssignedToSelected || isSelectedForRoute) && "border-primary bg-primary/10"
-                                )}
-                            >
-                                <StaffAvatar member={member} size={28} />
-                                <div className="min-w-0 flex-1">
-                                    <p className="truncate text-xs font-bold text-foreground">{member.name || member.displayName}</p>
-                                    <p className="text-[10px] text-muted-foreground">
-                                        {jobsToday.length} job{jobsToday.length === 1 ? "" : "s"} today
-                                        {distanceMeters != null && ` · ${(distanceMeters / 1000).toFixed(1)} km away`}
-                                    </p>
-                                </div>
-                                {isAssignedToSelected && <span className="text-[10px] font-bold text-primary">✓</span>}
-                            </button>
-                        );
-                    })}
+                    {staffPanelContent}
                 </div>
 
                 <div ref={mapDivRef} className="h-[70vh] min-h-100 w-full rounded-lg border border-border" />
@@ -334,49 +572,10 @@ export default function DispatchTab({
                     <p className="flex items-center gap-1.5 px-1 py-1 text-xs font-bold uppercase tracking-wide text-muted-foreground">
                         <CalendarIcon className="size-3.5" /> Today's Jobs
                     </p>
-                    {sortedJobs.length === 0 && (
-                        <p className="px-1 py-4 text-center text-xs text-muted-foreground">No jobs with a mapped address today.</p>
-                    )}
-                    {sortedJobs.map(job => {
-                        const meta = getStatusMeta(job.status);
-                        const isUnassigned = (job.assignedStaffIds || []).length === 0;
-                        return (
-                            <button
-                                key={job.id}
-                                type="button"
-                                onClick={() => { setSelectedJobId(job.id === selectedJobId ? null : job.id); setSelectedStaffUid(null); }}
-                                className={cn(
-                                    "flex flex-col gap-1 rounded-md border p-2 text-left transition-colors",
-                                    job.id === selectedJobId ? "border-primary bg-primary/10" : "border-border hover:bg-muted/50",
-                                    isUnassigned && job.id !== selectedJobId && "border-destructive/40"
-                                )}
-                            >
-                                <div className="flex items-center justify-between gap-2">
-                                    <span className="truncate text-xs font-bold text-foreground">{job.clientName}</span>
-                                    <span className="shrink-0 text-[10px] font-semibold text-muted-foreground">{job.time}</span>
-                                </div>
-                                <span
-                                    className="inline-flex w-fit items-center rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
-                                    style={{ background: meta.fill, color: meta.fillText }}
-                                >
-                                    {meta.label}
-                                </span>
-                                <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                                    <MapPin className="size-3 shrink-0" />
-                                    <span className="truncate">{job.address1}</span>
-                                </div>
-                                {isUnassigned ? (
-                                    <span className="text-[10px] font-bold text-destructive">Unassigned</span>
-                                ) : (
-                                    <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                                        <Navigation className="size-3" /> {(job.assignedStaff || []).map(s => s.name).join(", ")}
-                                    </span>
-                                )}
-                            </button>
-                        );
-                    })}
+                    {jobsPanelContent}
                 </div>
             </div>
+            )}
         </div>
     );
 }

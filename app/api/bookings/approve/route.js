@@ -3,6 +3,9 @@ import nodemailer from "nodemailer";
 import { adminAuth, adminDb } from "../../../../lib/firebase-admin";
 import { canManageBranch } from "../../../../lib/permissions";
 import { formatZonedDate } from "../../../../lib/timezone";
+import { formatArrivalWindow } from "../../../../lib/bookingTime";
+
+const DEFAULT_ARRIVAL_WINDOW_MINUTES = 120;
 
 function getMailConfig() {
     const host = process.env.SMTP_HOST || "";
@@ -75,6 +78,11 @@ export async function POST(request) {
                     const dateStr = booking.date
                         ? formatZonedDate(new Date(`${booking.date}T12:00:00Z`), { weekday: "long", year: "numeric", month: "long", day: "numeric" }, undefined, "en-CA")
                         : booking.date || "";
+                    const settingsSnap = await adminDb.collection("settings").doc("pricing").get();
+                    const arrivalWindowMinutes = settingsSnap.exists
+                        ? (settingsSnap.data().arrivalWindowMinutes || DEFAULT_ARRIVAL_WINDOW_MINUTES)
+                        : DEFAULT_ARRIVAL_WINDOW_MINUTES;
+                    const timeDisplay = formatArrivalWindow(booking, arrivalWindowMinutes) || booking.time;
                     await transporter.sendMail({
                         from: mail.from,
                         to: booking.email,
@@ -90,7 +98,7 @@ export async function POST(request) {
                                     <table style="width:100%;border-collapse:collapse;margin:20px 0;font-size:14px">
                                         <tr><td style="padding:8px 0;color:#526276;border-bottom:1px solid #eef3f8">Service</td><td style="padding:8px 0;font-weight:600;border-bottom:1px solid #eef3f8;text-align:right">${booking.service || "Cleaning Service"}</td></tr>
                                         ${dateStr ? `<tr><td style="padding:8px 0;color:#526276;border-bottom:1px solid #eef3f8">Date</td><td style="padding:8px 0;font-weight:600;border-bottom:1px solid #eef3f8;text-align:right">${dateStr}</td></tr>` : ""}
-                                        ${booking.time ? `<tr><td style="padding:8px 0;color:#526276;border-bottom:1px solid #eef3f8">Time</td><td style="padding:8px 0;font-weight:600;border-bottom:1px solid #eef3f8;text-align:right">${booking.time}</td></tr>` : ""}
+                                        ${timeDisplay ? `<tr><td style="padding:8px 0;color:#526276;border-bottom:1px solid #eef3f8">${timeDisplay.startsWith("between") ? "Arrival Window" : "Time"}</td><td style="padding:8px 0;font-weight:600;border-bottom:1px solid #eef3f8;text-align:right">${timeDisplay}</td></tr>` : ""}
                                         <tr><td style="padding:8px 0;color:#526276">Total</td><td style="padding:8px 0;font-weight:800;font-size:18px;text-align:right;color:#005691">$${Number(booking.price || 0).toFixed(2)}</td></tr>
                                     </table>
                                     <p style="font-size:13px;color:#526276">Questions? Reply to this email or call <a href="tel:6134165001" style="color:#0A6CB8">613-416-5001</a>.</p>
