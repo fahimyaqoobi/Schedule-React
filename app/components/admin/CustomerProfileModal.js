@@ -15,6 +15,13 @@ export default function CustomerProfileModal({ customerKey, getAuthHeaders, curr
     const [notesDraft, setNotesDraft] = useState("");
     const [savingNotes, setSavingNotes] = useState(false);
     const [notesFeedback, setNotesFeedback] = useState("");
+    // Whether the crew keeps equipment/supplies (mop, vacuum, extra
+    // supplies, etc.) stored at this customer's location — the whole point
+    // is a single place to check this that scales past "just remember it",
+    // so it's saved with the same button/request as the notes below rather
+    // than living in a separate, easy-to-miss spot.
+    const [hasEquipmentOnSite, setHasEquipmentOnSite] = useState(false);
+    const [equipmentDetails, setEquipmentDetails] = useState("");
 
     const [chatMessages, setChatMessages] = useState([]);
     const [chatLoading, setChatLoading] = useState(true);
@@ -30,6 +37,8 @@ export default function CustomerProfileModal({ customerKey, getAuthHeaders, curr
             if (res.ok) {
                 setRecord(data);
                 setNotesDraft(data.notes || "");
+                setHasEquipmentOnSite(Boolean(data.hasEquipmentOnSite));
+                setEquipmentDetails(data.equipmentDetails || "");
             }
         } finally {
             setLoading(false);
@@ -99,7 +108,10 @@ export default function CustomerProfileModal({ customerKey, getAuthHeaders, curr
             const headers = await getAuthHeaders();
             const res = await fetch("/api/customers", {
                 method: "PUT", headers,
-                body: JSON.stringify({ key: customerKey, notes: notesDraft, tags: record?.tags || [] }),
+                body: JSON.stringify({
+                    key: customerKey, notes: notesDraft, tags: record?.tags || [],
+                    hasEquipmentOnSite, equipmentDetails,
+                }),
             });
             const data = await res.json();
             setNotesFeedback(res.ok ? "Saved." : (data.error || "Failed to save."));
@@ -149,13 +161,33 @@ export default function CustomerProfileModal({ customerKey, getAuthHeaders, curr
                                 </div>
                             )}
 
+                            <div style={{ background: hasEquipmentOnSite ? "#fffbeb" : "#f8fafc", border: `1px solid ${hasEquipmentOnSite ? "#fde68a" : "#e2e8f0"}`, borderRadius: 10, padding: "10px 12px" }}>
+                                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, fontWeight: 700, color: "#475569" }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={hasEquipmentOnSite}
+                                        onChange={e => setHasEquipmentOnSite(e.target.checked)}
+                                    />
+                                    🧰 Equipment/supplies stored on-site
+                                </label>
+                                {hasEquipmentOnSite && (
+                                    <input
+                                        type="text"
+                                        value={equipmentDetails}
+                                        onChange={e => setEquipmentDetails(e.target.value)}
+                                        placeholder="What's kept here? e.g. Mop, vacuum, extra supplies"
+                                        style={{ width: "100%", marginTop: 8, padding: 8, border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 13, fontFamily: "inherit" }}
+                                    />
+                                )}
+                            </div>
+
                             <div>
                                 <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 6 }}>CRM Notes</div>
                                 <textarea value={notesDraft} onChange={e => setNotesDraft(e.target.value)}
                                     placeholder="Internal notes about this customer…"
                                     style={{ width: "100%", minHeight: 70, padding: 8, border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 13, fontFamily: "inherit" }} />
                                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 6 }}>
-                                    <button onClick={saveNotes} disabled={savingNotes} className="btn btn-secondary btn-sm">{savingNotes ? "Saving…" : "Save Notes"}</button>
+                                    <button onClick={saveNotes} disabled={savingNotes} className="btn btn-secondary btn-sm">{savingNotes ? "Saving…" : "Save Changes"}</button>
                                     {notesFeedback && <span style={{ fontSize: 11, color: "#64748b" }}>{notesFeedback}</span>}
                                 </div>
                             </div>

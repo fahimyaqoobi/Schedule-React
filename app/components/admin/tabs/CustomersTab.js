@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import { Search, X, ArrowUp, ArrowDown, ArrowUpDown, Users } from "lucide-react";
+import { Search, X, ArrowUp, ArrowDown, ArrowUpDown, Users, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function money(n) {
@@ -17,6 +17,7 @@ export default function CustomersTab({ getAuthHeaders, currentUser }) {
     const [customers, setCustomers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
+    const [equipmentOnly, setEquipmentOnly] = useState(false);
     const [sortCol, setSortCol] = useState("lastBookingDate");
     const [sortDir, setSortDir] = useState("desc");
     const [selectedKey, setSelectedKey] = useState(null);
@@ -40,20 +41,23 @@ export default function CustomersTab({ getAuthHeaders, currentUser }) {
         else { setSortCol(col); setSortDir("desc"); }
     };
 
+    const equipmentCount = useMemo(() => customers.filter(c => c.hasEquipmentOnSite).length, [customers]);
+
     const visible = useMemo(() => {
         const term = search.trim().toLowerCase();
-        const filtered = !term ? customers : customers.filter(c =>
+        let filtered = !term ? customers : customers.filter(c =>
             (c.name || "").toLowerCase().includes(term) ||
             (c.phone || "").includes(term) ||
             (c.email || "").toLowerCase().includes(term)
         );
+        if (equipmentOnly) filtered = filtered.filter(c => c.hasEquipmentOnSite);
         return [...filtered].sort((a, b) => {
             const av = a[sortCol], bv = b[sortCol];
             if (av < bv) return sortDir === "asc" ? -1 : 1;
             if (av > bv) return sortDir === "asc" ? 1 : -1;
             return 0;
         });
-    }, [customers, search, sortCol, sortDir]);
+    }, [customers, search, sortCol, sortDir, equipmentOnly]);
 
     const SortArrow = ({ col }) => sortCol !== col
         ? <ArrowUpDown className="size-3 opacity-40" />
@@ -78,14 +82,26 @@ export default function CustomersTab({ getAuthHeaders, currentUser }) {
                 </CardHeader>
             </Card>
 
-            <div className="relative">
-                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name, phone, or email…" className="pl-8" />
-                {search && (
-                    <button onClick={() => setSearch("")} className="absolute top-1/2 right-2.5 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                        <X className="size-4" />
-                    </button>
-                )}
+            <div className="flex flex-wrap items-center gap-2">
+                <div className="relative flex-1 basis-60">
+                    <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name, phone, or email…" className="pl-8" />
+                    {search && (
+                        <button onClick={() => setSearch("")} className="absolute top-1/2 right-2.5 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                            <X className="size-4" />
+                        </button>
+                    )}
+                </div>
+                <Button
+                    type="button"
+                    variant={equipmentOnly ? "default" : "outline"}
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => setEquipmentOnly(v => !v)}
+                    title="Show only customers with equipment/supplies stored on-site"
+                >
+                    <Wrench className="size-3.5" /> Equipment on-site ({equipmentCount})
+                </Button>
             </div>
 
             <Card className="p-0">
@@ -117,7 +133,18 @@ export default function CustomersTab({ getAuthHeaders, currentUser }) {
                                     <TableRow key={c.key}>
                                         <TableCell>
                                             <div className="font-bold text-foreground">{c.name}</div>
-                                            {c.isRecurringCustomer && <Badge variant="outline" className="mt-0.5 text-[9px] text-cyan-600">● Recurring</Badge>}
+                                            <div className="mt-0.5 flex flex-wrap items-center gap-1">
+                                                {c.isRecurringCustomer && <Badge variant="outline" className="text-[9px] text-cyan-600">● Recurring</Badge>}
+                                                {c.hasEquipmentOnSite && (
+                                                    <Badge
+                                                        variant="outline"
+                                                        className="gap-0.5 text-[9px] text-amber-600"
+                                                        title={c.equipmentDetails || "Equipment stored on-site"}
+                                                    >
+                                                        <Wrench className="size-2.5" /> Equipment
+                                                    </Badge>
+                                                )}
+                                            </div>
                                         </TableCell>
                                         <TableCell className="text-muted-foreground">{c.phone || "—"}</TableCell>
                                         <TableCell className="max-w-[180px] truncate text-muted-foreground">{c.email || "—"}</TableCell>

@@ -60,13 +60,33 @@ export async function GET(request) {
                 return NextResponse.json({ error: "Customer not found." }, { status: 404 });
             }
             const noteDoc = await adminDb.collection("customerNotes").doc(encodeURIComponent(key)).get();
-            record.notes = noteDoc.exists ? (noteDoc.data().notes || "") : "";
-            record.tags = noteDoc.exists ? (noteDoc.data().tags || []) : [];
+            const noteData = noteDoc.exists ? noteDoc.data() : {};
+            record.notes = noteData.notes || "";
+            record.tags = noteData.tags || [];
+            record.hasEquipmentOnSite = Boolean(noteData.hasEquipmentOnSite);
+            record.equipmentDetails = noteData.equipmentDetails || "";
             return NextResponse.json(record, { status: 200 });
         }
 
-        // Directory view — drop the heavy per-booking payload, keep summary fields only.
-        const summaries = records.map(({ bookings: _bookings, ...summary }) => summary);
+        // Directory view — drop the heavy per-booking payload, keep summary
+        // fields only. Still bulk-fetches customerNotes (one collection read,
+        // not one-per-customer) so the "equipment on-site" flag is scannable
+        // across the whole list without opening every profile — that's the
+        // actual point of tracking it once the customer count grows past a
+        // handful.
+        const notesSnapshot = await adminDb.collection("customerNotes").get();
+        const equipmentByKey = {};
+        notesSnapshot.forEach(doc => {
+            const data = doc.data();
+            if (data.hasEquipmentOnSite) {
+                equipmentByKey[data.key] = { hasEquipmentOnSite: true, equipmentDetails: data.equipmentDetails || "" };
+            }
+        });
+        const summaries = records.map(({ bookings: _bookings, ...summary }) => ({
+            ...summary,
+            hasEquipmentOnSite: Boolean(equipmentByKey[summary.key]),
+            equipmentDetails: equipmentByKey[summary.key]?.equipmentDetails || "",
+        }));
         return NextResponse.json(summaries, { status: 200 });
     } catch (err) {
         console.error("GET customers error:", err);
@@ -82,7 +102,7 @@ export async function PUT(request) {
             return NextResponse.json({ error: "Forbidden: You cannot edit customer notes." }, { status: 403 });
         }
 
-        const { key, notes, tags } = await request.json();
+        const { key, notes, tags, hasEquipmentOnSite, equipmentDetails } = await request.json();
         if (!key) {
             return NextResponse.json({ error: "Missing customer key." }, { status: 400 });
         }
@@ -92,6 +112,8 @@ export async function PUT(request) {
             key,
             notes: notes || "",
             tags: Array.isArray(tags) ? tags : [],
+            hasEquipmentOnSite: Boolean(hasEquipmentOnSite),
+            equipmentDetails: hasEquipmentOnSite ? (equipmentDetails || "") : "",
             updatedAt: nowIso,
             updatedBy: user.email || user.uid,
         };
