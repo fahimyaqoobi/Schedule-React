@@ -728,22 +728,27 @@ export default function DashboardTab({
                         </div>
                     </section>
 
-                    {/* Permissioned pending user approvals table in Dashboard */}
+                    {/* Permissioned pending user approvals — cleaners self-register by
+                        phone (no email), so phone is shown as the primary contact
+                        field rather than the often-blank email. Visible on mobile
+                        too: this used to be desktop-only (hidden md:block on the
+                        whole card), which meant new registrations were invisible
+                        to anyone checking from a phone. */}
                     {canManagePermissions && pendingUsers.length > 0 && (
-                        <Card className="mt-6 hidden md:block">
+                        <Card className="mt-6">
                             <CardHeader className="flex-row items-center justify-between">
                                 <CardTitle>Awaiting operational registration approvals</CardTitle>
                                 <Badge variant="secondary">{pendingUsers.length} Pending</Badge>
                             </CardHeader>
                             <CardContent>
-                                <div className="overflow-hidden rounded-lg border border-border">
+                                <div className="hidden overflow-hidden rounded-lg border border-border md:block">
                                     <Table>
                                         <TableHeader>
                                             <TableRow className="bg-muted/50 hover:bg-muted/50">
                                                 <TableHead>Person Name</TableHead>
+                                                <TableHead>Phone</TableHead>
                                                 <TableHead>Email Address</TableHead>
-                                                <TableHead>Account Role</TableHead>
-                                                <TableHead>Requested Role</TableHead>
+                                                <TableHead>Role</TableHead>
                                                 <TableHead className="text-right">Actions</TableHead>
                                             </TableRow>
                                         </TableHeader>
@@ -758,11 +763,11 @@ export default function DashboardTab({
                                                             {u.name}
                                                         </div>
                                                     </TableCell>
-                                                    <TableCell className="text-muted-foreground">{u.email}</TableCell>
+                                                    <TableCell className="text-muted-foreground">{u.phone || "—"}</TableCell>
+                                                    <TableCell className="text-muted-foreground">{u.email || "—"}</TableCell>
                                                     <TableCell>
                                                         <Badge variant={u.role === "customer" ? "outline" : "secondary"}>{getRoleLabel(u.role)}</Badge>
                                                     </TableCell>
-                                                    <TableCell className="text-muted-foreground">{getRoleLabel(u.role)}</TableCell>
                                                     <TableCell className="text-right">
                                                         <div className="flex justify-end gap-2">
                                                             <Button size="sm" variant="secondary" onClick={() => handleResolveUserApproval(u.uid, "approve")}>Approve</Button>
@@ -773,6 +778,27 @@ export default function DashboardTab({
                                             ))}
                                         </TableBody>
                                     </Table>
+                                </div>
+
+                                <div className="flex flex-col gap-3 md:hidden">
+                                    {pendingUsers.map(u => (
+                                        <div key={u.uid} className="rounded-lg border border-border p-3.5">
+                                            <div className="flex items-center gap-2.5">
+                                                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                                                    {initials(u.name)}
+                                                </span>
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="truncate text-sm font-bold text-foreground">{u.name}</p>
+                                                    <p className="text-xs text-muted-foreground">{u.phone || u.email || "No contact info"}</p>
+                                                </div>
+                                                <Badge variant={u.role === "customer" ? "outline" : "secondary"}>{getRoleLabel(u.role)}</Badge>
+                                            </div>
+                                            <div className="mt-3 flex gap-2">
+                                                <Button size="sm" variant="secondary" className="flex-1" onClick={() => handleResolveUserApproval(u.uid, "approve")}>Approve</Button>
+                                                <Button size="sm" variant="destructive" className="flex-1" onClick={() => handleResolveUserApproval(u.uid, "reject")}>Reject</Button>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             </CardContent>
                         </Card>
