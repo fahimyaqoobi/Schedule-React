@@ -6459,11 +6459,22 @@ export default function Home() {
                                 </div>
 
                                 {detailsModalOpen && (
-                                    <JobChatCard
-                                        bookingId={b.id}
-                                        getAuthHeaders={getAuthHeaders}
-                                        currentActorId={currentUser?.uid}
-                                    />
+                                    // shrink-0: this modal's body is a flex column with a capped
+                                    // max-height (.modal-body-scroll), so it scrolls once content
+                                    // overflows. JobChatCard is a shadcn <Card>, which sets
+                                    // overflow-hidden — that makes a flex item's auto min-height
+                                    // collapse to 0, so without shrink-0 the flexbox shrink
+                                    // algorithm crushes it down to little more than its header
+                                    // instead of letting the modal scroll to show it (the plain
+                                    // .detail-card siblings above aren't flex items with
+                                    // overflow-hidden, so they were never affected).
+                                    <div className="shrink-0">
+                                        <JobChatCard
+                                            bookingId={b.id}
+                                            getAuthHeaders={getAuthHeaders}
+                                            currentActorId={currentUser?.uid}
+                                        />
+                                    </div>
                                 )}
 
                             </div>
