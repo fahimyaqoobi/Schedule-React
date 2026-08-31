@@ -6,7 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { LogOut, ChevronRight, X, LayoutGrid, ShoppingBag, DollarSign, Shield } from "lucide-react";
+import { LogOut, ChevronRight, X, LayoutGrid, ShoppingBag, DollarSign, Shield, CalendarOff, Trash2 } from "lucide-react";
+
+function formatBlockedDateLabel(dateStr) {
+    const d = new Date(`${dateStr}T12:00:00`);
+    if (Number.isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+}
 
 const CONFIG_ICONS = { Departments: LayoutGrid, Catalog: ShoppingBag, Cash: DollarSign, Shield };
 
@@ -31,12 +37,19 @@ export default function SettingsTab({
     handleSaveLeadSources,
     arrivalWindowMinutes,
     handleSaveArrivalWindow,
+    activeBranch,
+    blockedDates,
+    blockedDatesSaving,
+    handleAddBlockedDate,
+    handleRemoveBlockedDate,
     canViewAdministration,
     setActiveTab,
 }) {
     const [localSources, setLocalSources] = useState(leadSources || []);
     const [newSource, setNewSource] = useState("");
     const [localArrivalWindow, setLocalArrivalWindow] = useState(arrivalWindowMinutes || 120);
+    const [newBlockedDate, setNewBlockedDate] = useState("");
+    const [newBlockedReason, setNewBlockedReason] = useState("");
 
     const addSource = () => {
         const trimmed = newSource.trim();
@@ -232,6 +245,69 @@ export default function SettingsTab({
                             />
                         </div>
                         <Button className="w-fit" onClick={() => handleSaveArrivalWindow?.(localArrivalWindow)}>Save Arrival Window</Button>
+                    </CardContent>
+                </Card>
+            )}
+
+            {canManagePermissions && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-1.5 text-sm"><CalendarOff className="size-4" /> Blocked Dates</CardTitle>
+                        <p className="text-xs text-muted-foreground">
+                            Holidays or closures — no new booking or reschedule can land on a blocked date. Scoped to <strong>{activeBranch?.name || "this branch"}</strong> only; other branches keep their own schedule. Switch branches with the selector up top to manage a different one.
+                        </p>
+                    </CardHeader>
+                    <CardContent className="flex flex-col gap-4">
+                        {blockedDates?.length > 0 ? (
+                            <div className="flex flex-col gap-2">
+                                {blockedDates.map(entry => (
+                                    <div key={entry.date} className="flex items-center justify-between gap-3 rounded-lg border border-border px-3.5 py-2.5">
+                                        <div className="min-w-0">
+                                            <p className="text-sm font-bold text-foreground">{formatBlockedDateLabel(entry.date)}</p>
+                                            <p className="truncate text-xs text-muted-foreground">{entry.reason}</p>
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon-sm"
+                                            disabled={blockedDatesSaving}
+                                            onClick={() => handleRemoveBlockedDate?.(entry.date)}
+                                            title="Unblock this date"
+                                        >
+                                            <Trash2 className="size-3.5 text-destructive" />
+                                        </Button>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-sm text-muted-foreground">No blocked dates for {activeBranch?.name || "this branch"} yet.</p>
+                        )}
+                        <div className="flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:items-end">
+                            <div className="flex flex-1 flex-col gap-1.5">
+                                <Label>Date</Label>
+                                <Input type="date" value={newBlockedDate} onChange={e => setNewBlockedDate(e.target.value)} />
+                            </div>
+                            <div className="flex flex-[1.5] flex-col gap-1.5">
+                                <Label>Reason</Label>
+                                <Input
+                                    type="text"
+                                    value={newBlockedReason}
+                                    onChange={e => setNewBlockedReason(e.target.value)}
+                                    placeholder="e.g. Christmas Day, Staff Training…"
+                                />
+                            </div>
+                            <Button
+                                type="button"
+                                disabled={blockedDatesSaving || !newBlockedDate}
+                                onClick={() => {
+                                    handleAddBlockedDate?.(newBlockedDate, newBlockedReason);
+                                    setNewBlockedDate("");
+                                    setNewBlockedReason("");
+                                }}
+                            >
+                                {blockedDatesSaving ? "Saving…" : "Block Date"}
+                            </Button>
+                        </div>
                     </CardContent>
                 </Card>
             )}

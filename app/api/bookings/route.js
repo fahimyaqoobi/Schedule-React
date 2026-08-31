@@ -16,6 +16,19 @@ import { buildJobFinancialRecord } from "../../../lib/financials";
 import { maybeRecordCardProcessingFee } from "../../../lib/cardFees";
 import { computeAssignmentNotifications } from "../../../lib/staffNotify";
 import { appendJobActivityMessage } from "../../../lib/jobChat";
+import { blockedDateDocId } from "../../../lib/blockedDates";
+
+// Server-authoritative check — client-side date pickers grey these out too,
+// but this is what actually stops a booking (new or rescheduled) landing on
+// a blocked day, scoped to that one branch only.
+async function assertDateNotBlocked(branchId, date) {
+    if (!branchId || !date) return;
+    const snap = await adminDb.collection("blockedDates").doc(blockedDateDocId(branchId, date)).get();
+    if (snap.exists) {
+        const { reason } = snap.data();
+        throw Object.assign(new Error(`${date} is blocked for this branch${reason ? ` (${reason})` : ""}.`), { status: 422 });
+    }
+}
 
 // Lead → Quote → Booking(Pending/Confirmed) → Completed. "Quote" sits between
 // a raw enquiry and an accepted booking — pricing has been sent, customer
@@ -252,7 +265,9 @@ export async function POST(request) {
         if (!userCanAccessBranch(user, matchedBranch.id) && role !== "customer") {
             return NextResponse.json({ error: "Forbidden: You cannot create bookings for this branch." }, { status: 403 });
         }
-        
+
+        await assertDateNotBlocked(matchedBranch.id, bookingData.date);
+
         const id = bookingData.id || `bk-${Date.now()}`;
         const orderNumber = bookingData.orderNumber || await generateBookingOrderNumber();
         const bookingStatus = normalizeBookingStatus(bookingData.status || "Lead");
@@ -367,7 +382,7 @@ export async function POST(request) {
         return NextResponse.json({ message: "Booking created successfully", booking: newBooking }, { status: 200 });
     } catch (err) {
         console.error("POST Booking Error:", err);
-        return NextResponse.json({ error: err.message || "Unauthorized" }, { status: 401 });
+        return NextResponse.json({ error: err.message || "Unauthorized" }, { status: err.status || 401 });
     }
 }
 
@@ -402,6 +417,13 @@ export async function PUT(request) {
             const catalogEditRequested = bookingData.servicesChanged === true;
             if (overrideRequested && role !== "super-admin") {
                 return NextResponse.json({ error: "Forbidden: Only Super Admin can override service names or prices." }, { status: 403 });
+            }
+
+            // Only re-check when the date is actually moving — a booking
+            // already sitting on a day that gets blocked LATER shouldn't
+            // start rejecting unrelated edits (notes, payment status, etc.).
+            if (bookingData.date && bookingData.date !== originalData.date) {
+                await assertDateNotBlocked(bookingData.branchId || originalData.branchId, bookingData.date);
             }
 
             let protectedCartItems = Array.isArray(originalData.cartItems) ? originalData.cartItems : [];
@@ -605,7 +627,7 @@ export async function PUT(request) {
         }
     } catch (err) {
         console.error("PUT Booking Error:", err);
-        return NextResponse.json({ error: err.message || "Unauthorized" }, { status: 401 });
+        return NextResponse.json({ error: err.message || "Unauthorized" }, { status: err.status || 401 });
     }
 }
 

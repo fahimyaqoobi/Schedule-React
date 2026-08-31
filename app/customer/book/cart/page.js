@@ -3,6 +3,8 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { getCartItems, removeCartItem, clearCart } from "../../../../lib/customerCart";
 import { TIME_SLOTS, POINTS_PER_DOLLAR } from "../../../../lib/bookingServices";
+import { findBranchForAddress, getBranchById, DEFAULT_BRANCH_ID } from "../../../../lib/branches";
+import { findBlockedDate } from "../../../../lib/blockedDates";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,6 +44,18 @@ export default function CartPage() {
     // Submit
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState("");
+
+    // Blocked dates for whichever branch this address resolves to — refetched
+    // whenever city/postal code changes since that's what decides the branch.
+    const [blockedDates, setBlockedDates] = useState([]);
+    const resolvedBranch = findBranchForAddress({ city, country: "Canada", postalCode }) || getBranchById(DEFAULT_BRANCH_ID);
+    useEffect(() => {
+        fetch(`/api/blocked-dates?branchId=${encodeURIComponent(resolvedBranch.id)}`)
+            .then(r => r.json())
+            .then(data => { if (Array.isArray(data)) setBlockedDates(data); })
+            .catch(() => {});
+    }, [resolvedBranch.id]);
+    const dateIsBlocked = findBlockedDate(blockedDates, resolvedBranch.id, date);
 
     useEffect(() => {
         setItems(getCartItems());
@@ -107,6 +121,7 @@ export default function CartPage() {
         if (items.length === 0) { setError("Your cart is empty."); return; }
         if (!date) { setError("Please select a date."); return; }
         if (!address1.trim()) { setError("Please enter a service address."); return; }
+        if (dateIsBlocked) { setError(`Sorry, ${date} isn't available${dateIsBlocked.reason ? ` (${dateIsBlocked.reason})` : ""}. Please choose another date.`); return; }
         setSubmitting(true);
         try {
             const primaryService = items[0]?.serviceName || "Cleaning";
@@ -198,7 +213,13 @@ export default function CartPage() {
                         <Card>
                             <CardContent className="p-4">
                                 <Label className="mb-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Preferred Date &amp; Time</Label>
-                                <Input type="date" value={date} min={minDate} onChange={e => setDate(e.target.value)} className="mb-3" />
+                                <Input type="date" value={date} min={minDate} onChange={e => setDate(e.target.value)} className="mb-1" />
+                                {dateIsBlocked && (
+                                    <p className="mb-3 text-xs font-semibold text-destructive">
+                                        Not available{dateIsBlocked.reason ? ` — ${dateIsBlocked.reason}` : ""}. Please pick another date.
+                                    </p>
+                                )}
+                                {!dateIsBlocked && <div className="mb-3" />}
                                 <div className="flex gap-2">
                                     {TIME_SLOTS.map(t => (
                                         <button

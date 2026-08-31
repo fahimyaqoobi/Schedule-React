@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { adminDb } from "../../../../lib/firebase-admin";
 import { getSessionPhoneAny } from "../../../../lib/customerSession";
 import { getCustomerProfile } from "../../../../lib/customerProfile";
+import { findBranchForAddress, buildBranchRecordFields, DEFAULT_BRANCH_ID, getBranchById } from "../../../../lib/branches";
+import { blockedDateDocId } from "../../../../lib/blockedDates";
 
 export async function POST(request) {
     try {
@@ -22,6 +24,19 @@ export async function POST(request) {
         } = body;
 
         if (!service || !date) throw new Error("Service and date are required.");
+
+        const resolvedAddress = {
+            city: city || profile.city || "",
+            country: "Canada",
+            postalCode: postalCode || profile.postalCode || "",
+        };
+        const matchedBranch = findBranchForAddress(resolvedAddress) || getBranchById(DEFAULT_BRANCH_ID);
+
+        const blockedSnap = await adminDb.collection("blockedDates").doc(blockedDateDocId(matchedBranch.id, date)).get();
+        if (blockedSnap.exists) {
+            const { reason } = blockedSnap.data();
+            throw Object.assign(new Error(`Sorry, ${date} isn't available for booking${reason ? ` (${reason})` : ""}. Please choose another date.`), { status: 422 });
+        }
 
         const booking = {
             phone,
@@ -46,7 +61,8 @@ export async function POST(request) {
             customerConfirmed: false,
             paymentStatus: "unpaid",
             source: "customer_portal",
-            createdAt: Date.now(),
+            createdAt: new Date().toISOString(),
+            ...buildBranchRecordFields(matchedBranch, {}),
             // Estimates — admin sets final price when confirming
             subtotal: Number(subtotal || 0),
             tax: Number(tax || 0),
@@ -69,7 +85,7 @@ export async function POST(request) {
 
         return NextResponse.json({ ok: true, bookingId: ref.id });
     } catch (err) {
-        const status = err.message === "Unauthorized" ? 401 : 400;
+        const status = err.status || (err.message === "Unauthorized" ? 401 : 400);
         return NextResponse.json({ error: err.message }, { status });
     }
 }

@@ -46,6 +46,7 @@ import { getPersonalReferralCode } from "../lib/customerRewards";
 import { DEFAULT_DOCUMENT_COPY, normalizeDocumentCopy } from "../lib/documentCopy";
 import { computeBookingPricing } from "../lib/pricing";
 import { RECURRING_FREQUENCIES, nextRecurringDate } from "../lib/recurringBookings";
+import { findBlockedDate } from "../lib/blockedDates";
 import { toast } from "sonner";
 
 import CatalogTab from "./components/admin/tabs/CatalogTab";
@@ -979,6 +980,12 @@ export default function Home() {
     // yet); resolved at send-time by the confirmation/receipt emails via
     // lib/bookingTime.js's formatArrivalWindow().
     const [arrivalWindowMinutes, setArrivalWindowMinutes] = useState(120);
+    // Blocked dates for the CURRENTLY ACTIVE branch only — holidays/closures
+    // that stop new bookings and reschedules from landing on that day. Never
+    // fetched/merged across branches, so switching the branch selector at
+    // the top is what scopes which branch's list this is.
+    const [blockedDates, setBlockedDates] = useState([]);
+    const [blockedDatesSaving, setBlockedDatesSaving] = useState(false);
     const [promotionSaving, setPromotionSaving] = useState(false);
     const [leadSources, setLeadSources] = useState(["bark.com", "EZi App", "internal.com", "Google", "Instagram", "Referral", "Other"]);
 
@@ -2353,6 +2360,20 @@ export default function Home() {
                         : {})
                 };
 
+            // Only warn if the date is actually moving — same rule the server
+            // enforces, so resaving an unrelated edit on a booking that sits
+            // on a day blocked AFTER it was scheduled never gets stuck.
+            if (!isCleanerBookingEditor) {
+                const originalDate = bookings.find(b => b.id === bookingForm.id)?.date;
+                if (payload.date && payload.date !== originalDate) {
+                    const blockedOnEdit = findBlockedDate(blockedDates, payload.branchId, payload.date);
+                    if (blockedOnEdit) {
+                        alert(`${payload.date} is blocked${blockedOnEdit.reason ? ` (${blockedOnEdit.reason})` : ""}. Pick a different date.`);
+                        return;
+                    }
+                }
+            }
+
             // Recurring turned on for a booking that isn't in a series yet:
             // stamp a series id now so a future next-visit occurrence (see
             // maybePromptNextRecurringVisit below) can link back to it. No
@@ -2928,9 +2949,65 @@ export default function Home() {
         }
     };
 
+    const loadBlockedDates = useCallback(async (branchId) => {
+        try {
+            const res = await fetch(`/api/blocked-dates?branchId=${encodeURIComponent(branchId)}`);
+            const data = await res.json();
+            if (res.ok) setBlockedDates(data);
+        } catch (_err) {
+            // Non-fatal — worst case, the date pickers just don't grey anything
+            // out client-side; the server still enforces it on submit.
+        }
+    }, []);
+
+    const handleAddBlockedDate = async (date, reason) => {
+        if (!date) return alert("Pick a date first.");
+        setBlockedDatesSaving(true);
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch("/api/blocked-dates", {
+                method: "POST",
+                headers,
+                body: JSON.stringify({ branchId: activeBranch.id, date, reason })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Failed to block date.");
+            await loadBlockedDates(activeBranch.id);
+        } catch (err) {
+            alert(`Failed: ${err.message}`);
+        } finally {
+            setBlockedDatesSaving(false);
+        }
+    };
+
+    const handleRemoveBlockedDate = async (date) => {
+        setBlockedDatesSaving(true);
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch(`/api/blocked-dates?branchId=${encodeURIComponent(activeBranch.id)}&date=${encodeURIComponent(date)}`, {
+                method: "DELETE",
+                headers
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Failed to unblock date.");
+            await loadBlockedDates(activeBranch.id);
+        } catch (err) {
+            alert(`Failed: ${err.message}`);
+        } finally {
+            setBlockedDatesSaving(false);
+        }
+    };
+
     const updateDocumentCopyField = (field, value) => {
         setDocumentCopy(prev => ({ ...prev, [field]: value }));
     };
+
+    // Re-fetches whenever the admin switches branches via the top selector —
+    // each branch's blocked dates are wholly independent lists.
+    useEffect(() => {
+        if (!currentUser || !activeBranch?.id) return;
+        loadBlockedDates(activeBranch.id);
+    }, [currentUser, activeBranch?.id, loadBlockedDates]);
 
     const updateStaffDraftField = useCallback((section, field, value) => {
         setStaffProfileDraft(prev => {
@@ -4038,6 +4115,11 @@ export default function Home() {
                 country: adminCheckoutForm.country,
                 postalCode: adminCheckoutForm.postalCode
             }) || activeBranch;
+            const blockedOnSubmit = findBlockedDate(blockedDates, matchedBranch.id, adminCheckoutForm.date);
+            if (blockedOnSubmit) {
+                alert(`${adminCheckoutForm.date} is blocked for ${matchedBranch.name}${blockedOnSubmit.reason ? ` (${blockedOnSubmit.reason})` : ""}. Pick a different date.`);
+                return;
+            }
             const assignedStaff = fieldStaff
                 .filter(member => adminCheckoutForm.assignedStaffIds.includes(member.uid))
                 .map(member => ({
@@ -4141,7 +4223,7 @@ export default function Home() {
         } catch (err) {
             alert(`Checkout failed: ${err.message}`);
         }
-    }, [activeBranch, adminCartTotals, adminCheckoutForm, adminServiceCart, currentUser, documentCopy, fieldStaff, getAuthHeaders, promotionRules, syncDatabaseData]);
+    }, [activeBranch, adminCartTotals, adminCheckoutForm, adminServiceCart, blockedDates, currentUser, documentCopy, fieldStaff, getAuthHeaders, promotionRules, syncDatabaseData]);
 
     const handleAdminCheckoutNext = useCallback(() => {
         if (!validateAdminCheckoutStep(adminCheckoutStep, adminCheckoutForm)) {
@@ -4150,8 +4232,20 @@ export default function Home() {
                 : "Complete the schedule and status details first.");
             return;
         }
+        if (adminCheckoutStep === 1) {
+            const branchForDate = findBranchForAddress({
+                city: adminCheckoutForm.city,
+                country: adminCheckoutForm.country,
+                postalCode: adminCheckoutForm.postalCode
+            }) || activeBranch;
+            const blocked = findBlockedDate(blockedDates, branchForDate.id, adminCheckoutForm.date);
+            if (blocked) {
+                alert(`${adminCheckoutForm.date} is blocked for ${branchForDate.name}${blocked.reason ? ` (${blocked.reason})` : ""}. Pick a different date.`);
+                return;
+            }
+        }
         setAdminCheckoutStep(prev => Math.min(2, prev + 1));
-    }, [adminCheckoutForm, adminCheckoutStep]);
+    }, [adminCheckoutForm, adminCheckoutStep, activeBranch, blockedDates]);
 
     // ----------------------------------------------------
     // Filtered & Sorted Booking Data computations
@@ -5301,6 +5395,11 @@ export default function Home() {
                         handleSaveLeadSources={handleSaveLeadSources}
                         arrivalWindowMinutes={arrivalWindowMinutes}
                         handleSaveArrivalWindow={handleSaveArrivalWindow}
+                        activeBranch={activeBranch}
+                        blockedDates={blockedDates}
+                        blockedDatesSaving={blockedDatesSaving}
+                        handleAddBlockedDate={handleAddBlockedDate}
+                        handleRemoveBlockedDate={handleRemoveBlockedDate}
                         canViewAdministration={canViewAdministration}
                         setActiveTab={setActiveTab}
                         Icons={Icons}
