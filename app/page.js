@@ -45,6 +45,8 @@ import { DEFAULT_PROMOTIONS, ensurePromotionList, getCustomerEligiblePromotions 
 import { getPersonalReferralCode } from "../lib/customerRewards";
 import { DEFAULT_DOCUMENT_COPY, normalizeDocumentCopy } from "../lib/documentCopy";
 import { computeBookingPricing } from "../lib/pricing";
+import { RECURRING_FREQUENCIES, nextRecurringDate } from "../lib/recurringBookings";
+import { toast } from "sonner";
 
 import CatalogTab from "./components/admin/tabs/CatalogTab";
 import PromotionsTab from "./components/admin/tabs/PromotionsTab";
@@ -63,6 +65,7 @@ import BookingWizard from "./components/admin/BookingWizard";
 import CalendarTab from "./components/admin/tabs/calendar/CalendarTab";
 import DispatchTab from "./components/admin/tabs/DispatchTab";
 import RecurringTab from "./components/admin/tabs/RecurringTab";
+import RecurringNextVisitDialog from "./components/admin/RecurringNextVisitDialog";
 import ExpensesTab from "./components/admin/tabs/ExpensesTab";
 import CustomersTab from "./components/admin/tabs/CustomersTab";
 import MessagesTab from "./components/admin/tabs/MessagesTab";
@@ -254,50 +257,6 @@ function timeToShift(timeStr = "") {
     if (min >= 720  && min < 1080) return "afternoon";
     if (min >= 1080 && min < 1200) return "evening";
     return null;
-}
-
-// ── Recurring bookings ──
-// Generate the follow-up occurrence dates (YYYY-MM-DD) for a recurring series,
-// covering the next `months` months after startDateStr (start date excluded).
-const RECURRING_FREQUENCIES = ["Weekly", "Bi-Weekly", "Monthly"];
-
-function addMonthsClamped(date, n) {
-    const d = new Date(date);
-    const day = d.getDate();
-    d.setDate(1);
-    d.setMonth(d.getMonth() + n);
-    const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-    d.setDate(Math.min(day, lastDay));
-    return d;
-}
-
-function toLocalDateStr(d) {
-    const pad = (n) => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-function generateRecurringDates(startDateStr, frequency, months = 3) {
-    if (!startDateStr) return [];
-    const start = new Date(`${startDateStr}T00:00:00`);
-    if (Number.isNaN(start.getTime())) return [];
-    const end = addMonthsClamped(start, months);
-    const dates = [];
-    if (frequency === "Monthly") {
-        for (let i = 1; ; i++) {
-            const d = addMonthsClamped(start, i);
-            if (d > end) break;
-            dates.push(toLocalDateStr(d));
-        }
-    } else {
-        const step = frequency === "Bi-Weekly" ? 14 : 7;
-        const d = new Date(start);
-        for (;;) {
-            d.setDate(d.getDate() + step);
-            if (d > end) break;
-            dates.push(toLocalDateStr(d));
-        }
-    }
-    return dates;
 }
 
 function validateAdminCheckoutStep(step, form = {}) {
@@ -1079,6 +1038,10 @@ export default function Home() {
     const [crmCustomerKey, setCrmCustomerKey] = useState(null);
     const [selectedBooking, setSelectedBooking] = useState(null);
     const [bookingModalOpen, setBookingModalOpen] = useState(false);
+    // { booking, suggestedDate } | null — the "Schedule next visit?" prompt
+    // shown after a recurring booking is marked Completed. See
+    // maybePromptNextRecurringVisit / handleConfirmNextRecurringVisit.
+    const [recurringVisitPrompt, setRecurringVisitPrompt] = useState(null);
     const [adminServiceCart, setAdminServiceCart] = useState([]);
     const [bookingWizardOpen, setBookingWizardOpen] = useState(false);
     const [serviceConfigOpen, setServiceConfigOpen] = useState(false);
@@ -2365,7 +2328,11 @@ export default function Home() {
                 };
 
             // Recurring turned on for a booking that isn't in a series yet:
-            // stamp a series id now so the children link back to this booking.
+            // stamp a series id now so a future next-visit occurrence (see
+            // maybePromptNextRecurringVisit below) can link back to it. No
+            // occurrences are created here — the series stays at just this
+            // one booking until it's marked Completed and someone confirms
+            // a date in the "Schedule next visit?" prompt.
             const startsNewSeries = !isCleanerBookingEditor && payload.isRecurring && !payload.recurringSeriesId;
             if (startsNewSeries) {
                 payload.recurringSeriesId = `rec-${Date.now()}`;
@@ -2380,18 +2347,12 @@ export default function Home() {
 
             if (res.ok) {
                 const data = await res.json();
-                let recurringMessage = "";
-                if (startsNewSeries) {
-                    const frequency = RECURRING_FREQUENCIES.includes(payload.frequency) ? payload.frequency : "Weekly";
-                    const dates = generateRecurringDates(payload.date, frequency, 3);
-                    const created = await createRecurringChildren(payload, dates, 1);
-                    recurringMessage = ` ${created} ${frequency.toLowerCase()} occurrence(s) booked for the next 3 months.`;
-                } else if (!isCleanerBookingEditor && payload.status === "Completed") {
-                    await maybeExtendRecurringSeries(payload);
-                }
-                alert(`${data.message || "Booking updated."}${recurringMessage}`);
+                alert(data.message || "Booking updated.");
                 setBookingModalOpen(false);
                 syncDatabaseData(currentUser);
+                if (!isCleanerBookingEditor && data.booking?.status === "Completed") {
+                    maybePromptNextRecurringVisit(data.booking);
+                }
             } else {
                 const err = await res.json();
                 alert(`Operation Failed: ${err.error}`);
@@ -2549,10 +2510,11 @@ export default function Home() {
         }
     }, [getAuthHeaders]);
 
-    // Create the future occurrences of a recurring series by cloning a source
+    // Create the next occurrence(s) of a recurring series by cloning a source
     // booking. Per-occurrence fields (numbers, promos, checklists, audit) are
-    // stripped so the server issues fresh ones. Runs sequentially so booking
-    // order numbers are generated without racing.
+    // stripped so the server issues fresh ones. In practice `dates` is a
+    // single date now — see maybePromptNextRecurringVisit below — but this
+    // still accepts an array so nothing about its own logic had to change.
     const createRecurringChildren = useCallback(async (source, dates = [], startIndex = 1) => {
         const {
             id: _id, orderNumber: _orderNumber, estimateNumber: _estimateNumber, invoiceNumber: _invoiceNumber,
@@ -2588,29 +2550,34 @@ export default function Home() {
         return created;
     }, [getAuthHeaders]);
 
-    // When the LAST occurrence of a recurring series closes out, book the next
-    // 3 months automatically so recurring clients never fall off the schedule.
-    const maybeExtendRecurringSeries = useCallback(async (booking) => {
-        try {
-            if (!booking?.isRecurring || !booking.recurringSeriesId || !booking.date) return;
-            const frequency = RECURRING_FREQUENCIES.includes(booking.frequency) ? booking.frequency : "Weekly";
-            const hasLaterOccurrence = bookings.some(b =>
-                b.recurringSeriesId === booking.recurringSeriesId &&
-                b.id !== booking.id &&
-                b.status !== "Cancelled" &&
-                (b.date || "") > booking.date
-            );
-            if (hasLaterOccurrence) return;
-            const dates = generateRecurringDates(booking.date, frequency, 3);
-            if (!dates.length) return;
-            const nextIndex = (Number(booking.recurringIndex) || 0) + 1;
-            const created = await createRecurringChildren({ ...booking, status: "Confirmed" }, dates, nextIndex);
-            syncDatabaseData(currentUser);
-            alert(`Recurring series extended: ${created} new ${frequency.toLowerCase()} booking(s) added for the next 3 months.`);
-        } catch (err) {
-            alert(`Could not auto-extend the recurring series: ${err.message}`);
-        }
-    }, [bookings, createRecurringChildren, currentUser, syncDatabaseData]);
+    // When a recurring booking is marked Completed, ask whether/when to book
+    // the next visit instead of silently auto-generating months of future
+    // dates (that used to create occurrences nobody actually wanted). Does
+    // nothing if there's already a later, non-cancelled occurrence in this
+    // series (so re-completing an old booking in a series that's already
+    // moved on doesn't re-prompt).
+    const maybePromptNextRecurringVisit = useCallback((booking) => {
+        if (!booking?.isRecurring || !booking.recurringSeriesId || !booking.date) return;
+        const hasLaterOccurrence = bookings.some(b =>
+            b.recurringSeriesId === booking.recurringSeriesId &&
+            b.id !== booking.id &&
+            b.status !== "Cancelled" &&
+            (b.date || "") > booking.date
+        );
+        if (hasLaterOccurrence) return;
+        const frequency = RECURRING_FREQUENCIES.includes(booking.frequency) ? booking.frequency : "Weekly";
+        setRecurringVisitPrompt({ booking, suggestedDate: nextRecurringDate(booking.date, frequency) });
+    }, [bookings]);
+
+    const handleConfirmNextRecurringVisit = useCallback(async (dateStr) => {
+        if (!recurringVisitPrompt?.booking || !dateStr) return;
+        const { booking } = recurringVisitPrompt;
+        const nextIndex = (Number(booking.recurringIndex) || 0) + 1;
+        await createRecurringChildren({ ...booking, status: "Confirmed" }, [dateStr], nextIndex);
+        toast.success(`Next visit scheduled for ${dateStr}.`);
+        setRecurringVisitPrompt(null);
+        syncDatabaseData(currentUser);
+    }, [recurringVisitPrompt, createRecurringChildren, currentUser, syncDatabaseData]);
 
     // Optimistic — the affected fields are patched into local state before
     // the network call resolves (so drag-and-drop reads as instant, not
@@ -2640,7 +2607,7 @@ export default function Home() {
                 return { ok: true, pending: true, requestId: data.requestId, message: data.message };
             }
             if (fields.status === "Completed") {
-                await maybeExtendRecurringSeries({ ...existing, ...fields, id: bookingId });
+                maybePromptNextRecurringVisit(data.booking || { ...existing, ...fields, id: bookingId });
             }
             return { ok: true, pending: false };
         } catch (err) {
@@ -2648,7 +2615,7 @@ export default function Home() {
             alert(`Quick update failed: ${err.message}`);
             return { ok: false, error: err.message };
         }
-    }, [bookings, getAuthHeaders, maybeExtendRecurringSeries]);
+    }, [bookings, getAuthHeaders, maybePromptNextRecurringVisit]);
 
     const openCustomerProfile = useCallback((booking) => {
         const key = customerKeyForBooking(booking);
@@ -3740,7 +3707,11 @@ export default function Home() {
                 })
             });
             if (res.ok) {
+                const data = await res.json().catch(() => ({}));
                 syncDatabaseData(currentUser);
+                if (action === "approve" && data.booking?.status === "Completed") {
+                    maybePromptNextRecurringVisit(data.booking);
+                }
             } else {
                 const err = await res.json();
                 alert(`Failed: ${err.error}`);
@@ -4129,21 +4100,15 @@ export default function Home() {
                 const errorData = await res.json().catch(() => ({}));
                 throw new Error(errorData.error || "Failed to create cart booking.");
             }
-            let recurringMessage = "";
-            if (recurringOn) {
-                const dates = generateRecurringDates(payload.date, recurringFrequency, 3);
-                const created = await createRecurringChildren(payload, dates, 1);
-                recurringMessage = ` ${created} ${recurringFrequency.toLowerCase()} occurrence(s) booked for the next 3 months.`;
-            }
             setAdminCheckoutOpen(false);
             setAdminCheckoutStep(0);
             setAdminServiceCart([]);
             syncDatabaseData(currentUser);
-            alert(`${getBookingDocumentLabel(adminCheckoutForm.bookingStatus)} created successfully.${recurringMessage}`);
+            alert(`${getBookingDocumentLabel(adminCheckoutForm.bookingStatus)} created successfully.`);
         } catch (err) {
             alert(`Checkout failed: ${err.message}`);
         }
-    }, [activeBranch, adminCartTotals, adminCheckoutForm, adminServiceCart, createRecurringChildren, currentUser, documentCopy, fieldStaff, getAuthHeaders, promotionRules, syncDatabaseData]);
+    }, [activeBranch, adminCartTotals, adminCheckoutForm, adminServiceCart, currentUser, documentCopy, fieldStaff, getAuthHeaders, promotionRules, syncDatabaseData]);
 
     const handleAdminCheckoutNext = useCallback(() => {
         if (!validateAdminCheckoutStep(adminCheckoutStep, adminCheckoutForm)) {
@@ -5801,8 +5766,8 @@ export default function Home() {
                                                 <span className="recurring-toggle-text">
                                                     <strong>🔁 Recurring Booking</strong>
                                                     <small>{adminCheckoutForm.isRecurring
-                                                        ? "The next 3 months will be booked automatically."
-                                                        : "One-time job. Turn on to auto-book the next 3 months."}</small>
+                                                        ? "You'll be asked to schedule the next visit once this one is marked Completed."
+                                                        : "One-time job. Turn on to mark this a repeat customer visit."}</small>
                                                 </span>
                                             </button>
                                             {adminCheckoutForm.isRecurring && (
@@ -6091,6 +6056,12 @@ export default function Home() {
                     onClose={() => setBookingWizardOpen(false)}
                 />
             )}
+
+            <RecurringNextVisitDialog
+                prompt={recurringVisitPrompt}
+                onOpenChange={(open) => { if (!open) setRecurringVisitPrompt(null); }}
+                onConfirm={handleConfirmNextRecurringVisit}
+            />
 
             {/* MODAL 1: VIEW DETAILS MODAL */}
             {crmCustomerKey && (
@@ -6682,9 +6653,9 @@ export default function Home() {
                                                         <strong>🔁 Recurring Booking</strong>
                                                         <small>{bookingForm.isRecurring
                                                             ? (bookingForm.recurringSeriesId
-                                                                ? "Part of a recurring series — extends automatically when the last visit completes."
-                                                                : "Saving will book the next 3 months automatically.")
-                                                            : "One-time job. Turn on to auto-book the next 3 months."}</small>
+                                                                ? "Part of a recurring series — you'll be asked to schedule the next visit when this one is marked Completed."
+                                                                : "You'll be asked to schedule the next visit once this one is marked Completed.")
+                                                            : "One-time job. Turn on to mark this a repeat customer visit."}</small>
                                                     </span>
                                                 </button>
                                                 {bookingForm.isRecurring && (
