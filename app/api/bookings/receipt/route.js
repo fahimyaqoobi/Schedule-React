@@ -3,6 +3,7 @@ import nodemailer from "nodemailer";
 import { adminAuth, adminDb } from "../../../../lib/firebase-admin";
 import { canManageBranch } from "../../../../lib/permissions";
 import { formatZonedDate } from "../../../../lib/timezone";
+import { appendJobActivityMessage } from "../../../../lib/jobChat";
 
 function getMailConfig() {
     const host = process.env.SMTP_HOST || "";
@@ -129,6 +130,11 @@ export async function POST(request) {
                 summary: `Receipt emailed to ${booking.email}`,
                 status: booking.status,
             }),
+        });
+        await appendJobActivityMessage(adminDb, {
+            bookingId,
+            summary: `Receipt emailed to ${booking.email}`,
+            by: adminUser.email || decoded.uid
         });
 
         return NextResponse.json({ message: `Receipt sent to ${booking.email}.` });

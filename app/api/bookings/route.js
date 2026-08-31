@@ -15,6 +15,7 @@ import { computeBookingPricing } from "../../../lib/pricing";
 import { buildJobFinancialRecord } from "../../../lib/financials";
 import { maybeRecordCardProcessingFee } from "../../../lib/cardFees";
 import { computeAssignmentNotifications } from "../../../lib/staffNotify";
+import { appendJobActivityMessage } from "../../../lib/jobChat";
 
 // Lead → Quote → Booking(Pending/Confirmed) → Completed. "Quote" sits between
 // a raw enquiry and an accepted booking — pricing has been sent, customer
@@ -358,6 +359,11 @@ export async function POST(request) {
         newBooking.staffNotifiedAt = staffNotifiedAt;
 
         await adminDb.collection("bookings").doc(id).set(newBooking);
+        await appendJobActivityMessage(adminDb, {
+            bookingId: id,
+            summary: newBooking.auditLog[newBooking.auditLog.length - 1].summary,
+            by: user.email || user.uid
+        });
         return NextResponse.json({ message: "Booking created successfully", booking: newBooking }, { status: 200 });
     } catch (err) {
         console.error("POST Booking Error:", err);
@@ -517,6 +523,15 @@ export async function PUT(request) {
                     paymentStatus: nextPaymentStatus
                 })
             };
+            // Same event, reworded for the job chat — that thread is shared
+            // with the customer and assigned cleaner, so it never gets the
+            // internal "Super Admin overrode..." / "Catalog Studio" wording
+            // the raw auditLog entry above carries.
+            const chatActivitySummary = overrideRequested
+                ? "Booking price was adjusted"
+                : catalogEditRequested
+                    ? "Booking services were updated"
+                    : (nextDocumentStage === "invoice" ? "Invoice generated" : `Booking updated to ${nextStatus}`);
 
             // Text assigned cleaners when they're newly added to a Confirmed
             // job, and text already-assigned cleaners if a Confirmed job's
@@ -531,6 +546,11 @@ export async function PUT(request) {
             updatedBooking.staffNotifiedAt = staffNotifiedAt;
 
             await bookingRef.set(updatedBooking);
+            await appendJobActivityMessage(adminDb, {
+                bookingId: updatedBooking.id,
+                summary: chatActivitySummary,
+                by: user.email || user.uid
+            });
 
             // Every completed job creates/refreshes its financial record —
             // the data model for Daily Business Performance (live sync to

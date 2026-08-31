@@ -4,6 +4,7 @@ import { adminAuth, adminDb } from "../../../../lib/firebase-admin";
 import { canManageBranch } from "../../../../lib/permissions";
 import { formatZonedDate } from "../../../../lib/timezone";
 import { formatArrivalWindow } from "../../../../lib/bookingTime";
+import { appendJobActivityMessage } from "../../../../lib/jobChat";
 
 const DEFAULT_ARRIVAL_WINDOW_MINUTES = 120;
 
@@ -62,6 +63,11 @@ export async function POST(request) {
                 summary: "Job approved by admin after customer confirmation",
                 status: "Confirmed",
             }),
+        });
+        await appendJobActivityMessage(adminDb, {
+            bookingId,
+            summary: "Job approved by admin after customer confirmation",
+            by: adminUser.email || decoded.uid
         });
 
         // Send confirmation email to client if email exists

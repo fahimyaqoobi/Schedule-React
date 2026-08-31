@@ -4,6 +4,7 @@ import { adminAuth, adminDb } from "../../../../lib/firebase-admin";
 import { canManageBranch, normalizeRole } from "../../../../lib/permissions";
 import { DEFAULT_BRANCH_ID, userCanAccessBranch } from "../../../../lib/branches";
 import { buildBookingDocumentPdf } from "../../../../lib/bookingDocumentPdf";
+import { appendJobActivityMessage } from "../../../../lib/jobChat";
 import {
     buildBookingEmailHtml,
     getBookingDocumentLabel,
@@ -206,6 +207,11 @@ export async function POST(request) {
                 status: booking.status,
                 paymentStatus: booking.paymentStatus || "unpaid"
             })
+        });
+        await appendJobActivityMessage(adminDb, {
+            bookingId,
+            summary: `${documentLabel} sent to client`,
+            by: user.email || user.uid
         });
 
         return NextResponse.json({ message: `${documentLabel} sent to ${booking.email}.` });

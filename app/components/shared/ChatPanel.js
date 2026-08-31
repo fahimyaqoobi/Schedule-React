@@ -66,6 +66,16 @@ export default function ChatPanel({
                     </div>
                 ) : (
                     messages.map(m => {
+                        if (m.senderKind === "system") {
+                            return (
+                                <div key={m.id} className="mx-auto flex max-w-[90%] flex-col items-center gap-0.5 py-1 text-center">
+                                    <span className="text-xs text-muted-foreground">
+                                        <span aria-hidden="true">🔔 </span>{m.text}
+                                    </span>
+                                    <span className="text-[10px] text-muted-foreground/70">{m.senderName ? `${m.senderName} · ` : ""}{formatTime(m.createdAt)}</span>
+                                </div>
+                            );
+                        }
                         const isMine = m.senderId === currentActorId;
                         return (
                             <div key={m.id} className={cn("flex items-end gap-2", isMine && "flex-row-reverse")}>

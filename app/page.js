@@ -6419,22 +6419,9 @@ export default function Home() {
                                     </div>
                                 )}
 
-                                {!isCleanerSelfServiceView && Array.isArray(b.auditLog) && b.auditLog.length > 0 && (
-                                    <div className="detail-card">
-                                        <div className="detail-card-title">ℹ️ Booking Activity</div>
-                                        <div className="flex flex-col gap-3">
-                                            {[...b.auditLog].slice(-5).reverse().map((entry, index) => (
-                                                <div key={`${entry.at || "log"}-${index}`} className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-                                                    <div className="flex items-center justify-between gap-3">
-                                                        <strong className="text-sm text-slate-800">{entry.summary || entry.type || "Update"}</strong>
-                                                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{entry.status || "logged"}</span>
-                                                    </div>
-                                                    <p className="mt-1 text-xs text-slate-500">{entry.by || "system"} · {entry.at ? formatZonedDateTime(new Date(entry.at)) : "No timestamp"}</p>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
+                                {/* Booking activity now posts directly into the Job Chat below (as
+                                    🔔 system lines) instead of living in its own admin-only panel —
+                                    one place to see the whole history of a job, not two. */}
 
                                 {/* Operations */}
                                 <div className="detail-card">
