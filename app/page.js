@@ -995,6 +995,13 @@ export default function Home() {
         state: "Ontario",
         postalCode: "",
         country: "Canada",
+        billingSameAsService: true,
+        billingAddress1: "",
+        billingAddress2: "",
+        billingCity: "",
+        billingState: "Ontario",
+        billingPostalCode: "",
+        billingCountry: "Canada",
         location: null,
         service: "Studio or 1 Bedroom",
         bathrooms: "1 Bathroom",
@@ -1076,6 +1083,13 @@ export default function Home() {
         state: "Ontario",
         postalCode: "",
         country: "Canada",
+        billingSameAsService: true,
+        billingAddress1: "",
+        billingAddress2: "",
+        billingCity: "",
+        billingState: "Ontario",
+        billingPostalCode: "",
+        billingCountry: "Canada",
         location: null,
         date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' }),
         time: "07:00 AM",
@@ -2169,6 +2183,13 @@ export default function Home() {
             state: b.state || "Ontario",
             postalCode: b.postalCode || "",
             country: b.country || "Canada",
+            billingSameAsService: b.billingSameAsService !== false,
+            billingAddress1: b.billingAddress1 || "",
+            billingAddress2: b.billingAddress2 || "",
+            billingCity: b.billingCity || "",
+            billingState: b.billingState || "Ontario",
+            billingPostalCode: b.billingPostalCode || "",
+            billingCountry: b.billingCountry || "Canada",
             location: b.location || null,
             service: b.service || "Studio or 1 Bedroom",
             bathrooms: b.bathrooms || "1 Bathroom",
@@ -2324,7 +2345,12 @@ export default function Home() {
                     subtotal: bookingCartTotals.subtotal,
                     tax: bookingCartTotals.tax,
                     price: bookingCartTotals.total,
-                    duration: bookingCartTotals.duration || durationNum
+                    duration: bookingCartTotals.duration || durationNum,
+                    // Never persist stale billing-address fields once the
+                    // "different billing address" checkbox is turned back off.
+                    ...(bookingForm.billingSameAsService !== false
+                        ? { billingAddress1: "", billingAddress2: "", billingCity: "", billingState: "", billingPostalCode: "", billingCountry: "" }
+                        : {})
                 };
 
             // Recurring turned on for a booking that isn't in a series yet:
@@ -4046,6 +4072,13 @@ export default function Home() {
                 state: adminCheckoutForm.state,
                 postalCode: adminCheckoutForm.postalCode,
                 country: adminCheckoutForm.country,
+                billingSameAsService: adminCheckoutForm.billingSameAsService !== false,
+                billingAddress1: adminCheckoutForm.billingSameAsService === false ? adminCheckoutForm.billingAddress1 : "",
+                billingAddress2: adminCheckoutForm.billingSameAsService === false ? adminCheckoutForm.billingAddress2 : "",
+                billingCity: adminCheckoutForm.billingSameAsService === false ? adminCheckoutForm.billingCity : "",
+                billingState: adminCheckoutForm.billingSameAsService === false ? adminCheckoutForm.billingState : "",
+                billingPostalCode: adminCheckoutForm.billingSameAsService === false ? adminCheckoutForm.billingPostalCode : "",
+                billingCountry: adminCheckoutForm.billingSameAsService === false ? adminCheckoutForm.billingCountry : "",
                 location: adminCheckoutForm.location || null,
                 date: adminCheckoutForm.date,
                 shifts: adminCheckoutForm.shifts || [],
@@ -5722,6 +5755,35 @@ export default function Home() {
                                             <span>Postal Code</span>
                                             <input required value={adminCheckoutForm.postalCode} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, postalCode: e.target.value }))} />
                                         </label>
+                                        <label className="span-2">
+                                            <div style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: 8 }}>
+                                                <input type="checkbox"
+                                                    checked={!adminCheckoutForm.billingSameAsService}
+                                                    onChange={e => setAdminCheckoutForm(prev => ({ ...prev, billingSameAsService: !e.target.checked }))}
+                                                    style={{ width: 16, height: 16, minHeight: 16, minWidth: 16, flexShrink: 0, appearance: "auto", padding: 0, border: "1px solid #c3c6d5" }} />
+                                                <span>Billing address is different from the service address above</span>
+                                            </div>
+                                        </label>
+                                        {!adminCheckoutForm.billingSameAsService && (
+                                            <>
+                                                <label className="span-2">
+                                                    <span>Billing Street Address</span>
+                                                    <input required value={adminCheckoutForm.billingAddress1} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, billingAddress1: e.target.value }))} />
+                                                </label>
+                                                <label>
+                                                    <span>Billing Unit / Apt</span>
+                                                    <input value={adminCheckoutForm.billingAddress2} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, billingAddress2: e.target.value }))} />
+                                                </label>
+                                                <label>
+                                                    <span>Billing City</span>
+                                                    <input required value={adminCheckoutForm.billingCity} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, billingCity: e.target.value }))} />
+                                                </label>
+                                                <label>
+                                                    <span>Billing Postal Code</span>
+                                                    <input required value={adminCheckoutForm.billingPostalCode} onChange={e => setAdminCheckoutForm(prev => ({ ...prev, billingPostalCode: e.target.value }))} />
+                                                </label>
+                                            </>
+                                        )}
                                     </>
                                 )}
 
@@ -6535,6 +6597,31 @@ export default function Home() {
                                                     <input type="text" value={bookingForm.postalCode} onChange={e => setBookingForm(prev => ({ ...prev, postalCode: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
                                                 </div>
                                             </div>
+
+                                            <label className="flex items-center gap-2 text-xs font-bold text-slate-700">
+                                                <input type="checkbox"
+                                                    checked={!bookingForm.billingSameAsService}
+                                                    onChange={e => setBookingForm(prev => ({ ...prev, billingSameAsService: !e.target.checked }))} />
+                                                Billing address is different from the service address above
+                                            </label>
+                                            {!bookingForm.billingSameAsService && (
+                                                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 flex flex-col gap-3">
+                                                    <div className="form-group flex flex-col gap-1">
+                                                        <label className="font-bold text-slate-700">Billing Street Address</label>
+                                                        <input type="text" value={bookingForm.billingAddress1} onChange={e => setBookingForm(prev => ({ ...prev, billingAddress1: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
+                                                    </div>
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                        <div className="form-group flex flex-col gap-1">
+                                                            <label className="font-bold text-slate-700">Billing City</label>
+                                                            <input type="text" value={bookingForm.billingCity} onChange={e => setBookingForm(prev => ({ ...prev, billingCity: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
+                                                        </div>
+                                                        <div className="form-group flex flex-col gap-1">
+                                                            <label className="font-bold text-slate-700">Billing Postal Code</label>
+                                                            <input type="text" value={bookingForm.billingPostalCode} onChange={e => setBookingForm(prev => ({ ...prev, billingPostalCode: e.target.value }))} required className="border border-slate-200 rounded-lg p-2" />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
 
                                             <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
                                                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
