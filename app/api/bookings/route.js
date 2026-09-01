@@ -218,6 +218,15 @@ export async function GET(request) {
                 const isFieldStaff = role === "cleaner" || role === "subcontractor" || role === "supervisor" || role === "employee";
                 list.push({
                     ...booking,
+                    // Belt-and-suspenders: a booking's own `id` field should
+                    // always match its Firestore doc id, but a handful of
+                    // customer-portal bookings were created via .add()
+                    // without ever getting that field stamped in (fixed at
+                    // the source in app/api/customer/new-booking/route.js).
+                    // Falling back to doc.id here means those already-broken
+                    // documents work immediately, without needing every one
+                    // of them individually repaired first.
+                    id: booking.id || doc.id,
                     clientName: isFieldStaff ? (booking.firstName || booking.clientName?.split(" ")[0] || "Client") : booking.clientName,
                     lastName: isFieldStaff ? "" : booking.lastName,
                     email: isFieldStaff ? "" : booking.email,

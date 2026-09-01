@@ -38,7 +38,9 @@ export async function POST(request) {
             throw Object.assign(new Error(`Sorry, ${date} isn't available for booking${reason ? ` (${reason})` : ""}. Please choose another date.`), { status: 422 });
         }
 
+        const id = `bk-${Date.now()}`;
         const booking = {
+            id,
             phone,
             clientName: profile.name || "",
             email: profile.email || "",
@@ -71,7 +73,15 @@ export async function POST(request) {
             team: "",
         };
 
-        const ref = await adminDb.collection("bookings").add(booking);
+        // .doc(id).set(...) rather than .add() — every other booking-creation
+        // path in the app stamps its own id onto the document itself (not
+        // just relying on Firestore's auto-generated doc id), because a LOT
+        // of later code reads booking.id back out of the document data
+        // (quick status updates, edit-booking, financial records, job chat,
+        // PDF generation…). .add() alone left this doc's own `id` field
+        // undefined forever — everything that later tried to act on one of
+        // these bookings failed with "Missing booking ID".
+        await adminDb.collection("bookings").doc(id).set(booking);
 
         // Deduct reward points if used
         if (Number(rewardPointsUsed) > 0) {
@@ -83,7 +93,7 @@ export async function POST(request) {
             }
         }
 
-        return NextResponse.json({ ok: true, bookingId: ref.id });
+        return NextResponse.json({ ok: true, bookingId: id });
     } catch (err) {
         const status = err.status || (err.message === "Unauthorized" ? 401 : 400);
         return NextResponse.json({ error: err.message }, { status });
