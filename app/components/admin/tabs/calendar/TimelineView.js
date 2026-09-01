@@ -10,7 +10,7 @@ import {
     ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem,
     ContextMenuSub, ContextMenuSubTrigger, ContextMenuSubContent, ContextMenuSeparator,
 } from "@/components/ui/context-menu";
-import { ChevronLeft, ChevronRight, Pencil, Ban, UserRoundCog, CircleDollarSign, Tag } from "lucide-react";
+import { ChevronLeft, ChevronRight, Pencil, Ban, UserRoundCog, CircleDollarSign, Tag, CalendarOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -170,6 +170,7 @@ export default function TimelineView({
     pendingTimelineAnchor,
     clearPendingTimelineAnchor,
     branchTimezone,
+    blockedDates,
 }) {
     const [nav, setNav] = useState("week");
     const [anchor, setAnchor] = useState(() => new Date());
@@ -217,6 +218,18 @@ export default function TimelineView({
         const days = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0).getDate();
         return Array.from({ length: days }, (_, i) => new Date(anchor.getFullYear(), anchor.getMonth(), i + 1));
     }, [nav, anchor]);
+
+    const blockedByKey = useMemo(() => {
+        const map = new Map();
+        (blockedDates || []).forEach(entry => map.set(entry.date, entry.reason || "Blocked"));
+        return map;
+    }, [blockedDates]);
+    const blockedInRange = useMemo(() => {
+        return dateRange
+            .map(d => toDateStr(d))
+            .filter(dStr => blockedByKey.has(dStr))
+            .map(dStr => ({ date: dStr, reason: blockedByKey.get(dStr) }));
+    }, [dateRange, blockedByKey]);
 
     const rangeLabel = useMemo(() => {
         if (nav === "day") return `${DAY_NAMES[(anchor.getDay() + 6) % 7]}, ${MONTH_NAMES[anchor.getMonth()]} ${anchor.getDate()}, ${anchor.getFullYear()}`;
@@ -348,6 +361,17 @@ export default function TimelineView({
         </div>
     );
 
+    const blockedBanner = blockedInRange.length > 0 && (
+        <div className="flex flex-col gap-1.5 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-xs font-bold text-destructive">
+            {blockedInRange.map(b => (
+                <div key={b.date} className="flex items-center gap-2">
+                    <CalendarOff className="size-3.5 shrink-0" />
+                    {b.date} is blocked — {b.reason}
+                </div>
+            ))}
+        </div>
+    );
+
     // Mobile: a wide multi-staff-column grid doesn't work on a phone —
     // swap for a staff picker + that staff's day-by-day agenda list.
     if (isMobile) {
@@ -375,6 +399,7 @@ export default function TimelineView({
                     )}
                 </div>
                 {NavHeader}
+                {blockedBanner}
                 <div className="flex flex-col gap-3">
                     {!hasAny && <div className="py-10 text-center text-xs text-muted-foreground">No jobs in this range.</div>}
                     {dateRange.map(d => {
@@ -404,13 +429,24 @@ export default function TimelineView({
                 {dateRange.map(d => {
                     const dStr = toDateStr(d);
                     const isToday = dStr === todayStr;
+                    const blockedReason = blockedByKey.get(dStr);
                     return (
-                        <div key={dStr} className={cn(
-                            "flex flex-col items-center justify-center gap-0.5 rounded-t-lg border-b-2 border-border bg-muted/50 px-1 py-2 text-center",
-                            isToday && "text-primary"
-                        )}>
+                        <div
+                            key={dStr}
+                            title={blockedReason ? `Blocked: ${blockedReason}` : undefined}
+                            className={cn(
+                                "flex flex-col items-center justify-center gap-0.5 rounded-t-lg border-b-2 border-border bg-muted/50 px-1 py-2 text-center",
+                                isToday && "text-primary",
+                                blockedReason && "border-destructive/40 bg-destructive/10 text-destructive"
+                            )}
+                        >
                             <span className="text-[10px] font-bold uppercase tracking-wide">{DAY_NAMES[(d.getDay() + 6) % 7]}</span>
-                            <span className={cn("text-sm font-extrabold", isToday && "rounded-full bg-primary px-1.5 text-primary-foreground")}>{d.getDate()}</span>
+                            <span className={cn("text-sm font-extrabold", isToday && !blockedReason && "rounded-full bg-primary px-1.5 text-primary-foreground")}>{d.getDate()}</span>
+                            {blockedReason && (
+                                <span className="flex items-center gap-0.5 truncate text-[9px] font-bold">
+                                    <CalendarOff className="size-2.5 shrink-0" /> {blockedReason}
+                                </span>
+                            )}
                         </div>
                     );
                 })}
@@ -442,6 +478,7 @@ export default function TimelineView({
     return (
         <div className="flex flex-col gap-3">
             {NavHeader}
+            {blockedBanner}
             {draggable ? (
                 <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
                     {gridContent}

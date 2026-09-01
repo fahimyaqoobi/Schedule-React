@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { DayPicker } from "react-day-picker";
-import { ChevronLeft, ChevronRight, CalendarX2, CalendarPlus, CalendarDays } from "lucide-react";
+import { ChevronLeft, ChevronRight, CalendarX2, CalendarPlus, CalendarDays, CalendarOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem } from "@/components/ui/context-menu";
 import { getStatusMeta } from "@/lib/bookingStatus";
@@ -37,27 +37,37 @@ function MonthChevron({ orientation, ...p }) {
     return orientation === "left" ? <ChevronLeft className="size-4" {...p} /> : <ChevronRight className="size-4" {...p} />;
 }
 
-function MonthDayButton({ day, modifiers, className, bookingsByDate, openNewBookingCommand, onGoToDay, ...props }) {
+function MonthDayButton({ day, modifiers, className, bookingsByDate, blockedByKey, openNewBookingCommand, onGoToDay, ...props }) {
     const dateKey = dateToKey(day.date);
     const dayBookings = bookingsByDate.get(dateKey) || [];
     const dots = dayBookings.slice(0, MAX_DOTS);
     const overflow = dayBookings.length - dots.length;
+    const blocked = blockedByKey.get(dateKey);
 
     const button = (
         <button
             type="button"
             data-day={dateKey}
+            title={blocked ? `Blocked: ${blocked}` : undefined}
             className={cn(
                 "flex size-full min-h-14 flex-col items-start gap-1.5 p-1.5 text-left transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-40 sm:min-h-20 sm:p-2 lg:min-h-24 lg:p-2.5",
                 modifiers.selected && "bg-primary text-primary-foreground hover:bg-primary/90",
                 modifiers.today && !modifiers.selected && "bg-accent font-bold text-accent-foreground",
                 modifiers.outside && "text-muted-foreground/40",
+                blocked && !modifiers.selected && "bg-destructive/10 hover:bg-destructive/15",
                 className
             )}
             {...props}
         >
-            <span className="text-sm font-semibold sm:text-base lg:text-lg">{day.date.getDate()}</span>
-            {dots.length > 0 && (
+            <span className="flex w-full items-center justify-between gap-1">
+                <span className="text-sm font-semibold sm:text-base lg:text-lg">{day.date.getDate()}</span>
+                {blocked && <CalendarOff className={cn("size-3 shrink-0 sm:size-3.5", modifiers.selected ? "" : "text-destructive")} />}
+            </span>
+            {blocked ? (
+                <span className={cn("truncate text-[9px] font-bold leading-tight sm:text-[10px]", modifiers.selected ? "" : "text-destructive")}>
+                    {blocked}
+                </span>
+            ) : dots.length > 0 && (
                 <span className="flex flex-wrap items-center gap-1">
                     {dots.map((b, i) => (
                         <span
@@ -110,6 +120,7 @@ export default function MonthView({
     openNewBookingCommand,
     onGoToDay,
     branchTimezone = DEFAULT_TIMEZONE,
+    blockedDates,
 }) {
     const todayKey = useMemo(() => getZonedDateKey(new Date(), branchTimezone), [branchTimezone]);
     const [selectedDateKey, setSelectedDateKey] = useState(todayKey);
@@ -136,17 +147,25 @@ export default function MonthView({
     const selectedDate = useMemo(() => keyToDate(selectedDateKey), [selectedDateKey]);
     const isToday = selectedDateKey === todayKey;
 
+    const blockedByKey = useMemo(() => {
+        const map = new Map();
+        (blockedDates || []).forEach(entry => map.set(entry.date, entry.reason || "Blocked"));
+        return map;
+    }, [blockedDates]);
+    const selectedDateBlockedReason = blockedByKey.get(selectedDateKey);
+
     const dayPickerComponents = useMemo(() => ({
         Chevron: MonthChevron,
         DayButton: (p) => (
             <MonthDayButton
                 {...p}
                 bookingsByDate={bookingsByDate}
+                blockedByKey={blockedByKey}
                 openNewBookingCommand={!isCleanerSelfServiceView ? openNewBookingCommand : undefined}
                 onGoToDay={!isCleanerSelfServiceView ? onGoToDay : undefined}
             />
         ),
-    }), [bookingsByDate, openNewBookingCommand, onGoToDay, isCleanerSelfServiceView]);
+    }), [bookingsByDate, blockedByKey, openNewBookingCommand, onGoToDay, isCleanerSelfServiceView]);
 
     return (
         <div className="flex flex-col gap-4 lg:flex-row">
@@ -182,6 +201,13 @@ export default function MonthView({
                     </h4>
                     {isToday && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">Today</span>}
                 </div>
+
+                {selectedDateBlockedReason && (
+                    <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs font-bold text-destructive">
+                        <CalendarOff className="size-3.5 shrink-0" />
+                        Blocked — {selectedDateBlockedReason}
+                    </div>
+                )}
 
                 <div className="flex max-h-[32rem] flex-col gap-2 overflow-y-auto lg:max-h-[36rem]">
                     {selectedBookings.length === 0 ? (

@@ -5116,6 +5116,7 @@ export default function Home() {
                         openEditBookingModal={openEditBookingModal}
                         openNewBookingCommand={openNewBookingCommand}
                         branchTimezone={activeBranch?.timezone || "America/Toronto"}
+                        blockedDates={blockedDates}
                     />
                 )}
 

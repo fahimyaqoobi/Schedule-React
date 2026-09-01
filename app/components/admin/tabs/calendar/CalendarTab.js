@@ -26,6 +26,7 @@ export default function CalendarTab({
     openEditBookingModal,
     openNewBookingCommand,
     branchTimezone,
+    blockedDates,
 }) {
     const [view, setView] = useState("month");
     // Set by MonthView's "Go to Day" context-menu item so Staff Timeline
@@ -64,6 +65,7 @@ export default function CalendarTab({
             openNewBookingCommand={openNewBookingCommand}
             onGoToDay={!isCleanerSelfServiceView ? handleGoToDay : undefined}
             branchTimezone={branchTimezone}
+            blockedDates={blockedDates}
         />
     );
 
@@ -107,6 +109,7 @@ export default function CalendarTab({
                     pendingTimelineAnchor={pendingTimelineAnchor}
                     clearPendingTimelineAnchor={clearPendingTimelineAnchor}
                     branchTimezone={branchTimezone}
+                    blockedDates={blockedDates}
                 />
             )}
             {view === "month" && monthView}
