@@ -42,6 +42,7 @@ export default function SettingsTab({
     blockedDatesSaving,
     handleAddBlockedDate,
     handleRemoveBlockedDate,
+    canManageBlockedDates,
     canViewAdministration,
     setActiveTab,
 }) {
@@ -249,7 +250,7 @@ export default function SettingsTab({
                 </Card>
             )}
 
-            {canManagePermissions && (
+            {canManageBlockedDates && (
                 <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center gap-1.5 text-sm"><CalendarOff className="size-4" /> Blocked Dates</CardTitle>

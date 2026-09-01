@@ -5400,6 +5400,16 @@ export default function Home() {
                         blockedDatesSaving={blockedDatesSaving}
                         handleAddBlockedDate={handleAddBlockedDate}
                         handleRemoveBlockedDate={handleRemoveBlockedDate}
+                        // Branch-operations permission (super-admin + branch-admin) —
+                        // deliberately NOT canManagePermissions (system/role
+                        // administration). Blocking a holiday is a branch-operations
+                        // task, and this is exactly the tier the server already
+                        // authorizes to save one (see canManageBranch in
+                        // lib/permissions.js / app/api/blocked-dates/route.js), so
+                        // client visibility and server authorization now actually
+                        // agree — a super admin no longer sees an empty Settings
+                        // page for a feature they're fully allowed to use.
+                        canManageBlockedDates={canManagePeopleProfiles}
                         canViewAdministration={canViewAdministration}
                         setActiveTab={setActiveTab}
                         Icons={Icons}
