@@ -12,7 +12,7 @@ import {
 import { generateReferralCode, ensurePromotionList, normalizePromoCode, applyPromotion } from "../../../lib/promotions";
 import { getCustomerPromoContext, getPersonalReferralCode } from "../../../lib/customerRewards";
 import { computeBookingPricing } from "../../../lib/pricing";
-import { buildJobFinancialRecord } from "../../../lib/financials";
+import { refreshBookingFinancialRecord } from "../../../lib/financials";
 import { maybeRecordCardProcessingFee } from "../../../lib/cardFees";
 import { computeAssignmentNotifications } from "../../../lib/staffNotify";
 import { appendJobActivityMessage } from "../../../lib/jobChat";
@@ -587,13 +587,7 @@ export async function PUT(request) {
             // the data model for Daily Business Performance (live sync to
             // Google Sheets/QuickBooks is a stub until credentials exist).
             if (nextStatus === "Completed") {
-                const timeEntriesSnap = await adminDb.collection("timeEntries")
-                    .where("bookingId", "==", updatedBooking.id)
-                    .where("status", "==", "approved")
-                    .get();
-                const approvedTimeEntries = timeEntriesSnap.docs.map(doc => doc.data());
-                const financialRecord = buildJobFinancialRecord(updatedBooking, approvedTimeEntries);
-                await adminDb.collection("financialRecords").doc(updatedBooking.id).set(financialRecord);
+                await refreshBookingFinancialRecord(adminDb, updatedBooking.id);
             }
 
             // Card payments carry a processing fee — auto-book it as an expense.

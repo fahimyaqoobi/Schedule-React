@@ -4,6 +4,7 @@ import { canManageBranch, normalizeRole } from "../../../lib/permissions";
 import { DEFAULT_BRANCH_ID, getBranchScopeForUser, userCanAccessBranch } from "../../../lib/branches";
 import { calculatePayrollBreakdown, DEFAULT_PAY_RATE, normalizePayrollSettings } from "../../../lib/payroll";
 import { haversineMeters } from "../../../lib/geo";
+import { refreshBookingFinancialRecord } from "../../../lib/financials";
 
 const GEO_RADIUS_METERS = 200;
 
@@ -158,6 +159,11 @@ export async function POST(request) {
                 source: "admin_manual"
             };
             await adminDb.collection("timeEntries").doc(id).set(entry);
+            // This entry lands pre-approved — if the job it's for was already
+            // marked Completed (the normal case: payroll is entered after the
+            // fact), its financial record was built before this labor cost
+            // existed and needs to be refreshed now, not left stale.
+            await refreshBookingFinancialRecord(adminDb, bookingId);
             return NextResponse.json({ message: "Manual time card added.", entry }, { status: 200 });
         }
 
@@ -403,6 +409,10 @@ export async function PUT(request) {
                 reviewedBy: user.email || user.uid,
             };
             await entryRef.set(updated);
+            // This entry was already approved and may already be baked into
+            // a Completed job's financial record — correcting its hours/pay
+            // here must flow through to that record too.
+            await refreshBookingFinancialRecord(adminDb, entry.bookingId);
             return NextResponse.json({ message: "Time entry updated.", entry: updated }, { status: 200 });
         }
 
@@ -449,6 +459,11 @@ export async function PUT(request) {
                 updatedAt: new Date().toISOString()
             };
             await entryRef.set(updatedEntry);
+            // Approving/rejecting after the job's already Completed (the
+            // normal payroll-review timing) changes what its financial
+            // record should show — refresh it instead of leaving it stuck
+            // with whatever was approved at completion time.
+            await refreshBookingFinancialRecord(adminDb, entry.bookingId);
             return NextResponse.json({ message: `Entry ${action}d successfully.`, entry: updatedEntry }, { status: 200 });
         }
 
@@ -471,12 +486,16 @@ export async function DELETE(request) {
         const entryRef = adminDb.collection("timeEntries").doc(entryId);
         const snap = await entryRef.get();
         if (!snap.exists) return NextResponse.json({ error: "Time entry not found." }, { status: 404 });
+        const entry = snap.data();
         await entryRef.update({
             status: "deleted",
             deletedAt: new Date().toISOString(),
             deletedBy: user.email || user.uid,
             updatedAt: new Date().toISOString(),
         });
+        // Deleting an entry that was counted as approved labor on an already
+        // Completed job's financial record must pull that cost back out.
+        await refreshBookingFinancialRecord(adminDb, entry.bookingId);
         return NextResponse.json({ message: "Time entry soft-deleted." }, { status: 200 });
     } catch (error) {
         console.error("DELETE time entry error:", error);
