@@ -227,6 +227,13 @@ export async function GET(request) {
                     price: isFieldStaff ? undefined : booking.price,
                     subtotal: isFieldStaff ? undefined : booking.subtotal,
                     tax: isFieldStaff ? undefined : booking.tax,
+                    // Sales/pricing conversation with a lead — cleaners,
+                    // subcontractors, supervisors, and employees shouldn't
+                    // see this any more than they see price/email/phone
+                    // above. Stripped here (not just hidden in the UI) so it
+                    // never reaches their browser in the first place.
+                    googleGmail: isFieldStaff ? undefined : booking.googleGmail,
+                    googleGmailMessages: isFieldStaff ? undefined : booking.googleGmailMessages,
                     branchId: bookingBranchId
                 });
             }
