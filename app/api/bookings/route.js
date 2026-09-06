@@ -17,6 +17,7 @@ import { maybeRecordCardProcessingFee } from "../../../lib/cardFees";
 import { computeAssignmentNotifications } from "../../../lib/staffNotify";
 import { appendJobActivityMessage } from "../../../lib/jobChat";
 import { blockedDateDocId } from "../../../lib/blockedDates";
+import { generateBookingOrderNumber } from "../../../lib/bookingNumbers";
 
 // Server-authoritative check — client-side date pickers grey these out too,
 // but this is what actually stops a booking (new or rescheduled) landing on
@@ -42,14 +43,6 @@ function normalizeBookingStatus(status = "Lead") {
 
 function normalizePaymentStatus(status = "unpaid") {
     return PAYMENT_STATUS_FLOW.includes(status) ? status : "unpaid";
-}
-
-async function generateBookingOrderNumber() {
-    const year = new Date().getFullYear();
-    const prefix = `STC-${year}-`;
-    const snapshot = await adminDb.collection("bookings").get();
-    const existing = snapshot.size + 1;
-    return `${prefix}${String(existing).padStart(4, "0")}`;
 }
 
 function appendBookingAuditLog(existingLog = [], event = {}) {
@@ -278,7 +271,7 @@ export async function POST(request) {
         await assertDateNotBlocked(matchedBranch.id, bookingData.date);
 
         const id = bookingData.id || `bk-${Date.now()}`;
-        const orderNumber = bookingData.orderNumber || await generateBookingOrderNumber();
+        const orderNumber = bookingData.orderNumber || await generateBookingOrderNumber(adminDb);
         const bookingStatus = normalizeBookingStatus(bookingData.status || "Lead");
         const paymentStatus = normalizePaymentStatus(bookingData.paymentStatus || "unpaid");
         const subtotal = parseFloat(bookingData.subtotal || bookingData.price || 0);

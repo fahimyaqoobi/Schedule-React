@@ -4,6 +4,7 @@ import { getSessionPhoneAny } from "../../../../lib/customerSession";
 import { getCustomerProfile } from "../../../../lib/customerProfile";
 import { findBranchForAddress, buildBranchRecordFields, DEFAULT_BRANCH_ID, getBranchById } from "../../../../lib/branches";
 import { blockedDateDocId } from "../../../../lib/blockedDates";
+import { generateBookingOrderNumber } from "../../../../lib/bookingNumbers";
 
 export async function POST(request) {
     try {
@@ -39,8 +40,19 @@ export async function POST(request) {
         }
 
         const id = `bk-${Date.now()}`;
+        // Every other booking-creation path stamps an order number at
+        // creation time — nothing else in the app ever assigns one later,
+        // so skipping this left every customer-portal booking showing the
+        // literal word "Pending" as its order/estimate number forever,
+        // regardless of later status changes (same root cause the Google
+        // lead sync had — see app/api/webhooks/gmail-pubsub).
+        const orderNumber = await generateBookingOrderNumber(adminDb);
         const booking = {
             id,
+            orderNumber,
+            estimateNumber: orderNumber,
+            invoiceNumber: "",
+            documentStage: "estimate",
             phone,
             clientName: profile.name || "",
             email: profile.email || "",

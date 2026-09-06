@@ -6617,9 +6617,19 @@ export default function Home() {
                                         <GoogleLeadReplyCard
                                             booking={b}
                                             getAuthHeaders={getAuthHeaders}
-                                            onSent={(sentMessage) => setBookings(prev => prev.map(bk => bk.id === b.id
-                                                ? { ...bk, googleGmailMessages: [...(bk.googleGmailMessages || []), sentMessage] }
-                                                : bk))}
+                                            onSent={(sentMessage) => {
+                                                // This modal renders from the separate `selectedBooking`
+                                                // snapshot (see `const b = selectedBooking` above), not a
+                                                // live lookup into `bookings` — updating just the list
+                                                // left the open modal stuck on stale messages until it
+                                                // was closed and reopened. Update both so the chat panel
+                                                // reflects a sent reply immediately.
+                                                const appendMessage = (bk) => bk.id === b.id
+                                                    ? { ...bk, googleGmailMessages: [...(bk.googleGmailMessages || []), sentMessage] }
+                                                    : bk;
+                                                setBookings(prev => prev.map(appendMessage));
+                                                setSelectedBooking(prev => prev ? appendMessage(prev) : prev);
+                                            }}
                                         />
                                     </div>
                                 )}

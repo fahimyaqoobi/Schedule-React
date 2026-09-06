@@ -11,6 +11,7 @@ import { isLocalServicesLeadMessage, parseLocalServicesLead } from "../../../../
 import { createNotification } from "../../../../lib/notifications";
 import { trySendSms, buildGoogleLeadAlertSms } from "../../../../lib/sms";
 import { DEFAULT_BRANCH_ID, getBranchById } from "../../../../lib/branches";
+import { generateBookingOrderNumber } from "../../../../lib/bookingNumbers";
 
 const GOOGLE_LEAD_ALERT_PHONE = process.env.GOOGLE_LEAD_ALERT_PHONE || "6134165001";
 
@@ -56,12 +57,19 @@ async function findExistingLeadBooking(lead) {
     return byThreadId.empty ? null : byThreadId.docs[0];
 }
 
-function buildNewLeadBooking(id, lead) {
+function buildNewLeadBooking(id, orderNumber, lead) {
     const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "America/Toronto" });
     const branch = getBranchById(DEFAULT_BRANCH_ID);
     const nameParts = String(lead.name || "").trim().split(/\s+/);
     return {
         id,
+        // Every other booking-creation path stamps this at creation time —
+        // nothing else in the app ever assigns one afterward, so skipping
+        // it left this showing as the literal word "Pending" forever, no
+        // matter how many times the status was later changed.
+        orderNumber,
+        estimateNumber: orderNumber,
+        invoiceNumber: "",
         clientName: lead.name || "Potential Customer",
         firstName: nameParts[0] || "Potential",
         lastName: nameParts.slice(1).join(" "),
@@ -222,7 +230,8 @@ export async function POST(request) {
                 await trySendSms(GOOGLE_LEAD_ALERT_PHONE, buildGoogleLeadAlertSms({ ...lead, name: booking.clientName || lead.name }));
             } else {
                 const id = `lead-${Date.now()}`;
-                const newLeadBooking = buildNewLeadBooking(id, lead);
+                const orderNumber = await generateBookingOrderNumber(adminDb);
+                const newLeadBooking = buildNewLeadBooking(id, orderNumber, lead);
                 await adminDb.collection("bookings").doc(id).set(newLeadBooking);
 
                 await createNotification(adminDb, {

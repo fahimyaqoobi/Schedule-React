@@ -30,10 +30,10 @@ export async function POST(request) {
             return NextResponse.json({ error: "Forbidden: Only admins can reply to leads." }, { status: 403 });
         }
 
-        const { bookingId, text } = await request.json();
+        const { bookingId, text, attachmentUrl, attachmentName, attachmentMimeType } = await request.json();
         const trimmedText = String(text || "").trim();
-        if (!bookingId || !trimmedText) {
-            return NextResponse.json({ error: "Missing bookingId or reply text." }, { status: 400 });
+        if (!bookingId || (!trimmedText && !attachmentUrl)) {
+            return NextResponse.json({ error: "Missing bookingId, and neither reply text nor an attachment was provided." }, { status: 400 });
         }
 
         const bookingRef = adminDb.collection("bookings").doc(bookingId);
@@ -48,6 +48,20 @@ export async function POST(request) {
             return NextResponse.json({ error: "This lead has no Google Gmail thread to reply to." }, { status: 422 });
         }
 
+        // The browser already uploaded the file to Storage (see
+        // app/api/uploads/google-lead-attachment) — fetch the bytes
+        // server-side and embed them in the outgoing email. Whether
+        // Google's relay actually forwards the file to the real customer
+        // (vs. just the text) isn't documented, so this is worth confirming
+        // with a real send.
+        let attachment = null;
+        if (attachmentUrl) {
+            const fileRes = await fetch(attachmentUrl);
+            if (!fileRes.ok) throw new Error("Could not fetch the attachment to send it.");
+            const data = Buffer.from(await fileRes.arrayBuffer());
+            attachment = { filename: attachmentName || "attachment", mimeType: attachmentMimeType || "application/octet-stream", data };
+        }
+
         const accessToken = await getGmailAccessToken();
         const raw = buildReplyRawMessage({
             to: booking.googleGmail.replyTo,
@@ -55,6 +69,7 @@ export async function POST(request) {
             bodyText: trimmedText,
             inReplyTo: booking.googleGmail.lastMessageId,
             references: booking.googleGmail.lastMessageId,
+            attachment,
         });
         await sendGmailReply(accessToken, { threadId: booking.googleGmail.threadId, raw });
 
@@ -64,6 +79,7 @@ export async function POST(request) {
             senderId: "admin",
             senderName: user.name || user.email || "SmarTouch Clean",
             text: trimmedText,
+            ...(attachmentUrl ? { attachment: { url: attachmentUrl, name: attachmentName || "attachment", mimeType: attachmentMimeType || "" } } : {}),
             createdAt: new Date().toISOString(),
         };
         await bookingRef.set({

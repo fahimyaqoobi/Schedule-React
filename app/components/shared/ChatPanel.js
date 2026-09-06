@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, Lock, SendHorizontal } from "lucide-react";
+import { MessageSquare, Lock, SendHorizontal, Paperclip, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function formatTime(iso) {
@@ -24,6 +24,11 @@ export default function ChatPanel({
     messages = [],
     currentActorId,
     onSend,
+    // Optional: (file, currentDraftText) => Promise<void>. Only passed by
+    // callers that support attachments (e.g. GoogleLeadReplyCard) — when
+    // omitted, no paperclip button renders and every other chat using this
+    // shared panel (job chat, support chat) is unaffected.
+    onAttach,
     locked = false,
     lockedMessage = "This conversation is closed.",
     loading = false,
@@ -33,7 +38,9 @@ export default function ChatPanel({
 }) {
     const [draft, setDraft] = useState("");
     const [sending, setSending] = useState(false);
+    const [attaching, setAttaching] = useState(false);
     const scrollRef = useRef(null);
+    const fileInputRef = useRef(null);
 
     useEffect(() => {
         if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -48,6 +55,19 @@ export default function ChatPanel({
             setDraft("");
         } finally {
             setSending(false);
+        }
+    };
+
+    const handleFileChosen = async (e) => {
+        const file = e.target.files?.[0];
+        e.target.value = ""; // allow picking the same file again later
+        if (!file || attaching || locked) return;
+        setAttaching(true);
+        try {
+            await onAttach(file, draft.trim());
+            setDraft("");
+        } finally {
+            setAttaching(false);
         }
     };
 
@@ -94,6 +114,27 @@ export default function ChatPanel({
                                                 : "rounded-bl-sm bg-card text-card-foreground ring-1 ring-border"
                                         )}
                                     >
+                                        {m.attachment && (
+                                            m.attachment.mimeType?.startsWith("image/") ? (
+                                                <a href={m.attachment.url} target="_blank" rel="noreferrer">
+                                                    <img
+                                                        src={m.attachment.url}
+                                                        alt={m.attachment.name || "Attachment"}
+                                                        className="mb-1.5 max-h-48 max-w-full rounded-lg object-cover"
+                                                    />
+                                                </a>
+                                            ) : (
+                                                <a
+                                                    href={m.attachment.url} target="_blank" rel="noreferrer"
+                                                    className={cn(
+                                                        "mb-1.5 flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs underline",
+                                                        isMine ? "bg-primary-foreground/10" : "bg-muted"
+                                                    )}
+                                                >
+                                                    <FileText className="size-3.5 shrink-0" /> {m.attachment.name || "Attachment"}
+                                                </a>
+                                            )
+                                        )}
                                         {m.text}
                                     </div>
                                     <span className="px-1 text-[11px] text-muted-foreground">{formatTime(m.createdAt)}</span>
@@ -110,16 +151,29 @@ export default function ChatPanel({
                 </div>
             ) : (
                 <div className="flex items-end gap-2">
+                    {onAttach && (
+                        <>
+                            <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChosen} />
+                            <Button
+                                type="button" variant="outline" size="icon"
+                                disabled={attaching || sending}
+                                onClick={() => fileInputRef.current?.click()}
+                                title="Attach a file or photo"
+                            >
+                                <Paperclip className="size-4" />
+                            </Button>
+                        </>
+                    )}
                     <Textarea
                         value={draft}
                         onChange={e => setDraft(e.target.value)}
                         onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                        placeholder={placeholder}
-                        disabled={sending}
+                        placeholder={attaching ? "Uploading attachment…" : placeholder}
+                        disabled={sending || attaching}
                         rows={2}
                         className="min-h-0 resize-none"
                     />
-                    <Button type="button" onClick={handleSend} disabled={sending || !draft.trim()} size="icon">
+                    <Button type="button" onClick={handleSend} disabled={sending || attaching || !draft.trim()} size="icon">
                         <SendHorizontal className="size-4" />
                     </Button>
                 </div>
