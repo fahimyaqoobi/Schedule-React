@@ -1,12 +1,12 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { LogOut, ChevronRight, X, LayoutGrid, ShoppingBag, DollarSign, Shield, CalendarOff, Trash2 } from "lucide-react";
+import { LogOut, ChevronRight, X, LayoutGrid, ShoppingBag, DollarSign, Shield, CalendarOff, Trash2, Mail } from "lucide-react";
 
 function formatBlockedDateLabel(dateStr) {
     const d = new Date(`${dateStr}T12:00:00`);
@@ -45,12 +45,58 @@ export default function SettingsTab({
     canManageBlockedDates,
     canViewAdministration,
     setActiveTab,
+    getAuthHeaders,
 }) {
     const [localSources, setLocalSources] = useState(leadSources || []);
     const [newSource, setNewSource] = useState("");
     const [localArrivalWindow, setLocalArrivalWindow] = useState(arrivalWindowMinutes || 120);
     const [newBlockedDate, setNewBlockedDate] = useState("");
     const [newBlockedReason, setNewBlockedReason] = useState("");
+    const [gmailStatus, setGmailStatus] = useState(null);
+    const [gmailConnecting, setGmailConnecting] = useState(false);
+    const [gmailFeedback, setGmailFeedback] = useState(null);
+
+    // Only relevant to whoever can actually connect this (super-admin, same
+    // tier the server-side /api/google-gmail/connect route requires).
+    useEffect(() => {
+        if (!canManagePermissions || !getAuthHeaders) return;
+        (async () => {
+            try {
+                const headers = await getAuthHeaders();
+                const res = await fetch("/api/google-gmail/status", { headers });
+                const data = await res.json();
+                if (res.ok) setGmailStatus(data);
+            } catch { /* status is a nice-to-have, ignore failures */ }
+        })();
+
+        // Google redirects back here with ?gmailConnect=success|error after
+        // the OAuth consent screen — surface that once, then clean the URL.
+        const params = new URLSearchParams(window.location.search);
+        const result = params.get("gmailConnect");
+        if (result) {
+            setGmailFeedback(result === "success"
+                ? { ok: true, message: "Gmail connected — Google leads will now sync automatically." }
+                : { ok: false, message: `Gmail connection failed (${params.get("reason") || "unknown error"}).` });
+            params.delete("gmailConnect");
+            params.delete("reason");
+            const query = params.toString();
+            window.history.replaceState({}, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
+        }
+    }, [canManagePermissions, getAuthHeaders]);
+
+    const handleConnectGmail = async () => {
+        setGmailConnecting(true);
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch("/api/google-gmail/connect", { headers });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Could not start Gmail connection.");
+            window.location.href = data.url;
+        } catch (err) {
+            setGmailFeedback({ ok: false, message: err.message });
+            setGmailConnecting(false);
+        }
+    };
 
     const addSource = () => {
         const trimmed = newSource.trim();
@@ -309,6 +355,41 @@ export default function SettingsTab({
                                 {blockedDatesSaving ? "Saving…" : "Block Date"}
                             </Button>
                         </div>
+                    </CardContent>
+                </Card>
+            )}
+
+            {canManagePermissions && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-1.5 text-sm"><Mail className="size-4" /> Google Leads (Gmail Sync)</CardTitle>
+                        <p className="text-xs text-muted-foreground">
+                            Connects the Gmail inbox that receives your Local Services Ads lead notifications. Once connected, new leads sync into Bookings as <strong>Lead Source: Google</strong> automatically — live, the moment they arrive — with an alert texted to the office number and a reply box that sends back through the same Google conversation thread.
+                        </p>
+                    </CardHeader>
+                    <CardContent className="flex flex-col gap-3">
+                        {gmailFeedback && (
+                            <p className={`text-sm ${gmailFeedback.ok ? "text-green-600" : "text-destructive"}`}>
+                                {gmailFeedback.ok ? "✓" : "⚠️"} {gmailFeedback.message}
+                            </p>
+                        )}
+                        {gmailStatus?.connected ? (
+                            <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3.5 py-2.5">
+                                <div>
+                                    <p className="text-sm font-bold text-foreground">✓ Connected</p>
+                                    <p className="text-xs text-muted-foreground">
+                                        {gmailStatus.connectedAt ? `Since ${new Date(gmailStatus.connectedAt).toLocaleDateString()}` : ""}
+                                    </p>
+                                </div>
+                                <Button type="button" variant="secondary" size="sm" disabled={gmailConnecting} onClick={handleConnectGmail}>
+                                    Reconnect
+                                </Button>
+                            </div>
+                        ) : (
+                            <Button type="button" className="w-fit" disabled={gmailConnecting} onClick={handleConnectGmail}>
+                                {gmailConnecting ? "Redirecting to Google…" : "Connect Gmail"}
+                            </Button>
+                        )}
                     </CardContent>
                 </Card>
             )}

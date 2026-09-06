@@ -73,6 +73,7 @@ import MessagesTab from "./components/admin/tabs/MessagesTab";
 import CustomerProfileModal from "./components/admin/CustomerProfileModal";
 import FinanceTab from "./components/admin/tabs/FinanceTab";
 import JobChatCard from "./components/shared/JobChatCard";
+import GoogleLeadReplyCard from "./components/shared/GoogleLeadReplyCard";
 import ChatHub from "./components/shared/ChatHub";
 import NotificationBell from "./components/shared/NotificationBell";
 import CleanerNav, { CLEANER_NAV_TABS } from "./components/cleaner/CleanerNav";
@@ -5413,6 +5414,7 @@ export default function Home() {
                         canManageBlockedDates={canManagePeopleProfiles}
                         canViewAdministration={canViewAdministration}
                         setActiveTab={setActiveTab}
+                        getAuthHeaders={getAuthHeaders}
                         Icons={Icons}
                     />
                 )}
@@ -6583,6 +6585,20 @@ export default function Home() {
                                             bookingId={b.id}
                                             getAuthHeaders={getAuthHeaders}
                                             currentActorId={currentUser?.uid}
+                                        />
+                                    </div>
+                                )}
+
+                                {detailsModalOpen && !isCleanerSelfServiceView && b.leadSource === "Google" && b.googleGmail?.threadId && (
+                                    // Same shrink-0 fix as JobChatCard above — this is also a
+                                    // shadcn Card in the same flex column.
+                                    <div className="shrink-0">
+                                        <GoogleLeadReplyCard
+                                            booking={b}
+                                            getAuthHeaders={getAuthHeaders}
+                                            onSent={(sentMessage) => setBookings(prev => prev.map(bk => bk.id === b.id
+                                                ? { ...bk, googleGmailMessages: [...(bk.googleGmailMessages || []), sentMessage] }
+                                                : bk))}
                                         />
                                     </div>
                                 )}
