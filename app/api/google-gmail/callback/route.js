@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { exchangeGmailCode, saveGmailSettings, startGmailWatch } from "../../../../lib/googleGmail";
+import { exchangeGmailCode, saveGmailSettings, getGmailSettings, startGmailWatch } from "../../../../lib/googleGmail";
 
 // Step 2: Google redirects the admin's browser here after they approve
 // consent. This request comes straight from Google's own top-level
@@ -43,8 +43,13 @@ export async function GET(request) {
         const topicName = process.env.GOOGLE_GMAIL_PUBSUB_TOPIC;
         if (topicName) {
             const watch = await startGmailWatch(tokens.access_token, topicName);
+            const existing = await getGmailSettings();
             await saveGmailSettings({
-                historyId: watch.historyId,
+                // Keep whatever watermark ingestion already reached — a
+                // reconnect (re-clicking "Connect Gmail" while already
+                // connected) must never rewind progress, only a genuine
+                // first-time connect should seed it fresh from the watch.
+                historyId: existing?.historyId || watch.historyId,
                 watchExpiration: watch.expiration,
                 topicName,
             });

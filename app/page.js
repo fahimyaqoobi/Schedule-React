@@ -1198,6 +1198,25 @@ export default function Home() {
         }
     }, [bookings, currentUser]);
 
+    // Clears the "unread" highlight a Google lead gets the moment it's
+    // created or replies (see app/api/webhooks/gmail-pubsub) — called the
+    // instant an admin actually opens that lead, from any entry point
+    // (notification click, the Eye button in Bookings, etc.), so the
+    // highlight genuinely means "hasn't been looked at yet."
+    const handleMarkGoogleLeadViewed = useCallback(async (booking) => {
+        if (!booking?.googleGmail?.unread) return;
+        setBookings(prev => prev.map(b => b.id === booking.id ? { ...b, googleGmail: { ...b.googleGmail, unread: false } } : b));
+        try {
+            const headers = await getAuthHeaders();
+            await fetch("/api/bookings/mark-lead-viewed", {
+                method: "POST", headers,
+                body: JSON.stringify({ bookingId: booking.id }),
+            });
+        } catch {
+            // Non-critical — worst case the highlight reappears on next load.
+        }
+    }, [getAuthHeaders]);
+
     // Same query-string shape as the deep link above, triggered by tapping a
     // notification-bell entry instead of an incoming SMS link.
     const handleNotificationNavigate = useCallback((link) => {
@@ -1212,12 +1231,13 @@ export default function Home() {
                 if (target) {
                     setSelectedBooking(target);
                     setDetailsModalOpen(true);
+                    handleMarkGoogleLeadViewed(target);
                 }
             }
         } catch {
             // Malformed link — nothing to navigate to.
         }
-    }, [bookings]);
+    }, [bookings, handleMarkGoogleLeadViewed]);
 
     useEffect(() => {
         if (currentUser) {
@@ -5075,6 +5095,7 @@ export default function Home() {
                         formatTimeWindow={formatTimeWindow}
                         setSelectedBooking={setSelectedBooking}
                         setDetailsModalOpen={setDetailsModalOpen}
+                        onMarkGoogleLeadViewed={handleMarkGoogleLeadViewed}
                         openEditBookingModal={openEditBookingModal}
                         handleDeleteBooking={handleDeleteBooking}
                         fieldStaff={fieldStaff}

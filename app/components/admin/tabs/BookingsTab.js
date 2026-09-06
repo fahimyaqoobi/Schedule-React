@@ -255,6 +255,7 @@ export default function BookingsTab({
     formatTimeWindow,
     setSelectedBooking,
     setDetailsModalOpen,
+    onMarkGoogleLeadViewed,
     openEditBookingModal,
     handleDeleteBooking,
     fieldStaff,
@@ -858,7 +859,18 @@ export default function BookingsTab({
                                 const isSaving = saving === b.id;
 
                                 return (
-                                    <TableRow key={b.id} data-status={b.status} className={cn(isSaving && "opacity-50")}>
+                                    <TableRow
+                                        key={b.id}
+                                        data-status={b.status}
+                                        className={cn(
+                                            isSaving && "opacity-50",
+                                            // A Google lead that just arrived or just got a reply stays
+                                            // highlighted until someone actually opens it — see
+                                            // handleMarkGoogleLeadViewed in page.js — so new activity is
+                                            // spottable at a glance instead of hunting through the list.
+                                            b.googleGmail?.unread && "bg-blue-50 border-l-4 border-l-blue-500 dark:bg-blue-950/20"
+                                        )}
+                                    >
                                         <TableCell className="w-9">
                                             <Checkbox
                                                 checked={selectedIds.has(b.id)}
@@ -878,6 +890,9 @@ export default function BookingsTab({
                                             )}
                                             <div className="mt-0.5 text-[11px] text-muted-foreground">{b.phone}</div>
                                             <div className="mt-1 flex gap-1">
+                                                {b.googleGmail?.unread && (
+                                                    <Badge className="animate-pulse border-blue-300 bg-blue-50 text-[9px] text-blue-700 dark:bg-blue-950/30">🔔 New</Badge>
+                                                )}
                                                 {(b.customerConfirmed && b.status === "Pending") && (
                                                     <Badge variant="outline" className="border-emerald-300 bg-emerald-50 text-[9px] text-emerald-700 dark:bg-emerald-950/30">
                                                         <CircleCheck className="size-2.5" /> Confirmed
@@ -900,7 +915,7 @@ export default function BookingsTab({
 
                                         <TableCell className="text-right whitespace-nowrap">
                                             <div className="flex justify-end gap-1">
-                                                <Button variant="ghost" size="icon-xs" onClick={() => { setSelectedBooking(b); setDetailsModalOpen(true); }} title="Details"><Eye className="size-3.5" /></Button>
+                                                <Button variant="ghost" size="icon-xs" onClick={() => { setSelectedBooking(b); setDetailsModalOpen(true); onMarkGoogleLeadViewed?.(b); }} title="Details"><Eye className="size-3.5" /></Button>
                                                 <Button variant="ghost" size="icon-xs" onClick={() => openEditBookingModal(b)} title="Edit"><Pencil className="size-3.5" /></Button>
                                                 <Button
                                                     variant="ghost" size="icon-xs"

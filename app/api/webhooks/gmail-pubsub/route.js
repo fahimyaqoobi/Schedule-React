@@ -14,6 +14,48 @@ import { DEFAULT_BRANCH_ID, getBranchById } from "../../../../lib/branches";
 
 const GOOGLE_LEAD_ALERT_PHONE = process.env.GOOGLE_LEAD_ALERT_PHONE || "6134165001";
 
+function normalizeForCompare(text = "") {
+    return text.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+// Google's Local Services "send a test lead" tool has no real second party —
+// it simulates the round trip by bouncing activity back into the same
+// inbox. In practice that means a reply we just sent can come back as a
+// "Potential Customer sent you a message" notification a few seconds later,
+// which would otherwise get filed as a brand-new inbound message and fire a
+// duplicate notification/SMS. If the "new" text matches (or is contained
+// in/contains) the most recent message WE sent on this lead, treat it as
+// that echo rather than genuine new customer content.
+function isEchoOfOurOwnReply(booking, incomingText) {
+    const messages = booking.googleGmailMessages || [];
+    const lastAdminMessage = [...messages].reverse().find(m => m.senderKind === "admin");
+    if (!lastAdminMessage) return false;
+    const a = normalizeForCompare(incomingText);
+    const b = normalizeForCompare(lastAdminMessage.text);
+    if (!a || !b) return false;
+    return a === b || a.includes(b) || b.includes(a);
+}
+
+// The stable match key is the per-lead alias id (see getLeadId in
+// lib/googleLeadParsing) — Gmail's own threadId isn't reliable here since
+// Google's different notification templates for the same lead aren't
+// always Gmail-threaded together. threadId is kept only as a fallback for
+// the rare case a lead ID couldn't be extracted.
+async function findExistingLeadBooking(lead) {
+    if (lead.leadId) {
+        const byLeadId = await adminDb.collection("bookings")
+            .where("googleGmail.leadId", "==", lead.leadId)
+            .limit(1)
+            .get();
+        if (!byLeadId.empty) return byLeadId.docs[0];
+    }
+    const byThreadId = await adminDb.collection("bookings")
+        .where("googleGmail.threadId", "==", lead.threadId)
+        .limit(1)
+        .get();
+    return byThreadId.empty ? null : byThreadId.docs[0];
+}
+
 function buildNewLeadBooking(id, lead) {
     const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "America/Toronto" });
     const branch = getBranchById(DEFAULT_BRANCH_ID);
@@ -48,10 +90,12 @@ function buildNewLeadBooking(id, lead) {
         // Everything needed to send a reply back through the same Google
         // Local Services conversation later (see app/api/bookings/google-reply).
         googleGmail: {
+            leadId: lead.leadId,
             threadId: lead.threadId,
             replyTo: lead.replyTo,
             lastMessageId: lead.messageId,
             subject: lead.subject,
+            unread: true,
         },
         googleGmailMessages: [{
             id: `ggm-${Date.now()}`,
@@ -120,36 +164,50 @@ export async function POST(request) {
             const full = await getGmailMessage(accessToken, messageId);
             const headers = full.payload?.headers || [];
             const isLeadSender = isLocalServicesLeadMessage(headers);
+            const lead = parseLocalServicesLead(full);
 
-            // A customer's own follow-up in an already-known thread should
-            // still be captured even if its own From/Reply-To no longer
-            // matches the lead-alias pattern exactly.
-            const existingSnap = await adminDb.collection("bookings")
-                .where("googleGmail.threadId", "==", full.threadId)
-                .limit(1)
-                .get();
+            // A customer's own follow-up in an already-known lead should
+            // still be captured even when its own From/Reply-To no longer
+            // matches the lead-alias pattern exactly — matched primarily by
+            // the stable per-lead id, not Gmail's threadId (see
+            // findExistingLeadBooking for why).
+            const existingDoc = await findExistingLeadBooking(lead);
 
-            if (!isLeadSender && existingSnap.empty) {
+            if (!isLeadSender && !existingDoc) {
                 await processedRef.set({ processedAt: new Date().toISOString(), skipped: true });
                 continue;
             }
 
-            const lead = parseLocalServicesLead(full);
+            if (existingDoc) {
+                const booking = existingDoc.data();
+                const incomingText = lead.message || lead.rawText || "";
 
-            if (!existingSnap.empty) {
-                const doc = existingSnap.docs[0];
-                const booking = doc.data();
+                if (isEchoOfOurOwnReply(booking, incomingText)) {
+                    // Google's test-lead tool bounced our own reply back —
+                    // not a real new message, so skip notification/SMS/dup.
+                    await processedRef.set({ processedAt: new Date().toISOString(), skippedAsEcho: true });
+                    continue;
+                }
+
                 const newMessage = {
                     id: `ggm-${Date.now()}`,
                     senderKind: "customer",
                     senderId: "customer",
                     senderName: booking.clientName || lead.name,
-                    text: lead.message || lead.rawText || "(no message text)",
+                    text: incomingText || "(no message text)",
                     createdAt: lead.receivedAt,
                 };
-                await doc.ref.set({
+                await existingDoc.ref.set({
                     googleGmailMessages: [...(booking.googleGmailMessages || []), newMessage],
-                    googleGmail: { ...(booking.googleGmail || {}), lastMessageId: lead.messageId || booking.googleGmail?.lastMessageId },
+                    googleGmail: {
+                        ...(booking.googleGmail || {}),
+                        leadId: booking.googleGmail?.leadId || lead.leadId,
+                        lastMessageId: lead.messageId || booking.googleGmail?.lastMessageId,
+                        // Drives the highlighted row in Bookings — cleared
+                        // when an admin opens this lead (see
+                        // app/api/bookings/mark-lead-viewed).
+                        unread: true,
+                    },
                     updatedAt: new Date().toISOString(),
                 }, { merge: true });
 
@@ -158,7 +216,7 @@ export async function POST(request) {
                     title: "Google Lead replied",
                     body: newMessage.text,
                     branchId: booking.branchId || DEFAULT_BRANCH_ID,
-                    link: `/?job=${booking.id}`,
+                    link: `?tab=bookings&job=${booking.id}`,
                     refId: booking.id,
                 });
                 await trySendSms(GOOGLE_LEAD_ALERT_PHONE, buildGoogleLeadAlertSms({ ...lead, name: booking.clientName || lead.name }));
@@ -172,7 +230,7 @@ export async function POST(request) {
                     title: "New Google Lead",
                     body: lead.message || `${lead.name} — ${lead.serviceType || "inquiry"}`,
                     branchId: newLeadBooking.branchId,
-                    link: `/?job=${id}`,
+                    link: `?tab=bookings&job=${id}`,
                     refId: id,
                 });
                 await trySendSms(GOOGLE_LEAD_ALERT_PHONE, buildGoogleLeadAlertSms(lead));
