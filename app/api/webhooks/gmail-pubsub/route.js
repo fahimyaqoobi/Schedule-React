@@ -165,95 +165,131 @@ export async function POST(request) {
             }
         }
 
+        // Each message is handled independently — one bad message (a
+        // malformed email, a transient Gmail hiccup) used to throw the
+        // WHOLE batch back to Pub/Sub as a failure, which blocked every
+        // other message behind it and the historyId watermark from ever
+        // advancing. Since Pub/Sub keeps redelivering an unacked
+        // notification, that turned into a runaway pileup — the very
+        // failure that caused a real lead to go unnoticed. Now a single
+        // message's error is logged and skipped, not fatal to the batch.
+        let anyFailures = false;
         for (const messageId of addedMessageIds) {
             const processedRef = adminDb.collection("googleGmailProcessed").doc(messageId);
-            if ((await processedRef.get()).exists) continue;
+            try {
+                if ((await processedRef.get()).exists) continue;
 
-            const full = await getGmailMessage(accessToken, messageId);
-            const headers = full.payload?.headers || [];
-            const isLeadSender = isLocalServicesLeadMessage(headers);
-            const lead = parseLocalServicesLead(full);
+                const full = await getGmailMessage(accessToken, messageId);
+                const headers = full.payload?.headers || [];
+                const isLeadSender = isLocalServicesLeadMessage(headers);
+                const lead = parseLocalServicesLead(full);
 
-            // A customer's own follow-up in an already-known lead should
-            // still be captured even when its own From/Reply-To no longer
-            // matches the lead-alias pattern exactly — matched primarily by
-            // the stable per-lead id, not Gmail's threadId (see
-            // findExistingLeadBooking for why).
-            const existingDoc = await findExistingLeadBooking(lead);
+                // A customer's own follow-up in an already-known lead should
+                // still be captured even when its own From/Reply-To no
+                // longer matches the lead-alias pattern exactly — matched
+                // primarily by the stable per-lead id, not Gmail's threadId
+                // (see findExistingLeadBooking for why).
+                const existingDoc = await findExistingLeadBooking(lead);
 
-            if (!isLeadSender && !existingDoc) {
-                await processedRef.set({ processedAt: new Date().toISOString(), skipped: true });
-                continue;
-            }
-
-            if (existingDoc) {
-                const booking = existingDoc.data();
-                const incomingText = lead.message || lead.rawText || "";
-
-                if (isEchoOfOurOwnReply(booking, incomingText)) {
-                    // Google's test-lead tool bounced our own reply back —
-                    // not a real new message, so skip notification/SMS/dup.
-                    await processedRef.set({ processedAt: new Date().toISOString(), skippedAsEcho: true });
+                if (!isLeadSender && !existingDoc) {
+                    await processedRef.set({ processedAt: new Date().toISOString(), skipped: true });
                     continue;
                 }
 
-                const newMessage = {
-                    id: `ggm-${Date.now()}`,
-                    senderKind: "customer",
-                    senderId: "customer",
-                    senderName: booking.clientName || lead.name,
-                    text: incomingText || "(no message text)",
-                    createdAt: lead.receivedAt,
-                };
-                await existingDoc.ref.set({
-                    googleGmailMessages: [...(booking.googleGmailMessages || []), newMessage],
-                    googleGmail: {
-                        ...(booking.googleGmail || {}),
-                        leadId: booking.googleGmail?.leadId || lead.leadId,
-                        lastMessageId: lead.messageId || booking.googleGmail?.lastMessageId,
-                        // Drives the highlighted row in Bookings — cleared
-                        // when an admin opens this lead (see
-                        // app/api/bookings/mark-lead-viewed).
-                        unread: true,
-                    },
-                    updatedAt: new Date().toISOString(),
-                }, { merge: true });
+                if (existingDoc) {
+                    const booking = existingDoc.data();
+                    const incomingText = lead.message || lead.rawText || "";
 
-                await createNotification(adminDb, {
-                    type: "google_lead_reply",
-                    title: "Google Lead replied",
-                    body: newMessage.text,
-                    branchId: booking.branchId || DEFAULT_BRANCH_ID,
-                    link: `?tab=bookings&job=${booking.id}`,
-                    refId: booking.id,
-                });
-                await trySendSms(GOOGLE_LEAD_ALERT_PHONE, buildGoogleLeadAlertSms({ ...lead, name: booking.clientName || lead.name }));
-            } else {
-                const id = `lead-${Date.now()}`;
-                const orderNumber = await generateBookingOrderNumber(adminDb);
-                const newLeadBooking = buildNewLeadBooking(id, orderNumber, lead);
-                await adminDb.collection("bookings").doc(id).set(newLeadBooking);
+                    if (isEchoOfOurOwnReply(booking, incomingText)) {
+                        // Google's test-lead tool bounced our own reply back
+                        // — not a real new message, so skip notification/SMS/dup.
+                        await processedRef.set({ processedAt: new Date().toISOString(), skippedAsEcho: true });
+                        continue;
+                    }
 
-                await createNotification(adminDb, {
-                    type: "google_lead",
-                    title: "New Google Lead",
-                    body: lead.message || `${lead.name} — ${lead.serviceType || "inquiry"}`,
-                    branchId: newLeadBooking.branchId,
-                    link: `?tab=bookings&job=${id}`,
-                    refId: id,
-                });
-                await trySendSms(GOOGLE_LEAD_ALERT_PHONE, buildGoogleLeadAlertSms(lead));
+                    const newMessage = {
+                        id: `ggm-${Date.now()}`,
+                        senderKind: "customer",
+                        senderId: "customer",
+                        senderName: booking.clientName || lead.name,
+                        text: incomingText || "(no message text)",
+                        createdAt: lead.receivedAt,
+                    };
+                    await existingDoc.ref.set({
+                        googleGmailMessages: [...(booking.googleGmailMessages || []), newMessage],
+                        googleGmail: {
+                            ...(booking.googleGmail || {}),
+                            leadId: booking.googleGmail?.leadId || lead.leadId,
+                            lastMessageId: lead.messageId || booking.googleGmail?.lastMessageId,
+                            // Drives the highlighted row in Bookings — cleared
+                            // when an admin opens this lead (see
+                            // app/api/bookings/mark-lead-viewed).
+                            unread: true,
+                        },
+                        updatedAt: new Date().toISOString(),
+                    }, { merge: true });
+
+                    await createNotification(adminDb, {
+                        type: "google_lead_reply",
+                        title: "Google Lead replied",
+                        body: newMessage.text,
+                        branchId: booking.branchId || DEFAULT_BRANCH_ID,
+                        link: `?tab=bookings&job=${booking.id}`,
+                        refId: booking.id,
+                    });
+                    await trySendSms(GOOGLE_LEAD_ALERT_PHONE, buildGoogleLeadAlertSms({ ...lead, name: booking.clientName || lead.name }));
+                } else {
+                    const id = `lead-${Date.now()}`;
+                    const orderNumber = await generateBookingOrderNumber(adminDb);
+                    const newLeadBooking = buildNewLeadBooking(id, orderNumber, lead);
+                    await adminDb.collection("bookings").doc(id).set(newLeadBooking);
+
+                    await createNotification(adminDb, {
+                        type: "google_lead",
+                        title: "New Google Lead",
+                        body: lead.message || `${lead.name} — ${lead.serviceType || "inquiry"}`,
+                        branchId: newLeadBooking.branchId,
+                        link: `?tab=bookings&job=${id}`,
+                        refId: id,
+                    });
+                    await trySendSms(GOOGLE_LEAD_ALERT_PHONE, buildGoogleLeadAlertSms(lead));
+                }
+
+                await processedRef.set({ processedAt: new Date().toISOString() });
+            } catch (messageErr) {
+                console.error(`gmail-pubsub: failed to process message ${messageId}:`, messageErr);
+                // A 404 here means Gmail itself no longer has this message
+                // (e.g. it was deleted moments after arriving) — retrying it
+                // forever can never succeed, and confirmed in production:
+                // leaving it unmarked wedged the historyId watermark behind
+                // one permanently-gone message and silently blocked every
+                // real lead queued after it for nearly an hour. Mark it done
+                // (with the error recorded) so it stops blocking progress.
+                // Anything else might be transient (a Gmail API hiccup, a
+                // network blip) and is worth actually retrying, so it's left
+                // unmarked and the watermark held back for it specifically.
+                if (String(messageErr.message || "").includes("(404)")) {
+                    await processedRef.set({ processedAt: new Date().toISOString(), permanentError: messageErr.message });
+                } else {
+                    anyFailures = true;
+                }
             }
-
-            await processedRef.set({ processedAt: new Date().toISOString() });
         }
 
-        // Only advance the watermark once every message in this batch is
-        // fully handled — if something throws above, next push (or the next
-        // watch renewal) re-lists from the same startHistoryId and retries
-        // the ones that never got marked processed. No lead gets skipped.
-        await saveGmailSettings({ historyId: decoded.historyId });
-        return NextResponse.json({ ok: true });
+        // Retry logic lives entirely in our own historyId watermark, not in
+        // Pub/Sub's redelivery of this push notification — so this always
+        // acks (200) to Pub/Sub either way, which is what stops a stuck
+        // message from causing runaway redelivery. If nothing failed, the
+        // watermark advances normally. If something did fail, the watermark
+        // is deliberately left where it was: the next push (triggered by
+        // literally any future new email) re-lists history from that same
+        // old point, quietly retrying the stuck message alongside whatever
+        // is new — already-succeeded messages are skipped via processedRef,
+        // so nothing is reprocessed or duplicated.
+        if (!anyFailures) {
+            await saveGmailSettings({ historyId: decoded.historyId });
+        }
+        return NextResponse.json({ ok: true, hadFailures: anyFailures });
     } catch (err) {
         console.error("POST gmail-pubsub webhook error:", err);
         // Non-2xx tells Pub/Sub to retry with backoff — appropriate here
