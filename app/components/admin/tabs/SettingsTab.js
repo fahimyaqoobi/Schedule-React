@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { LogOut, ChevronRight, X, LayoutGrid, ShoppingBag, DollarSign, Shield, CalendarOff, Trash2, Mail } from "lucide-react";
+import { LogOut, ChevronRight, X, LayoutGrid, ShoppingBag, DollarSign, Shield, CalendarOff, Trash2, Mail, Star } from "lucide-react";
 
 function formatBlockedDateLabel(dateStr) {
     const d = new Date(`${dateStr}T12:00:00`);
@@ -37,6 +37,8 @@ export default function SettingsTab({
     handleSaveLeadSources,
     arrivalWindowMinutes,
     handleSaveArrivalWindow,
+    reviewLink,
+    handleSaveReviewLink,
     activeBranch,
     blockedDates,
     blockedDatesSaving,
@@ -50,6 +52,7 @@ export default function SettingsTab({
     const [localSources, setLocalSources] = useState(leadSources || []);
     const [newSource, setNewSource] = useState("");
     const [localArrivalWindow, setLocalArrivalWindow] = useState(arrivalWindowMinutes || 120);
+    const [localReviewLink, setLocalReviewLink] = useState(reviewLink || "");
     const [newBlockedDate, setNewBlockedDate] = useState("");
     const [newBlockedReason, setNewBlockedReason] = useState("");
     const [gmailStatus, setGmailStatus] = useState(null);
@@ -292,6 +295,30 @@ export default function SettingsTab({
                             />
                         </div>
                         <Button className="w-fit" onClick={() => handleSaveArrivalWindow?.(localArrivalWindow)}>Save Arrival Window</Button>
+                    </CardContent>
+                </Card>
+            )}
+
+            {canManagePermissions && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-1.5 text-sm"><Star className="size-4" /> Review Requests</CardTitle>
+                        <p className="text-xs text-muted-foreground">
+                            The link customers land on when asked for a review — e.g. your Google Business review link. Used by the "Ask for Review" and reminder emails/texts sent from a Completed job.
+                        </p>
+                    </CardHeader>
+                    <CardContent className="flex flex-col gap-4">
+                        <div className="flex flex-col gap-1.5">
+                            <Label>Review Link</Label>
+                            <Input
+                                type="url"
+                                value={localReviewLink}
+                                onChange={e => setLocalReviewLink(e.target.value)}
+                                placeholder="https://g.page/r/.../review"
+                                className="max-w-md"
+                            />
+                        </div>
+                        <Button className="w-fit" onClick={() => handleSaveReviewLink?.(localReviewLink.trim())}>Save Review Link</Button>
                     </CardContent>
                 </Card>
             )}

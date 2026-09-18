@@ -74,6 +74,7 @@ import CustomerProfileModal from "./components/admin/CustomerProfileModal";
 import FinanceTab from "./components/admin/tabs/FinanceTab";
 import JobChatCard from "./components/shared/JobChatCard";
 import GoogleLeadReplyCard from "./components/shared/GoogleLeadReplyCard";
+import ReviewRequestCard from "./components/shared/ReviewRequestCard";
 import ChatHub from "./components/shared/ChatHub";
 import NotificationBell from "./components/shared/NotificationBell";
 import CleanerNav, { CLEANER_NAV_TABS } from "./components/cleaner/CleanerNav";
@@ -981,6 +982,7 @@ export default function Home() {
     // yet); resolved at send-time by the confirmation/receipt emails via
     // lib/bookingTime.js's formatArrivalWindow().
     const [arrivalWindowMinutes, setArrivalWindowMinutes] = useState(120);
+    const [reviewLink, setReviewLink] = useState("");
     // Blocked dates for the CURRENTLY ACTIVE branch only — holidays/closures
     // that stop new bookings and reschedules from landing on that day. Never
     // fetched/merged across branches, so switching the branch selector at
@@ -1553,6 +1555,9 @@ export default function Home() {
                         }
                         if (data.arrivalWindowMinutes) {
                             setArrivalWindowMinutes(Number(data.arrivalWindowMinutes));
+                        }
+                        if (data.reviewLink) {
+                            setReviewLink(data.reviewLink);
                         }
                         setPricingRates(prev => {
                             const mergedServices = { ...DEFAULT_PRICES.services, ...data.services };
@@ -2970,6 +2975,21 @@ export default function Home() {
         }
     };
 
+    const handleSaveReviewLink = async (link) => {
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch("/api/settings", {
+                method: "POST",
+                headers,
+                body: JSON.stringify({ reviewLink: link })
+            });
+            if (!res.ok) throw new Error("Failed to save review link.");
+            setReviewLink(link);
+        } catch (err) {
+            alert(`Save failed: ${err.message}`);
+        }
+    };
+
     const loadBlockedDates = useCallback(async (branchId) => {
         try {
             const res = await fetch(`/api/blocked-dates?branchId=${encodeURIComponent(branchId)}`);
@@ -4338,7 +4358,15 @@ export default function Home() {
             if (b.paymentStatus === "partial") return sum + parseFloat(b.amountReceived || 0);
             return sum;
         }, 0);
-        const completedCount = activeBookings.filter(b => b.status === "Completed").length;
+        const completedList = activeBookings.filter(b => b.status === "Completed");
+        const completedCount = completedList.length;
+        // "The ask rate is the number we manage" — the KPI the review-request
+        // feature is built around: of every Completed job, what share were
+        // actually asked for a review. Received rate rides along as useful
+        // context for the same click.
+        const reviewsAskedCount = completedList.filter(b => b.reviewAsked).length;
+        const reviewsReceivedCount = completedList.filter(b => b.reviewReceived).length;
+        const reviewAskRate = completedCount > 0 ? Math.round((reviewsAskedCount / completedCount) * 100) : 0;
         const confirmed = activeBookings.filter(b => b.status === "Confirmed").length;
         const pipeline = activeBookings.filter(b => ["Pending", "Lead", "Follow Up"].includes(b.status)).length;
         const awaitingApproval = activeBookings.filter(b => b.customerConfirmed === true && b.status === "Pending").length;
@@ -4417,6 +4445,9 @@ export default function Home() {
             approvedExpenseTotal,
             dailyPnl,
             jobsCompletedTodayWithFinancials: todayFinancialRecords.length,
+            reviewsAskedCount,
+            reviewsReceivedCount,
+            reviewAskRate,
         };
     }, [bookings, expenses, financialRecords]);
 
@@ -5418,6 +5449,8 @@ export default function Home() {
                         handleSaveLeadSources={handleSaveLeadSources}
                         arrivalWindowMinutes={arrivalWindowMinutes}
                         handleSaveArrivalWindow={handleSaveArrivalWindow}
+                        reviewLink={reviewLink}
+                        handleSaveReviewLink={handleSaveReviewLink}
                         activeBranch={activeBranch}
                         blockedDates={blockedDates}
                         blockedDatesSaving={blockedDatesSaving}
@@ -6629,6 +6662,25 @@ export default function Home() {
                                                     : bk;
                                                 setBookings(prev => prev.map(appendMessage));
                                                 setSelectedBooking(prev => prev ? appendMessage(prev) : prev);
+                                            }}
+                                        />
+                                    </div>
+                                )}
+
+                                {detailsModalOpen && !isCleanerSelfServiceView && (
+                                    <div className="shrink-0">
+                                        <ReviewRequestCard
+                                            booking={b}
+                                            getAuthHeaders={getAuthHeaders}
+                                            onUpdate={(patch, persist) => {
+                                                // Same fix as the Google Lead card above — this modal
+                                                // reads from the separate `selectedBooking` snapshot, so
+                                                // both the list and the open modal need updating for a
+                                                // change to show up without closing and reopening.
+                                                const apply = (bk) => bk.id === b.id ? { ...bk, ...patch } : bk;
+                                                setBookings(prev => prev.map(apply));
+                                                setSelectedBooking(prev => prev ? apply(prev) : prev);
+                                                if (persist) handleQuickBookingUpdate(b.id, patch);
                                             }}
                                         />
                                     </div>

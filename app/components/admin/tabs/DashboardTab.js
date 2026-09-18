@@ -2,7 +2,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import {
     DollarSign, TrendingUp, TriangleAlert, CalendarDays, Users,
-    Wallet, UserPlus, FileText, CheckCircle2, ArrowRight, Sparkles,
+    Wallet, UserPlus, FileText, CheckCircle2, ArrowRight, Sparkles, Star,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -518,6 +518,13 @@ export default function DashboardTab({
                                 value={fmtMoney(adminCommandMetrics.approvedExpenseTotal)}
                                 tone={adminCommandMetrics.pendingExpenseCount > 0 ? "alert" : "default"}
                                 onClick={() => setActiveTab("expenses")}
+                            />
+                            <QuickChip
+                                icon={Star}
+                                label={`Review Ask Rate · ${adminCommandMetrics.reviewsReceivedCount} received`}
+                                value={`${adminCommandMetrics.reviewAskRate}%`}
+                                tone={adminCommandMetrics.reviewAskRate >= 50 ? "good" : "default"}
+                                onClick={() => setActiveTab("bookings")}
                             />
                         </div>
                     </section>
