@@ -85,7 +85,14 @@ export async function GET(request) {
                 const data = doc.data();
                 const role = normalizeRole(data.role);
                 const statusAllowed = includePending ? ["approved", "pending_approval"].includes(data.status) : data.status === "approved";
-                if (statusAllowed && ["cleaner", "supervisor", "employee", "subcontractor"].includes(role)) {
+                // Everyone registered in the system can clock in/out and be
+                // paid — a super-admin or branch-admin who also works jobs
+                // shouldn't be invisible to Time Cards/Payroll just because
+                // of their role. Only "customer" is excluded: a customer
+                // login isn't a staff record at all (no staffProfile, no pay
+                // rate), so listing them here would break the UI rather
+                // than help anyone.
+                if (statusAllowed && role !== "customer") {
                     list.push(normalizeStaffMember(data));
                 }
             });
