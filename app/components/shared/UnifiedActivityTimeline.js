@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import ChatPanel from "./ChatPanel";
+import CallButton from "./CallButton";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { normalizePhone } from "@/lib/phone";
 
@@ -76,7 +77,10 @@ export default function UnifiedActivityTimeline({ booking, getAuthHeaders, curre
     return (
         <Card className="h-full">
             <CardHeader className="pb-3">
-                <CardTitle className="text-base">All Activity</CardTitle>
+                <div className="flex items-center justify-between gap-2">
+                    <CardTitle className="text-base">All Activity</CardTitle>
+                    {phone && <CallButton phone={phone} bookingId={booking.id} getAuthHeaders={getAuthHeaders} />}
+                </div>
                 <p className="text-sm text-muted-foreground">Every message, call, and update on this job, in one place.</p>
             </CardHeader>
             <CardContent>

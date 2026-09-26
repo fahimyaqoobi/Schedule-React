@@ -5,6 +5,7 @@ import { canManageBranch, normalizeRole } from "../../../../lib/permissions";
 import { DEFAULT_BRANCH_ID, userCanAccessBranch } from "../../../../lib/branches";
 import { buildBookingDocumentPdf } from "../../../../lib/bookingDocumentPdf";
 import { appendJobActivityMessage } from "../../../../lib/jobChat";
+import { uploadDocumentSnapshot } from "../../../../lib/documentStorage";
 import {
     buildBookingEmailHtml,
     getBookingDocumentLabel,
@@ -117,7 +118,7 @@ export async function GET(request) {
         const loaded = await loadBookingForDocument(request, bookingId);
         if (loaded.error) return loaded.error;
 
-        const { booking } = loaded;
+        const { user, role, booking } = loaded;
         const origin = request.headers.get("origin") || request.nextUrl.origin;
         const companySnapshot = await loadDocumentCompanySnapshot(origin, booking);
         const customerPortalUrl = buildCustomerPortalUrl(origin, {
@@ -129,6 +130,26 @@ export async function GET(request) {
             { ...booking, companySnapshot, customerPortalUrl },
             { logoBuffer }
         );
+
+        // A snapshot of exactly what this PDF said at this moment, saved so
+        // it can be reopened later even if the booking's numbers change —
+        // logged for every download, by both admins and the customer
+        // themselves (the customer portal's own "download" hits this same
+        // route), so there's a full record of who has a copy of what.
+        try {
+            const label = getBookingDocumentLabel(booking);
+            const fileName = `${getBookingDocumentNumber(booking)}.pdf`;
+            const url = await uploadDocumentSnapshot(bookingId, pdfBuffer, fileName);
+            await appendJobActivityMessage(adminDb, {
+                bookingId,
+                summary: `📄 ${label} downloaded${role === "customer" ? " by customer" : ""}`,
+                by: role === "customer" ? (booking.clientName || "Customer") : (user.name || user.email || user.uid),
+                attachment: { url, name: fileName, mimeType: "application/pdf" },
+            });
+        } catch (logErr) {
+            // Never block an actual download over a logging/storage hiccup.
+            console.error("Document download snapshot/log failed:", logErr.message);
+        }
 
         return new NextResponse(pdfBuffer, {
             status: 200,
@@ -182,6 +203,17 @@ export async function POST(request) {
         const pdfBuffer = await buildBookingDocumentPdf({ ...booking, companySnapshot, customerPortalUrl }, { logoBuffer });
         const fileName = `${documentNumber}.pdf`;
 
+        // Same snapshot the PDF sent below is the exact bytes attached here
+        // — saved before the send so a delivery failure still leaves a
+        // record of what was about to go out.
+        let attachmentRecord = null;
+        try {
+            const url = await uploadDocumentSnapshot(bookingId, pdfBuffer, fileName);
+            attachmentRecord = { url, name: fileName, mimeType: "application/pdf" };
+        } catch (snapshotErr) {
+            console.error("Document send snapshot failed:", snapshotErr.message);
+        }
+
         await transporter.sendMail({
             from: mail.from,
             to: booking.email,
@@ -210,8 +242,9 @@ export async function POST(request) {
         });
         await appendJobActivityMessage(adminDb, {
             bookingId,
-            summary: `${documentLabel} sent to client`,
-            by: user.name || user.email || user.uid
+            summary: `📤 ${documentLabel} sent to client`,
+            by: user.name || user.email || user.uid,
+            ...(attachmentRecord ? { attachment: attachmentRecord } : {}),
         });
 
         return NextResponse.json({ message: `${documentLabel} sent to ${booking.email}.` });

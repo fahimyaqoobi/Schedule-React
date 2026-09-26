@@ -9,7 +9,7 @@ function money(n) {
 // Customer 360 — lifetime bookings, balance, promo usage, notes, and the
 // persistent support chat, all in one place. Reachable from the Customers
 // directory and from clicking a client name anywhere bookings are listed.
-export default function CustomerProfileModal({ customerKey, getAuthHeaders, currentUser, onClose }) {
+export default function CustomerProfileModal({ customerKey, getAuthHeaders, currentUser, onClose, onAddBooking }) {
     const [record, setRecord] = useState(null);
     const [loading, setLoading] = useState(true);
     const [notesDraft, setNotesDraft] = useState("");
@@ -125,7 +125,18 @@ export default function CustomerProfileModal({ customerKey, getAuthHeaders, curr
             <div className="modal-content animate-pop" style={{ maxWidth: 780 }} onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
                     <h3>{loading ? "Loading customer…" : record?.name || "Customer Profile"}</h3>
-                    <button onClick={onClose} className="modal-close-btn">✕</button>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        {!loading && record && onAddBooking && (
+                            <button
+                                onClick={() => onAddBooking(record)}
+                                className="btn btn-sm"
+                                style={{ background: "#78A53E", color: "#fff", fontWeight: 700 }}
+                            >
+                                + New Booking
+                            </button>
+                        )}
+                        <button onClick={onClose} className="modal-close-btn">✕</button>
+                    </div>
                 </div>
                 <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                     {loading || !record ? (

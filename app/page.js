@@ -81,6 +81,7 @@ import NotificationBell from "./components/shared/NotificationBell";
 import CleanerNav, { CLEANER_NAV_TABS } from "./components/cleaner/CleanerNav";
 import JobWizard from "./components/cleaner/JobWizard";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { customerKeyForBooking, normalizePhone } from "../lib/phone";
 
@@ -234,6 +235,20 @@ function getCleanerPayPeriodSummary() {
 
 function getBookingDocumentLabel(status = "Pending") {
     return getBookingDocumentType({ status });
+}
+
+// One label/value pair inside the Booking Details accordion — same font
+// sizing as the Quick Facts panel next to it (matching that panel was the
+// specific ask), replacing the old .detail-row/.detail-label/.detail-value
+// classes' much smaller, denser type.
+function DetailFact({ label, value, full }) {
+    if (value === undefined || value === null || value === "") return null;
+    return (
+        <div className={full ? "col-span-2" : "col-span-2 sm:col-span-1"}>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+            <p className="text-base break-words text-foreground">{value}</p>
+        </div>
+    );
 }
 
 const SHIFTS = [
@@ -2748,6 +2763,24 @@ export default function Home() {
         setCrmCustomerKey(key);
     }, []);
 
+    // "+ New Booking" from the Customer Profile modal — opens the same
+    // service-picker wizard a fresh booking always starts from, just with
+    // this customer's name/phone/email already carried through to checkout
+    // via bookingPrefill (see checkoutAdminCart) instead of typing them again.
+    const handleAddBookingForCustomer = useCallback((record) => {
+        const nameParts = String(record?.name || "").trim().split(/\s+/);
+        setBookingPrefill({
+            customer: {
+                firstName: nameParts[0] || "",
+                lastName: nameParts.slice(1).join(" "),
+                phone: record?.phone || "",
+                email: record?.email || "",
+            },
+        });
+        setCrmCustomerKey(null);
+        setBookingWizardOpen(true);
+    }, []);
+
     // ----------------------------------------------------
     // Admin Crew Creation Actions
     // ----------------------------------------------------
@@ -4169,12 +4202,18 @@ export default function Home() {
 
     const checkoutAdminCart = useCallback(() => {
         const isCustomerUser = normalizeRole(currentUser?.role) === "customer";
+        // "+ New Booking" from a Customer Profile sets bookingPrefill.customer
+        // — same mechanism the Calendar's "New Booking" context-menu already
+        // uses for date/staff, just carrying identity fields instead so an
+        // admin starting a booking for a known customer doesn't retype their
+        // name/phone/email.
+        const customerPrefill = bookingPrefill?.customer;
         setAdminCheckoutForm(prev => ({
             ...prev,
-            firstName: isCustomerUser ? (currentUser?.name?.split(" ")[0] || prev.firstName) : prev.firstName,
-            lastName: isCustomerUser ? (currentUser?.name?.split(" ").slice(1).join(" ") || prev.lastName) : prev.lastName,
-            phone: isCustomerUser ? (currentUser?.phone || prev.phone) : prev.phone,
-            email: isCustomerUser ? (currentUser?.email || prev.email) : prev.email,
+            firstName: isCustomerUser ? (currentUser?.name?.split(" ")[0] || prev.firstName) : (customerPrefill?.firstName || prev.firstName),
+            lastName: isCustomerUser ? (currentUser?.name?.split(" ").slice(1).join(" ") || prev.lastName) : (customerPrefill?.lastName || prev.lastName),
+            phone: isCustomerUser ? (currentUser?.phone || prev.phone) : (customerPrefill?.phone || prev.phone),
+            email: isCustomerUser ? (currentUser?.email || prev.email) : (customerPrefill?.email || prev.email),
             customerLoggedIn: isCustomerUser,
             date: bookingPrefill?.date || prev.date,
             assignedStaffIds: bookingPrefill?.staffUid ? [bookingPrefill.staffUid] : prev.assignedStaffIds
@@ -6352,6 +6391,7 @@ export default function Home() {
                     getAuthHeaders={getAuthHeaders}
                     currentUser={currentUser}
                     onClose={() => setCrmCustomerKey(null)}
+                    onAddBooking={handleAddBookingForCustomer}
                 />
             )}
 
@@ -6516,238 +6556,191 @@ export default function Home() {
 
                                     <div className="lg:w-[320px] lg:shrink-0 flex flex-col gap-4">
 
-                                {/* Address */}
-                                <div className="detail-card">
-                                    <div className="detail-card-title">📍 Service Address</div>
-                                    <div className="detail-card-grid">
-                                        <div className="detail-row full-width">
-                                            <span className="detail-label">Street</span>
-                                            <span className="detail-value">{b.address1}{b.address2 ? `, ${b.address2}` : ''}</span>
-                                        </div>
-                                        <div className="detail-row">
-                                            <span className="detail-label">City</span>
-                                            <span className="detail-value">{b.city || '—'}</span>
-                                        </div>
-                                        <div className="detail-row">
-                                            <span className="detail-label">Postal Code</span>
-                                            <span className="detail-value">{b.postalCode || '—'}</span>
-                                        </div>
-                                        <div className="detail-row">
-                                            <span className="detail-label">Province</span>
-                                            <span className="detail-value">{b.state || '—'}</span>
-                                        </div>
-                                        <div className="detail-row">
-                                            <span className="detail-label">Country</span>
-                                            <span className="detail-value">{b.country || '—'}</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Service & Schedule */}
-                                <div className="detail-card">
-                                    <div className="detail-card-title">🧹 Service & Schedule</div>
-                                    <div className="detail-card-grid">
-                                        <div className="detail-row full-width">
-                                            <span className="detail-label">Service</span>
-                                            <span className="detail-value detail-value-brand bold">{b.service}</span>
-                                        </div>
-                                        <div className="detail-row">
-                                            <span className="detail-label">Bathrooms</span>
-                                            <span className="detail-value">{b.bathrooms || '—'}</span>
-                                        </div>
-                                        <div className="detail-row">
-                                            <span className="detail-label">Frequency</span>
-                                            <span className="detail-value">{b.frequency || 'One-Time'}</span>
-                                        </div>
-                                        <div className="detail-row">
-                                            <span className="detail-label">Date</span>
-                                            <span className="detail-value bold">{b.date}</span>
-                                        </div>
-                                        <div className="detail-row">
-                                            <span className="detail-label">Time Window</span>
-                                            <span className="detail-value">{formatTimeWindow(b.time, b.duration)}</span>
-                                        </div>
-                                        <div className="detail-row">
-                                            <span className="detail-label">Duration</span>
-                                            <span className="detail-value">{b.duration} hours</span>
-                                        </div>
-                                        {!isCleanerSelfServiceView && (
-                                            <div className="detail-row">
-                                                <span className="detail-label">Document Type</span>
-                                                <span className="detail-value">{b.documentStage || getBookingDocumentLabel(b.status)}</span>
-                                            </div>
-                                        )}
-                                        {!isCleanerSelfServiceView && (
-                                            <div className="detail-row">
-                                                <span className="detail-label">Order Number</span>
-                                                <span className="detail-value">{b.orderNumber || b.estimateNumber || b.invoiceNumber || "Pending"}</span>
-                                            </div>
-                                        )}
-                                        {!isCleanerSelfServiceView && (
-                                            <div className="detail-row">
-                                                <span className="detail-label">Payment Status</span>
-                                                <span className="detail-value">{b.paymentStatus === "paid" ? "💳 Paid" : b.paymentStatus || "unpaid"}</span>
-                                            </div>
-                                        )}
-                                        {!isCleanerSelfServiceView && (
-                                            <div className="detail-row">
-                                                <span className="detail-label">Payment Method</span>
-                                                <span className="detail-value">
-                                                    {b.paymentMethod === "cash" ? "💵 Cash" :
-                                                     b.paymentMethod === "e-transfer" ? "📲 E-Transfer" :
-                                                     b.paymentMethod === "credit-card" ? "💳 Credit Card" :
-                                                     b.paymentMethod === "direct-deposit" ? "🏦 Direct Deposit" :
-                                                     b.paymentMethod === "cheque" ? "📄 Cheque" :
-                                                     "—"}
-                                                </span>
-                                            </div>
-                                        )}
-                                        {!isCleanerSelfServiceView && b.leadSource && (
-                                            <div className="detail-row">
-                                                <span className="detail-label">Lead Source</span>
-                                                <span className="detail-value">📍 {b.leadSource}</span>
-                                            </div>
-                                        )}
-                                        {!isCleanerSelfServiceView && b.customerConfirmed && (
-                                            <div className="detail-row">
-                                                <span className="detail-label">Customer Confirmed</span>
-                                                <span className="detail-value" style={{color:"#16a34a",fontWeight:700}}>
-                                                    ✓ Yes{b.customerConfirmedAt ? ` · ${formatZonedDateTime(new Date(b.customerConfirmedAt), {dateStyle:"medium",timeStyle:"short"}, undefined, "en-CA")}` : ""}
-                                                </span>
-                                            </div>
-                                        )}
-                                        {!isCleanerSelfServiceView && (
-                                            <div className="detail-row">
-                                                <span className="detail-label">Assigned Staff</span>
-                                                <span className="detail-value">
-                                                    <span className="assigned-staff-list assigned-staff-list-inline">
-                                                        {(b.assignedStaff || []).map(member => (
-                                                            <span key={member.uid || member.email}>{member.name}</span>
-                                                        ))}
-                                                        {!b.assignedStaff?.length && <span>{b.team || "Unassigned"}</span>}
-                                                    </span>
-                                                </span>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Extras */}
-                                {hasExtras && (
-                                    <div className="detail-card">
-                                        <div className="detail-card-title">✨ Selected Extras</div>
-                                        <div className="detail-extras-list">
-                                            {extrasEntries.map(([key, qty]) => {
-                                                const extra = pricingRates.extras[key];
-                                                if (!extra) return null;
-                                                const qtyVal = typeof qty === 'boolean' ? 1 : qty;
-                                                return (
-                                                    <div key={key} className="detail-extra-row">
-                                                        <span className="detail-extra-name">• {extra.name}{qtyVal > 1 ? ` × ${qtyVal}` : ''}</span>
-                                                        <span className="detail-extra-price">${(extra.price * qtyVal).toFixed(2)}</span>
+                                {/* One card, collapsible sections — replaces the five separate
+                                    always-open .detail-cards this used to be. Same fields, same
+                                    conditions, just consolidated so the right column isn't a wall
+                                    of stacked boxes, and restyled to match the Quick Facts panel's
+                                    font sizing instead of the old 9-10px .detail-label/.detail-value
+                                    classes. defaultValue keeps Service & Schedule and Pricing open
+                                    (the two most-checked-at-a-glance sections) with the rest
+                                    collapsed. */}
+                                <Card>
+                                    <CardHeader className="pb-1">
+                                        <CardTitle className="text-base">Booking Details</CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <Accordion defaultValue={["service", "pricing"]}>
+                                            <AccordionItem value="address">
+                                                <AccordionTrigger>📍 Service Address</AccordionTrigger>
+                                                <AccordionContent>
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        <DetailFact full label="Street" value={`${b.address1 || ""}${b.address2 ? `, ${b.address2}` : ""}`} />
+                                                        <DetailFact label="City" value={b.city || "—"} />
+                                                        <DetailFact label="Postal Code" value={b.postalCode || "—"} />
+                                                        <DetailFact label="Province" value={b.state || "—"} />
+                                                        <DetailFact label="Country" value={b.country || "—"} />
                                                     </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                )}
+                                                </AccordionContent>
+                                            </AccordionItem>
 
-                                {!isCleanerSelfServiceView && (
-                                    <div className="detail-card">
-                                        <div className="detail-card-title">💰 Pricing</div>
-                                        <div className="detail-pricing-list">
-                                            <div className="detail-row">
-                                                <span className="detail-label">Subtotal</span>
-                                                <span className="detail-value">${priceBreakdown.subtotal.toFixed(2)}</span>
-                                            </div>
-                                            {priceBreakdown.fixedDiscount > 0 && (
-                                                <div className="detail-row">
-                                                    <span className="detail-label">Discount (fixed)</span>
-                                                    <span className="detail-value detail-discount-value">-${priceBreakdown.fixedDiscount.toFixed(2)}</span>
-                                                </div>
-                                            )}
-                                            {priceBreakdown.percentDiscountValue > 0 && (
-                                                <div className="detail-row">
-                                                    <span className="detail-label">Discount (%)</span>
-                                                    <span className="detail-value detail-discount-value">-${priceBreakdown.percentDiscountValue.toFixed(2)}</span>
-                                                </div>
-                                            )}
-                                            {priceBreakdown.promoDiscount > 0 && (
-                                                <div className="detail-row">
-                                                    <span className="detail-label">
-                                                        Promo{priceBreakdown.promoCode ? ` (${priceBreakdown.promoCode})` : ""}
-                                                    </span>
-                                                    <span className="detail-value detail-discount-value">-${priceBreakdown.promoDiscount.toFixed(2)}</span>
-                                                </div>
-                                            )}
-                                            {priceBreakdown.totalDiscount > 0 && (
-                                                <div className="detail-row">
-                                                    <span className="detail-label">Subtotal after discounts</span>
-                                                    <span className="detail-value">${priceBreakdown.subtotalAfterDiscounts.toFixed(2)}</span>
-                                                </div>
-                                            )}
-                                            {priceBreakdown.showTaxAmount && (
-                                                <div className="detail-row">
-                                                    <span className="detail-label">{priceBreakdown.taxLabel} ({priceBreakdown.taxRatePercent}%)</span>
-                                                    <span className="detail-value">${priceBreakdown.taxAmount.toFixed(2)}</span>
-                                                </div>
-                                            )}
-                                            <div className="detail-row">
-                                                <span className="detail-label">Total Price{priceBreakdown.showTaxAmount ? "" : ` + ${priceBreakdown.taxLabel} (${priceBreakdown.taxRatePercent}%)`}</span>
-                                                <span className="detail-value detail-price-total bold">${(priceBreakdown.showTaxAmount ? priceBreakdown.total : priceBreakdown.subtotalAfterDiscounts).toFixed(2)}</span>
-                                            </div>
-                                            {b.frequency && b.frequency !== 'One-Time' && (() => {
-                                                const freqConfig = pricingRates.frequencies[b.frequency];
-                                                const pct = freqConfig ? Math.round((freqConfig.discount > 1 ? freqConfig.discount / 100 : freqConfig.discount) * 100) : 0;
-                                                return pct > 0 ? (
-                                                    <div className="detail-row">
-                                                        <span className="detail-label">Frequency Discount</span>
-                                                        <span className="frequency-discount-pill">{b.frequency} — {pct}% off</span>
+                                            <AccordionItem value="service">
+                                                <AccordionTrigger>🧹 Service &amp; Schedule</AccordionTrigger>
+                                                <AccordionContent>
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        <DetailFact full label="Service" value={b.service} />
+                                                        <DetailFact label="Bathrooms" value={b.bathrooms || "—"} />
+                                                        <DetailFact label="Frequency" value={b.frequency || "One-Time"} />
+                                                        <DetailFact label="Date" value={b.date} />
+                                                        <DetailFact label="Time Window" value={formatTimeWindow(b.time, b.duration)} />
+                                                        <DetailFact label="Duration" value={`${b.duration} hours`} />
+                                                        {!isCleanerSelfServiceView && (
+                                                            <DetailFact label="Document Type" value={b.documentStage || getBookingDocumentLabel(b.status)} />
+                                                        )}
+                                                        {!isCleanerSelfServiceView && (
+                                                            <DetailFact label="Order Number" value={b.orderNumber || b.estimateNumber || b.invoiceNumber || "Pending"} />
+                                                        )}
+                                                        {!isCleanerSelfServiceView && (
+                                                            <DetailFact label="Payment Status" value={b.paymentStatus === "paid" ? "💳 Paid" : b.paymentStatus || "unpaid"} />
+                                                        )}
+                                                        {!isCleanerSelfServiceView && (
+                                                            <DetailFact
+                                                                label="Payment Method"
+                                                                value={
+                                                                    b.paymentMethod === "cash" ? "💵 Cash" :
+                                                                    b.paymentMethod === "e-transfer" ? "📲 E-Transfer" :
+                                                                    b.paymentMethod === "credit-card" ? "💳 Credit Card" :
+                                                                    b.paymentMethod === "direct-deposit" ? "🏦 Direct Deposit" :
+                                                                    b.paymentMethod === "cheque" ? "📄 Cheque" :
+                                                                    "—"
+                                                                }
+                                                            />
+                                                        )}
+                                                        {!isCleanerSelfServiceView && b.leadSource && (
+                                                            <DetailFact label="Lead Source" value={`📍 ${b.leadSource}`} />
+                                                        )}
+                                                        {!isCleanerSelfServiceView && b.customerConfirmed && (
+                                                            <DetailFact
+                                                                label="Customer Confirmed"
+                                                                value={
+                                                                    <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                                                                        ✓ Yes{b.customerConfirmedAt ? ` · ${formatZonedDateTime(new Date(b.customerConfirmedAt), { dateStyle: "medium", timeStyle: "short" }, undefined, "en-CA")}` : ""}
+                                                                    </span>
+                                                                }
+                                                            />
+                                                        )}
+                                                        {!isCleanerSelfServiceView && (
+                                                            <DetailFact
+                                                                full
+                                                                label="Assigned Staff"
+                                                                value={
+                                                                    <span className="assigned-staff-list assigned-staff-list-inline">
+                                                                        {(b.assignedStaff || []).map(member => (
+                                                                            <span key={member.uid || member.email}>{member.name}</span>
+                                                                        ))}
+                                                                        {!b.assignedStaff?.length && <span>{b.team || "Unassigned"}</span>}
+                                                                    </span>
+                                                                }
+                                                            />
+                                                        )}
                                                     </div>
-                                                ) : null;
-                                            })()}
-                                        </div>
-                                    </div>
-                                )}
+                                                </AccordionContent>
+                                            </AccordionItem>
 
-                                {/* Booking activity now posts directly into the Job Chat below (as
-                                    🔔 system lines) instead of living in its own admin-only panel —
-                                    one place to see the whole history of a job, not two. */}
+                                            {hasExtras && (
+                                                <AccordionItem value="extras">
+                                                    <AccordionTrigger>✨ Selected Extras</AccordionTrigger>
+                                                    <AccordionContent>
+                                                        <div className="flex flex-col gap-1.5">
+                                                            {extrasEntries.map(([key, qty]) => {
+                                                                const extra = pricingRates.extras[key];
+                                                                if (!extra) return null;
+                                                                const qtyVal = typeof qty === "boolean" ? 1 : qty;
+                                                                return (
+                                                                    <div key={key} className="flex items-center justify-between gap-2 text-base">
+                                                                        <span>• {extra.name}{qtyVal > 1 ? ` × ${qtyVal}` : ""}</span>
+                                                                        <span className="font-semibold">${(extra.price * qtyVal).toFixed(2)}</span>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </AccordionContent>
+                                                </AccordionItem>
+                                            )}
 
-                                {/* Operations */}
-                                <div className="detail-card">
-                                    <div className="detail-card-title">🏠 Property & Operations</div>
-                                    <div className="detail-card-grid">
-                                        <div className="detail-row">
-                                            <span className="detail-label">Pets</span>
-                                            <span className="detail-value">{b.hasPets ? 'Yes 🐶' : 'No 🚫'}</span>
-                                        </div>
-                                        <div className="detail-row">
-                                            <span className="detail-label">Parking</span>
-                                            <span className="detail-value">{b.freeParking ? 'Free 🚗' : 'Street/Paid ⚠️'}</span>
-                                        </div>
-                                        <div className="detail-row">
-                                            <span className="detail-label">First Clean 30 days</span>
-                                            <span className="detail-value">{b.firstClean30 ? 'Yes' : 'No'}</span>
-                                        </div>
-                                        <div className="detail-row">
-                                            <span className="detail-label">Access Mode</span>
-                                            <span className="detail-value">{b.accessMode || '—'}</span>
-                                        </div>
-                                        {b.accessDetails && (
-                                            <div className="detail-row full-width">
-                                                <span className="detail-label">Access Instructions</span>
-                                                <span className="detail-value">{b.accessDetails}</span>
-                                            </div>
-                                        )}
-                                        {b.specialNotes && (
-                                            <div className="detail-row full-width">
-                                                <span className="detail-label">Special Notes</span>
-                                                <span className="detail-value whitespace-pre-wrap">{b.specialNotes}</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
+                                            {!isCleanerSelfServiceView && (
+                                                <AccordionItem value="pricing">
+                                                    <AccordionTrigger>💰 Pricing</AccordionTrigger>
+                                                    <AccordionContent>
+                                                        <div className="flex flex-col gap-2">
+                                                            <div className="flex items-center justify-between text-base">
+                                                                <span className="text-muted-foreground">Subtotal</span>
+                                                                <span>${priceBreakdown.subtotal.toFixed(2)}</span>
+                                                            </div>
+                                                            {priceBreakdown.fixedDiscount > 0 && (
+                                                                <div className="flex items-center justify-between text-base">
+                                                                    <span className="text-muted-foreground">Discount (fixed)</span>
+                                                                    <span className="text-emerald-600 dark:text-emerald-400">-${priceBreakdown.fixedDiscount.toFixed(2)}</span>
+                                                                </div>
+                                                            )}
+                                                            {priceBreakdown.percentDiscountValue > 0 && (
+                                                                <div className="flex items-center justify-between text-base">
+                                                                    <span className="text-muted-foreground">Discount (%)</span>
+                                                                    <span className="text-emerald-600 dark:text-emerald-400">-${priceBreakdown.percentDiscountValue.toFixed(2)}</span>
+                                                                </div>
+                                                            )}
+                                                            {priceBreakdown.promoDiscount > 0 && (
+                                                                <div className="flex items-center justify-between text-base">
+                                                                    <span className="text-muted-foreground">Promo{priceBreakdown.promoCode ? ` (${priceBreakdown.promoCode})` : ""}</span>
+                                                                    <span className="text-emerald-600 dark:text-emerald-400">-${priceBreakdown.promoDiscount.toFixed(2)}</span>
+                                                                </div>
+                                                            )}
+                                                            {priceBreakdown.totalDiscount > 0 && (
+                                                                <div className="flex items-center justify-between text-base">
+                                                                    <span className="text-muted-foreground">Subtotal after discounts</span>
+                                                                    <span>${priceBreakdown.subtotalAfterDiscounts.toFixed(2)}</span>
+                                                                </div>
+                                                            )}
+                                                            {priceBreakdown.showTaxAmount && (
+                                                                <div className="flex items-center justify-between text-base">
+                                                                    <span className="text-muted-foreground">{priceBreakdown.taxLabel} ({priceBreakdown.taxRatePercent}%)</span>
+                                                                    <span>${priceBreakdown.taxAmount.toFixed(2)}</span>
+                                                                </div>
+                                                            )}
+                                                            <div className="flex items-center justify-between border-t border-border pt-2 text-base font-bold">
+                                                                <span>Total Price{priceBreakdown.showTaxAmount ? "" : ` + ${priceBreakdown.taxLabel} (${priceBreakdown.taxRatePercent}%)`}</span>
+                                                                <span>${(priceBreakdown.showTaxAmount ? priceBreakdown.total : priceBreakdown.subtotalAfterDiscounts).toFixed(2)}</span>
+                                                            </div>
+                                                            {b.frequency && b.frequency !== "One-Time" && (() => {
+                                                                const freqConfig = pricingRates.frequencies[b.frequency];
+                                                                const pct = freqConfig ? Math.round((freqConfig.discount > 1 ? freqConfig.discount / 100 : freqConfig.discount) * 100) : 0;
+                                                                return pct > 0 ? (
+                                                                    <div className="flex items-center justify-between text-base">
+                                                                        <span className="text-muted-foreground">Frequency Discount</span>
+                                                                        <span className="font-semibold text-primary">{b.frequency} — {pct}% off</span>
+                                                                    </div>
+                                                                ) : null;
+                                                            })()}
+                                                        </div>
+                                                    </AccordionContent>
+                                                </AccordionItem>
+                                            )}
+
+                                            <AccordionItem value="operations">
+                                                <AccordionTrigger>🏠 Property &amp; Operations</AccordionTrigger>
+                                                <AccordionContent>
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        <DetailFact label="Pets" value={b.hasPets ? "Yes 🐶" : "No 🚫"} />
+                                                        <DetailFact label="Parking" value={b.freeParking ? "Free 🚗" : "Street/Paid ⚠️"} />
+                                                        <DetailFact label="First Clean 30 days" value={b.firstClean30 ? "Yes" : "No"} />
+                                                        <DetailFact label="Access Mode" value={b.accessMode || "—"} />
+                                                        {b.accessDetails && <DetailFact full label="Access Instructions" value={b.accessDetails} />}
+                                                        {b.specialNotes && <DetailFact full label="Special Notes" value={<span className="whitespace-pre-wrap">{b.specialNotes}</span>} />}
+                                                    </div>
+                                                </AccordionContent>
+                                            </AccordionItem>
+                                        </Accordion>
+                                    </CardContent>
+                                </Card>
 
 
                                 {detailsModalOpen && !isCleanerSelfServiceView && b.leadSource === "Google" && b.googleGmail?.threadId && (
