@@ -69,10 +69,10 @@ export default function ChatPanel({
                         if (m.senderKind === "system") {
                             return (
                                 <div key={m.id} className="mx-auto flex max-w-[90%] flex-col items-center gap-0.5 py-1 text-center">
-                                    <span className="text-xs text-muted-foreground">
+                                    <span className="text-sm text-muted-foreground">
                                         <span aria-hidden="true">🔔 </span>{m.text}
                                     </span>
-                                    <span className="text-[10px] text-muted-foreground/70">{m.senderName ? `${m.senderName} · ` : ""}{formatTime(m.createdAt)}</span>
+                                    <span className="text-xs text-muted-foreground/70">{m.senderName ? `${m.senderName} · ` : ""}{formatTime(m.createdAt)}</span>
                                 </div>
                             );
                         }
@@ -85,10 +85,10 @@ export default function ChatPanel({
                                     </Avatar>
                                 )}
                                 <div className={cn("flex max-w-[78%] flex-col gap-0.5", isMine && "items-end")}>
-                                    {!isMine && <span className="px-1 text-xs font-medium text-muted-foreground">{m.senderName}</span>}
+                                    {!isMine && <span className="px-1 text-sm font-medium text-muted-foreground">{m.senderName}</span>}
                                     <div
                                         className={cn(
-                                            "rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap",
+                                            "rounded-2xl px-3 py-2 text-base whitespace-pre-wrap",
                                             isMine
                                                 ? "rounded-br-sm bg-primary text-primary-foreground"
                                                 : "rounded-bl-sm bg-card text-card-foreground ring-1 ring-border"
@@ -96,7 +96,7 @@ export default function ChatPanel({
                                     >
                                         {m.text}
                                     </div>
-                                    <span className="px-1 text-[11px] text-muted-foreground">{formatTime(m.createdAt)}</span>
+                                    <span className="px-1 text-xs text-muted-foreground">{formatTime(m.createdAt)}</span>
                                 </div>
                             </div>
                         );

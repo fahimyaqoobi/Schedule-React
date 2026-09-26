@@ -2,12 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import ChatPanel from "./ChatPanel";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { normalizePhone, customerKeyForBooking } from "@/lib/phone";
-
-function money(n) {
-    return `$${Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-}
+import { normalizePhone } from "@/lib/phone";
 
 // Everything that happened, in one thread: this job's own activity (status
 // changes, invoice generated, call logs, and any cleaner↔customer messages
@@ -16,23 +11,23 @@ function money(n) {
 // (jobChatMessages for this booking + the one supportMessages thread for
 // this customer), one merged view — sending from here always goes to the
 // customer's persistent thread, since that's the canonical place for
-// admin↔customer conversation now (see CustomerChatCard's original comment
-// for why the old per-job-only chat caused messages to land unpredictably).
+// admin↔customer conversation now (see the original CustomerChatCard's
+// comment for why the old per-job-only chat caused messages to land
+// unpredictably). Lifetime stats and the "View Full History" link live in
+// the Quick Facts panel next to this, not duplicated here.
 //
 // A Google Lead's own conversation (a different channel — Gmail, not SMS)
 // stays in its own separate card below this one; merging a second reply
 // channel with a different send-target into one composer here would be a
 // real source of "which channel did that just go out on" mistakes, so it's
 // deliberately kept apart.
-export default function UnifiedActivityTimeline({ booking, getAuthHeaders, currentActorId, onViewProfile }) {
+export default function UnifiedActivityTimeline({ booking, getAuthHeaders, currentActorId }) {
     const [jobMessages, setJobMessages] = useState([]);
     const [customerMessages, setCustomerMessages] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
-    const [stats, setStats] = useState(null);
 
     const phone = normalizePhone(booking.customerPortalPhone || booking.phone || "");
-    const customerKey = customerKeyForBooking(booking);
 
     const load = useCallback(async () => {
         try {
@@ -64,20 +59,6 @@ export default function UnifiedActivityTimeline({ booking, getAuthHeaders, curre
         return () => clearInterval(interval);
     }, [load]);
 
-    useEffect(() => {
-        if (!customerKey) return;
-        (async () => {
-            try {
-                const headers = await getAuthHeaders();
-                const res = await fetch(`/api/customers?key=${encodeURIComponent(customerKey)}`, { headers });
-                const data = await res.json();
-                if (res.ok) setStats(data);
-            } catch {
-                // Stats are a nice-to-have — the timeline still works without them.
-            }
-        })();
-    }, [customerKey, getAuthHeaders]);
-
     const handleSend = async (text) => {
         if (!phone) throw new Error("This booking has no phone number on file to message.");
         const headers = await getAuthHeaders();
@@ -93,20 +74,10 @@ export default function UnifiedActivityTimeline({ booking, getAuthHeaders, curre
     if (error) return null;
 
     return (
-        <Card>
+        <Card className="h-full">
             <CardHeader className="pb-3">
-                <div className="flex items-center justify-between gap-2">
-                    <CardTitle className="text-sm">All Activity</CardTitle>
-                    {onViewProfile && (
-                        <Button type="button" variant="ghost" size="sm" onClick={onViewProfile}>View Full History →</Button>
-                    )}
-                </div>
-                {stats && (
-                    <p className="text-xs text-muted-foreground">
-                        {stats.totalBookings} total booking{stats.totalBookings === 1 ? "" : "s"} · Paid {money(stats.totalPaid)}
-                        {stats.totalOwing > 0 && <span className="text-destructive"> · Owing {money(stats.totalOwing)}</span>}
-                    </p>
-                )}
+                <CardTitle className="text-base">All Activity</CardTitle>
+                <p className="text-sm text-muted-foreground">Every message, call, and update on this job, in one place.</p>
             </CardHeader>
             <CardContent>
                 <ChatPanel
@@ -118,7 +89,7 @@ export default function UnifiedActivityTimeline({ booking, getAuthHeaders, curre
                     loading={loading}
                     placeholder="Message this customer…"
                     emptyLabel="Nothing yet — every call, message, and update on this job will show up here."
-                    height={340}
+                    height={440}
                 />
             </CardContent>
         </Card>

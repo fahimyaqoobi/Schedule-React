@@ -91,7 +91,7 @@ export async function POST(request) {
         await appendJobActivityMessage(adminDb, {
             bookingId,
             summary: `Review reminder sent to customer (${sentTo.join(" + ")})`,
-            by: user.email || user.uid,
+            by: user.name || user.email || user.uid,
         });
 
         return NextResponse.json({ message: "Reminder sent.", sentTo }, { status: 200 });

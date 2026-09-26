@@ -73,9 +73,9 @@ import MessagesTab from "./components/admin/tabs/MessagesTab";
 import CustomerProfileModal from "./components/admin/CustomerProfileModal";
 import FinanceTab from "./components/admin/tabs/FinanceTab";
 import UnifiedActivityTimeline from "./components/shared/UnifiedActivityTimeline";
+import QuickFactsPanel from "./components/shared/QuickFactsPanel";
 import GoogleLeadReplyCard from "./components/shared/GoogleLeadReplyCard";
 import ReviewRequestCard from "./components/shared/ReviewRequestCard";
-import CallButton from "./components/shared/CallButton";
 import ChatHub from "./components/shared/ChatHub";
 import NotificationBell from "./components/shared/NotificationBell";
 import CleanerNav, { CLEANER_NAV_TABS } from "./components/cleaner/CleanerNav";
@@ -6437,16 +6437,18 @@ export default function Home() {
                                 {detailsModalOpen && !isCleanerSelfServiceView && (
                                     // shrink-0: this modal's body is a flex column with a capped
                                     // max-height (.modal-body-scroll), so it scrolls once content
-                                    // overflows. UnifiedActivityTimeline is a shadcn <Card>, which
-                                    // sets overflow-hidden — that makes a flex item's auto
-                                    // min-height collapse to 0, so without shrink-0 the flexbox
-                                    // shrink algorithm crushes it down to little more than its
-                                    // header instead of letting the modal scroll to show it (the
+                                    // overflows. UnifiedActivityTimeline/QuickFactsPanel are shadcn
+                                    // <Card>s, which set overflow-hidden — that makes a flex item's
+                                    // auto min-height collapse to 0, so without shrink-0 the flexbox
+                                    // shrink algorithm crushes them down to little more than their
+                                    // header instead of letting the modal scroll to show them (the
                                     // plain .detail-card siblings below aren't flex items with
                                     // overflow-hidden, so they were never affected).
                                     //
-                                    // Placed first, right under the header — this is the primary,
-                                    // most-used part of the modal now, not something buried below
+                                    // Timeline + Quick Facts side by side, matching the reference
+                                    // layout — stacks to one column on narrow screens. Placed first,
+                                    // right under the header, since this is the primary, most-used
+                                    // part of the modal now, not something buried below
                                     // service/pricing details. Gated the same as the other
                                     // admin-only cards further down — a cleaner has their own
                                     // "Chat with Customer" inside JobWizard already, and the
@@ -6454,13 +6456,21 @@ export default function Home() {
                                     // server-side anyway (see canAccessThread in
                                     // app/api/chat/support), so showing it here would just be a
                                     // card that silently 403s for them.
-                                    <div className="shrink-0">
-                                        <UnifiedActivityTimeline
-                                            booking={b}
-                                            getAuthHeaders={getAuthHeaders}
-                                            currentActorId={currentUser?.uid}
-                                            onViewProfile={() => openCustomerProfile(b)}
-                                        />
+                                    <div className="shrink-0 flex flex-col gap-4 lg:flex-row lg:items-start">
+                                        <div className="min-w-0 lg:flex-1">
+                                            <UnifiedActivityTimeline
+                                                booking={b}
+                                                getAuthHeaders={getAuthHeaders}
+                                                currentActorId={currentUser?.uid}
+                                            />
+                                        </div>
+                                        <div className="lg:w-[300px] lg:shrink-0">
+                                            <QuickFactsPanel
+                                                booking={b}
+                                                getAuthHeaders={getAuthHeaders}
+                                                onViewProfile={() => openCustomerProfile(b)}
+                                            />
+                                        </div>
                                     </div>
                                 )}
 
@@ -6501,31 +6511,6 @@ export default function Home() {
                                         </div>
                                     );
                                 })()}
-
-                                {!isCleanerSelfServiceView && (
-                                    <div className="detail-card">
-                                        <div className="detail-card-title">👤 Client Information</div>
-                                        <div className="detail-card-grid">
-                                            <div className="detail-row">
-                                                <span className="detail-label">Full Name</span>
-                                                <span className="detail-value bold">{b.clientName || `${b.firstName || ''} ${b.lastName || ''}`.trim()}</span>
-                                            </div>
-                                            <div className="detail-row">
-                                                <span className="detail-label">Phone</span>
-                                                <span className="detail-value flex items-center gap-2">
-                                                    {b.phone || '—'}
-                                                    {b.phone && (
-                                                        <CallButton phone={b.phone} bookingId={b.id} getAuthHeaders={getAuthHeaders} />
-                                                    )}
-                                                </span>
-                                            </div>
-                                            <div className="detail-row full-width">
-                                                <span className="detail-label">Email</span>
-                                                <span className="detail-value">{b.email || '—'}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
 
                                 {/* Address */}
                                 <div className="detail-card">

@@ -1834,7 +1834,11 @@ label {
 }
 
 .modal-content-details {
-    max-width: 640px;
+    /* Widened for the timeline + Quick Facts side-by-side layout — the old
+       640px was sized for a single stacked column and made a 2-column
+       layout impossibly cramped. The mobile media query further down
+       overrides this back to 100vw regardless, so this only affects desktop. */
+    max-width: 1180px;
     width: 95%;
 }
 

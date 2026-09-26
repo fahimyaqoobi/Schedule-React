@@ -362,7 +362,7 @@ export async function POST(request) {
             createdBy: user.email,
             auditLog: appendBookingAuditLog([], {
                 type: "created",
-                by: user.email || user.uid,
+                by: user.name || user.email || user.uid,
                 summary: promoDiscount > 0
                     ? `Booking created as ${bookingStatus} · ${appliedPromo?.name || requestedPromoCode} saved $${promoDiscount.toFixed(2)}`
                     : `Booking created as ${bookingStatus}`,
@@ -386,7 +386,7 @@ export async function POST(request) {
         await appendJobActivityMessage(adminDb, {
             bookingId: id,
             summary: newBooking.auditLog[newBooking.auditLog.length - 1].summary,
-            by: user.email || user.uid
+            by: user.name || user.email || user.uid
         });
         return NextResponse.json({ message: "Booking created successfully", booking: newBooking }, { status: 200 });
     } catch (err) {
@@ -538,13 +538,13 @@ export async function PUT(request) {
                 servicePriceOverride: overrideRequested ? {
                     active: true,
                     at: new Date().toISOString(),
-                    by: user.email || user.uid
+                    by: user.name || user.email || user.uid
                 } : catalogEditRequested ? null : originalData.servicePriceOverride || null,
                 updatedAt: new Date().toISOString(),
                 updatedBy: user.email,
                 auditLog: appendBookingAuditLog(originalData.auditLog, {
                     type: overrideRequested ? "service_price_override" : catalogEditRequested ? "catalog_service_update" : "updated",
-                    by: user.email || user.uid,
+                    by: user.name || user.email || user.uid,
                     summary: overrideRequested
                         ? "Super Admin manually overrode service name or price"
                         : catalogEditRequested
@@ -580,7 +580,7 @@ export async function PUT(request) {
             await appendJobActivityMessage(adminDb, {
                 bookingId: updatedBooking.id,
                 summary: chatActivitySummary,
-                by: user.email || user.uid
+                by: user.name || user.email || user.uid
             });
 
             // Every completed job creates/refreshes its financial record —

@@ -202,7 +202,7 @@ export async function POST(request) {
             documentLastSentBy: user.email,
             auditLog: appendAuditLog(booking.auditLog, {
                 type: "document_sent",
-                by: user.email || user.uid,
+                by: user.name || user.email || user.uid,
                 summary: `${documentLabel} sent to client`,
                 status: booking.status,
                 paymentStatus: booking.paymentStatus || "unpaid"
@@ -211,7 +211,7 @@ export async function POST(request) {
         await appendJobActivityMessage(adminDb, {
             bookingId,
             summary: `${documentLabel} sent to client`,
-            by: user.email || user.uid
+            by: user.name || user.email || user.uid
         });
 
         return NextResponse.json({ message: `${documentLabel} sent to ${booking.email}.` });

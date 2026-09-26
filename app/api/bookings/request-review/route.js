@@ -86,7 +86,7 @@ export async function POST(request) {
         await appendJobActivityMessage(adminDb, {
             bookingId,
             summary: `Review request sent to customer (${sentTo.join(" + ")})`,
-            by: user.email || user.uid,
+            by: user.name || user.email || user.uid,
         });
 
         return NextResponse.json({ message: "Review request sent.", sentTo }, { status: 200 });
