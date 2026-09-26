@@ -72,6 +72,17 @@ export default function ChatPanel({
                                     <span className="text-sm text-muted-foreground">
                                         <span aria-hidden="true">🔔 </span>{m.text}
                                     </span>
+                                    {m.attachment?.url && (
+                                        <a
+                                            href={m.attachment.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="mt-1 inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/50 px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted"
+                                        >
+                                            <span aria-hidden="true">📄</span>
+                                            {m.attachment.name || "View PDF"}
+                                        </a>
+                                    )}
                                     <span className="text-xs text-muted-foreground/70">{m.senderName ? `${m.senderName} · ` : ""}{formatTime(m.createdAt)}</span>
                                 </div>
                             );

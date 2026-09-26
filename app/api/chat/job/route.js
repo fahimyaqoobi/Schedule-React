@@ -33,7 +33,14 @@ export async function GET(request) {
         }
 
         const messagesSnap = await adminDb.collection("jobChatMessages").where("bookingId", "==", bookingId).get();
-        const messages = messagesSnap.docs.map(doc => doc.data()).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+        let messages = messagesSnap.docs.map(doc => doc.data()).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+
+        // A cleaner's own job chat still shows every system line (status
+        // changes, "invoice sent", etc.) but never the actual PDF snapshot —
+        // those documents show pricing, which is admin/branch-admin-only.
+        if (actor.kind === "cleaner") {
+            messages = messages.map(({ attachment, ...rest }) => rest);
+        }
 
         return NextResponse.json({
             messages,
