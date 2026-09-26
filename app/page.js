@@ -6455,26 +6455,34 @@ export default function Home() {
                 return (
                     <div className="modal-backdrop show">
                         <div className="modal-content modal-content-details animate-pop">
-                            {/* Header */}
-                            <div className="modal-header modal-header-brand modal-header-compact">
-                                <div className="modal-title-stack">
-                                    <h3 className="modal-title-inverse">
-                                        {isCleanerSelfServiceView ? "Job Details" : `${getBookingDocumentType(b)} Preview`}
-                                    </h3>
-                                    <p className="modal-subtitle-inverse">
-                                        {getBookingDocumentNumber(b)} · {b.date} · {b.time} · {b.duration}h
-                                    </p>
+                            {/* Header — a light card-colored bar with an avatar, matching the
+                                reference layout, instead of the tiny-uppercase dark brand bar
+                                used elsewhere: this modal is read constantly during a shift, so
+                                the client's name gets to be the biggest thing in it. */}
+                            <div className="modal-header modal-header-light modal-header-compact">
+                                <div className="flex min-w-0 items-center gap-3">
+                                    <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                                        {getInitials(b.clientName)}
+                                    </span>
+                                    <div className="min-w-0">
+                                        <h3 className="truncate text-lg font-bold text-foreground">
+                                            {isCleanerSelfServiceView ? "Job Details" : (b.clientName || `${getBookingDocumentType(b)} Preview`)}
+                                        </h3>
+                                        <p className="truncate text-sm text-muted-foreground">
+                                            {getBookingDocumentType(b)} · {getBookingDocumentNumber(b)} · {b.date} · {b.time} · {b.duration}h
+                                        </p>
+                                    </div>
                                 </div>
                                 <div className="modal-header-actions">
                                     {masterFlowAction && (
-                                        <button onClick={masterFlowAction.onClick} className="btn btn-sm" style={{ background: "#78A53E", color: "#fff", fontWeight: 700 }}>
+                                        <button onClick={masterFlowAction.onClick} className="btn btn-sm" style={{ background: "#78A53E", color: "#fff", fontWeight: 700, borderRadius: 999 }}>
                                             {masterFlowAction.label}
                                         </button>
                                     )}
                                     <span className={`detail-status-pill ${statusClassName(b.status)}`}>
                                         {b.status || 'Pending'}
                                     </span>
-                                    <button onClick={() => setDetailsModalOpen(false)} className="modal-close-btn" aria-label="Close">
+                                    <button onClick={() => setDetailsModalOpen(false)} className="modal-close-btn modal-close-btn-dark" aria-label="Close">
                                         <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="1" y1="1" x2="13" y2="13" /><line x1="13" y1="1" x2="1" y2="13" /></svg>
                                     </button>
                                 </div>

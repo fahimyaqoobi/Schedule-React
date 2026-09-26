@@ -1956,6 +1956,28 @@ label {
     transform: scale(1.1);
 }
 
+/* Light-header variant of the two blocks above, for modals that use a
+   white/card-colored header (Booking Preview, Customer Profile) instead of
+   the dark brand bar — the white-on-white default close button is nearly
+   invisible there. Higher specificity than the base rules above so it wins
+   regardless of source order when both classes are applied together. */
+.modal-header-light {
+    background: var(--card, #ffffff);
+    border-bottom: 1px solid var(--card-border);
+}
+
+.modal-close-btn.modal-close-btn-dark {
+    background: transparent;
+    border: 1.5px solid var(--card-border);
+    color: var(--text-secondary, #64748b);
+}
+
+.modal-close-btn.modal-close-btn-dark:hover {
+    background: #f1f5f9;
+    color: #0f172a;
+    transform: scale(1.1);
+}
+
 .modal-body {
     padding: 24px;
 }

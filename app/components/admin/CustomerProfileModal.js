@@ -123,19 +123,27 @@ export default function CustomerProfileModal({ customerKey, getAuthHeaders, curr
     return (
         <div className="modal-backdrop show" onClick={onClose}>
             <div className="modal-content animate-pop" style={{ maxWidth: 780 }} onClick={e => e.stopPropagation()}>
-                <div className="modal-header">
-                    <h3>{loading ? "Loading customer…" : record?.name || "Customer Profile"}</h3>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div className="modal-header modal-header-light">
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+                        <span style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 44, height: 44, flexShrink: 0, borderRadius: "50%", background: "rgba(0,86,145,0.1)", color: "var(--color-brand-deep)", fontWeight: 800, fontSize: 14 }}>
+                            {(record?.name || "?").split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)}
+                        </span>
+                        <div style={{ minWidth: 0 }}>
+                            <h3 style={{ margin: 0 }}>{loading ? "Loading customer…" : record?.name || "Customer Profile"}</h3>
+                            {!loading && record && <p style={{ margin: 0, fontSize: 12, color: "var(--text-secondary)", fontWeight: 600 }}>Customer profile &amp; conversation history</p>}
+                        </div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
                         {!loading && record && onAddBooking && (
                             <button
                                 onClick={() => onAddBooking(record)}
                                 className="btn btn-sm"
-                                style={{ background: "#78A53E", color: "#fff", fontWeight: 700 }}
+                                style={{ background: "#78A53E", color: "#fff", fontWeight: 700, borderRadius: 999 }}
                             >
                                 + New Booking
                             </button>
                         )}
-                        <button onClick={onClose} className="modal-close-btn">✕</button>
+                        <button onClick={onClose} className="modal-close-btn modal-close-btn-dark">✕</button>
                     </div>
                 </div>
                 <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -159,7 +167,7 @@ export default function CustomerProfileModal({ customerKey, getAuthHeaders, curr
                                     ["Promo Uses", record.promoUsageCount],
                                     ["Upcoming", record.upcomingCount],
                                 ].map(([label, value]) => (
-                                    <div key={label} style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: "10px 12px" }}>
+                                    <div key={label} style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 16, padding: "12px 14px" }}>
                                         <div style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase" }}>{label}</div>
                                         <div style={{ fontSize: 17, fontWeight: 800, color: value && String(value).includes("$") && label === "Balance Owing" && record.totalOwing > 0 ? "#dc2626" : "#1e293b" }}>{value}</div>
                                     </div>
