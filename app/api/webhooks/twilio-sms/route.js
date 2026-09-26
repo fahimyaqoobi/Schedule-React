@@ -19,9 +19,11 @@ function todayStr() {
 }
 
 // A reply that arrives the same day as an open job is almost always about
-// that job, not a general question — so it's routed there instead of the
-// persistent inbox. Ambiguous (zero, or more than one, matching today) falls
-// back to the persistent thread rather than guessing wrong.
+// that job, not a general question — so a CLEANER's reply is still routed
+// there instead of the persistent inbox (a cleaner can be on different
+// customers' jobs day to day, so job-specific context matters for them).
+// Ambiguous (zero, or more than one, matching today) falls back to the
+// persistent thread rather than guessing wrong.
 async function findTodaysJobForCleaner(uid) {
     const snap = await adminDb.collection("bookings")
         .where("assignedStaffIds", "array-contains", uid)
@@ -31,18 +33,17 @@ async function findTodaysJobForCleaner(uid) {
     return candidates.length === 1 ? candidates[0] : null;
 }
 
-async function findTodaysJobForCustomerPhone(phone) {
-    const snap = await adminDb.collection("bookings").where("date", "==", todayStr()).get();
-    const candidates = snap.docs
-        .map(d => d.data())
-        .filter(b => !JOB_CHAT_LOCKED_STATUSES.has(b.status) && normalizePhone(b.phone || b.customerPortalPhone || "") === phone);
-    return candidates.length === 1 ? candidates[0] : null;
-}
-
 // A cleaner or customer replies to a text they got from us — this is the
-// other half of two-way SMS: the reply comes back in here and lands in the
-// exact same thread (job-specific if there's an open job today, otherwise
-// the persistent support thread) as if they'd typed it in the app.
+// other half of two-way SMS. A cleaner's reply still routes to today's job
+// if there's exactly one unambiguous match, same as before. A CUSTOMER's
+// reply always goes to their one persistent thread now, full stop — this
+// used to also check for "an open job today" and route there instead,
+// which was the exact bug reported: a customer's message would land on a
+// job-specific thread some days and the persistent one on others, purely
+// depending on whether they happened to have a job scheduled that same day.
+// One customer, one thread, always — CustomerChatCard (in the booking view)
+// and the Customer Profile modal both read this exact same thread, so a
+// message shows up in both places regardless of which job (if any) prompted it.
 export async function POST(request) {
     const authToken = process.env.TWILIO_AUTH_TOKEN;
     const formData = await request.formData();
@@ -93,25 +94,14 @@ export async function POST(request) {
                 });
             }
         } else {
-            const todaysJob = await findTodaysJobForCustomerPhone(fromPhone);
-            if (todaysJob) {
-                await appendJobChatMessage(adminDb, {
-                    booking: todaysJob,
-                    senderKind: "customer",
-                    senderId: fromPhone,
-                    senderName: todaysJob.clientName || "Customer",
-                    text: body,
-                });
-            } else {
-                await appendSupportMessage(adminDb, {
-                    type: "customer",
-                    refId: fromPhone,
-                    senderKind: "customer",
-                    senderId: fromPhone,
-                    senderName: "Customer",
-                    text: body,
-                });
-            }
+            await appendSupportMessage(adminDb, {
+                type: "customer",
+                refId: fromPhone,
+                senderKind: "customer",
+                senderId: fromPhone,
+                senderName: "Customer",
+                text: body,
+            });
         }
 
         return emptyTwiml();

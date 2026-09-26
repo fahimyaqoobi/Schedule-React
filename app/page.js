@@ -33,7 +33,7 @@ import {
     normalizeStaffProfile,
     STAFF_SELF_SERVICE_ROLES
 } from "../lib/staffProfiles";
-import { calculatePayrollBreakdown, getPayPeriod } from "../lib/payroll";
+import { calculatePayrollBreakdown, getPayPeriod, getPayPeriodFromKey } from "../lib/payroll";
 import { getZonedDateKey, formatZonedDate, formatZonedDateTime, zonedDatetimeLocalToIso } from "../lib/timezone";
 import {
     buildBookingDocumentHtml,
@@ -72,7 +72,7 @@ import CustomersTab from "./components/admin/tabs/CustomersTab";
 import MessagesTab from "./components/admin/tabs/MessagesTab";
 import CustomerProfileModal from "./components/admin/CustomerProfileModal";
 import FinanceTab from "./components/admin/tabs/FinanceTab";
-import JobChatCard from "./components/shared/JobChatCard";
+import UnifiedActivityTimeline from "./components/shared/UnifiedActivityTimeline";
 import GoogleLeadReplyCard from "./components/shared/GoogleLeadReplyCard";
 import ReviewRequestCard from "./components/shared/ReviewRequestCard";
 import CallButton from "./components/shared/CallButton";
@@ -82,7 +82,7 @@ import CleanerNav, { CLEANER_NAV_TABS } from "./components/cleaner/CleanerNav";
 import JobWizard from "./components/cleaner/JobWizard";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { customerKeyForBooking } from "../lib/phone";
+import { customerKeyForBooking, normalizePhone } from "../lib/phone";
 
 const V2SettingsManager = dynamic(() => import("./components/V2SettingsManager"), {
     ssr: false,
@@ -1396,6 +1396,49 @@ export default function Home() {
             grossPay
         };
     }, [cleanerPayPeriod, ownTimeEntries]);
+
+    // Past pay periods a cleaner can look back on — only ones an admin has
+    // actually marked Paid (see app/api/payroll-periods, which now scopes a
+    // non-admin caller to their own paid-only records). A period that's
+    // finished but not yet processed simply doesn't appear, rather than
+    // showing an unsettled "Pending" number before payroll has confirmed it.
+    const [paidPayPeriods, setPaidPayPeriods] = useState([]);
+    useEffect(() => {
+        if (!currentUser || !isCleanerSelfServiceView) return;
+        (async () => {
+            try {
+                const headers = await getAuthHeaders();
+                const res = await fetch("/api/payroll-periods", { headers });
+                if (res.ok) setPaidPayPeriods(await res.json());
+            } catch {
+                // Non-critical — the current period above still works either way.
+            }
+        })();
+    }, [currentUser, isCleanerSelfServiceView, getAuthHeaders]);
+
+    const pastPayPeriodsSummary = useMemo(() => {
+        return paidPayPeriods
+            .map(record => {
+                const period = getPayPeriodFromKey(record.periodKey);
+                if (!period) return null;
+                const entries = ownTimeEntries.filter(entry => {
+                    const started = new Date(entry.startedAt || entry.createdAt || 0).getTime();
+                    return started >= period.periodStart.getTime()
+                        && started <= period.cutoffDate.getTime()
+                        && entry.status !== "rejected";
+                });
+                return {
+                    periodKey: record.periodKey,
+                    label: record.periodLabel || period.label,
+                    paidAt: record.paidAt,
+                    totalMinutes: entries.reduce((sum, e) => sum + Number(e.durationMinutes || 0), 0),
+                    grossPay: entries.reduce((sum, e) => sum + Number(e.grossPayEstimate || 0), 0),
+                };
+            })
+            .filter(Boolean)
+            .sort((a, b) => b.periodKey.localeCompare(a.periodKey))
+            .slice(0, 6);
+    }, [paidPayPeriods, ownTimeEntries]);
 
     const payrollSummary = useMemo(() => {
         const pending = timeEntries.filter(entry => entry.status === "pending_approval");
@@ -5192,6 +5235,7 @@ export default function Home() {
                         isCleanerSelfServiceView={true}
                         cleanerPayPeriod={cleanerPayPeriod}
                         weeklyTimeSummary={weeklyTimeSummary}
+                        pastPayPeriodsSummary={pastPayPeriodsSummary}
                         Icons={Icons}
                         activeTimeEntry={activeTimeEntry}
                         timeEntrySaving={timeEntrySaving}
@@ -6308,6 +6352,57 @@ export default function Home() {
                 const hasExtras = extrasEntries.length > 0;
                 // Same breakdown builder the PDF uses — identical numbers everywhere.
                 const priceBreakdown = buildDocumentPricingBreakdown(b, b.companySnapshot || {});
+
+                // The Master Flow Button — one obvious next step for wherever this
+                // job currently sits, instead of hunting through Edit for the right
+                // status to pick. Deliberately built on top of the exact same
+                // status field and endpoints the rest of the app already uses
+                // (handleQuickBookingUpdate, handleApproveBooking,
+                // handleSendBookingDocument) — nothing new underneath, and the old
+                // manual Edit/status controls in the footer below are untouched, so
+                // there's always a manual fallback if a job needs to skip a step.
+                // "Start Job"/"Complete Job" only ever touch `jobStartedAt` and
+                // `status` — never the booking's date or schedule.
+                const masterFlowAction = (() => {
+                    if (isCleanerSelfServiceView || b.status === "Cancelled") return null;
+                    if (["Lead", "Follow Up"].includes(b.status)) {
+                        return {
+                            label: "📤 Send Estimate",
+                            onClick: async () => {
+                                await handleSendBookingDocument(b);
+                                await handleQuickBookingUpdate(b.id, { status: "Quote" });
+                            },
+                        };
+                    }
+                    if (b.status === "Quote") {
+                        return {
+                            label: "✅ Mark Accepted",
+                            onClick: () => handleQuickBookingUpdate(b.id, { status: "Pending" }),
+                        };
+                    }
+                    if (b.status === "Pending") {
+                        return b.customerConfirmed
+                            ? { label: "✓ Approve Job", onClick: () => handleApproveBooking(b) }
+                            : { label: "Confirm Booking", onClick: () => handleQuickBookingUpdate(b.id, { status: "Confirmed" }) };
+                    }
+                    if (b.status === "Confirmed" && !b.jobStartedAt) {
+                        return {
+                            label: "▶ Start Job",
+                            onClick: () => handleQuickBookingUpdate(b.id, { jobStartedAt: new Date().toISOString() }),
+                        };
+                    }
+                    if (b.status === "Confirmed" && b.jobStartedAt) {
+                        return {
+                            label: "🏁 Complete Job",
+                            onClick: () => {
+                                if (!window.confirm(`Mark this job Completed at $${Number(b.price || 0).toFixed(2)}? If there are add-ons or a price change, use Edit first — this locks in the invoice at the current price.`)) return;
+                                handleQuickBookingUpdate(b.id, { status: "Completed" });
+                            },
+                        };
+                    }
+                    return null; // Completed — nothing further to advance to from here.
+                })();
+
                 return (
                     <div className="modal-backdrop show">
                         <div className="modal-content modal-content-details animate-pop">
@@ -6322,6 +6417,11 @@ export default function Home() {
                                     </p>
                                 </div>
                                 <div className="modal-header-actions">
+                                    {masterFlowAction && (
+                                        <button onClick={masterFlowAction.onClick} className="btn btn-sm" style={{ background: "#78A53E", color: "#fff", fontWeight: 700 }}>
+                                            {masterFlowAction.label}
+                                        </button>
+                                    )}
                                     <span className={`detail-status-pill ${statusClassName(b.status)}`}>
                                         {b.status || 'Pending'}
                                     </span>
@@ -6333,6 +6433,36 @@ export default function Home() {
 
                             {/* Body */}
                             <div className="modal-body modal-body-scroll">
+
+                                {detailsModalOpen && !isCleanerSelfServiceView && (
+                                    // shrink-0: this modal's body is a flex column with a capped
+                                    // max-height (.modal-body-scroll), so it scrolls once content
+                                    // overflows. UnifiedActivityTimeline is a shadcn <Card>, which
+                                    // sets overflow-hidden — that makes a flex item's auto
+                                    // min-height collapse to 0, so without shrink-0 the flexbox
+                                    // shrink algorithm crushes it down to little more than its
+                                    // header instead of letting the modal scroll to show it (the
+                                    // plain .detail-card siblings below aren't flex items with
+                                    // overflow-hidden, so they were never affected).
+                                    //
+                                    // Placed first, right under the header — this is the primary,
+                                    // most-used part of the modal now, not something buried below
+                                    // service/pricing details. Gated the same as the other
+                                    // admin-only cards further down — a cleaner has their own
+                                    // "Chat with Customer" inside JobWizard already, and the
+                                    // persistent side of this thread is staff/sales-only
+                                    // server-side anyway (see canAccessThread in
+                                    // app/api/chat/support), so showing it here would just be a
+                                    // card that silently 403s for them.
+                                    <div className="shrink-0">
+                                        <UnifiedActivityTimeline
+                                            booking={b}
+                                            getAuthHeaders={getAuthHeaders}
+                                            currentActorId={currentUser?.uid}
+                                            onViewProfile={() => openCustomerProfile(b)}
+                                        />
+                                    </div>
+                                )}
 
                                 {isCleanerSelfServiceView && b.status === "Confirmed" && (() => {
                                     const myResponse = b.assignedStaffConfirmations?.[currentUser?.uid]?.status || "pending";
@@ -6630,27 +6760,9 @@ export default function Home() {
                                     </div>
                                 </div>
 
-                                {detailsModalOpen && (
-                                    // shrink-0: this modal's body is a flex column with a capped
-                                    // max-height (.modal-body-scroll), so it scrolls once content
-                                    // overflows. JobChatCard is a shadcn <Card>, which sets
-                                    // overflow-hidden — that makes a flex item's auto min-height
-                                    // collapse to 0, so without shrink-0 the flexbox shrink
-                                    // algorithm crushes it down to little more than its header
-                                    // instead of letting the modal scroll to show it (the plain
-                                    // .detail-card siblings above aren't flex items with
-                                    // overflow-hidden, so they were never affected).
-                                    <div className="shrink-0">
-                                        <JobChatCard
-                                            bookingId={b.id}
-                                            getAuthHeaders={getAuthHeaders}
-                                            currentActorId={currentUser?.uid}
-                                        />
-                                    </div>
-                                )}
 
                                 {detailsModalOpen && !isCleanerSelfServiceView && b.leadSource === "Google" && b.googleGmail?.threadId && (
-                                    // Same shrink-0 fix as JobChatCard above — this is also a
+                                    // Same shrink-0 fix as CustomerChatCard above — this is also a
                                     // shadcn Card in the same flex column.
                                     <div className="shrink-0">
                                         <GoogleLeadReplyCard

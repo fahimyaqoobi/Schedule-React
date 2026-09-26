@@ -15,9 +15,24 @@ async function authenticateRequest(request) {
 export async function GET(request) {
     try {
         const user = await authenticateRequest(request);
-        if (!canManageBranch(user)) return NextResponse.json({ error: "Admins only." }, { status: 403 });
         const { searchParams } = new URL(request.url);
         const periodKey = searchParams.get("periodKey");
+
+        if (!canManageBranch(user)) {
+            // Self-service: a cleaner can see their OWN paid periods — never
+            // anyone else's, and never a "pending" one (that's an unsettled
+            // number an admin hasn't confirmed yet, not something to show
+            // someone waiting to be paid). Any periodKey filter they pass is
+            // ignored; this is always scoped to their own record.
+            const snap = await adminDb.collection("payrollPeriods")
+                .where("cleanerUid", "==", user.uid)
+                .where("status", "==", "paid")
+                .get();
+            const records = [];
+            snap.forEach(doc => records.push(doc.data()));
+            return NextResponse.json(records);
+        }
+
         let query = adminDb.collection("payrollPeriods");
         if (periodKey) query = query.where("periodKey", "==", periodKey);
         const snap = await query.get();

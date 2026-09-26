@@ -11,6 +11,7 @@ export default function JobsPayrollTab({
     isCleanerSelfServiceView,
     cleanerPayPeriod,
     weeklyTimeSummary,
+    pastPayPeriodsSummary,
     Icons,
     activeTimeEntry,
     timeEntrySaving,
@@ -75,6 +76,23 @@ export default function JobsPayrollTab({
                             </div>
                         </CardContent>
                     </Card>
+
+                    {pastPayPeriodsSummary?.length > 0 && (
+                        <Card>
+                            <CardContent className="flex flex-col gap-3 p-5">
+                                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Previous Pay Periods</p>
+                                {pastPayPeriodsSummary.map(period => (
+                                    <div key={period.periodKey} className="flex items-center justify-between gap-3 rounded-lg border border-border px-3.5 py-2.5">
+                                        <div className="min-w-0">
+                                            <p className="text-sm font-bold text-foreground">{period.label}</p>
+                                            <p className="text-xs text-muted-foreground">{formatDurationMinutes(period.totalMinutes)} · Paid {period.paidAt ? new Date(period.paidAt).toLocaleDateString() : ""}</p>
+                                        </div>
+                                        <span className="text-base font-extrabold text-emerald-600 dark:text-emerald-400">${period.grossPay.toFixed(2)}</span>
+                                    </div>
+                                ))}
+                            </CardContent>
+                        </Card>
+                    )}
 
                     <Card>
                         <CardContent className="flex flex-col items-center gap-4 p-6 text-center">
