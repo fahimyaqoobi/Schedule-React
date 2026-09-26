@@ -75,6 +75,7 @@ import FinanceTab from "./components/admin/tabs/FinanceTab";
 import JobChatCard from "./components/shared/JobChatCard";
 import GoogleLeadReplyCard from "./components/shared/GoogleLeadReplyCard";
 import ReviewRequestCard from "./components/shared/ReviewRequestCard";
+import CallButton from "./components/shared/CallButton";
 import ChatHub from "./components/shared/ChatHub";
 import NotificationBell from "./components/shared/NotificationBell";
 import CleanerNav, { CLEANER_NAV_TABS } from "./components/cleaner/CleanerNav";
@@ -6381,7 +6382,12 @@ export default function Home() {
                                             </div>
                                             <div className="detail-row">
                                                 <span className="detail-label">Phone</span>
-                                                <span className="detail-value">{b.phone || '—'}</span>
+                                                <span className="detail-value flex items-center gap-2">
+                                                    {b.phone || '—'}
+                                                    {b.phone && (
+                                                        <CallButton phone={b.phone} bookingId={b.id} getAuthHeaders={getAuthHeaders} />
+                                                    )}
+                                                </span>
                                             </div>
                                             <div className="detail-row full-width">
                                                 <span className="detail-label">Email</span>

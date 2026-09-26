@@ -13,6 +13,7 @@
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/utilities": "^3.2.2",
     "@react-google-maps/api": "^2.20.8",
+    "@twilio/voice-sdk": "^2.18.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "firebase": "^12.14.0",
