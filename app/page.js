@@ -2736,7 +2736,16 @@ export default function Home() {
 
     const openCustomerProfile = useCallback((booking) => {
         const key = customerKeyForBooking(booking);
-        if (key) setCrmCustomerKey(key);
+        if (!key) return;
+        // Both modals share the same .modal-backdrop z-index, so whichever
+        // is LATER in the JSX/DOM always paints on top regardless of which
+        // one was opened more recently — the Booking Preview modal renders
+        // after this one in the tree, so opening Customer Profile while the
+        // booking modal was still open made it appear stuck behind it.
+        // Closing the booking modal first removes the stacking conflict
+        // entirely rather than fighting it with a z-index override.
+        setDetailsModalOpen(false);
+        setCrmCustomerKey(key);
     }, []);
 
     // ----------------------------------------------------
@@ -6434,46 +6443,6 @@ export default function Home() {
                             {/* Body */}
                             <div className="modal-body modal-body-scroll">
 
-                                {detailsModalOpen && !isCleanerSelfServiceView && (
-                                    // shrink-0: this modal's body is a flex column with a capped
-                                    // max-height (.modal-body-scroll), so it scrolls once content
-                                    // overflows. UnifiedActivityTimeline/QuickFactsPanel are shadcn
-                                    // <Card>s, which set overflow-hidden — that makes a flex item's
-                                    // auto min-height collapse to 0, so without shrink-0 the flexbox
-                                    // shrink algorithm crushes them down to little more than their
-                                    // header instead of letting the modal scroll to show them (the
-                                    // plain .detail-card siblings below aren't flex items with
-                                    // overflow-hidden, so they were never affected).
-                                    //
-                                    // Timeline + Quick Facts side by side, matching the reference
-                                    // layout — stacks to one column on narrow screens. Placed first,
-                                    // right under the header, since this is the primary, most-used
-                                    // part of the modal now, not something buried below
-                                    // service/pricing details. Gated the same as the other
-                                    // admin-only cards further down — a cleaner has their own
-                                    // "Chat with Customer" inside JobWizard already, and the
-                                    // persistent side of this thread is staff/sales-only
-                                    // server-side anyway (see canAccessThread in
-                                    // app/api/chat/support), so showing it here would just be a
-                                    // card that silently 403s for them.
-                                    <div className="shrink-0 flex flex-col gap-4 lg:flex-row lg:items-start">
-                                        <div className="min-w-0 lg:flex-1">
-                                            <UnifiedActivityTimeline
-                                                booking={b}
-                                                getAuthHeaders={getAuthHeaders}
-                                                currentActorId={currentUser?.uid}
-                                            />
-                                        </div>
-                                        <div className="lg:w-[300px] lg:shrink-0">
-                                            <QuickFactsPanel
-                                                booking={b}
-                                                getAuthHeaders={getAuthHeaders}
-                                                onViewProfile={() => openCustomerProfile(b)}
-                                            />
-                                        </div>
-                                    </div>
-                                )}
-
                                 {isCleanerSelfServiceView && b.status === "Confirmed" && (() => {
                                     const myResponse = b.assignedStaffConfirmations?.[currentUser?.uid]?.status || "pending";
                                     const tone = myResponse === "declined"
@@ -6511,6 +6480,41 @@ export default function Home() {
                                         </div>
                                     );
                                 })()}
+
+                                {detailsModalOpen && !isCleanerSelfServiceView && (() => {
+                                    // Three columns, matching the reference layout: contact/customer
+                                    // facts on the left, the unified timeline (the primary, most-used
+                                    // part of the modal) in the center, and the booking's own details
+                                    // — address, service, pricing, notes, plus the Google Lead and
+                                    // Review cards — stacked on the right. Stacks to one column on
+                                    // narrow screens. shrink-0 on the whole row and on each shadcn
+                                    // <Card> inside it: this modal's body is a flex column with a
+                                    // capped max-height (.modal-body-scroll) that scrolls once content
+                                    // overflows, and a Card's overflow-hidden makes a flex item's auto
+                                    // min-height collapse to 0 — without shrink-0 the flexbox shrink
+                                    // algorithm crushes a Card down to little more than its header
+                                    // instead of letting the modal scroll to show it (plain
+                                    // .detail-card blocks aren't flex items with overflow-hidden, so
+                                    // they were never affected and don't need it).
+                                    return (
+                                <div className="shrink-0 flex flex-col gap-4 lg:flex-row lg:items-start">
+                                    <div className="lg:w-[280px] lg:shrink-0 shrink-0">
+                                        <QuickFactsPanel
+                                            booking={b}
+                                            getAuthHeaders={getAuthHeaders}
+                                            onViewProfile={() => openCustomerProfile(b)}
+                                        />
+                                    </div>
+
+                                    <div className="min-w-0 lg:flex-1 shrink-0">
+                                        <UnifiedActivityTimeline
+                                            booking={b}
+                                            getAuthHeaders={getAuthHeaders}
+                                            currentActorId={currentUser?.uid}
+                                        />
+                                    </div>
+
+                                    <div className="lg:w-[320px] lg:shrink-0 flex flex-col gap-4">
 
                                 {/* Address */}
                                 <div className="detail-card">
@@ -6788,6 +6792,11 @@ export default function Home() {
                                         />
                                     </div>
                                 )}
+
+                                    </div>
+                                </div>
+                                    );
+                                })()}
 
                             </div>
 
