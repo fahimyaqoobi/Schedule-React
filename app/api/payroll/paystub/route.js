@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { adminAuth, adminDb } from "../../../../lib/firebase-admin";
 import { canManageBranch, getRoleLabel } from "../../../../lib/permissions";
-import { calculatePayrollBreakdown, getPayPeriodFromKey } from "../../../../lib/payroll";
+import { calculateBiweeklyPayrollBreakdown, getPayPeriodFromKey } from "../../../../lib/payroll";
 import { getBranchById } from "../../../../lib/branches";
+import { getZonedDateKey } from "../../../../lib/timezone";
 import { buildPaystubPdf } from "../../../../lib/paystubPdf";
 
 async function authenticateRequest(request) {
@@ -83,8 +84,15 @@ export async function GET(request) {
         const overtimeAfterHours = Number(employment.overtimeAfterHours ?? entries[0]?.overtimeAfterHours ?? 44);
         const bonusAmount = Number(employment.bonusAmount ?? 0);
 
-        const totalMinutes = entries.reduce((sum, e) => sum + Number(e.durationMinutes || 0), 0);
-        const breakdown = calculatePayrollBreakdown(totalMinutes, {
+        // Grouped by calendar day (branch-local), same as the Payroll tab's
+        // own breakdown, so overtime is checked per week rather than against
+        // the whole 2-week total — see calculateBiweeklyPayrollBreakdown.
+        const minutesByDate = {};
+        entries.forEach((e) => {
+            const dateKey = e.startedAt ? getZonedDateKey(new Date(e.startedAt)) : (e.bookingDate || "").slice(0, 10);
+            if (dateKey) minutesByDate[dateKey] = (minutesByDate[dateKey] || 0) + Number(e.durationMinutes || 0);
+        });
+        const breakdown = calculateBiweeklyPayrollBreakdown(minutesByDate, period.periodStart, {
             hourlyRate: payRate,
             overtimeRate,
             overtimeAfterHours,

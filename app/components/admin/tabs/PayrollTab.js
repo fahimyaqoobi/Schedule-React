@@ -1,6 +1,6 @@
 "use client";
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { calculatePayrollBreakdown, getPayPeriod } from "../../../../lib/payroll";
+import { calculateBiweeklyPayrollBreakdown, getPayPeriod } from "../../../../lib/payroll";
 import { getZonedDateKey, formatZonedDate } from "../../../../lib/timezone";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -93,7 +93,7 @@ export default function PayrollTab({
         });
 
         return Object.values(byPerson).map(p => {
-            const breakdown = calculatePayrollBreakdown(p.totalMinutes, {
+            const breakdown = calculateBiweeklyPayrollBreakdown(p.byDate, period.periodStart, {
                 hourlyRate: p.payRate,
                 overtimeRate: p.overtimeRate,
                 overtimeAfterHours: p.overtimeAfterHours,
