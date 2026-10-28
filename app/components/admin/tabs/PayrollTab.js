@@ -37,6 +37,7 @@ export default function PayrollTab({
     const [saving, setSaving] = useState(false);
     const [feedback, setFeedback] = useState("");
     const [downloadingUid, setDownloadingUid] = useState(null);
+    const [exportingAll, setExportingAll] = useState(false);
 
     const period = useMemo(() => getPayPeriod(periodOffset), [periodOffset]);
 
@@ -176,6 +177,32 @@ export default function PayrollTab({
         a.click();
     }, [rows, period]);
 
+    const handleExportAllCycles = useCallback(async () => {
+        setExportingAll(true);
+        setFeedback("");
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch("/api/payroll/export", { headers });
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                throw new Error(data.error || "Failed to generate export.");
+            }
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `payroll-all-cycles-${getZonedDateKey(new Date())}.xlsx`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            setFeedback(`Error: ${err.message}`);
+        } finally {
+            setExportingAll(false);
+        }
+    }, [getAuthHeaders]);
+
     const toggleExpand = uid => setExpanded(prev => {
         const next = new Set(prev);
         next.has(uid) ? next.delete(uid) : next.add(uid);
@@ -191,6 +218,9 @@ export default function PayrollTab({
                 </div>
                 <div className="flex items-center gap-2.5">
                     <Button variant="outline" size="sm" onClick={handleExportCsv}><Download className="size-3.5" /> Export CSV</Button>
+                    <Button size="sm" onClick={handleExportAllCycles} disabled={exportingAll} title="Every approved shift across all pay cycles, with time in/out, hours and the rate paid, as an Excel file">
+                        <FileDown className={cn("size-3.5", exportingAll && "animate-pulse")} /> {exportingAll ? "Preparing…" : "Export All Cycles (Excel)"}
+                    </Button>
                     <Button variant="outline" size="sm" onClick={() => syncDatabaseData(currentUser)}>Refresh</Button>
                 </div>
             </div>
